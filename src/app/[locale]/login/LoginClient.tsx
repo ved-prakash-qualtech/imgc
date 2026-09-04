@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useState, useTransition } from "react";
 import {
   ArrowRightIcon,
@@ -8,7 +9,6 @@ import {
   EyeOffIcon,
   LockIcon,
   MailIcon,
-  ShieldCheckIcon,
   UserIcon,
 } from "lucide-react";
 
@@ -57,7 +57,7 @@ function FieldLabel({ children }: Readonly<{ children: React.ReactNode }>) {
 }
 
 const INPUT_CLASS =
-  "h-11 w-full rounded-lg border border-white/15 bg-white/8 pl-10 pr-10 text-[14px] text-white placeholder:text-white/55 outline-none transition focus:border-[#2f6df6] focus:bg-white/12 focus:ring-2 focus:ring-[#2f6df6]/30";
+  "h-11 w-full rounded-lg border border-white/15 bg-white/8 pl-10 pr-10 text-[14px] text-white placeholder:text-white/55 outline-none transition focus:border-[#f37819] focus:bg-white/12 focus:ring-2 focus:ring-[#f37819]/30";
 
 export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
   const [step, setStep] = useState<Step>({ kind: "IDENTIFY" });
@@ -158,7 +158,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
        z-index, and without a stacking context here they paint *behind* this
        element's own opaque background — the video and the colour fields were
        rendering, invisibly, under a flat navy rectangle. */
-    <div className="relative isolate min-h-dvh w-full overflow-hidden bg-[#04101f] text-white subpixel-antialiased">
+    <div className="relative isolate min-h-dvh w-full overflow-hidden bg-[#1a120c] text-white subpixel-antialiased">
       {/* ── Backdrop ────────────────────────────────────────────────────
           A looping video rather than a still: the page is the product's
           front door and motion is the cheapest way to make it feel alive.
@@ -174,7 +174,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
            reads as a flat black rectangle. Lifting it here is what makes the
            motion visible at all; the wash below then takes it back down to a
            level white text sits on comfortably. */
-        className="pointer-events-none absolute inset-0 -z-20 size-full object-cover [filter:brightness(1.55)_contrast(1.08)_saturate(1.15)]"
+        className="pointer-events-none absolute inset-0 -z-20 size-full object-cover [filter:brightness(1.4)_contrast(1.05)_saturate(0.55)_sepia(0.25)]"
       >
         <source src="/assets/videos/login-bg.mp4" type="video/mp4" />
       </video>
@@ -184,25 +184,31 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
           left, where the headline sits. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(100deg,rgba(3,12,25,0.90)_0%,rgba(4,18,36,0.62)_45%,rgba(3,12,25,0.72)_100%)]"
+        className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(100deg,rgba(20,12,8,0.94)_0%,rgba(28,17,10,0.78)_45%,rgba(20,12,8,0.85)_100%)]"
       />
 
       {/* Two slow-drifting colour fields. Transform/opacity only. */}
       <div
         aria-hidden
-        className="imgc-drift pointer-events-none absolute -left-40 top-1/4 -z-10 h-[560px] w-[560px] rounded-full bg-[#1272ff]/35 blur-[140px]"
+        className="imgc-drift pointer-events-none absolute -left-40 top-1/4 -z-10 h-[560px] w-[560px] rounded-full bg-[#f37819]/30 blur-[150px]"
       />
       <div
         aria-hidden
-        className="imgc-drift-slow pointer-events-none absolute -right-32 -top-28 -z-10 h-[520px] w-[520px] rounded-full bg-[#12b6a0]/28 blur-[140px]"
+        className="imgc-drift-slow pointer-events-none absolute -right-32 -top-28 -z-10 h-[520px] w-[520px] rounded-full bg-[#d98b2b]/26 blur-[150px]"
       />
 
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[1440px] flex-col px-6 py-6 lg:px-10">
         {/* ── Masthead ─────────────────────────────────────────────── */}
         <header className="imgc-rise flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="grid size-11 place-items-center rounded-xl bg-gradient-to-br from-[#1a6df0] to-[#0b3d91] shadow-lg shadow-[#0b3d91]/40">
-              <ShieldCheckIcon className="size-5.5 text-white" />
+            <span className="grid size-11 place-items-center rounded-xl bg-white/10 ring-1 ring-white/15">
+              <Image
+                src="/assets/icons/imgc-mark.svg"
+                alt=""
+                width={26}
+                height={26}
+                aria-hidden
+              />
             </span>
             <span className="leading-tight">
               <span className="block font-outfit text-[17px] font-bold tracking-tight">
@@ -213,10 +219,15 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
               </span>
             </span>
           </div>
-          <span className="font-outfit text-[20px] font-semibold tracking-tight text-white">
-            IMGC
-            <span className="ml-1 align-super text-[10px] font-medium text-[#5ce0c6]">
-              ®
+          <span className="flex flex-col items-end leading-none">
+            <span className="font-outfit text-[20px] font-semibold tracking-tight text-white">
+              IMGC
+              <span className="ml-1 align-super text-[10px] font-medium text-[#ffb27a]">
+                ®
+              </span>
+            </span>
+            <span className="mt-0.5 text-[9px] font-medium uppercase tracking-[0.22em] text-white/50">
+              Defining Tomorrow
             </span>
           </span>
         </header>
@@ -230,7 +241,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                 panel around it. */}
             <h1 className="font-outfit max-w-[620px] text-[34px] font-bold leading-[1.12] tracking-tight text-white sm:text-[44px]">
               One claims workspace{" "}
-              <span className="text-[#5ce0c6]">for every lender.</span>
+              <span className="text-[#ffb27a]">for every lender.</span>
             </h1>
             <p className="mt-4 max-w-[540px] text-[15px] leading-relaxed text-white/85">
               Collect once, review everywhere — documents, PAS values and a
@@ -241,9 +252,9 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
               {FEATURE_PILLS.map((pill) => (
                 <li
                   key={pill}
-                  className="flex items-center gap-1.5 rounded-full border border-white/12 bg-[#0d2748] px-3 py-1.5 text-[12px] font-medium text-white/90"
+                  className="flex items-center gap-1.5 rounded-full border border-white/12 bg-[#2f1f16] px-3 py-1.5 text-[12px] font-medium text-white/90"
                 >
-                  <CheckCircle2Icon className="size-3.5 shrink-0 text-[#5ce0c6]" />
+                  <CheckCircle2Icon className="size-3.5 shrink-0 text-[#ffb27a]" />
                   {pill}
                 </li>
               ))}
@@ -265,7 +276,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
 
           {/* Right: sign-in card */}
           <section className="imgc-rise w-full shrink-0 lg:w-[420px]">
-            <div className="rounded-2xl border border-white/12 bg-[#0a1e39] p-7 shadow-2xl shadow-black/50">
+            <div className="rounded-2xl border border-white/12 bg-[#241812] p-7 shadow-2xl shadow-black/50">
               <h2 className="font-outfit text-center text-[24px] font-bold tracking-tight text-white">
                 Welcome Back
               </h2>
@@ -282,7 +293,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                 </p>
               )}
               {!error && notice && (
-                <p className="mb-4 rounded-lg border border-[#5ce0c6]/30 bg-[#5ce0c6]/10 px-3 py-2 text-[12.5px] text-[#9df0de]">
+                <p className="mb-4 rounded-lg border border-[#ffb27a]/30 bg-[#ffb27a]/10 px-3 py-2 text-[12.5px] text-[#9df0de]">
                   {notice}
                 </p>
               )}
@@ -352,7 +363,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                       <input
                         type="checkbox"
                         defaultChecked
-                        className="size-4 accent-[#2f6df6]"
+                        className="size-4 accent-[#f37819]"
                       />
                       Remember me
                     </label>
@@ -385,12 +396,12 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                     onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                     placeholder="••••••"
                     autoComplete="one-time-code"
-                    className="h-12 w-full rounded-lg border border-white/15 bg-white/8 text-center font-mono text-[22px] tracking-[0.5em] text-white placeholder:text-white/45 outline-none transition focus:border-[#2f6df6] focus:bg-white/12 focus:ring-2 focus:ring-[#2f6df6]/30"
+                    className="h-12 w-full rounded-lg border border-white/15 bg-white/8 text-center font-mono text-[22px] tracking-[0.5em] text-white placeholder:text-white/45 outline-none transition focus:border-[#f37819] focus:bg-white/12 focus:ring-2 focus:ring-[#f37819]/30"
                   />
                   {step.devCode && (
                     <p className="mt-2 rounded-md border border-white/12 bg-white/5 px-2.5 py-1.5 text-[11.5px] text-white/80">
                       Development only — no mail is sent. Your code is{" "}
-                      <span className="font-mono font-bold text-[#5ce0c6]">
+                      <span className="font-mono font-bold text-[#ffb27a]">
                         {step.devCode}
                       </span>
                       .
@@ -401,7 +412,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                       type="button"
                       onClick={onResend}
                       disabled={pending}
-                      className="text-[12.5px] font-medium text-[#7fb3ff] hover:text-white disabled:opacity-50"
+                      className="text-[12.5px] font-medium text-[#ffb27a] hover:text-white disabled:opacity-50"
                     >
                       Send a new code
                     </button>
@@ -456,7 +467,7 @@ function SubmitButton({
     <button
       type="submit"
       disabled={pending}
-      className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#2f6df6] text-[14px] font-semibold text-white transition hover:bg-[#2560e0] disabled:cursor-not-allowed disabled:opacity-60"
+      className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#f37819] text-[14px] font-semibold text-white transition hover:bg-[#d2670f] disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? "Please wait…" : label}
       {!pending && <ArrowRightIcon className="size-4" />}
@@ -478,7 +489,7 @@ function IdentityChip({
       <button
         type="button"
         onClick={onChange}
-        className="shrink-0 text-[12px] font-medium text-[#7fb3ff] hover:text-white"
+        className="shrink-0 text-[12px] font-medium text-[#ffb27a] hover:text-white"
       >
         Change
       </button>

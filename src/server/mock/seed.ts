@@ -1,4 +1,5 @@
 import { hashPasswordSync } from "@/lib/auth/password";
+import { CLAIM_TYPES } from "@/config/claimConfig";
 import type {
   Account,
   ClaimDocument,
@@ -6,6 +7,9 @@ import type {
   DocStatus,
   DocumentFile,
   LenderOrg,
+  Claim,
+  ClaimQuery,
+  ClaimTypeKey,
   MockDb,
   PasValue,
   Priority,
@@ -293,6 +297,83 @@ const CASES: ReadonlyArray<{
       },
     ],
   },
+  {
+    id: "acc_100250",
+    loanNo: "APP-100250",
+    borrowerName: "Vikram Singh",
+    orgId: "org_acme",
+    product: "LAP",
+    region: "North",
+    branch: "Karol Bagh",
+    assigned: ["usr_emp3", "Anita Desai"],
+    appDaysAgo: 34,
+    claimStatus: "APPROVED",
+    bucket: "IMGC",
+    additional: [
+      {
+        name: "Settlement Agreement",
+        category: "Legal Document",
+        required: true,
+        status: "APPROVED",
+        file: { name: "Vikram_Singh_Settlement.pdf", version: 1 },
+        review: { decision: "APPROVED", remarks: "Executed copy verified." },
+      },
+    ],
+  },
+  {
+    id: "acc_100251",
+    loanNo: "APP-100251",
+    borrowerName: "Fatima Khan",
+    orgId: "org_northgate",
+    product: "Home Loan",
+    region: "West",
+    branch: "Bandra",
+    assigned: ["usr_emp2", "Rohit Sharma"],
+    appDaysAgo: 28,
+    claimStatus: "QUERIED",
+    bucket: "IMGC",
+    additional: [
+      {
+        name: "Property Valuation Report",
+        category: "Property Document",
+        required: true,
+        status: "REJECTED",
+        file: { name: "Fatima_Khan_Valuation.pdf", version: 1 },
+        review: {
+          decision: "REJECTED",
+          remarks: "Valuation predates the default by more than 12 months.",
+        },
+      },
+    ],
+  },
+  {
+    id: "acc_100252",
+    loanNo: "APP-100252",
+    borrowerName: "Nikhil Joshi",
+    orgId: "org_acme",
+    product: "Home Loan",
+    region: "West",
+    branch: "Powai",
+    assigned: ["usr_emp1", "Meera Nair"],
+    appDaysAgo: 6,
+    claimStatus: "DRAFT",
+    bucket: "LENDER",
+    additional: [],
+  },
+  {
+    id: "acc_100253",
+    loanNo: "APP-100253",
+    borrowerName: "Ananya Bose",
+    orgId: "org_northgate",
+    product: "LAP",
+    region: "East",
+    branch: "Salt Lake",
+    assigned: ["usr_emp2", "Rohit Sharma"],
+    appDaysAgo: 3,
+    claimStatus: "DRAFT",
+    bucket: "LENDER",
+    additional: [],
+  },
 ];
 
 export function buildSeed(): MockDb {
@@ -380,7 +461,8 @@ export function buildSeed(): MockDb {
     const sanctioned = 2_500_000 + i * 640_000;
     const outstanding = Math.round(sanctioned * 0.72);
 
-    const isNpa = i % 3 === 0;
+    // Every seeded case is claim-eligible so the lifecycle demo has something to act on.
+    const isNpa = i % 3 !== 1;
     const isWriteOff = i % 3 === 1;
 
     accounts.push({
@@ -521,6 +603,8 @@ export function buildSeed(): MockDb {
     });
   });
 
+  const { claims, claimQueries } = buildClaims(accounts, claimDocuments);
+
   return {
     lenderOrgs,
     users,
@@ -529,8 +613,262 @@ export function buildSeed(): MockDb {
     pasValues,
     claimDocuments,
     documentFiles,
+    claims,
+    claimQueries,
     remarks: [],
     auditEvents: [],
     notifications: [],
   };
+}
+
+/* ── claims: the seven lifecycle scenarios ─────────────────────────── */
+
+type Scenario = Readonly<{
+  accountIndex: number;
+  type: ClaimTypeKey;
+  status: ClaimStatus;
+  daysAgo: number;
+  /** Statuses walked through before the current one, oldest first. */
+  history: readonly ClaimStatus[];
+  fieldsComplete: boolean;
+  /** How many of the checklist's required documents are already approved. */
+  approvedDocs: number;
+  query?: {
+    reason: string;
+    remarks: string;
+    requested: string[];
+    answered: boolean;
+  };
+  decision?: { outcome: "APPROVED" | "REJECTED" | "CLOSED"; remarks: string };
+}>;
+
+/**
+ * One case per scenario, so every state the UI can render is on screen from first load:
+ * draft, submitted, under review, query raised, documents resubmitted, approved, rejected.
+ */
+const SCENARIOS: readonly Scenario[] = [
+  {
+    accountIndex: 0,
+    type: "INITIAL",
+    status: "QUERY_RAISED",
+    daysAgo: 9,
+    history: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
+    fieldsComplete: true,
+    approvedDocs: 2,
+    query: {
+      reason: "Please upload the NOC document.",
+      remarks: "The recall notice references an NOC that was not attached.",
+      requested: ["Legal / Recall Notice"],
+      answered: false,
+    },
+  },
+  {
+    accountIndex: 1,
+    type: "SETTLEMENT",
+    status: "DRAFT",
+    daysAgo: 2,
+    history: [],
+    fieldsComplete: false,
+    approvedDocs: 0,
+  },
+  {
+    accountIndex: 2,
+    type: "INITIAL",
+    status: "SUBMITTED",
+    daysAgo: 4,
+    history: ["DRAFT"],
+    fieldsComplete: true,
+    approvedDocs: 0,
+  },
+  {
+    accountIndex: 3,
+    type: "AUCTION",
+    status: "UNDER_REVIEW",
+    daysAgo: 6,
+    history: ["DRAFT", "SUBMITTED"],
+    fieldsComplete: true,
+    approvedDocs: 3,
+  },
+  {
+    accountIndex: 4,
+    type: "INITIAL",
+    status: "DOCUMENTS_RESUBMITTED",
+    daysAgo: 5,
+    history: ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "QUERY_RAISED"],
+    fieldsComplete: true,
+    approvedDocs: 3,
+    query: {
+      reason: "The uploaded statement is illegible.",
+      remarks: "Please provide a bank-stamped copy at 300dpi.",
+      requested: ["Loan Account Statement"],
+      answered: true,
+    },
+  },
+  {
+    accountIndex: 5,
+    type: "SETTLEMENT",
+    status: "APPROVED",
+    daysAgo: 14,
+    history: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
+    fieldsComplete: true,
+    approvedDocs: 99,
+    decision: {
+      outcome: "APPROVED",
+      remarks: "Settlement verified. Claim payable in full.",
+    },
+  },
+  {
+    accountIndex: 6,
+    type: "INITIAL",
+    status: "REJECTED",
+    daysAgo: 11,
+    history: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
+    fieldsComplete: true,
+    approvedDocs: 1,
+    decision: {
+      outcome: "REJECTED",
+      remarks:
+        "Account was not in the guarantee cover period at the date of default.",
+    },
+  },
+];
+
+const SAMPLE_FIELDS: Record<string, string> = {
+  npaDate: ago(120).slice(0, 10),
+  claimAmount: "2400000",
+  recoveryToDate: "150000",
+  contactPerson: "Arjun Mehta",
+  remarks: "Borrower unreachable since the second recall notice.",
+  defaultReason: "Loss of employment",
+  lastEmiDate: ago(210).slice(0, 10),
+  settlementAmount: "1850000",
+  settlementDate: ago(45).slice(0, 10),
+  shortfall: "550000",
+  auctionDate: ago(60).slice(0, 10),
+  reservePrice: "2100000",
+  realisedAmount: "1780000",
+  possessionType: "Physical possession",
+};
+
+function buildClaims(
+  accounts: Account[],
+  claimDocuments: ClaimDocument[]
+): { claims: Claim[]; claimQueries: ClaimQuery[] } {
+  const claims: Claim[] = [];
+  const claimQueries: ClaimQuery[] = [];
+  const counters: Record<string, number> = {};
+
+  SCENARIOS.forEach((sc, n) => {
+    const account = accounts[sc.accountIndex];
+    if (!account) return;
+
+    const config = CLAIM_TYPES[sc.type];
+    counters[config.prefix] = (counters[config.prefix] ?? 0) + 1;
+    const claimId = `clm_${String(n + 1).padStart(3, "0")}`;
+    const seq = String(counters[config.prefix]).padStart(5, "0");
+    const claimNo = `${config.prefix}-2026-${seq}`;
+    const actorId = "usr_len1";
+    const actorName = "Arjun Mehta";
+
+    // Walked in order, so the timeline has real, increasing timestamps.
+    const steps = [...sc.history, sc.status];
+    const statusHistory = steps.map((status, i) => {
+      const imgcSide =
+        status === "UNDER_REVIEW" ||
+        status === "QUERY_RAISED" ||
+        status === "APPROVED" ||
+        status === "REJECTED" ||
+        status === "CLOSED";
+      return {
+        status,
+        at: ago(sc.daysAgo - i * (sc.daysAgo / (steps.length + 1))),
+        byId: imgcSide ? "usr_emp1" : actorId,
+        byName: imgcSide ? "Meera Nair" : actorName,
+        byRole: (imgcSide ? "IMGC" : "LENDER") as "IMGC" | "LENDER",
+      };
+    });
+
+    claims.push({
+      id: claimId,
+      claimNo,
+      accountId: account.id,
+      claimType: sc.type,
+      status: sc.status,
+      fields: sc.fieldsComplete
+        ? Object.fromEntries(
+            config.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""])
+          )
+        : { contactPerson: actorName },
+      statusHistory,
+      createdById: actorId,
+      createdByName: actorName,
+      createdAt: ago(sc.daysAgo),
+      submittedAt: sc.status === "DRAFT" ? undefined : ago(sc.daysAgo - 1),
+      lastUpdatedAt:
+        statusHistory[statusHistory.length - 1]?.at ?? ago(sc.daysAgo),
+      bucket:
+        sc.status === "DRAFT" || sc.status === "QUERY_RAISED"
+          ? "LENDER"
+          : "IMGC",
+      decision: sc.decision
+        ? {
+            outcome: sc.decision.outcome,
+            byId: "usr_emp1",
+            byName: "Meera Nair",
+            at: ago(1),
+            remarks: sc.decision.remarks,
+          }
+        : undefined,
+    });
+
+    // The configured checklist, materialised with this scenario's progress applied.
+    config.documents.forEach((spec, i) => {
+      const requested =
+        Boolean(sc.query?.requested.includes(spec.name)) && !sc.query?.answered;
+      const approved = i < sc.approvedDocs;
+      const status: DocStatus = requested
+        ? "REUPLOAD_REQUIRED"
+        : approved
+          ? "APPROVED"
+          : sc.status === "DRAFT"
+            ? "PENDING_UPLOAD"
+            : "UNDER_REVIEW";
+
+      claimDocuments.push({
+        id: `${claimId}_doc${i}`,
+        accountId: account.id,
+        claimId,
+        name: spec.name,
+        category: spec.category,
+        description: spec.description,
+        required: spec.required,
+        addedBy: "SYSTEM",
+        status,
+        version: status === "PENDING_UPLOAD" ? 0 : 1,
+        active: true,
+        createdAt: ago(sc.daysAgo),
+      });
+    });
+
+    if (sc.query) {
+      claimQueries.push({
+        id: `qry_${claimId}`,
+        claimId,
+        reason: sc.query.reason,
+        remarks: sc.query.remarks,
+        requestedDocuments: [...sc.query.requested],
+        raisedById: "usr_emp1",
+        raisedByName: "Meera Nair",
+        raisedAt: ago(Math.max(1, sc.daysAgo - 3)),
+        respondedAt: sc.query.answered ? ago(1) : undefined,
+        respondedById: sc.query.answered ? actorId : undefined,
+        respondedByName: sc.query.answered ? actorName : undefined,
+        responseRemarks: sc.query.answered
+          ? "Re-scanned and resubmitted as requested."
+          : undefined,
+      });
+    }
+  });
+
+  return { claims, claimQueries };
 }

@@ -102,7 +102,7 @@ function SidebarNavLink({
         "relative flex items-center gap-2.5 rounded-lg text-left text-[13.5px] font-medium transition-colors",
         collapsed ? "w-full justify-center px-0 py-2.5" : "w-full px-3 py-2",
         active
-          ? "bg-[linear-gradient(90deg,#0466c8_0%,#044b95_100%)] text-white"
+          ? "bg-[linear-gradient(90deg,#f37819_0%,#c25c0d_100%)] text-white"
           : "text-sidebar-text-muted hover:bg-white/5 hover:text-white"
       )}
     >
@@ -320,14 +320,21 @@ function SidebarContents({
           )}
         >
           <Image
-            src="/assets/icons/only-logo.png"
+            src="/assets/icons/imgc-mark.svg"
             alt=""
-            width={22}
-            height={22}
+            width={24}
+            height={24}
             aria-hidden
           />
           {!collapsed && (
-            <span className="text-[15px] font-semibold">IMGC</span>
+            <span className="flex flex-col leading-none">
+              <span className="text-[15px] font-semibold tracking-wide">
+                IMGC
+              </span>
+              <span className="text-[9px] font-medium uppercase tracking-[0.18em] text-sidebar-text-muted">
+                Defining Tomorrow
+              </span>
+            </span>
           )}
         </div>
         <button

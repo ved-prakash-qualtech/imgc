@@ -21,7 +21,7 @@ export function CommandBand({
   action?: ReactNode;
 }>) {
   return (
-    <section className="rounded-2xl bg-[linear-gradient(115deg,#0b2044_0%,#123a72_55%,#0d2a55_100%)] p-5 shadow-lg shadow-[#0b2044]/20">
+    <section className="rounded-2xl bg-[linear-gradient(115deg,#2b1d12_0%,#8a4310_55%,#3a2415_100%)] p-5 shadow-lg shadow-[#2b1d12]/25">
       <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="font-outfit text-[17px] font-bold text-white">{title}</h2>
@@ -66,7 +66,7 @@ export function BandStat({ icon, label, value, caption, accent }: BandStatProps)
             className={cn(
               "grid size-7 shrink-0 place-items-center rounded-lg",
               accent === "teal"
-                ? "bg-[#5ce0c6]/18 text-[#5ce0c6]"
+                ? "bg-[#ffc48a]/20 text-[#ffc48a]"
                 : accent === "amber"
                   ? "bg-warning/20 text-warning"
                   : accent === "rose"
