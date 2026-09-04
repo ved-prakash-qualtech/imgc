@@ -41,13 +41,6 @@ const BAR_TONE = {
   danger: "bg-destructive",
 } as const;
 
-function greeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
-}
-
 function when(iso: string): string {
   return new Date(iso).toLocaleString("en-IN", {
     day: "2-digit",
@@ -68,7 +61,44 @@ type Props = Readonly<{
   recent: AuditEvent[];
 }>;
 
-function buildCommandBandStats(summary: DashboardSummary) {
+function buildCommandBandStats(summary: DashboardSummary, isLender: boolean) {
+  if (isLender && summary.lenderHero) {
+    return [
+      {
+        icon: <FolderOpenIcon className="size-4" />,
+        label: "Total Claims",
+        value: String(summary.lenderHero.totalClaims),
+        caption: "Visible within your scope",
+      },
+      {
+        icon: <FileClockIcon className="size-4" />,
+        label: "Claim Initiation",
+        value: String(summary.lenderHero.claimInitiation),
+        caption: "Draft claims in progress",
+      },
+      {
+        icon: <ClockIcon className="size-4" />,
+        label: "Under Progress",
+        value: String(summary.lenderHero.underProgress),
+        caption: "With IMGC for review",
+      },
+      {
+        icon: <CheckCircle2Icon className="size-4" />,
+        label: "Claim Approved",
+        value: String(summary.lenderHero.claimApproved),
+        caption: "Fully approved claims",
+        accent: "teal" as const,
+      },
+      {
+        icon: <AlertTriangleIcon className="size-4" />,
+        label: "Claim Rejected",
+        value: String(summary.lenderHero.claimRejected),
+        caption: "Rejected by IMGC",
+        accent: "rose" as const,
+      },
+    ];
+  }
+
   return [
     {
       icon: <FolderOpenIcon className="size-4" />,
@@ -136,36 +166,19 @@ function renderClockIcon() {
   return <ClockIcon className="size-4" />;
 }
 
-export function DashboardView({
-  role,
-  firstName,
-  workspace,
-  summary,
-  attention,
-  recent,
-}: Props) {
+export function DashboardView({ role, summary, attention, recent }: Props) {
   const isLender = role === "LENDER";
 
   return (
     <div className="space-y-6">
-      {/* ── Greeting ─────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="font-outfit text-[22px] font-semibold leading-tight text-neutral-950">
-          {greeting()}, {firstName} 👋
-        </h1>
-        <span className="text-[13.5px] text-neutral-500">· {workspace}</span>
-      </div>
-
       {/* ── Command centre ───────────────────────────────────────── */}
-      <CommandBand
-        title={isLender ? "Claims Command Centre" : "Claims Operations Centre"}
-        subtitle={
-          isLender
-            ? "Document readiness and claim progress across your portfolio"
-            : "Document readiness and claim progress across every lender"
-        }
-        stats={buildCommandBandStats(summary)}
-      />
+      {!isLender && (
+        <CommandBand
+          title="Claims Operations Centre"
+          subtitle="Document readiness and claim progress across every lender"
+          stats={buildCommandBandStats(summary, isLender)}
+        />
+      )}
 
       {/* ── In-progress cases ────────────────────────────────────── */}
       <Section
@@ -173,75 +186,83 @@ export function DashboardView({
         subtitle="Where every account currently stands"
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {summary.progressTiles.map((tile) => (
-            <div
-              key={tile.key}
-              className={cn(
-                "rounded-xl border px-4 py-3.5",
-                TILE_TONE[tile.tone]
-              )}
-            >
-              <p className="font-outfit text-[26px] font-bold leading-none">
-                {tile.value}
-              </p>
-              <p className="mt-1.5 text-[12.5px] font-medium opacity-80">
-                {tile.label}
-              </p>
-            </div>
-          ))}
+          {summary.progressTiles.map((tile) => {
+            const Inner = (
+              <>
+                <p className="font-outfit text-[26px] font-bold leading-none">
+                  {tile.value}
+                </p>
+                <p className="mt-1.5 text-[12.5px] font-medium opacity-80">
+                  {tile.label}
+                </p>
+              </>
+            );
+            const className = cn(
+              "rounded-xl border px-4 py-3.5 transition-colors block",
+              tile.href && "hover:opacity-80 hover:shadow-sm",
+              TILE_TONE[tile.tone]
+            );
+            return tile.href ? (
+              <Link key={tile.key} href={tile.href} className={className}>
+                {Inner}
+              </Link>
+            ) : (
+              <div key={tile.key} className={className}>
+                {Inner}
+              </div>
+            );
+          })}
         </div>
       </Section>
 
       {/* ── Additional documents (summary only — the workbench is its own page) ── */}
-      <Section
-        title="Additional documents"
-        subtitle={
-          isLender
-            ? "Documents IMGC has asked your organisation for"
-            : "Requirements raised against cases, across every lender"
-        }
-        action={renderAdditionalDocsAction(isLender)}
-      >
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            {
-              label: "Pending upload",
-              value: summary.additional.pendingUpload,
-              tone: "neutral" as const,
-            },
-            {
-              label: "Under review",
-              value: summary.additional.underReview,
-              tone: "info" as const,
-            },
-            {
-              label: "Re-upload required",
-              value: summary.additional.reuploadRequired,
-              tone: "warning" as const,
-            },
-            {
-              label: "Approved",
-              value: summary.additional.approved,
-              tone: "success" as const,
-            },
-          ].map((tile) => (
-            <div
-              key={tile.label}
-              className={cn(
-                "rounded-xl border px-4 py-3.5",
-                TILE_TONE[tile.tone]
-              )}
-            >
-              <p className="font-outfit text-[26px] font-bold leading-none">
-                {tile.value}
-              </p>
-              <p className="mt-1.5 text-[12.5px] font-medium opacity-80">
-                {tile.label}
-              </p>
-            </div>
-          ))}
-        </div>
-      </Section>
+      {!isLender && (
+        <Section
+          title="Additional documents"
+          subtitle="Requirements raised against cases, across every lender"
+          action={renderAdditionalDocsAction(isLender)}
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                label: "Pending upload",
+                value: summary.additional.pendingUpload,
+                tone: "neutral" as const,
+              },
+              {
+                label: "Under review",
+                value: summary.additional.underReview,
+                tone: "info" as const,
+              },
+              {
+                label: "Re-upload required",
+                value: summary.additional.reuploadRequired,
+                tone: "warning" as const,
+              },
+              {
+                label: "Approved",
+                value: summary.additional.approved,
+                tone: "success" as const,
+              },
+            ].map((tile) => (
+              <div
+                key={tile.label}
+                className={cn(
+                  "rounded-xl border px-4 py-3.5",
+                  TILE_TONE[tile.tone]
+                )}
+              >
+                <p className="font-outfit text-[26px] font-bold leading-none">
+                  {tile.value}
+                </p>
+                <p className="mt-1.5 text-[12.5px] font-medium opacity-80">
+                  {tile.label}
+                </p>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* ── Portfolio overview ───────────────────────────────────── */}
       <Section
@@ -249,22 +270,34 @@ export function DashboardView({
         subtitle="Claim and document counts against their totals"
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {summary.rings.map((ring) => (
-            <div
-              key={ring.key}
-              className="flex items-center gap-3 rounded-xl border border-neutral-100 bg-white px-4 py-3.5 shadow-sm"
-            >
-              <Donut value={ring.value} total={ring.total} />
-              <div className="min-w-0">
-                <p className="truncate text-[12.5px] text-neutral-500">
-                  {ring.label}
-                </p>
-                <p className="font-outfit text-[22px] font-bold leading-tight text-neutral-950">
-                  {ring.value}
-                </p>
+          {summary.rings.map((ring) => {
+            const Inner = (
+              <>
+                <Donut value={ring.value} total={ring.total} />
+                <div className="min-w-0">
+                  <p className="truncate text-[12.5px] text-neutral-500">
+                    {ring.label}
+                  </p>
+                  <p className="font-outfit text-[22px] font-bold leading-tight text-neutral-950">
+                    {ring.value}
+                  </p>
+                </div>
+              </>
+            );
+            const className = cn(
+              "flex items-center gap-3 rounded-xl border border-neutral-100 bg-white px-4 py-3.5 shadow-sm transition-colors",
+              ring.href && "hover:border-brand-primary/50 hover:shadow-md"
+            );
+            return ring.href ? (
+              <Link key={ring.key} href={ring.href} className={className}>
+                {Inner}
+              </Link>
+            ) : (
+              <div key={ring.key} className={className}>
+                {Inner}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Section>
 
@@ -338,66 +371,70 @@ export function DashboardView({
       </Section>
 
       {/* ── Needs attention + activity ───────────────────────────── */}
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <Card
-          title="Needs attention"
-          subtitle="Outstanding mandatory documents or an open query"
-          action={renderNeedsAttentionAction()}
-        >
-          {attention.length === 0 ? (
-            <Empty>Nothing outstanding — every mandatory document is in.</Empty>
-          ) : (
-            <ul className="divide-y divide-neutral-100">
-              {attention.map((a) => (
-                <li key={a.id}>
-                  <Link
-                    href={ROUTES.account(a.id)}
-                    className="flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-neutral-50"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-[13.5px] font-semibold text-neutral-950">
-                        {a.loanNo} · {a.borrowerName}
+      {!isLender && (
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+          <Card
+            title="Needs attention"
+            subtitle="Outstanding mandatory documents or an open query"
+            action={renderNeedsAttentionAction()}
+          >
+            {attention.length === 0 ? (
+              <Empty>
+                Nothing outstanding — every mandatory document is in.
+              </Empty>
+            ) : (
+              <ul className="divide-y divide-neutral-100">
+                {attention.map((a) => (
+                  <li key={a.id}>
+                    <Link
+                      href={ROUTES.account(a.id)}
+                      className="flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-neutral-50"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-[13.5px] font-semibold text-neutral-950">
+                          {a.loanNo} · {a.borrowerName}
+                        </span>
+                        <span className="block truncate text-[12px] text-neutral-500">
+                          {a.lenderOrgName} ·{" "}
+                          {a.pendingDocs > 0
+                            ? `${a.pendingDocs} of ${a.requiredDocs} mandatory outstanding`
+                            : "all documents in"}
+                        </span>
                       </span>
-                      <span className="block truncate text-[12px] text-neutral-500">
-                        {a.lenderOrgName} ·{" "}
-                        {a.pendingDocs > 0
-                          ? `${a.pendingDocs} of ${a.requiredDocs} mandatory outstanding`
-                          : "all documents in"}
+                      <span className="flex shrink-0 items-center gap-2">
+                        <StatusPill status={a.claimStatus} />
+                        <StatusPill status={a.bucket} />
                       </span>
-                    </span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      <StatusPill status={a.claimStatus} />
-                      <StatusPill status={a.bucket} />
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
 
-        <Card
-          title="Recent activity"
-          subtitle="The audit trail across accounts you can see"
-        >
-          {recent.length === 0 ? (
-            <Empty>No activity recorded yet.</Empty>
-          ) : (
-            <ol className="divide-y divide-neutral-100">
-              {recent.map((e) => (
-                <li key={e.id} className="px-5 py-3">
-                  <p className="text-[13px] leading-snug text-neutral-800">
-                    {e.summary}
-                  </p>
-                  <p className="mt-0.5 text-[11.5px] text-neutral-400">
-                    {e.actorName} · {when(e.at)}
-                  </p>
-                </li>
-              ))}
-            </ol>
-          )}
-        </Card>
-      </div>
+          <Card
+            title="Recent activity"
+            subtitle="The audit trail across accounts you can see"
+          >
+            {recent.length === 0 ? (
+              <Empty>No activity recorded yet.</Empty>
+            ) : (
+              <ol className="divide-y divide-neutral-100">
+                {recent.map((e) => (
+                  <li key={e.id} className="px-5 py-3">
+                    <p className="text-[13px] leading-snug text-neutral-800">
+                      {e.summary}
+                    </p>
+                    <p className="mt-0.5 text-[11.5px] text-neutral-400">
+                      {e.actorName} · {when(e.at)}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

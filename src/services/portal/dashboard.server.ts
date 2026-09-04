@@ -15,7 +15,10 @@ export interface Tile {
   key: string;
   label: string;
   value: number;
-  tone: "neutral" | "info" | "warning" | "success" | "danger" | "violet" | "teal";
+  tone:
+    "neutral" | "info" | "warning" | "success" | "danger" | "violet" | "teal";
+  /** Optional drill-down destination for when the KPI is clicked. */
+  href?: string;
 }
 
 export interface Ring {
@@ -24,6 +27,8 @@ export interface Ring {
   value: number;
   /** Denominator the ring fills against. */
   total: number;
+  /** Optional drill-down destination for when the KPI is clicked. */
+  href?: string;
 }
 
 export interface AgingBand {
@@ -59,6 +64,13 @@ export interface DashboardSummary {
     reuploadRequired: number;
     approved: number;
   };
+  lenderHero?: {
+    totalClaims: number;
+    claimInitiation: number;
+    underProgress: number;
+    claimApproved: number;
+    claimRejected: number;
+  };
 }
 
 function daysSince(iso: string): number {
@@ -85,9 +97,6 @@ export async function buildDashboardSummary(
   const documentsRequired = required.length;
   const documentsIn = required.filter(isIn).length;
 
-  const acceptedDocs = docs.filter((d) => d.status === "APPROVED").length;
-  const uploadedDocs = docs.filter((d) => d.status === "UNDER_REVIEW").length;
-  const pendingDocs = docs.filter((d) => d.status === "PENDING_UPLOAD").length;
   const rejectedDocCount = docs.filter((d) => d.status === "REJECTED").length;
 
   /** An account's own required docs, so per-account progress can be judged. */
@@ -113,37 +122,96 @@ export async function buildDashboardSummary(
   const byStatus = (status: string) =>
     accounts.filter((a) => a.claimStatus === status).length;
 
+  const npaCount = accounts.filter((a) => a.npa).length;
+
+  const isLender = session.role === "LENDER";
+
   const progressTiles: Tile[] = [
-    { key: "new", label: "Not started", value: untouched, tone: "neutral" },
-    { key: "collecting", label: "Collecting documents", value: partly, tone: "info" },
-    { key: "ready", label: "Ready to submit", value: readyToSubmit, tone: "teal" },
-    { key: "submitted", label: "Submitted", value: byStatus("SUBMITTED"), tone: "violet" },
-    { key: "queried", label: "Queried", value: byStatus("QUERIED"), tone: "warning" },
-    { key: "approved", label: "Approved", value: byStatus("APPROVED"), tone: "success" },
-    { key: "rejected", label: "Documents rejected", value: rejectedDocCount, tone: "danger" },
     {
-      key: "with-imgc",
-      label: "With IMGC",
-      value: accounts.filter((a) => a.bucket === "IMGC").length,
+      key: "new",
+      label: "New",
+      value: untouched,
+      tone: "neutral",
+      href: isLender ? "/initiate-claim" : "/accounts?status=DRAFT&docs=none",
+    },
+    {
+      key: "collecting",
+      label: "Underwriting",
+      value: partly,
       tone: "info",
+      href: isLender
+        ? "/initiate-claim"
+        : "/accounts?status=DRAFT&docs=partial",
+    },
+    {
+      key: "ready",
+      label: "Pre Offer",
+      value: readyToSubmit,
+      tone: "teal",
+      href: isLender
+        ? "/initiate-claim"
+        : "/accounts?status=DRAFT&docs=complete",
+    },
+    {
+      key: "submitted",
+      label: "Invoiced",
+      value: byStatus("SUBMITTED"),
+      tone: "violet",
+      href: isLender
+        ? "/track-query-response?status=SUBMITTED"
+        : "/accounts?status=SUBMITTED",
+    },
+    {
+      key: "queried",
+      label: "Queried",
+      value: byStatus("QUERIED"),
+      tone: "warning",
+      href: isLender
+        ? "/track-query-response?status=QUERY_RAISED"
+        : "/accounts?status=QUERIED",
+    },
+    {
+      key: "approved",
+      label: "Approved",
+      value: byStatus("APPROVED"),
+      tone: "success",
+      href: isLender
+        ? "/track-query-response?status=APPROVED"
+        : "/accounts?status=APPROVED",
+    },
+    {
+      key: "rejected",
+      label: "Rejected",
+      value: rejectedDocCount,
+      tone: "danger",
+      href: isLender ? "/track-query-response?status=REJECTED" : "/accounts",
     },
   ];
 
-  const totalDocs = docs.length || 1;
   const rings: Ring[] = [
-    { key: "accounts", label: "Total accounts", value: accounts.length, total: accounts.length || 1 },
+    {
+      key: "accounts",
+      label: "Total NPA Account",
+      value: npaCount,
+      total: accounts.length || 1,
+      href: isLender ? "/initiate-claim" : "/accounts?npa=yes",
+    },
     {
       key: "in-progress",
-      label: "Claims in progress",
+      label: "Loan In Progress",
       value: untouched + partly,
       total: accounts.length || 1,
+      href: isLender ? "/initiate-claim" : "/accounts?status=DRAFT",
     },
-    { key: "submitted", label: "Claims submitted", value: byStatus("SUBMITTED"), total: accounts.length || 1 },
-    { key: "approved", label: "Claims approved", value: byStatus("APPROVED"), total: accounts.length || 1 },
-    { key: "docs-in", label: "Mandatory documents in", value: documentsIn, total: documentsRequired || 1 },
-    { key: "accepted", label: "Documents accepted", value: acceptedDocs, total: totalDocs },
-    { key: "awaiting", label: "Documents awaiting review", value: uploadedDocs, total: totalDocs },
-    { key: "outstanding", label: "Documents outstanding", value: pendingDocs, total: totalDocs },
+    {
+      key: "submitted",
+      label: "Active Loans",
+      value: byStatus("SUBMITTED"),
+      total: accounts.length || 1,
+      href: isLender
+        ? "/track-query-response?status=SUBMITTED"
+        : "/accounts?status=SUBMITTED",
+    },
   ];
 
   /* Aging is measured from the last thing that happened on the account — an account nobody has
@@ -151,7 +219,8 @@ export async function buildDashboardSummary(
   const lastTouch = new Map<string, string>();
   for (const event of events) {
     const current = lastTouch.get(event.accountId);
-    if (!current || event.at > current) lastTouch.set(event.accountId, event.at);
+    if (!current || event.at > current)
+      lastTouch.set(event.accountId, event.at);
   }
 
   const open = accounts.filter(
@@ -163,10 +232,10 @@ export async function buildDashboardSummary(
 
   const openTotal = ages.length || 1;
   const raw: ReadonlyArray<[string, number, AgingBand["tone"]]> = [
-    ["0–2 days", band(0, 2), "info"],
-    ["3–5 days", band(3, 5), "brand"],
-    ["6–8 days", band(6, 8), "warning"],
-    ["8+ days", ages.filter((d) => d > 8).length, "danger"],
+    ["0-2 Days", band(0, 2), "info"],
+    ["3-5 Days", band(3, 5), "brand"],
+    ["5-8 Days", band(6, 8), "warning"],
+    ["8+ Days", ages.filter((d) => d > 8).length, "danger"],
   ];
   const aging: AgingBand[] = raw.map(([label, count, tone]) => ({
     label,
@@ -200,7 +269,8 @@ export async function buildDashboardSummary(
     lastActivityAt: events[0]?.at ?? null,
     additional: (() => {
       const add = db.claimDocuments.filter(
-        (d) => d.addedBy === "IMGC" && ids.has(d.accountId) && d.active !== false
+        (d) =>
+          d.addedBy === "IMGC" && ids.has(d.accountId) && d.active !== false
       );
       const by = (status: ClaimDocument["status"]) =>
         add.filter((d) => d.status === status).length;
@@ -209,6 +279,23 @@ export async function buildDashboardSummary(
         underReview: by("UNDER_REVIEW"),
         reuploadRequired: by("REUPLOAD_REQUIRED") + by("REJECTED"),
         approved: by("APPROVED"),
+      };
+    })(),
+    lenderHero: (() => {
+      const claims = db.claims.filter((c) => ids.has(c.accountId));
+      const terminalOrDraft = new Set([
+        "DRAFT",
+        "APPROVED",
+        "REJECTED",
+        "CLOSED",
+      ]);
+      return {
+        totalClaims: claims.length,
+        claimInitiation: claims.filter((c) => c.status === "DRAFT").length,
+        underProgress: claims.filter((c) => !terminalOrDraft.has(c.status))
+          .length,
+        claimApproved: claims.filter((c) => c.status === "APPROVED").length,
+        claimRejected: claims.filter((c) => c.status === "REJECTED").length,
       };
     })(),
   };

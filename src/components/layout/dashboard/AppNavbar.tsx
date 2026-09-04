@@ -24,6 +24,13 @@ export function AppNavbar({
   user,
   onMenuClick,
 }: AppNavbarProps) {
+  const hour = new Date().getHours();
+  let greetingText = "Good evening";
+  if (hour < 12) greetingText = "Good morning";
+  else if (hour < 17) greetingText = "Good afternoon";
+
+  const firstName = user?.name?.split(" ")[0] ?? "User";
+
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-neutral-100 bg-white px-5">
       {/* Left: optional hamburger + workspace + page title */}
@@ -54,7 +61,13 @@ export function AppNavbar({
       </div>
 
       {/* Right: account menu */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
+        <span
+          suppressHydrationWarning
+          className="hidden text-[14px] font-medium text-neutral-700 sm:inline-block"
+        >
+          {greetingText}, {firstName} 👋
+        </span>
         <Popover>
           <PopoverTrigger
             className="flex cursor-pointer items-center gap-1"
