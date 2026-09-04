@@ -134,6 +134,35 @@ export async function getRequirement(
   return rows.find((r) => r.id === documentId) ?? null;
 }
 
+/**
+ * A claim's checklist, in the same shape as an account requirement.
+ *
+ * Deliberately the same `RequirementRow`: `UploadDialog` and `ReviewDrawer` already know how to
+ * render, upload, version and review one of these, and giving claims their own near-identical
+ * row type would mean maintaining two copies of both components.
+ */
+export async function listClaimDocuments(
+  session: AppSession,
+  claimId: string
+): Promise<RequirementRow[]> {
+  const db = await readDb();
+  const claim = db.claims.find((c) => c.id === claimId);
+  if (!claim) return [];
+  const account = db.accounts.find((a) => a.id === claim.accountId);
+  if (!account) return [];
+  if (session.role === "LENDER" && account.lenderOrgId !== session.lenderOrgId) {
+    return [];
+  }
+
+  return db.claimDocuments
+    .filter((d) => d.claimId === claimId)
+    .filter((d) => session.role === "IMGC" || isActive(d))
+    .map((d) => toRow(d, db))
+    .sort((a, b) =>
+      a.required === b.required ? a.name.localeCompare(b.name) : a.required ? -1 : 1
+    );
+}
+
 /** The case list the "Select case" picker offers — scoped the same way. */
 export async function listCaseOptions(session: AppSession) {
   const db = await readDb();

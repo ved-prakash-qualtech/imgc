@@ -1,50 +1,51 @@
-import { AlertTriangleIcon } from "lucide-react";
-import { redirect } from "next/navigation";
-
 import { EligibleCasesClient } from "@/app/[locale]/(portal)/initiate-claim/EligibleCasesClient";
-import { CommandBand } from "@/components/portal/CommandBand";
-import type { BandStatProps } from "@/components/portal/CommandBand";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { requireSession } from "@/lib/auth/appSession";
-import { listAccounts } from "@/services/portal/accounts.server";
-import { ROUTES } from "@/constants/route";
+import { listAccounts, type AccountRow } from "@/services/portal/accounts.server";
+import {
+  getClaimAction,
+  listClaims,
+  type ClaimRow,
+} from "@/services/portal/claimFlow.server";
+import type { ClaimAction } from "@/server/mock/types";
 
 export const dynamic = "force-dynamic";
 
-function getInitiateClaimStats(count: number): BandStatProps[] {
-  return [
-    {
-      icon: <AlertTriangleIcon className="size-4" />,
-      label: "Eligible Cases",
-      value: String(count),
-      caption: "Tagged as NPA or Write-off",
-      accent: "amber",
-    },
-  ];
+/** One grid row: the account, whatever claim it already has, and what may be done next. */
+export interface EligibleRow extends AccountRow {
+  claim: ClaimRow | null;
+  claimAction: ClaimAction;
+  claimReason?: string;
 }
 
 export default async function InitiateClaimPage() {
   const session = await requireSession();
+  const [accounts, claims] = await Promise.all([
+    listAccounts(session),
+    listClaims(session),
+  ]);
 
-  // Protect route
-  if (session.role !== "LENDER") {
-    redirect(ROUTES.accounts);
-  }
+  const byAccount = new Map(claims.map((c) => [c.accountId, c]));
 
-  const accounts = await listAccounts(session);
-  const eligibleCases = accounts.filter((a) => a.npa || a.writeOff);
-
-  const stats = getInitiateClaimStats(eligibleCases.length);
+  // Eligibility is decided once, in the service, and carried on the row — no component
+  // re-derives it from npa/writeOff.
+  const rows: EligibleRow[] = accounts
+    .map((a) => {
+      const claim = byAccount.get(a.id) ?? null;
+      const state = getClaimAction(a, claim);
+      return {
+        ...a,
+        claim,
+        claimAction: state.action,
+        claimReason: state.reason,
+      };
+    })
+    .filter((r) => r.npa || r.writeOff || r.claim);
 
   return (
     <PortalShell activeKey="initiate-claim" title="Initiate Claim">
       <div className="space-y-6">
-        <CommandBand
-          title="Initiate Claim"
-          subtitle="Cases eligible for claim initiation based on NPA or Write-off status."
-          stats={stats}
-        />
-        <EligibleCasesClient accounts={eligibleCases} />
+        <EligibleCasesClient accounts={rows} />
       </div>
     </PortalShell>
   );

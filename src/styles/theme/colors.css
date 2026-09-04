@@ -9,11 +9,12 @@
 :root {
   color-scheme: light;
 
-  /* Brand */
-  --brand-primary: #0466c8;
-  --brand-dark: #044b95;
-  --brand-muted: #d4e4fb;
-  --brand-light: #eef6ff;
+  /* Brand — IMGC orange. Primary is the logo colour; the other three are derived from it
+     so hovers, tints and badge fills all sit on one hue. */
+  --brand-primary: #f37819;
+  --brand-dark: #c25c0d;
+  --brand-muted: #fddfc6;
+  --brand-light: #fff5ed;
 
   /* Neutral */
   --neutral-950: #1f1f1f;

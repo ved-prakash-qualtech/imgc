@@ -15,6 +15,8 @@ export const ROUTES = {
   initiateClaimWorkspace: (accountId: string) => `/initiate-claim/${accountId}`,
 
   trackQueryResponse: "/track-query-response",
+  /** One claim's detail + timeline, reachable by both roles. */
+  claimDetails: (claimId: string) => `/claims/${claimId}`,
   trackQueryWorkspace: (accountId: string) =>
     `/track-query-response/${accountId}`,
 

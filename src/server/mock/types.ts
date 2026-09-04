@@ -10,8 +10,30 @@ export type Role = "IMGC" | "LENDER";
 
 export type Bucket = "IMGC" | "LENDER";
 
-/** DRAFT → lender is still preparing; SUBMITTED → handed to IMGC; then IMGC sets APPROVED/QUERIED. */
-export type ClaimStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "QUERIED";
+/**
+ * The claim lifecycle.
+ *
+ * DRAFT and SUBMITTED are the lender's; everything after is IMGC's, except
+ * DOCUMENTS_RESUBMITTED which is how the lender answers a query. CLOSED is terminal and
+ * distinct from APPROVED/REJECTED: a decided claim can still be open for settlement.
+ */
+export type ClaimStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "UNDER_REVIEW"
+  | "QUERY_RAISED"
+  | "DOCUMENTS_RESUBMITTED"
+  | "APPROVED"
+  | "REJECTED"
+  | "CLOSED"
+  // Retained: `Account.claimStatus` predates the Claim entity and still uses it.
+  | "QUERIED";
+
+/** Which of the configured claim types a claim is. Values come from `config/claimConfig`. */
+export type ClaimTypeKey = "INITIAL" | "SETTLEMENT" | "AUCTION";
+
+/** What the lender may do with an account, derived — never stored. */
+export type ClaimAction = "INITIATE" | "TRACK" | "VIEW" | "DISABLED";
 
 /**
  * The document lifecycle, exactly as the business rules define it.
@@ -139,6 +161,11 @@ export interface Rejection {
 export interface ClaimDocument {
   id: string;
   accountId: string;
+  /**
+   * Present when the document belongs to a claim's checklist rather than the account's.
+   * Optional so every existing account-level document keeps working untouched.
+   */
+  claimId?: string;
   name: string;
   required: boolean;
   addedBy: "SYSTEM" | "IMGC";
@@ -245,6 +272,67 @@ export interface Notification {
   unreadFor?: Role[];
 }
 
+/** One entry in a claim's status history — what the timeline renders. */
+export interface ClaimStatusEntry {
+  status: ClaimStatus;
+  at: string;
+  byId: string;
+  byName: string;
+  byRole: Role | "SYSTEM";
+  note?: string;
+}
+
+/** A query IMGC raises against a claim, and the lender's response to it. */
+export interface ClaimQuery {
+  id: string;
+  claimId: string;
+  reason: string;
+  remarks: string;
+  /** Names of documents the query asks for; matched against the claim's checklist. */
+  requestedDocuments: string[];
+  raisedById: string;
+  raisedByName: string;
+  raisedAt: string;
+  respondedAt?: string;
+  respondedById?: string;
+  respondedByName?: string;
+  responseRemarks?: string;
+}
+
+/**
+ * A claim against an account.
+ *
+ * References the account rather than copying it: customer, lender, product and region are all
+ * reachable through `accountId`, and duplicating them here would give two answers the moment
+ * one changed.
+ */
+export interface Claim {
+  id: string;
+  /** Human reference, e.g. CLM-2026-00125. */
+  claimNo: string;
+  accountId: string;
+  claimType: ClaimTypeKey;
+  status: ClaimStatus;
+  /** Values for the fields `claimConfig` defines for this type, keyed by field id. */
+  fields: Record<string, string>;
+  statusHistory: ClaimStatusEntry[];
+  createdById: string;
+  createdByName: string;
+  createdAt: string;
+  submittedAt?: string;
+  lastUpdatedAt: string;
+  /** Which side currently holds the claim. */
+  bucket: Bucket;
+  /** Set on APPROVED / REJECTED / CLOSED. */
+  decision?: {
+    outcome: "APPROVED" | "REJECTED" | "CLOSED";
+    byId: string;
+    byName: string;
+    at: string;
+    remarks: string;
+  };
+}
+
 export interface MockDb {
   lenderOrgs: LenderOrg[];
   users: User[];
@@ -252,6 +340,8 @@ export interface MockDb {
   accounts: Account[];
   pasValues: PasValue[];
   claimDocuments: ClaimDocument[];
+  claims: Claim[];
+  claimQueries: ClaimQuery[];
   documentFiles: DocumentFile[];
   remarks: Remark[];
   auditEvents: AuditEvent[];

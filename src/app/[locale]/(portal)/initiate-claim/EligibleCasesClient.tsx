@@ -9,7 +9,9 @@ import {
   SearchIcon,
 } from "lucide-react";
 
+import { ClaimRowActions } from "@/components/portal/ClaimRowActions";
 import { Panel } from "@/components/portal/Panel";
+import { StatusPill } from "@/components/portal/StatusPill";
 import {
   Select,
   SelectContent,
@@ -28,6 +30,7 @@ import {
 } from "@/components/ui/table";
 import { ROUTES } from "@/constants/route";
 import type { AccountRow } from "@/services/portal/accounts.server";
+import type { EligibleRow } from "@/app/[locale]/(portal)/initiate-claim/page";
 
 type SortKey =
   "loanNo" | "borrowerName" | "product" | "npa" | "writeOff" | "stage";
@@ -84,7 +87,7 @@ const SortableTableHead = ({
 
 export function EligibleCasesClient({
   accounts,
-}: Readonly<{ accounts: AccountRow[] }>) {
+}: Readonly<{ accounts: EligibleRow[] }>) {
   const [query, setQuery] = useState("");
   const [productFilter, setProductFilter] = useState("all");
   const [npaFilter, setNpaFilter] = useState("all");
@@ -334,6 +337,7 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
+              <TableHead>Claim</TableHead>
               <TableHead className="text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
@@ -341,7 +345,7 @@ export function EligibleCasesClient({
             {currentRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={8}
                   className="py-12 text-center text-[13px] text-neutral-500"
                 >
                   No eligible NPA cases match your filters.
@@ -374,21 +378,27 @@ export function EligibleCasesClient({
                   <TableCell>
                     <span className="text-neutral-600">{a.stage}</span>
                   </TableCell>
+                  <TableCell>
+                    {a.claim ? (
+                      <span className="flex flex-col">
+                        <StatusPill status={a.claim.status} />
+                        <span className="mt-0.5 text-[11px] text-neutral-500">
+                          {a.claim.claimNo} · {a.claim.typeLabel}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-[12.5px] text-neutral-400">
+                        Not started
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Link
-                        href={ROUTES.initiateClaimWorkspace(a.id)}
-                        className="inline-flex h-8 items-center justify-center rounded-md border border-neutral-200 bg-white px-3 text-[12px] font-medium text-neutral-900 transition-colors hover:border-neutral-400 hover:bg-neutral-50"
-                      >
-                        Raise Query
-                      </Link>
-                      <Link
-                        href={ROUTES.initiateClaimWorkspace(a.id)}
-                        className="inline-flex h-8 items-center justify-center rounded-md bg-brand-primary px-3 text-[12px] font-medium text-white transition-colors hover:bg-brand-primary/90"
-                      >
-                        Apply Claim
-                      </Link>
-                    </div>
+                    <ClaimRowActions
+                      accountId={a.id}
+                      claimId={a.claim?.id}
+                      action={a.claimAction}
+                      reason={a.claimReason}
+                    />
                   </TableCell>
                 </TableRow>
               ))

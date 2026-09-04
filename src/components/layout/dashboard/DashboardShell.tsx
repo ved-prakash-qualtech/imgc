@@ -61,7 +61,7 @@ export function DashboardShell({
   }
 
   return (
-    <div className="flex min-h-screen bg-[linear-gradient(180deg,#FFFFFF_-6.3%,#E8F1FF_42.72%,#C1D7F7_96.7%)]">
+    <div className="flex min-h-screen bg-[linear-gradient(180deg,#FFFFFF_-6.3%,#FFF3E9_42.72%,#FAD9BC_96.7%)]">
       <AppSidebar
         items={items}
         activeKey={activeKey}

@@ -17,7 +17,7 @@ import { ROUTES } from "@/constants/route";
  */
 export default function Forbidden() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,#FFFFFF_-6.3%,#E8F1FF_42.72%,#C1D7F7_96.7%)] px-6">
+    <main className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,#FFFFFF_-6.3%,#FFF3E9_42.72%,#FAD9BC_96.7%)] px-6">
       <div className="w-full max-w-md rounded-2xl bg-white/80 p-8 text-center shadow-sm">
         <p className="text-sm font-medium tracking-wide text-slate-500">403</p>
         <h1 className="mt-2 text-xl font-semibold text-slate-900">

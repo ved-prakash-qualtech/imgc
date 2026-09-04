@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { SearchIcon } from "lucide-react";
+import { RadarIcon, SearchIcon, SearchXIcon } from "lucide-react";
 
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -15,97 +16,177 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ROUTES } from "@/constants/route";
-import type { AccountRow } from "@/services/portal/accounts.server";
+import { cn } from "@/lib/utils/twMergeUtils";
+import type { ClaimRow } from "@/services/portal/claimFlow.server";
+import type { ClaimStatus } from "@/server/mock/types";
 
+const FILTERS: ReadonlyArray<{ label: string; value: string }> = [
+  { label: "All", value: "" },
+  { label: "Submitted", value: "SUBMITTED" },
+  { label: "Under review", value: "UNDER_REVIEW" },
+  { label: "Query raised", value: "QUERY_RAISED" },
+  { label: "Resubmitted", value: "DOCUMENTS_RESUBMITTED" },
+  { label: "Approved", value: "APPROVED" },
+  { label: "Rejected", value: "REJECTED" },
+];
+
+function when(iso?: string): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "2-digit",
+  });
+}
+
+/** What the holder of the claim has to do next — derived, never stored. */
+function requiredAction(claim: ClaimRow, isLender: boolean): string {
+  if (claim.openQuery) {
+    return isLender ? "Respond to the query" : "Awaiting lender response";
+  }
+  const map: Partial<Record<ClaimStatus, string>> = {
+    DRAFT: isLender ? "Complete and submit" : "With the lender",
+    SUBMITTED: isLender ? "Nothing — with IMGC" : "Begin review",
+    UNDER_REVIEW: isLender ? "Nothing — with IMGC" : "Review documents",
+    DOCUMENTS_RESUBMITTED: isLender ? "Nothing — with IMGC" : "Re-review documents",
+    APPROVED: "None — approved",
+    REJECTED: "None — rejected",
+    CLOSED: "None — closed",
+  };
+  return map[claim.status] ?? "—";
+}
+
+/**
+ * Track Claim.
+ *
+ * Reads claims, not accounts: a query lives on the claim, so a page driven by
+ * `account.claimStatus` could never show one.
+ */
 export function TrackCasesClient({
-  accounts,
-}: Readonly<{ accounts: AccountRow[] }>) {
+  claims,
+  isLender,
+}: Readonly<{ claims: ClaimRow[]; isLender: boolean }>) {
   const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("");
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return accounts.filter((a) => {
+    return claims.filter((c) => {
+      if (status && c.status !== status) return false;
       if (!q) return true;
-      return (
-        a.loanNo.toLowerCase().includes(q) ||
-        a.borrowerName.toLowerCase().includes(q)
-      );
+      return `${c.claimNo} ${c.caseId} ${c.customerName} ${c.typeLabel} ${c.lenderName}`
+        .toLowerCase()
+        .includes(q);
     });
-  }, [accounts, query]);
-
-  const handleQueryChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setQuery(e.target.value);
-    },
-    []
-  );
-
-  const renderActions = () => (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative">
-        <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
-        <input
-          value={query}
-          onChange={handleQueryChange}
-          placeholder="Loan no, borrower"
-          aria-label="Search cases"
-          className="h-9 w-[230px] rounded-lg border border-neutral-200 pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-        />
-      </div>
-    </div>
-  );
+  }, [claims, query, status]);
 
   return (
     <Panel
-      title={`${rows.length} tracked claim${rows.length === 1 ? "" : "s"}`}
-      description="View case details and respond to queries."
-      actions={renderActions()}
+      title={`${rows.length} claim${rows.length === 1 ? "" : "s"}`}
+      description="Every claim that has left draft, and what it is waiting on."
     >
+      <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-5 py-3.5">
+        <span className="relative">
+          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Claim no, case, customer…"
+            aria-label="Search claims"
+            className="h-8 w-[260px] rounded-lg border border-neutral-200 pl-8 pr-2.5 text-[12.5px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+          />
+        </span>
+        {FILTERS.map((f) => (
+          <button
+            key={f.value || "all"}
+            type="button"
+            onClick={() => setStatus(f.value)}
+            className={cn(
+              "rounded-full px-2.5 py-1 text-[11.5px] font-medium transition",
+              status === f.value
+                ? "bg-brand-primary text-white"
+                : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Loan no.</TableHead>
-              <TableHead>Borrower</TableHead>
-              <TableHead>Product</TableHead>
-              <TableHead>Current Stage</TableHead>
-              <TableHead>Claim Status</TableHead>
-              <TableHead className="text-right">Action</TableHead>
+              <TableHead>Claim no.</TableHead>
+              <TableHead>Account</TableHead>
+              <TableHead>Customer</TableHead>
+              {!isLender && <TableHead>Lender</TableHead>}
+              <TableHead>Claim type</TableHead>
+              <TableHead>Submitted</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Last updated</TableHead>
+              <TableHead>Bucket</TableHead>
+              <TableHead>Required action</TableHead>
+              <TableHead className="text-right">Open</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="py-12 text-center text-[13px] text-neutral-500"
-                >
-                  No submitted or processed claims found.
+                <TableCell colSpan={isLender ? 10 : 11} className="py-14 text-center">
+                  <SearchXIcon className="mx-auto mb-2 size-6 text-neutral-300" />
+                  <p className="text-[13px] font-medium text-neutral-700">
+                    No claims to track yet.
+                  </p>
+                  <p className="mt-0.5 text-[12.5px] text-neutral-500">
+                    A claim appears here once it has been submitted.
+                  </p>
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((a) => (
-                <TableRow key={a.id}>
+              rows.map((c) => (
+                <TableRow key={c.id} className={cn(c.openQuery && "bg-warning/5")}>
                   <TableCell className="font-medium text-neutral-950">
-                    {a.loanNo}
+                    {c.claimNo}
                   </TableCell>
-                  <TableCell>{a.borrowerName}</TableCell>
+                  <TableCell>{c.caseId}</TableCell>
+                  <TableCell>{c.customerName}</TableCell>
+                  {!isLender && (
+                    <TableCell className="text-neutral-500">{c.lenderName}</TableCell>
+                  )}
+                  <TableCell className="text-neutral-500">{c.typeLabel}</TableCell>
                   <TableCell className="text-neutral-500">
-                    {a.product}
+                    {when(c.submittedAt)}
                   </TableCell>
                   <TableCell>
-                    <span className="text-neutral-600">{a.stage}</span>
+                    <StatusPill status={c.status} />
+                  </TableCell>
+                  <TableCell className="text-neutral-500">
+                    {when(c.lastUpdatedAt)}
                   </TableCell>
                   <TableCell>
-                    <StatusPill status={a.claimStatus} />
+                    <StatusPill status={c.bucket} />
+                  </TableCell>
+                  <TableCell>
+                    <span
+                      className={cn(
+                        "text-[12.5px]",
+                        c.openQuery
+                          ? "font-semibold text-warning"
+                          : "text-neutral-600"
+                      )}
+                    >
+                      {requiredAction(c, isLender)}
+                    </span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Link
-                      href={ROUTES.trackQueryWorkspace(a.id)}
-                      className="inline-flex h-8 items-center justify-center rounded-md border border-neutral-200 bg-white px-3 text-[12px] font-medium text-neutral-900 transition-colors hover:border-neutral-400 hover:bg-neutral-50"
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      render={<Link href={ROUTES.claimDetails(c.id)} />}
                     >
-                      View Case
-                    </Link>
+                      <RadarIcon /> Track
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))

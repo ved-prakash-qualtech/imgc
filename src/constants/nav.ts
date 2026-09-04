@@ -117,6 +117,7 @@ export function navFor(role: Role): NavItem[] {
     ? [
         DASHBOARD,
         ACCOUNTS,
+        INITIATE_CLAIM,
         ADDITIONAL_DOCUMENTS,
         BUCKETS,
         NOTIFICATIONS,
