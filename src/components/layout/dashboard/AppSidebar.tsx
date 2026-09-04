@@ -18,6 +18,9 @@ import {
   ShieldIcon,
   TerminalIcon,
   UsersIcon,
+  FilePlusIcon,
+  MessageCircleIcon,
+  ListTreeIcon,
 } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
@@ -38,6 +41,9 @@ import { cn } from "@/lib/utils/twMergeUtils";
 const ICONS = new Map<NavKey, typeof LayoutDashboardIcon>([
   ["dashboard", LayoutDashboardIcon],
   ["accounts", FolderOpenIcon],
+  ["initiate-claim", FilePlusIcon],
+  ["track-query-response", MessageCircleIcon],
+  ["audit-trail", ListTreeIcon],
   ["buckets", InboxIcon],
   ["notifications", BellIcon],
   ["administration", ShieldIcon],

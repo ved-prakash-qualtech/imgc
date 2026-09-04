@@ -13,6 +13,9 @@ export type NavKey =
   | "accounts"
   | "buckets"
   | "notifications"
+  | "initiate-claim"
+  | "track-query-response"
+  | "audit-trail"
   | "administration"
   | "admin-users"
   | "admin-retention"
@@ -50,6 +53,24 @@ const NOTIFICATIONS: NavItem = {
   href: ROUTES.notifications,
 };
 
+const INITIATE_CLAIM: NavItem = {
+  key: "initiate-claim",
+  label: "Initiate Claim",
+  href: ROUTES.initiateClaim,
+};
+
+const TRACK_QUERY_RESPONSE: NavItem = {
+  key: "track-query-response",
+  label: "Track & Query Response",
+  href: ROUTES.trackQueryResponse,
+};
+
+const AUDIT_TRAIL: NavItem = {
+  key: "audit-trail",
+  label: "Audit Trail",
+  href: ROUTES.auditTrail,
+};
+
 /** IMGC only — moving an account between the two processing buckets. */
 const BUCKETS: NavItem = {
   key: "buckets",
@@ -72,11 +93,17 @@ const ADMINISTRATION: NavItem = {
 };
 
 /**
- * The lender sees their own accounts and the mail they were sent; everything that administers
+ * The lender sees their specific set of screens; everything that administers
  * the portal, or that spans lenders, is IMGC's.
  */
 export function navFor(role: Role): NavItem[] {
   return role === "IMGC"
     ? [DASHBOARD, ACCOUNTS, BUCKETS, NOTIFICATIONS, ADMINISTRATION]
-    : [DASHBOARD, ACCOUNTS, NOTIFICATIONS];
+    : [
+        DASHBOARD,
+        INITIATE_CLAIM,
+        TRACK_QUERY_RESPONSE,
+        AUDIT_TRAIL,
+        NOTIFICATIONS,
+      ];
 }

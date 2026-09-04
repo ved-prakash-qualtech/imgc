@@ -32,7 +32,11 @@ const STANDARD_DOCUMENTS: ReadonlyArray<{ name: string; required: boolean }> = [
   { name: "Additional Correspondence", required: false },
 ];
 
-const PAS_TEMPLATE: ReadonlyArray<{ key: string; label: string; value: string }> = [
+const PAS_TEMPLATE: ReadonlyArray<{
+  key: string;
+  label: string;
+  value: string;
+}> = [
   { key: "sanctionedAmount", label: "Sanctioned amount", value: "" },
   { key: "outstandingPrincipal", label: "Outstanding principal", value: "" },
   { key: "overdueAmount", label: "Overdue amount", value: "" },
@@ -161,6 +165,9 @@ export function buildSeed(): MockDb {
     const overdue = Math.round(outstanding * 0.11);
     const bucket = buckets[i % buckets.length] ?? "LENDER";
 
+    const isNpa = i % 3 === 0;
+    const isWriteOff = i % 3 === 1;
+
     accounts.push({
       id,
       loanNo: `${orgId === "org_acme" ? "ACM" : "NGT"}-HL-${23000 + i * 7}`,
@@ -170,6 +177,8 @@ export function buildSeed(): MockDb {
       bucket,
       stage: bucket === "IMGC" ? "Under IMGC review" : "Document collection",
       claimStatus: claimStatuses[i % claimStatuses.length] ?? "DRAFT",
+      npa: isNpa,
+      writeOff: isWriteOff,
       pushRecipients: [],
       createdAt: NOW,
     });

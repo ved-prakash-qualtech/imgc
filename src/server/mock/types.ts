@@ -72,6 +72,8 @@ export interface Account {
   /** Free-text processing stage shown on the account. */
   stage: string;
   claimStatus: ClaimStatus;
+  npa: boolean;
+  writeOff: boolean;
   submittedAt?: string;
   /** Extra mailboxes an IMGC processor wants pushed on this account's events. */
   pushRecipients: string[];

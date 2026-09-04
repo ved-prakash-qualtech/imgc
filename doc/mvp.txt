@@ -1,0 +1,30 @@
+﻿MVP â€“ lender portal
+Login
+IMGC userâ€™s login â€“ access to complete pool of accounts,
+L
+ender login 
+â€“ through OTP over the mail, with initial access provided by IMGC employees
+, 
+Lender to be able to view only their accounts â€“ logic to be maintained through the email IDâ€™s domain,
+Accounting values
+Lender portal to pull values from PAS, 
+and be able to update values in PAS
+,
+Initial claims
+List of documents to be available â€“ with status as pending, uploaded &amp; accepted,
+Placeholders for fields to update the remarks, 
+For additional documents â€“ IMGC team will be able to 
+add the 
+requirement in the list of documents, against which the lender will upload â€“ for example, NOC etc. 
+Audit trail
+Trail of all documents uploaded to be maintained 
+Rejected documents to be kept in the system for 3 months until rejection â€“ with the option to reinstate with approval
+Trail to be maintained of the remarks &amp; feedback captured from the lender, and IMGC employees,
+Notification
+Once the account is shifted to the bucket of lender or IMGC â€“ relevant stakeholders to be updated via mail
+Push from IMGC to be sent to specific mails IDs â€“ processor to specify the same
+Processing
+The lender team will be able to save the documents uploaded, &amp; submit option to be enabled only upon upload for all documents,
+Options to be provided as save, save &amp; submit (enabled upon submission of all documents), and cancel
+IMGC team will be able to pull the account in their bucket at any time for processing,
+Processing will be carried out in PAS â€“ only status such as approved/ queried to be manually updated in the portal,

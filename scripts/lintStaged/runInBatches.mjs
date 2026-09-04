@@ -47,7 +47,13 @@ function runBatch(batch) {
     process.exit(1);
   }
 
-  const result = spawnSync("pnpm", [...baseArgs, ...batch], {
+  const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+
+  // Prevent Windows cmd.exe from breaking on paths with parentheses by quoting them
+  const safeBatch =
+    process.platform === "win32" ? batch.map((f) => `"${f}"`) : batch;
+
+  const result = spawnSync(command, [...baseArgs, ...safeBatch], {
     stdio: "inherit",
     shell: process.platform === "win32",
     env: process.env,

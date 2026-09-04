@@ -9,6 +9,18 @@ export const ROUTES = {
   accounts: "/accounts",
   /** One account's claim workspace (Overview / Accounting / Documents / Remarks / Audit). */
   account: (accountId: string) => `/accounts/${accountId}`,
+
+  /* ── Lender specific screens ── */
+  initiateClaim: "/initiate-claim",
+  initiateClaimWorkspace: (accountId: string) => `/initiate-claim/${accountId}`,
+
+  trackQueryResponse: "/track-query-response",
+  trackQueryWorkspace: (accountId: string) =>
+    `/track-query-response/${accountId}`,
+
+  auditTrail: "/audit-trail",
+  auditTrailWorkspace: (accountId: string) => `/audit-trail/${accountId}`,
+
   /** IMGC only — move accounts between the IMGC and Lender processing buckets. */
   buckets: "/buckets",
   notifications: "/notifications",
