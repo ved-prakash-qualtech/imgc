@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import Link from "next/link";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -11,7 +10,6 @@ import {
 
 import { ClaimRowActions } from "@/components/portal/ClaimRowActions";
 import { Panel } from "@/components/portal/Panel";
-import { StatusPill } from "@/components/portal/StatusPill";
 import {
   Select,
   SelectContent,
@@ -28,12 +26,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ROUTES } from "@/constants/route";
-import type { AccountRow } from "@/services/portal/accounts.server";
 import type { EligibleRow } from "@/app/[locale]/(portal)/initiate-claim/page";
 
-type SortKey =
-  "loanNo" | "borrowerName" | "product" | "npa" | "writeOff" | "stage";
+type SortKey = "loanNo" | "borrowerName" | "product" | "npa" | "stage";
 type SortDirection = "asc" | "desc" | null;
 
 const SortIcon = ({
@@ -91,7 +86,6 @@ export function EligibleCasesClient({
   const [query, setQuery] = useState("");
   const [productFilter, setProductFilter] = useState("all");
   const [npaFilter, setNpaFilter] = useState("all");
-  const [writeOffFilter, setWriteOffFilter] = useState("all");
 
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
@@ -128,11 +122,6 @@ export function EligibleCasesClient({
     setPage(1);
   }, []);
 
-  const handleWriteOffFilterChange = useCallback((val: string | null) => {
-    setWriteOffFilter(val ?? "all");
-    setPage(1);
-  }, []);
-
   const handleProductFilterChange = useCallback((val: string | null) => {
     setProductFilter(val ?? "all");
     setPage(1);
@@ -144,7 +133,8 @@ export function EligibleCasesClient({
   }, []);
 
   const filteredAndSortedRows = useMemo(() => {
-    let result = accounts;
+    // This grid is NPA-only by design.
+    let result = accounts.filter((a) => a.npa);
 
     const q = query.trim().toLowerCase();
     if (q) {
@@ -160,11 +150,6 @@ export function EligibleCasesClient({
     }
     if (npaFilter !== "all") {
       result = result.filter((a) => (npaFilter === "yes" ? a.npa : !a.npa));
-    }
-    if (writeOffFilter !== "all") {
-      result = result.filter((a) =>
-        writeOffFilter === "yes" ? a.writeOff : !a.writeOff
-      );
     }
 
     if (sortKey && sortDirection) {
@@ -187,10 +172,6 @@ export function EligibleCasesClient({
           case "npa":
             valA = a.npa;
             valB = b.npa;
-            break;
-          case "writeOff":
-            valA = a.writeOff;
-            valB = b.writeOff;
             break;
           case "stage":
             valA = a.stage;
@@ -216,7 +197,6 @@ export function EligibleCasesClient({
     query,
     productFilter,
     npaFilter,
-    writeOffFilter,
     sortKey,
     sortDirection,
   ]);
@@ -232,7 +212,7 @@ export function EligibleCasesClient({
   return (
     <Panel
       title={`${filteredAndSortedRows.length} eligible case${filteredAndSortedRows.length === 1 ? "" : "s"}`}
-      description="Accounts tagged as NPA or Write-off."
+      description="Accounts tagged as NPA."
     >
       <div className="flex flex-col gap-4 border-b border-neutral-100 p-4 pb-0">
         <div className="flex flex-wrap items-center gap-3 pb-4">
@@ -255,20 +235,6 @@ export function EligibleCasesClient({
               <SelectItem value="all">NPA: All</SelectItem>
               <SelectItem value="yes">NPA: YES</SelectItem>
               <SelectItem value="no">NPA: NO</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={writeOffFilter}
-            onValueChange={handleWriteOffFilterChange}
-          >
-            <SelectTrigger size="sm" className="w-[140px]">
-              <SelectValue placeholder="Write-off Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Write-off: All</SelectItem>
-              <SelectItem value="yes">Write-off: YES</SelectItem>
-              <SelectItem value="no">Write-off: NO</SelectItem>
             </SelectContent>
           </Select>
 
@@ -324,20 +290,12 @@ export function EligibleCasesClient({
                 onToggle={toggleSort}
               />
               <SortableTableHead
-                column="writeOff"
-                label="Write-off Status"
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-              />
-              <SortableTableHead
                 column="stage"
                 label="Current Stage"
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <TableHead>Claim</TableHead>
               <TableHead className="text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
@@ -345,7 +303,7 @@ export function EligibleCasesClient({
             {currentRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={6}
                   className="py-12 text-center text-[13px] text-neutral-500"
                 >
                   No eligible NPA cases match your filters.
@@ -369,35 +327,12 @@ export function EligibleCasesClient({
                     )}
                   </TableCell>
                   <TableCell>
-                    {a.writeOff ? (
-                      <span className="text-amber-600 font-semibold">YES</span>
-                    ) : (
-                      "NO"
-                    )}
-                  </TableCell>
-                  <TableCell>
                     <span className="text-neutral-600">{a.stage}</span>
-                  </TableCell>
-                  <TableCell>
-                    {a.claim ? (
-                      <span className="flex flex-col">
-                        <StatusPill status={a.claim.status} />
-                        <span className="mt-0.5 text-[11px] text-neutral-500">
-                          {a.claim.claimNo} · {a.claim.typeLabel}
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="text-[12.5px] text-neutral-400">
-                        Not started
-                      </span>
-                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <ClaimRowActions
                       accountId={a.id}
                       claimId={a.claim?.id}
-                      action={a.claimAction}
-                      reason={a.claimReason}
                     />
                   </TableCell>
                 </TableRow>

@@ -374,6 +374,20 @@ const CASES: ReadonlyArray<{
     bucket: "LENDER",
     additional: [],
   },
+  {
+    id: "acc_100254",
+    loanNo: "APP-100254",
+    borrowerName: "Rohan Kapoor",
+    orgId: "org_acme",
+    product: "Home Loan",
+    region: "West",
+    branch: "Goregaon",
+    assigned: ["usr_emp1", "Meera Nair"],
+    appDaysAgo: 4,
+    claimStatus: "DRAFT",
+    bucket: "LENDER",
+    additional: [],
+  },
 ];
 
 export function buildSeed(): MockDb {
@@ -462,8 +476,10 @@ export function buildSeed(): MockDb {
     const outstanding = Math.round(sanctioned * 0.72);
 
     // Every seeded case is claim-eligible so the lifecycle demo has something to act on.
-    const isNpa = i % 3 !== 1;
-    const isWriteOff = i % 3 === 1;
+    // acc_100254 is the "eligible, no claim yet" demo row — force it NPA so it always shows
+    // the Initiate Claim action for the Acme lender.
+    const isNpa = c.id === "acc_100254" ? true : i % 3 !== 1;
+    const isWriteOff = c.id === "acc_100254" ? false : i % 3 === 1;
 
     accounts.push({
       npa: isNpa,
