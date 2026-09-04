@@ -151,6 +151,45 @@ export function DashboardView({
         </div>
       </Section>
 
+      {/* ── Additional documents (summary only — the workbench is its own page) ── */}
+      <Section
+        title="Additional documents"
+        subtitle={
+          isLender
+            ? "Documents IMGC has asked your organisation for"
+            : "Requirements raised against cases, across every lender"
+        }
+        action={
+          <Link
+            href={isLender ? ROUTES.requiredDocuments : ROUTES.additionalDocuments}
+            className="text-[12.5px] font-semibold text-brand-primary hover:underline"
+          >
+            {isLender ? "Open required documents" : "Open the workbench"} →
+          </Link>
+        }
+      >
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { label: "Pending upload", value: summary.additional.pendingUpload, tone: "neutral" as const },
+            { label: "Under review", value: summary.additional.underReview, tone: "info" as const },
+            { label: "Re-upload required", value: summary.additional.reuploadRequired, tone: "warning" as const },
+            { label: "Approved", value: summary.additional.approved, tone: "success" as const },
+          ].map((tile) => (
+            <div
+              key={tile.label}
+              className={cn("rounded-xl border px-4 py-3.5", TILE_TONE[tile.tone])}
+            >
+              <p className="font-outfit text-[26px] font-bold leading-none">
+                {tile.value}
+              </p>
+              <p className="mt-1.5 text-[12.5px] font-medium opacity-80">
+                {tile.label}
+              </p>
+            </div>
+          ))}
+        </div>
+      </Section>
+
       {/* ── Portfolio overview ───────────────────────────────────── */}
       <Section
         title={isLender ? "Portfolio overview" : "Pool overview"}

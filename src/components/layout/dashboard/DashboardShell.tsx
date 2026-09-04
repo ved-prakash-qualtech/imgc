@@ -10,6 +10,8 @@ export type DashboardShellProps = Readonly<{
   /** What the signed-in user may reach. Built on the server from the host's scope. */
   items: NavItem[];
   activeKey?: NavKey;
+  /** Count bubbles keyed by nav key, e.g. unread notifications. */
+  badges?: Partial<Record<NavKey, number>>;
   navbarTitle?: string;
   /** Tenant short code, or the admin scope — shown at the left of the navbar. */
   workspace?: string;
@@ -48,6 +50,7 @@ export function DashboardShell({
   children,
   items,
   activeKey,
+  badges,
   navbarTitle,
   workspace,
   user,
@@ -62,6 +65,7 @@ export function DashboardShell({
       <AppSidebar
         items={items}
         activeKey={activeKey}
+        badges={badges}
         defaultCollapsed={sidebarDefaultCollapsed}
       />
       <div className="flex min-w-0 flex-1 flex-col">

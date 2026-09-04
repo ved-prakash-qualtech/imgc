@@ -94,7 +94,7 @@ export default async function TrackQueryWorkspacePage({
   ]);
 
   const docsIn = docs.filter(
-    (d) => d.required && (d.status === "UPLOADED" || d.status === "ACCEPTED")
+    (d) => d.required && (d.status === "UNDER_REVIEW" || d.status === "APPROVED")
   ).length;
   const docsRequired = docs.filter((d) => d.required).length;
   const readiness = docsRequired

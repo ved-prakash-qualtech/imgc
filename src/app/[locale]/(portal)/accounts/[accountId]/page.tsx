@@ -16,7 +16,11 @@ import { requireSession } from "@/lib/auth/appSession";
 import { RETENTION_DAYS } from "@/server/mock/retention";
 import { getAccount } from "@/services/portal/accounts.server";
 import { listAuditForAccount } from "@/services/portal/audit.server";
-import { canSubmit, listDocuments } from "@/services/portal/claims.server";
+import {
+  canSubmit,
+  listDocuments,
+  summariseDocs,
+} from "@/services/portal/claims.server";
 import { pullFromPas } from "@/services/portal/pas.server";
 import { listRemarks } from "@/services/portal/remarks.server";
 
@@ -42,12 +46,10 @@ export default async function AccountPage({
     listAuditForAccount(accountId),
   ]);
 
-  const docsIn = docs.filter(
-    (d) => d.required && (d.status === "UPLOADED" || d.status === "ACCEPTED")
-  ).length;
-  const docsRequired = docs.filter((d) => d.required).length;
-  const readiness = docsRequired
-    ? Math.round((docsIn / docsRequired) * 100)
+  // Rules 7 & 8 — derived from the rows, never stored.
+  const summary = summariseDocs(docs);
+  const readiness = summary.requiredCount
+    ? Math.round((summary.approved / summary.requiredCount) * 100)
     : 0;
 
   return (
@@ -66,10 +68,10 @@ export default async function AccountPage({
           stats={[
             {
               icon: <UploadCloudIcon className="size-4" />,
-              label: "Document readiness",
+              label: "Documents approved",
               value: `${readiness}%`,
-              caption: `${docsIn} of ${docsRequired} mandatory in`,
-              accent: "teal",
+              caption: `${summary.approved} of ${summary.requiredCount} mandatory approved`,
+              accent: summary.complete ? "teal" : "amber",
             },
             {
               icon: <FileClockIcon className="size-4" />,
@@ -91,9 +93,12 @@ export default async function AccountPage({
             },
             {
               icon: <BuildingIcon className="size-4" />,
-              label: "Activity",
-              value: String(events.length),
-              caption: `${remarks.length} remark(s) on record`,
+              label: "Document completion",
+              value: summary.complete ? "Complete" : "Incomplete",
+              caption: summary.complete
+                ? "every mandatory document approved"
+                : `${summary.underReview} in review · ${summary.pending} pending · ${summary.reuploadRequired + summary.rejected} to re-upload`,
+              accent: summary.complete ? "teal" : "rose",
             },
           ]}
         />

@@ -4,6 +4,7 @@ import { DashboardShell } from "@/components/layout/dashboard/DashboardShell";
 import { navFor, type NavKey } from "@/constants/nav";
 import { requireSession, toSessionUser } from "@/lib/auth/appSession";
 import { getLenderOrgById } from "@/services/portal/users.server";
+import { unreadCount } from "@/services/portal/notifications.server";
 
 /**
  * The signed-in frame for every portal page.
@@ -18,12 +19,15 @@ export async function PortalShell({
   children,
 }: Readonly<{ activeKey: NavKey; title: string; children: ReactNode }>) {
   const session = await requireSession();
-  const org =
-    session.role === "LENDER" ? await getLenderOrgById(session.lenderOrgId) : null;
+  const [org, unread] = await Promise.all([
+    session.role === "LENDER" ? getLenderOrgById(session.lenderOrgId) : null,
+    unreadCount(session),
+  ]);
 
   return (
     <DashboardShell
       items={navFor(session.role)}
+      badges={unread > 0 ? { notifications: unread } : undefined}
       activeKey={activeKey}
       navbarTitle={title}
       workspace={session.role === "IMGC" ? "IMGC" : (org?.name ?? "Lender")}

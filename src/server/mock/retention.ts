@@ -59,7 +59,7 @@ export async function sweepExpiredRejections(): Promise<{ purged: number }> {
       fresh.documentFiles = fresh.documentFiles.filter(
         (f) => f.documentId !== row.id
       );
-      row.status = "PENDING";
+      row.status = "PENDING_UPLOAD";
       row.currentFileId = undefined;
       row.rejection = undefined;
       purged += 1;

@@ -55,7 +55,7 @@ export default async function InitialClaimWorkflowPage({
 
   const docs = await listDocuments(session, accountId);
   const docsIn = docs.filter(
-    (d) => d.required && (d.status === "UPLOADED" || d.status === "ACCEPTED")
+    (d) => d.required && (d.status === "UNDER_REVIEW" || d.status === "APPROVED")
   ).length;
   const docsRequired = docs.filter((d) => d.required).length;
 
@@ -90,6 +90,7 @@ export default async function InitialClaimWorkflowPage({
           </h2>
           <InitialClaimsTab
             accountId={account.id}
+            accountProduct={account.product}
             role={session.role}
             docs={docs}
             claimStatus={account.claimStatus}

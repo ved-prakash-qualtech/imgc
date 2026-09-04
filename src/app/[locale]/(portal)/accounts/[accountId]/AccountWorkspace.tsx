@@ -9,6 +9,7 @@ import { AccountingValuesTab } from "@/app/[locale]/(portal)/accounts/[accountId
 import { AuditTrailTab } from "@/app/[locale]/(portal)/accounts/[accountId]/AuditTrailTab";
 import { InitialClaimsTab } from "@/app/[locale]/(portal)/accounts/[accountId]/InitialClaimsTab";
 import { RemarksTab } from "@/app/[locale]/(portal)/accounts/[accountId]/RemarksTab";
+import { BucketToggle } from "@/components/portal/BucketToggle";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
@@ -76,12 +77,12 @@ export function AccountWorkspace({
               <span
                 className={cn(
                   "ml-1.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold",
-                  docs.filter((d) => d.required && d.status === "PENDING").length > 0
+                  docs.filter((d) => d.required && d.status === "PENDING_UPLOAD").length > 0
                     ? "bg-warning/15 text-warning"
                     : "bg-success/15 text-success-700"
                 )}
               >
-                {docs.filter((d) => d.status === "UPLOADED" || d.status === "ACCEPTED").length}
+                {docs.filter((d) => d.status === "UNDER_REVIEW" || d.status === "APPROVED").length}
                 /{docs.length}
               </span>
             )}
@@ -96,6 +97,7 @@ export function AccountWorkspace({
       {tab === "Initial Claims" && (
         <InitialClaimsTab
           accountId={account.id}
+          accountProduct={account.product}
           role={role}
           docs={docs}
           claimStatus={account.claimStatus}
@@ -154,7 +156,25 @@ function OverviewTab({
 
   return (
     <div className="space-y-4">
-      <Panel title="Account">
+      <Panel
+        title="Account"
+        description={
+          role === "IMGC"
+            ? account.bucket === "IMGC"
+              ? "In the IMGC bucket. Hand it back once the lender has more to do."
+              : "With the lender. Pull it into the IMGC bucket to process it."
+            : undefined
+        }
+        actions={
+          role === "IMGC" ? (
+            <BucketToggle
+              accountId={account.id}
+              loanNo={account.loanNo}
+              bucket={account.bucket}
+            />
+          ) : null
+        }
+      >
         <div className="grid divide-y divide-neutral-100 sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4">
           <Fact label="Loan number" value={account.loanNo} />
           <Fact label="Borrower" value={account.borrowerName} />

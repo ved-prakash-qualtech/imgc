@@ -49,6 +49,16 @@ export interface DashboardSummary {
   rings: Ring[];
   aging: AgingBand[];
   lastActivityAt: string | null;
+  /**
+   * Headline counts for the additional-documents workflow. Summary only — the workbench itself
+   * lives on its own page, and duplicating the table here would give two places to keep in step.
+   */
+  additional: {
+    pendingUpload: number;
+    underReview: number;
+    reuploadRequired: number;
+    approved: number;
+  };
 }
 
 function daysSince(iso: string): number {
@@ -56,7 +66,7 @@ function daysSince(iso: string): number {
 }
 
 function isIn(doc: ClaimDocument): boolean {
-  return doc.status === "UPLOADED" || doc.status === "ACCEPTED";
+  return doc.status === "UNDER_REVIEW" || doc.status === "APPROVED";
 }
 
 export async function buildDashboardSummary(
@@ -75,9 +85,9 @@ export async function buildDashboardSummary(
   const documentsRequired = required.length;
   const documentsIn = required.filter(isIn).length;
 
-  const acceptedDocs = docs.filter((d) => d.status === "ACCEPTED").length;
-  const uploadedDocs = docs.filter((d) => d.status === "UPLOADED").length;
-  const pendingDocs = docs.filter((d) => d.status === "PENDING").length;
+  const acceptedDocs = docs.filter((d) => d.status === "APPROVED").length;
+  const uploadedDocs = docs.filter((d) => d.status === "UNDER_REVIEW").length;
+  const pendingDocs = docs.filter((d) => d.status === "PENDING_UPLOAD").length;
   const rejectedDocCount = docs.filter((d) => d.status === "REJECTED").length;
 
   /** An account's own required docs, so per-account progress can be judged. */
@@ -188,5 +198,18 @@ export async function buildDashboardSummary(
     rings,
     aging,
     lastActivityAt: events[0]?.at ?? null,
+    additional: (() => {
+      const add = db.claimDocuments.filter(
+        (d) => d.addedBy === "IMGC" && ids.has(d.accountId) && d.active !== false
+      );
+      const by = (status: ClaimDocument["status"]) =>
+        add.filter((d) => d.status === status).length;
+      return {
+        pendingUpload: by("PENDING_UPLOAD") + by("NOT_REQUESTED"),
+        underReview: by("UNDER_REVIEW"),
+        reuploadRequired: by("REUPLOAD_REQUIRED") + by("REJECTED"),
+        approved: by("APPROVED"),
+      };
+    })(),
   };
 }

@@ -6,6 +6,8 @@ import { ROUTES } from "@/constants/route";
 import { requireSession } from "@/lib/auth/appSession";
 import {
   addRequirement,
+  setRequirementActive,
+  type RequirementInput,
   decideDocument,
   decideReinstate,
   requestReinstate,
@@ -41,11 +43,22 @@ export async function uploadDocumentAction(formData: FormData): Promise<Result> 
 
 export async function addRequirementAction(
   accountId: string,
-  name: string,
-  required: boolean
+  input: RequirementInput
 ): Promise<Result> {
   const session = await requireSession();
-  const result = await addRequirement(session, accountId, name, required);
+  const result = await addRequirement(session, accountId, input);
+  if (result.ok) refresh(accountId);
+  return result;
+}
+
+/** Withdraw a requirement (or bring it back) without losing what was uploaded against it. */
+export async function setRequirementActiveAction(
+  accountId: string,
+  documentId: string,
+  active: boolean
+): Promise<Result> {
+  const session = await requireSession();
+  const result = await setRequirementActive(session, accountId, documentId, active);
   if (result.ok) refresh(accountId);
   return result;
 }
@@ -53,7 +66,7 @@ export async function addRequirementAction(
 export async function decideDocumentAction(
   accountId: string,
   documentId: string,
-  decision: "ACCEPTED" | "REJECTED",
+  decision: "APPROVED" | "REJECTED",
   reason: string
 ): Promise<Result> {
   const session = await requireSession();

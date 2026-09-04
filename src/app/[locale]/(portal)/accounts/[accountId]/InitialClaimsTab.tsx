@@ -3,6 +3,8 @@
 import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  BanIcon,
+  CalendarClockIcon,
   CheckIcon,
   FileTextIcon,
   PaperclipIcon,
@@ -19,18 +21,22 @@ import {
   decideDocumentAction,
   decideReinstateAction,
   requestReinstateAction,
+  setRequirementActiveAction,
   submitClaimAction,
   uploadDocumentAction,
 } from "@/app/[locale]/(portal)/accounts/[accountId]/actions";
+import { AddRequirementForm } from "@/components/portal/AddRequirementForm";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
+import { daysUntil } from "@/constants/documents";
 import { cn } from "@/lib/utils/twMergeUtils";
-import type { DocumentRow } from "@/services/portal/claims.server";
+import type { DocumentRow, RequirementInput } from "@/services/portal/claims.server";
 import type { ClaimStatus, Role } from "@/server/mock/types";
 
 type Props = Readonly<{
   accountId: string;
+  accountProduct: string;
   role: Role;
   docs: DocumentRow[];
   claimStatus: ClaimStatus;
@@ -61,6 +67,7 @@ function daysLeft(rejectedAt: string, retentionDays: number): number {
 
 export function InitialClaimsTab({
   accountId,
+  accountProduct,
   role,
   docs,
   claimStatus,
@@ -123,21 +130,23 @@ export function InitialClaimsTab({
   }, [router]);
 
   const onAddRequirement = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      const form = event.currentTarget;
-      const data = new FormData(form);
-      const name = String(data.get("name") ?? "");
-      const required = data.get("required") === "on";
+    async (input: RequirementInput) => {
+      const result = await addRequirementAction(accountId, input);
+      if (result.ok) router.refresh();
+      return result;
+    },
+    [accountId, router]
+  );
+
+  const onToggleActive = useCallback(
+    (documentId: string, active: boolean) => {
       startTransition(async () => {
-        const result = await addRequirementAction(accountId, name, required);
+        const result = await setRequirementActiveAction(accountId, documentId, active);
         if (!result.ok) {
-          toast.error(result.error ?? "That requirement could not be added.");
+          toast.error(result.error ?? "That requirement could not be updated.");
           return;
         }
-        toast.success(`"${name}" added to the checklist.`);
-        form.reset();
-        setAdding(false);
+        toast.success(active ? "Requirement reactivated." : "Requirement withdrawn.");
         router.refresh();
       });
     },
@@ -162,46 +171,11 @@ export function InitialClaimsTab({
         }
       >
         {adding && role === "IMGC" && (
-          <form
+          <AddRequirementForm
+            accountProduct={accountProduct}
             onSubmit={onAddRequirement}
-            className="flex flex-wrap items-end gap-3 border-b border-neutral-100 bg-neutral-25 px-5 py-3.5"
-          >
-            <label className="min-w-[240px] flex-1">
-              <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                Document name
-              </span>
-              <input
-                name="name"
-                required
-                // The form opens on the user's own "Add requirement" press; this is the
-                // field they came for, so focus follows the action.
-                // eslint-disable-next-line jsx-a11y/no-autofocus
-                autoFocus
-                placeholder="e.g. NOC from the society"
-                className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-              />
-            </label>
-            <label className="flex items-center gap-2 pb-2 text-[13px] text-neutral-700">
-              <input
-                type="checkbox"
-                name="required"
-                defaultChecked
-                className="size-4 accent-[var(--brand-primary)]"
-              />
-              Mandatory
-            </label>
-            <Button type="submit" size="sm" disabled={pending}>
-              Add to checklist
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setAdding(false)}
-            >
-              Cancel
-            </Button>
-          </form>
+            onCancel={() => setAdding(false)}
+          />
         )}
 
         <ul className="divide-y divide-neutral-100">
@@ -215,6 +189,7 @@ export function InitialClaimsTab({
               pending={pending}
               draft={drafts[doc.id] ?? ""}
               onDraftChange={setDraft}
+              onToggleActive={onToggleActive}
               retentionDays={retentionDays}
             />
           ))}
@@ -270,6 +245,7 @@ function DocumentRowItem({
   pending,
   draft,
   onDraftChange,
+  onToggleActive,
   retentionDays,
 }: Readonly<{
   doc: DocumentRow;
@@ -279,6 +255,7 @@ function DocumentRowItem({
   pending: boolean;
   draft: string;
   onDraftChange: (docId: string, value: string) => void;
+  onToggleActive: (documentId: string, active: boolean) => void;
   retentionDays: number;
 }>) {
   const router = useRouter();
@@ -311,7 +288,7 @@ function DocumentRowItem({
   );
 
   const decide = useCallback(
-    (decision: "ACCEPTED" | "REJECTED", reason: string) => {
+    (decision: "APPROVED" | "REJECTED", reason: string) => {
       startTransition(async () => {
         const result = await decideDocumentAction(
           accountId,
@@ -365,8 +342,12 @@ function DocumentRowItem({
 
   const reinstate = doc.rejection?.reinstate;
 
+  const inactive = doc.active === false;
+  const due = doc.dueDate ? daysUntil(doc.dueDate) : null;
+  const outstanding = doc.status === "PENDING_UPLOAD" || doc.status === "REJECTED";
+
   return (
-    <li className="px-5 py-4">
+    <li className={cn("px-5 py-4", inactive && "bg-neutral-25 opacity-60")}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -390,7 +371,52 @@ function DocumentRowItem({
               </span>
             )}
             <StatusPill status={doc.status} />
+            {inactive && (
+              <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-600">
+                Withdrawn
+              </span>
+            )}
+            {due !== null && outstanding && !inactive && (
+              <span
+                className={cn(
+                  "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10.5px] font-semibold",
+                  due < 0
+                    ? "bg-destructive/10 text-destructive"
+                    : due <= 3
+                      ? "bg-warning/15 text-warning"
+                      : "bg-neutral-100 text-neutral-600"
+                )}
+              >
+                <CalendarClockIcon className="size-3" />
+                {due < 0
+                  ? `Overdue by ${Math.abs(due)}d`
+                  : due === 0
+                    ? "Due today"
+                    : `Due in ${due}d`}
+              </span>
+            )}
           </div>
+
+          {(doc.category || doc.applicableProduct || doc.applicableCaseType) && (
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-neutral-500">
+              {doc.category && <span className="font-medium">{doc.category}</span>}
+              {doc.applicableProduct && <span>· {doc.applicableProduct}</span>}
+              {doc.applicableCaseType && <span>· {doc.applicableCaseType}</span>}
+              {doc.addedByName && <span>· added by {doc.addedByName}</span>}
+            </p>
+          )}
+
+          {doc.description && (
+            <p className="mt-1.5 rounded-md border border-brand-primary/15 bg-brand-light/50 px-2.5 py-1.5 text-[12px] leading-relaxed text-neutral-700">
+              {doc.description}
+            </p>
+          )}
+
+          {doc.requirementRemarks && role === "IMGC" && (
+            <p className="mt-1 text-[11.5px] italic text-neutral-500">
+              IMGC note: {doc.requirementRemarks}
+            </p>
+          )}
 
           {doc.file ? (
             <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12px] text-neutral-500">
@@ -469,7 +495,7 @@ function DocumentRowItem({
 
         {/* Row actions */}
         <div className="flex shrink-0 flex-col items-end gap-2">
-          {isLender && doc.status !== "ACCEPTED" && !submitted && (
+          {isLender && doc.status !== "APPROVED" && !submitted && (
             <>
               <input
                 ref={fileInput}
@@ -487,23 +513,23 @@ function DocumentRowItem({
                 className={cn(
                   "inline-flex h-8 cursor-pointer items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors",
                   working && "pointer-events-none opacity-50",
-                  doc.status === "PENDING"
+                  doc.status === "PENDING_UPLOAD"
                     ? "bg-primary text-primary-foreground hover:bg-brand-dark"
                     : "border border-neutral-200 bg-white text-neutral-900 hover:border-neutral-400 hover:bg-neutral-50"
                 )}
               >
                 <UploadIcon className="size-3.5" />
-                {doc.status === "PENDING" ? "Upload" : "Replace"}
+                {doc.status === "PENDING_UPLOAD" ? "Upload" : "Replace"}
               </label>
             </>
           )}
 
-          {role === "IMGC" && doc.status === "UPLOADED" && !rejecting && (
+          {role === "IMGC" && doc.status === "UNDER_REVIEW" && !rejecting && (
             <div className="flex gap-2">
               <Button
                 size="xs"
                 variant="success"
-                onClick={() => decide("ACCEPTED", "")}
+                onClick={() => decide("APPROVED", "")}
                 disabled={working}
               >
                 <CheckIcon /> Accept
@@ -517,6 +543,25 @@ function DocumentRowItem({
                 <XIcon /> Reject
               </Button>
             </div>
+          )}
+
+          {/* Only an IMGC-authored requirement can be withdrawn — the standard checklist is not
+              the processor's to remove. Withdrawing keeps the row and its history. */}
+          {role === "IMGC" && doc.addedBy === "IMGC" && (
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => onToggleActive(doc.id, inactive)}
+              disabled={working}
+              title={
+                inactive
+                  ? "Ask the lender for this document again"
+                  : "Stop asking for this document — it will not block submission"
+              }
+            >
+              {inactive ? <RotateCcwIcon /> : <BanIcon />}
+              {inactive ? "Reactivate" : "Withdraw"}
+            </Button>
           )}
         </div>
       </div>

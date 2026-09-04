@@ -7,15 +7,24 @@ import type { Bucket, ClaimStatus, DocStatus } from "@/server/mock/types";
  */
 const TONES = new Map<string, string>([
   // documents
-  ["PENDING", "bg-neutral-100 text-neutral-600"],
-  ["UPLOADED", "bg-info/12 text-info"],
-  ["ACCEPTED", "bg-success/15 text-success-700"],
+  ["NOT_REQUESTED", "bg-neutral-50 text-neutral-400"],
+  ["PENDING_UPLOAD", "bg-neutral-100 text-neutral-600"],
+  ["UNDER_REVIEW", "bg-info/12 text-info"],
+  ["REUPLOAD_REQUIRED", "bg-warning/15 text-warning"],
   ["REJECTED", "bg-destructive/12 text-destructive"],
   // claims
   ["DRAFT", "bg-neutral-100 text-neutral-600"],
   ["SUBMITTED", "bg-info/12 text-info"],
   ["APPROVED", "bg-success/15 text-success-700"],
   ["QUERIED", "bg-warning/15 text-warning"],
+  // case document completion
+  ["COMPLETE", "bg-success/15 text-success-700"],
+  ["INCOMPLETE", "bg-warning/15 text-warning"],
+  // priority
+  ["URGENT", "bg-destructive/12 text-destructive"],
+  ["HIGH", "bg-warning/15 text-warning"],
+  ["NORMAL", "bg-neutral-100 text-neutral-600"],
+  ["LOW", "bg-neutral-50 text-neutral-400"],
   // buckets
   ["IMGC", "bg-brand-muted text-brand-dark"],
   ["LENDER", "bg-warning/15 text-warning"],
@@ -25,14 +34,21 @@ const TONES = new Map<string, string>([
 ]);
 
 const LABELS = new Map<string, string>([
-  ["PENDING", "Pending"],
-  ["UPLOADED", "Uploaded"],
-  ["ACCEPTED", "Accepted"],
+  ["NOT_REQUESTED", "Not requested"],
+  ["PENDING_UPLOAD", "Pending upload"],
+  ["UNDER_REVIEW", "Under review"],
+  ["REUPLOAD_REQUIRED", "Re-upload required"],
   ["REJECTED", "Rejected"],
   ["DRAFT", "Draft"],
   ["SUBMITTED", "Submitted"],
   ["APPROVED", "Approved"],
   ["QUERIED", "Queried"],
+  ["COMPLETE", "Documents complete"],
+  ["INCOMPLETE", "Documents incomplete"],
+  ["URGENT", "Urgent"],
+  ["HIGH", "High"],
+  ["NORMAL", "Normal"],
+  ["LOW", "Low"],
   ["IMGC", "IMGC"],
   ["LENDER", "Lender"],
   ["REQUESTED", "Reinstate requested"],

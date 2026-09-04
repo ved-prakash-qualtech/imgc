@@ -57,7 +57,7 @@ function FieldLabel({ children }: Readonly<{ children: React.ReactNode }>) {
 }
 
 const INPUT_CLASS =
-  "h-11 w-full rounded-lg border border-white/15 bg-white/8 pl-10 pr-10 text-[14px] text-white placeholder:text-white/35 outline-none transition focus:border-[#2f6df6] focus:bg-white/12 focus:ring-2 focus:ring-[#2f6df6]/30";
+  "h-11 w-full rounded-lg border border-white/15 bg-white/8 pl-10 pr-10 text-[14px] text-white placeholder:text-white/55 outline-none transition focus:border-[#2f6df6] focus:bg-white/12 focus:ring-2 focus:ring-[#2f6df6]/30";
 
 export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
   const [step, setStep] = useState<Step>({ kind: "IDENTIFY" });
@@ -158,7 +158,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
        z-index, and without a stacking context here they paint *behind* this
        element's own opaque background — the video and the colour fields were
        rendering, invisibly, under a flat navy rectangle. */
-    <div className="relative isolate min-h-dvh w-full overflow-hidden bg-[#04101f] text-white">
+    <div className="relative isolate min-h-dvh w-full overflow-hidden bg-[#04101f] text-white subpixel-antialiased">
       {/* ── Backdrop ────────────────────────────────────────────────────
           A looping video rather than a still: the page is the product's
           front door and motion is the cheapest way to make it feel alive.
@@ -208,12 +208,12 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
               <span className="block font-outfit text-[17px] font-bold tracking-tight">
                 IMGC Lender Portal
               </span>
-              <span className="block text-[12px] text-white/55">
+              <span className="block text-[12px] text-white/75">
                 Initial Claims Platform
               </span>
             </span>
           </div>
-          <span className="font-outfit text-[20px] font-semibold tracking-tight text-white/90">
+          <span className="font-outfit text-[20px] font-semibold tracking-tight text-white">
             IMGC
             <span className="ml-1 align-super text-[10px] font-medium text-[#5ce0c6]">
               ®
@@ -232,7 +232,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
               One claims workspace{" "}
               <span className="text-[#5ce0c6]">for every lender.</span>
             </h1>
-            <p className="mt-4 max-w-[540px] text-[15px] leading-relaxed text-white/65">
+            <p className="mt-4 max-w-[540px] text-[15px] leading-relaxed text-white/85">
               Collect once, review everywhere — documents, PAS values and a
               complete audit trail on a single account.
             </p>
@@ -241,7 +241,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
               {FEATURE_PILLS.map((pill) => (
                 <li
                   key={pill}
-                  className="flex items-center gap-1.5 rounded-full border border-white/12 bg-white/6 px-3 py-1.5 text-[12px] font-medium text-white/80 backdrop-blur-sm"
+                  className="flex items-center gap-1.5 rounded-full border border-white/12 bg-[#0d2748] px-3 py-1.5 text-[12px] font-medium text-white/90"
                 >
                   <CheckCircle2Icon className="size-3.5 shrink-0 text-[#5ce0c6]" />
                   {pill}
@@ -252,10 +252,10 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
             <dl className="mt-9 max-w-[560px] space-y-5 border-l border-white/12 pl-5">
               {VALUE_ROWS.map((row) => (
                 <div key={row.title}>
-                  <dt className="text-[14px] font-semibold text-white/90">
+                  <dt className="text-[14px] font-semibold text-white">
                     {row.title}
                   </dt>
-                  <dd className="mt-0.5 text-[13px] leading-relaxed text-white/50">
+                  <dd className="mt-0.5 text-[13px] leading-relaxed text-white/75">
                     {row.body}
                   </dd>
                 </div>
@@ -265,11 +265,11 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
 
           {/* Right: sign-in card */}
           <section className="imgc-rise w-full shrink-0 lg:w-[420px]">
-            <div className="rounded-2xl border border-white/12 bg-[#0a1e39]/80 p-7 shadow-2xl shadow-black/50 backdrop-blur-xl">
+            <div className="rounded-2xl border border-white/12 bg-[#0a1e39] p-7 shadow-2xl shadow-black/50">
               <h2 className="font-outfit text-center text-[24px] font-bold tracking-tight text-white">
                 Welcome Back
               </h2>
-              <p className="mt-1 mb-6 text-center text-[13px] text-white/55">
+              <p className="mt-1 mb-6 text-center text-[13px] text-white/80">
                 Sign in to your IMGC Lender Portal account
               </p>
 
@@ -291,7 +291,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                 <form onSubmit={onIdentify} noValidate>
                   <FieldLabel>Employee ID or Email</FieldLabel>
                   <div className="relative">
-                    <UserIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/40" />
+                    <UserIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/60" />
                     <input
                       name="identifier"
                       value={identifier}
@@ -301,7 +301,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                       className={INPUT_CLASS}
                     />
                   </div>
-                  <p className="mt-2 text-[11.5px] leading-relaxed text-white/40">
+                  <p className="mt-2 text-[12px] leading-relaxed text-white/70">
                     IMGC staff sign in with an Employee ID and password. Lender
                     users sign in with their work email — we send a one-time code.
                   </p>
@@ -318,7 +318,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                   />
                   <FieldLabel>Password</FieldLabel>
                   <div className="relative">
-                    <LockIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/40" />
+                    <LockIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/60" />
                     <input
                       // This field exists only because the user just pressed Continue, so
                       // focusing it continues the action they started rather than seizing
@@ -337,7 +337,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
                       aria-label={showPassword ? "Hide password" : "Show password"}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/75"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/65 hover:text-white/75"
                     >
                       {showPassword ? (
                         <EyeOffIcon className="size-4" />
@@ -348,7 +348,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                   </div>
 
                   <div className="mt-3.5 flex items-center justify-between">
-                    <label className="flex cursor-pointer items-center gap-2 text-[13px] text-white/70">
+                    <label className="flex cursor-pointer items-center gap-2 text-[13px] text-white/85">
                       <input
                         type="checkbox"
                         defaultChecked
@@ -356,7 +356,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                       />
                       Remember me
                     </label>
-                    <span className="text-[13px] font-medium text-white/45">
+                    <span className="text-[13px] font-medium text-white/70">
                       Forgot password?
                     </span>
                   </div>
@@ -385,10 +385,10 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                     onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                     placeholder="••••••"
                     autoComplete="one-time-code"
-                    className="h-12 w-full rounded-lg border border-white/15 bg-white/8 text-center font-mono text-[22px] tracking-[0.5em] text-white placeholder:text-white/25 outline-none transition focus:border-[#2f6df6] focus:bg-white/12 focus:ring-2 focus:ring-[#2f6df6]/30"
+                    className="h-12 w-full rounded-lg border border-white/15 bg-white/8 text-center font-mono text-[22px] tracking-[0.5em] text-white placeholder:text-white/45 outline-none transition focus:border-[#2f6df6] focus:bg-white/12 focus:ring-2 focus:ring-[#2f6df6]/30"
                   />
                   {step.devCode && (
-                    <p className="mt-2 rounded-md border border-white/12 bg-white/5 px-2.5 py-1.5 text-[11.5px] text-white/60">
+                    <p className="mt-2 rounded-md border border-white/12 bg-white/5 px-2.5 py-1.5 text-[11.5px] text-white/80">
                       Development only — no mail is sent. Your code is{" "}
                       <span className="font-mono font-bold text-[#5ce0c6]">
                         {step.devCode}
@@ -411,9 +411,9 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
               )}
 
               <div className="mt-5 border-t border-white/10 pt-4 text-center">
-                <p className="text-[12.5px] text-white/50">
+                <p className="text-[12.5px] text-white/75">
                   Need demo access?{" "}
-                  <span className="font-semibold text-white/80">
+                  <span className="font-semibold text-white">
                     Enter Demo Mode
                   </span>
                 </p>
@@ -422,7 +422,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                     type="button"
                     disabled={pending}
                     onClick={() => onDemo("IMGC")}
-                    className="rounded-lg border border-white/15 bg-white/6 px-3 py-2 text-[12.5px] font-semibold text-white/85 transition hover:border-white/30 hover:bg-white/12 disabled:opacity-50"
+                    className="rounded-lg border border-white/15 bg-white/6 px-3 py-2 text-[12.5px] font-semibold text-white transition hover:border-white/30 hover:bg-white/12 disabled:opacity-50"
                   >
                     Demo as IMGC
                   </button>
@@ -430,7 +430,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                     type="button"
                     disabled={pending}
                     onClick={() => onDemo("LENDER")}
-                    className="rounded-lg border border-white/15 bg-white/6 px-3 py-2 text-[12.5px] font-semibold text-white/85 transition hover:border-white/30 hover:bg-white/12 disabled:opacity-50"
+                    className="rounded-lg border border-white/15 bg-white/6 px-3 py-2 text-[12.5px] font-semibold text-white transition hover:border-white/30 hover:bg-white/12 disabled:opacity-50"
                   >
                     Demo as Lender
                   </button>
@@ -438,7 +438,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
               </div>
             </div>
 
-            <p className="mt-4 text-center text-[11.5px] text-white/35">
+            <p className="mt-4 text-center text-[12px] text-white/60">
               Protected workspace · access is granted by IMGC
             </p>
           </section>
@@ -471,8 +471,8 @@ function IdentityChip({
 }: Readonly<{ icon: React.ReactNode; text: string; onChange: () => void }>) {
   return (
     <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-white/12 bg-white/5 px-3 py-2">
-      <span className="flex min-w-0 items-center gap-2 text-[12.5px] text-white/75">
-        <span className="text-white/45">{icon}</span>
+      <span className="flex min-w-0 items-center gap-2 text-[12.5px] text-white/85">
+        <span className="text-white/65">{icon}</span>
         <span className="truncate">{text}</span>
       </span>
       <button

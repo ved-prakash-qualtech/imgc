@@ -8,6 +8,7 @@ import {
   BuildingIcon,
   ChevronDownIcon,
   CircleDotIcon,
+  FileCheck2Icon,
   FolderOpenIcon,
   InboxIcon,
   KeyRoundIcon,
@@ -44,6 +45,8 @@ const ICONS = new Map<NavKey, typeof LayoutDashboardIcon>([
   ["initiate-claim", FilePlusIcon],
   ["track-query-response", MessageCircleIcon],
   ["audit-trail", ListTreeIcon],
+  ["additional-documents", FileCheck2Icon],
+  ["required-documents", FileCheck2Icon],
   ["buckets", InboxIcon],
   ["notifications", BellIcon],
   ["administration", ShieldIcon],
@@ -81,16 +84,18 @@ type SidebarNavLinkProps = Readonly<{
   item: NavItem;
   active: boolean;
   collapsed: boolean;
+  /** Unread count for this item, if any. */
+  badge?: number;
 }>;
 
-function SidebarNavLink({ item, active, collapsed }: SidebarNavLinkProps) {
+function SidebarNavLink({ item, active, collapsed, badge }: SidebarNavLinkProps) {
   return (
     <Link
       href={item.href ?? "#"}
       title={collapsed ? item.label : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex items-center gap-2.5 rounded-lg text-left text-[13.5px] font-medium transition-colors",
+        "relative flex items-center gap-2.5 rounded-lg text-left text-[13.5px] font-medium transition-colors",
         collapsed ? "w-full justify-center px-0 py-2.5" : "w-full px-3 py-2",
         active
           ? "bg-[linear-gradient(90deg,#0466c8_0%,#044b95_100%)] text-white"
@@ -101,6 +106,20 @@ function SidebarNavLink({ item, active, collapsed }: SidebarNavLinkProps) {
       {!collapsed && (
         <span className="min-w-0 flex-1 truncate">{item.label}</span>
       )}
+      {badge ? (
+        <span
+          aria-label={`${badge} unread`}
+          className={cn(
+            "grid min-w-4.5 shrink-0 place-items-center rounded-full px-1.5 text-[10.5px] font-bold leading-4",
+            collapsed
+              ? "absolute right-2 top-1.5 size-4 px-0"
+              : "",
+            active ? "bg-white text-brand-primary" : "bg-destructive text-white"
+          )}
+        >
+          {badge > 99 ? "99+" : badge}
+        </span>
+      ) : null}
     </Link>
   );
 }
@@ -116,7 +135,13 @@ function SidebarNavGroup({
   item,
   activeKey,
   collapsed,
-}: Readonly<{ item: NavItem; activeKey?: NavKey; collapsed: boolean }>) {
+  badges,
+}: Readonly<{
+  item: NavItem;
+  activeKey?: NavKey;
+  collapsed: boolean;
+  badges?: Partial<Record<NavKey, number>>;
+}>) {
   const children = item.children ?? [];
   const holdsActive = children.some((child) => child.key === activeKey);
   const [open, setOpen] = useState(holdsActive);
@@ -131,6 +156,7 @@ function SidebarNavGroup({
             item={child}
             active={child.key === activeKey}
             collapsed
+            badge={badges?.[child.key]}
           />
         ))}
       </>
@@ -176,6 +202,7 @@ function SidebarNavGroup({
 }
 
 export type AppSidebarProps = Readonly<{
+  badges?: Partial<Record<NavKey, number>>;
   items: NavItem[];
   /** Which item is highlighted. Passed in rather than derived from the URL: more than one item
    *  can point at the same route while sections are still being built. */
@@ -192,6 +219,7 @@ export type AppSidebarProps = Readonly<{
 export function AppSidebar({
   items,
   activeKey,
+  badges,
   defaultCollapsed = false,
   overlay = false,
   open = false,
@@ -234,6 +262,7 @@ export function AppSidebar({
             activeKey={activeKey}
             collapsed={false}
             onToggle={handleToggle}
+            badges={badges}
           />
         </aside>
       </>
@@ -252,6 +281,7 @@ export function AppSidebar({
         activeKey={activeKey}
         collapsed={isCollapsed}
         onToggle={handleToggle}
+        badges={badges}
       />
     </aside>
   );
@@ -262,6 +292,7 @@ type SidebarContentsProps = Readonly<{
   activeKey?: NavKey;
   collapsed: boolean;
   onToggle: () => void;
+  badges?: Partial<Record<NavKey, number>>;
 }>;
 
 function SidebarContents({
@@ -269,6 +300,7 @@ function SidebarContents({
   activeKey,
   collapsed,
   onToggle,
+  badges,
 }: SidebarContentsProps) {
   return (
     <>
@@ -327,6 +359,7 @@ function SidebarContents({
               item={item}
               activeKey={activeKey}
               collapsed={collapsed}
+              badges={badges}
             />
           ) : (
             <SidebarNavLink
@@ -334,6 +367,7 @@ function SidebarContents({
               item={item}
               active={item.key === activeKey}
               collapsed={collapsed}
+              badge={badges?.[item.key]}
             />
           )
         )}

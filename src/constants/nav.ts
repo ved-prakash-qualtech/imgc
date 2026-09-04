@@ -11,6 +11,8 @@ import type { Role } from "@/server/mock/types";
 export type NavKey =
   | "dashboard"
   | "accounts"
+  | "additional-documents"
+  | "required-documents"
   | "buckets"
   | "notifications"
   | "initiate-claim"
@@ -71,6 +73,20 @@ const AUDIT_TRAIL: NavItem = {
   href: ROUTES.auditTrail,
 };
 
+/** IMGC only — the cross-case additional-documents workbench. */
+const ADDITIONAL_DOCUMENTS: NavItem = {
+  key: "additional-documents",
+  label: "Additional Documents",
+  href: ROUTES.additionalDocuments,
+};
+
+/** Lender only — what IMGC is asking this organisation for, across all their cases. */
+const REQUIRED_DOCUMENTS: NavItem = {
+  key: "required-documents",
+  label: "Required Documents",
+  href: ROUTES.requiredDocuments,
+};
+
 /** IMGC only — moving an account between the two processing buckets. */
 const BUCKETS: NavItem = {
   key: "buckets",
@@ -98,10 +114,18 @@ const ADMINISTRATION: NavItem = {
  */
 export function navFor(role: Role): NavItem[] {
   return role === "IMGC"
-    ? [DASHBOARD, ACCOUNTS, BUCKETS, NOTIFICATIONS, ADMINISTRATION]
+    ? [
+        DASHBOARD,
+        ACCOUNTS,
+        ADDITIONAL_DOCUMENTS,
+        BUCKETS,
+        NOTIFICATIONS,
+        ADMINISTRATION,
+      ]
     : [
         DASHBOARD,
         INITIATE_CLAIM,
+        REQUIRED_DOCUMENTS,
         TRACK_QUERY_RESPONSE,
         AUDIT_TRAIL,
         NOTIFICATIONS,

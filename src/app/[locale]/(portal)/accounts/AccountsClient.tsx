@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { SearchIcon } from "lucide-react";
 
+import { BucketToggle } from "@/components/portal/BucketToggle";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
 import {
@@ -90,6 +91,9 @@ export function AccountsClient({
               <TableHead>Documents</TableHead>
               <TableHead>Bucket</TableHead>
               <TableHead>Claim</TableHead>
+              {role === "IMGC" && (
+                <TableHead className="text-right">Processing</TableHead>
+              )}
               <TableHead className="text-right">Open</TableHead>
             </TableRow>
           </TableHeader>
@@ -97,7 +101,7 @@ export function AccountsClient({
             {rows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={role === "IMGC" ? 8 : 7}
+                  colSpan={role === "IMGC" ? 9 : 7}
                   className="py-12 text-center text-[13px] text-neutral-500"
                 >
                   No accounts match those filters.
@@ -128,6 +132,16 @@ export function AccountsClient({
                   <TableCell>
                     <StatusPill status={a.claimStatus} />
                   </TableCell>
+                  {role === "IMGC" && (
+                    <TableCell className="text-right">
+                      <BucketToggle
+                        accountId={a.id}
+                        loanNo={a.loanNo}
+                        bucket={a.bucket}
+                        size="xs"
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="text-right">
                     <Link
                       href={ROUTES.account(a.id)}

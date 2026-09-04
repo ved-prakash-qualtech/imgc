@@ -13,7 +13,24 @@ export type Bucket = "IMGC" | "LENDER";
 /** DRAFT → lender is still preparing; SUBMITTED → handed to IMGC; then IMGC sets APPROVED/QUERIED. */
 export type ClaimStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "QUERIED";
 
-export type DocStatus = "PENDING" | "UPLOADED" | "ACCEPTED" | "REJECTED";
+/**
+ * The document lifecycle, exactly as the business rules define it.
+ *
+ * There is no separate "Uploaded" state: rule 2 says an upload puts the document straight into
+ * review, so a row that sat at "Uploaded" would be a state no rule can ever move out of.
+ */
+export type DocStatus =
+  | "NOT_REQUESTED"
+  | "PENDING_UPLOAD"
+  | "UNDER_REVIEW"
+  | "APPROVED"
+  | "REJECTED"
+  | "REUPLOAD_REQUIRED";
+
+/** Whether every required document on a case has been approved. */
+export type CaseDocStatus = "COMPLETE" | "INCOMPLETE";
+
+export type Priority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 
 export type ReinstateStatus = "REQUESTED" | "APPROVED" | "DENIED";
 
@@ -28,7 +45,11 @@ export type AuditType =
   | "CLAIM_STATUS_CHANGED"
   | "REINSTATE_REQUESTED"
   | "REINSTATE_DECIDED"
-  | "RETENTION_PURGED";
+  | "RETENTION_PURGED"
+  | "DOC_REQUIREMENT_UPDATED"
+  | "DOC_APPROVED"
+  | "DOC_REJECTED"
+  | "DOC_REUPLOAD_REQUESTED";
 
 export interface LenderOrg {
   id: string;
@@ -64,10 +85,18 @@ export interface Otp {
 
 export interface Account {
   id: string;
+  /** Case / application reference, e.g. APP-100245. */
   loanNo: string;
   borrowerName: string;
   lenderOrgId: string;
   product: string;
+  region: string;
+  branch: string;
+  /** IMGC user id this case is assigned to. */
+  assignedUserId?: string;
+  assignedUserName?: string;
+  /** ISO date the application was received. */
+  applicationDate: string;
   bucket: Bucket;
   /** Free-text processing stage shown on the account. */
   stage: string;
@@ -118,6 +147,42 @@ export interface ClaimDocument {
   currentFileId?: string;
   rejection?: Rejection;
   createdAt: string;
+
+  /* ── configurable requirement (IMGC-authored additional documents) ── */
+  /** e.g. "Property Document". Groups the checklist so a long list stays readable. */
+  category?: string;
+  /** What the lender must actually provide — shown under the row as instructions. */
+  description?: string;
+  /** "All products", or one product this requirement pertains to. */
+  applicableProduct?: string;
+  /** "All case types", or the case type this requirement pertains to. */
+  applicableCaseType?: string;
+  /** ISO date the upload is due by. Absent means no SLA. */
+  dueDate?: string;
+  /** IMGC's own note against the requirement. */
+  requirementRemarks?: string;
+  /**
+   * Inactive requirements are withdrawn: hidden from the lender and excluded from the submission
+   * gate. Absent counts as active, so every requirement seeded before this field stays active.
+   */
+  active?: boolean;
+  addedByName?: string;
+  priority?: Priority;
+  /** Latest version number; 0 while nothing has been uploaded. */
+  version?: number;
+  /** Set by the last Approve / Reject / Request re-upload decision. */
+  review?: DocumentReview;
+}
+
+export interface DocumentReview {
+  decision: "APPROVED" | "REJECTED" | "REUPLOAD_REQUESTED";
+  by: string;
+  byName: string;
+  at: string;
+  /** Mandatory for a rejection and for a re-upload request. */
+  remarks: string;
+  /** The version the decision was made against, so a later upload does not rewrite history. */
+  version: number;
 }
 
 export interface DocumentFile {
@@ -134,6 +199,14 @@ export interface DocumentFile {
   uploadedAt: string;
   /** Set when a newer file replaces it — kept for the audit trail. */
   supersededAt?: string;
+  /** 1-based, and never reused: a re-upload is always a new version. */
+  version: number;
+  /** Lender-supplied metadata captured on the upload form. */
+  documentNumber?: string;
+  documentDate?: string;
+  uploadRemarks?: string;
+  /** Why this version was superseded, copied from the decision that rejected it. */
+  supersededReason?: string;
 }
 
 export interface Remark {
@@ -168,6 +241,8 @@ export interface Notification {
   event: string;
   accountId?: string;
   sentAt: string;
+  /** Roles that have not yet opened the notification list since this arrived. */
+  unreadFor?: Role[];
 }
 
 export interface MockDb {

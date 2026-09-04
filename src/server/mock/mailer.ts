@@ -2,6 +2,7 @@ import "server-only";
 
 import { newId, nowIso } from "@/server/mock/ids";
 import { writeDb } from "@/server/mock/db";
+import type { Role } from "@/server/mock/types";
 
 /**
  * Stand-in mailer. There is no SMTP in the prototype — every "email" is recorded in the
@@ -13,6 +14,7 @@ export async function sendMail(input: {
   body: string;
   event: string;
   accountId?: string;
+  unreadFor?: Role[];
 }): Promise<void> {
   const recipients = Array.from(new Set(input.to.map((t) => t.trim()).filter(Boolean)));
   if (recipients.length === 0) return;
@@ -26,6 +28,7 @@ export async function sendMail(input: {
       event: input.event,
       accountId: input.accountId,
       sentAt: nowIso(),
+      unreadFor: input.unreadFor,
     });
   });
 

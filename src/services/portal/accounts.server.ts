@@ -2,7 +2,11 @@ import "server-only";
 
 import { readDb, writeDb } from "@/server/mock/db";
 import { recordEvent } from "@/services/portal/audit.server";
-import { notifyBucketShift } from "@/services/portal/notifications.server";
+import {
+  notifyBucketShift,
+  notifyClaimDecision,
+} from "@/services/portal/notifications.server";
+import { addRemark } from "@/services/portal/remarks.server";
 import type { AppSession } from "@/lib/auth/appSession";
 import type { Account, Bucket, ClaimStatus, LenderOrg } from "@/server/mock/types";
 
@@ -24,7 +28,7 @@ function decorate(account: Account, orgs: LenderOrg[], docs: { accountId: string
     ...account,
     lenderOrgName: orgs.find((o) => o.id === account.lenderOrgId)?.name ?? "—",
     requiredDocs: own.filter((d) => d.required).length,
-    pendingDocs: own.filter((d) => d.required && d.status !== "UPLOADED" && d.status !== "ACCEPTED").length,
+    pendingDocs: own.filter((d) => d.required && d.status !== "UNDER_REVIEW" && d.status !== "APPROVED").length,
   };
 }
 
@@ -100,11 +104,17 @@ export async function setClaimStatus(
 ): Promise<{ ok: boolean; error?: string }> {
   if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
 
+  const trimmedNote = note.trim();
+
   const outcome = await writeDb((db) => {
     const account = db.accounts.find((a) => a.id === accountId);
     if (!account) return { ok: false as const, error: "Account not found." };
+    const from = account.claimStatus;
     account.claimStatus = status;
-    return { ok: true as const };
+    // The processing itself happened in PAS; the portal records the outcome and the stage the
+    // lender now sees against the account.
+    account.stage = status === "APPROVED" ? "Claim approved" : "Query raised with the lender";
+    return { ok: true as const, from, account: { ...account } };
   });
   if (!outcome.ok) return outcome;
 
@@ -112,9 +122,22 @@ export async function setClaimStatus(
     accountId,
     actor: session,
     type: "CLAIM_STATUS_CHANGED",
-    summary: `Claim marked ${status}${note ? ` — ${note}` : ""}`,
-    meta: { status },
+    summary: `Claim marked ${status}${trimmedNote ? ` — ${trimmedNote}` : ""}`,
+    meta: { status, from: outcome.from },
   });
+
+  // The note goes on the remarks thread as well as into the audit meta. The audit trail is a
+  // record for whoever investigates later; the remark is what the lender actually reads, and a
+  // query whose reason is only in an audit row reads to them as a refusal with no explanation.
+  if (trimmedNote) {
+    await addRemark(
+      session,
+      accountId,
+      `Claim ${status.toLowerCase()}: ${trimmedNote}`
+    );
+  }
+
+  await notifyClaimDecision(outcome.account, status, trimmedNote, session);
   return { ok: true };
 }
 

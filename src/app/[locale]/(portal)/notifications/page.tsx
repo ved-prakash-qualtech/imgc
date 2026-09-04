@@ -8,7 +8,10 @@ import {
 import { CommandBand, Section } from "@/components/portal/CommandBand";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { requireSession } from "@/lib/auth/appSession";
-import { listNotifications } from "@/services/portal/notifications.server";
+import {
+  listNotifications,
+  markNotificationsRead,
+} from "@/services/portal/notifications.server";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +23,8 @@ export const dynamic = "force-dynamic";
 export default async function NotificationsPage() {
   const session = await requireSession();
   const notifications = await listNotifications(session);
+  // Opening the list is what marks it read — the badge clears for this role only.
+  await markNotificationsRead(session);
 
   const count = (event: string) =>
     notifications.filter((n) => n.event === event).length;
