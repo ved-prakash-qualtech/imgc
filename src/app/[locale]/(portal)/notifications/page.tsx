@@ -8,10 +8,12 @@ import {
 import { CommandBand, Section } from "@/components/portal/CommandBand";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { requireSession } from "@/lib/auth/appSession";
+import { redirect } from "next/navigation";
 import {
   listNotifications,
   markNotificationsRead,
 } from "@/services/portal/notifications.server";
+import { ROUTES } from "@/constants/route";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +22,52 @@ export const dynamic = "force-dynamic";
  * is recorded here (and written to the server console) — which also makes the lender's one-time
  * sign-in codes visible in development.
  */
+function buildNotificationStats(
+  notificationsLength: number,
+  count: (event: string) => number,
+  recipients: number,
+  latest: string | undefined
+) {
+  return [
+    {
+      icon: <MailIcon className="size-4" />,
+      label: "Messages sent",
+      value: String(notificationsLength),
+      caption: latest
+        ? `latest ${new Date(latest).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`
+        : "nothing sent yet",
+    },
+    {
+      icon: <ArrowLeftRightIcon className="size-4" />,
+      label: "Bucket shifts",
+      value: String(count("BUCKET_SHIFTED")),
+      caption: "accounts handed over",
+    },
+    {
+      icon: <FileClockIcon className="size-4" />,
+      label: "Claim submissions",
+      value: String(count("CLAIM_SUBMITTED")),
+      caption: "lender handoffs to IMGC",
+      accent: "teal" as const,
+    },
+    {
+      icon: <UsersIcon className="size-4" />,
+      label: "Distinct recipients",
+      value: String(recipients),
+      caption: "mailboxes on the distribution",
+    },
+  ];
+}
+
 export default async function NotificationsPage() {
   const session = await requireSession();
+
+  // Lenders no longer have the Notifications item in their nav.
+  // Guard direct URL access so they are not left on a nav-less page.
+  if (session.role === "LENDER") {
+    redirect(ROUTES.dashboard);
+  }
+
   const notifications = await listNotifications(session);
   // Opening the list is what marks it read — the badge clears for this role only.
   await markNotificationsRead(session);
@@ -41,35 +87,12 @@ export default async function NotificationsPage() {
               ? "Every message the portal has sent, newest first"
               : "Messages sent to your organisation about your accounts"
           }
-          stats={[
-            {
-              icon: <MailIcon className="size-4" />,
-              label: "Messages sent",
-              value: String(notifications.length),
-              caption: latest
-                ? `latest ${new Date(latest).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`
-                : "nothing sent yet",
-            },
-            {
-              icon: <ArrowLeftRightIcon className="size-4" />,
-              label: "Bucket shifts",
-              value: String(count("BUCKET_SHIFTED")),
-              caption: "accounts handed over",
-            },
-            {
-              icon: <FileClockIcon className="size-4" />,
-              label: "Claim submissions",
-              value: String(count("CLAIM_SUBMITTED")),
-              caption: "lender handoffs to IMGC",
-              accent: "teal",
-            },
-            {
-              icon: <UsersIcon className="size-4" />,
-              label: "Distinct recipients",
-              value: String(recipients),
-              caption: "mailboxes on the distribution",
-            },
-          ]}
+          stats={buildNotificationStats(
+            notifications.length,
+            count,
+            recipients,
+            latest
+          )}
         />
 
         <Section

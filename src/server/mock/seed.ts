@@ -64,7 +64,10 @@ type Additional = Readonly<{
   /** Present when the status implies a file exists. */
   file?: { name: string; version: number; number?: string; remarks?: string };
   /** Present for REJECTED / REUPLOAD_REQUIRED / APPROVED. */
-  review?: { decision: "APPROVED" | "REJECTED" | "REUPLOAD_REQUESTED"; remarks: string };
+  review?: {
+    decision: "APPROVED" | "REJECTED" | "REUPLOAD_REQUESTED";
+    remarks: string;
+  };
   /** An older version kept in history, for the version-history demo. */
   previous?: { name: string; version: number; supersededReason: string };
 }>;
@@ -126,8 +129,15 @@ const CASES: ReadonlyArray<{
         required: true,
         status: "APPROVED",
         description: "Latest municipal tax receipt showing no arrears.",
-        file: { name: "Property_Tax_Receipt.pdf", version: 1, number: "MCGM/2026/88213" },
-        review: { decision: "APPROVED", remarks: "Verified against the municipal portal." },
+        file: {
+          name: "Property_Tax_Receipt.pdf",
+          version: 1,
+          number: "MCGM/2026/88213",
+        },
+        review: {
+          decision: "APPROVED",
+          remarks: "Verified against the municipal portal.",
+        },
       },
       {
         name: "Possession Letter",
@@ -157,7 +167,10 @@ const CASES: ReadonlyArray<{
         required: true,
         status: "APPROVED",
         file: { name: "Kavya_Iyer_NOC.pdf", version: 1 },
-        review: { decision: "APPROVED", remarks: "NOC current and correctly stamped." },
+        review: {
+          decision: "APPROVED",
+          remarks: "NOC current and correctly stamped.",
+        },
       },
       {
         name: "Additional KYC",
@@ -166,11 +179,13 @@ const CASES: ReadonlyArray<{
         status: "REUPLOAD_REQUIRED",
         priority: "URGENT",
         dueInDays: 2,
-        description: "Any one additional officially valid document for the borrower.",
+        description:
+          "Any one additional officially valid document for the borrower.",
         file: { name: "Kavya_Iyer_KYC_v1.pdf", version: 1 },
         review: {
           decision: "REUPLOAD_REQUESTED",
-          remarks: "The uploaded document is unclear. Please upload a readable copy.",
+          remarks:
+            "The uploaded document is unclear. Please upload a readable copy.",
         },
       },
       {
@@ -202,7 +217,8 @@ const CASES: ReadonlyArray<{
         status: "REJECTED",
         priority: "HIGH",
         dueInDays: -2,
-        description: "Society NOC on letterhead, signed within the last 90 days.",
+        description:
+          "Society NOC on letterhead, signed within the last 90 days.",
         file: { name: "Imran_Sheikh_NOC_v2.pdf", version: 2 },
         review: {
           decision: "REJECTED",
@@ -298,12 +314,60 @@ export function buildSeed(): MockDb {
   const passwordHash = hashPasswordSync(DEMO_IMGC_PASSWORD);
 
   const users: User[] = [
-    { id: "usr_emp1", role: "IMGC", name: "Meera Nair", email: "meera.nair@imgc.in", employeeId: "EMP-0001", passwordHash, createdAt: NOW },
-    { id: "usr_emp2", role: "IMGC", name: "Rohit Sharma", email: "rohit.sharma@imgc.in", employeeId: "EMP-0002", passwordHash, createdAt: NOW },
-    { id: "usr_emp3", role: "IMGC", name: "Anita Desai", email: "anita.desai@imgc.in", employeeId: "EMP-0003", passwordHash, createdAt: NOW },
-    { id: "usr_len1", role: "LENDER", name: "Arjun Mehta", email: "arjun@acme-bank.com", lenderOrgId: "org_acme", createdAt: NOW, createdBy: "usr_emp1" },
-    { id: "usr_len2", role: "LENDER", name: "Priya Rao", email: "priya@acme-bank.com", lenderOrgId: "org_acme", createdAt: NOW, createdBy: "usr_emp1" },
-    { id: "usr_len3", role: "LENDER", name: "Sameer Kulkarni", email: "sameer@northgate-hfc.com", lenderOrgId: "org_northgate", createdAt: NOW, createdBy: "usr_emp2" },
+    {
+      id: "usr_emp1",
+      role: "IMGC",
+      name: "Meera Nair",
+      email: "meera.nair@imgc.in",
+      employeeId: "EMP-0001",
+      passwordHash,
+      createdAt: NOW,
+    },
+    {
+      id: "usr_emp2",
+      role: "IMGC",
+      name: "Rohit Sharma",
+      email: "rohit.sharma@imgc.in",
+      employeeId: "EMP-0002",
+      passwordHash,
+      createdAt: NOW,
+    },
+    {
+      id: "usr_emp3",
+      role: "IMGC",
+      name: "Anita Desai",
+      email: "anita.desai@imgc.in",
+      employeeId: "EMP-0003",
+      passwordHash,
+      createdAt: NOW,
+    },
+    {
+      id: "usr_len1",
+      role: "LENDER",
+      name: "Arjun Mehta",
+      email: "arjun@acme-bank.com",
+      lenderOrgId: "org_acme",
+      createdAt: NOW,
+      createdBy: "usr_emp1",
+    },
+    {
+      id: "usr_len2",
+      role: "LENDER",
+      name: "Priya Rao",
+      email: "priya@acme-bank.com",
+      lenderOrgId: "org_acme",
+      createdAt: NOW,
+      createdBy: "usr_emp1",
+    },
+    {
+      id: "usr_len3",
+      role: "LENDER",
+      name: "Sameer Kulkarni",
+      email: "sameer@northgate-hfc.com",
+      lenderOrgId: "org_northgate",
+      createdAt: NOW,
+      createdBy: "usr_emp2",
+    },
   ];
 
   const accounts: Account[] = [];
@@ -435,6 +499,14 @@ export function buildSeed(): MockDb {
         version: a.file?.version ?? 0,
         currentFileId,
         createdAt: ago(Math.max(1, c.appDaysAgo - 4)),
+        rejection:
+          a.status === "REJECTED"
+            ? {
+                at: ago(5),
+                by: c.assigned[1] ?? "Meera Nair",
+                reason: a.review?.remarks ?? "Document is outdated.",
+              }
+            : undefined,
         review: a.review
           ? {
               decision: a.review.decision,

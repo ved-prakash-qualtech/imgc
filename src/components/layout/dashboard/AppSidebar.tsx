@@ -46,7 +46,6 @@ const ICONS = new Map<NavKey, typeof LayoutDashboardIcon>([
   ["track-query-response", MessageCircleIcon],
   ["audit-trail", ListTreeIcon],
   ["additional-documents", FileCheck2Icon],
-  ["required-documents", FileCheck2Icon],
   ["buckets", InboxIcon],
   ["notifications", BellIcon],
   ["administration", ShieldIcon],
@@ -88,7 +87,12 @@ type SidebarNavLinkProps = Readonly<{
   badge?: number;
 }>;
 
-function SidebarNavLink({ item, active, collapsed, badge }: SidebarNavLinkProps) {
+function SidebarNavLink({
+  item,
+  active,
+  collapsed,
+  badge,
+}: SidebarNavLinkProps) {
   return (
     <Link
       href={item.href ?? "#"}
@@ -111,9 +115,7 @@ function SidebarNavLink({ item, active, collapsed, badge }: SidebarNavLinkProps)
           aria-label={`${badge} unread`}
           className={cn(
             "grid min-w-4.5 shrink-0 place-items-center rounded-full px-1.5 text-[10.5px] font-bold leading-4",
-            collapsed
-              ? "absolute right-2 top-1.5 size-4 px-0"
-              : "",
+            collapsed ? "absolute right-2 top-1.5 size-4 px-0" : "",
             active ? "bg-white text-brand-primary" : "bg-destructive text-white"
           )}
         >

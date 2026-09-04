@@ -12,7 +12,6 @@ export type NavKey =
   | "dashboard"
   | "accounts"
   | "additional-documents"
-  | "required-documents"
   | "buckets"
   | "notifications"
   | "initiate-claim"
@@ -80,13 +79,6 @@ const ADDITIONAL_DOCUMENTS: NavItem = {
   href: ROUTES.additionalDocuments,
 };
 
-/** Lender only — what IMGC is asking this organisation for, across all their cases. */
-const REQUIRED_DOCUMENTS: NavItem = {
-  key: "required-documents",
-  label: "Required Documents",
-  href: ROUTES.requiredDocuments,
-};
-
 /** IMGC only — moving an account between the two processing buckets. */
 const BUCKETS: NavItem = {
   key: "buckets",
@@ -122,12 +114,5 @@ export function navFor(role: Role): NavItem[] {
         NOTIFICATIONS,
         ADMINISTRATION,
       ]
-    : [
-        DASHBOARD,
-        INITIATE_CLAIM,
-        REQUIRED_DOCUMENTS,
-        TRACK_QUERY_RESPONSE,
-        AUDIT_TRAIL,
-        NOTIFICATIONS,
-      ];
+    : [DASHBOARD, INITIATE_CLAIM, TRACK_QUERY_RESPONSE, AUDIT_TRAIL];
 }

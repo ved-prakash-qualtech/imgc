@@ -26,7 +26,6 @@ export type Result = Readonly<{ ok: boolean; error?: string }>;
  */
 function refreshAll(accountId?: string): void {
   revalidatePath(ROUTES.additionalDocuments);
-  revalidatePath(ROUTES.requiredDocuments);
   revalidatePath(ROUTES.accounts);
   revalidatePath(ROUTES.dashboard);
   revalidatePath(ROUTES.notifications);
@@ -61,7 +60,12 @@ export async function setActiveAction(
   active: boolean
 ): Promise<Result> {
   const session = await requireSession();
-  const result = await setRequirementActive(session, accountId, documentId, active);
+  const result = await setRequirementActive(
+    session,
+    accountId,
+    documentId,
+    active
+  );
   if (result.ok) refreshAll(accountId);
   return result;
 }
@@ -74,19 +78,28 @@ export async function reviewDocumentAction(
   remarks: string
 ): Promise<Result> {
   const session = await requireSession();
-  const result = await decideDocument(session, accountId, documentId, decision, remarks);
+  const result = await decideDocument(
+    session,
+    accountId,
+    documentId,
+    decision,
+    remarks
+  );
   if (result.ok) refreshAll(accountId);
   return result;
 }
 
 /** Lender upload / re-upload, with the metadata the upload form collects. */
-export async function uploadRequirementAction(formData: FormData): Promise<Result> {
+export async function uploadRequirementAction(
+  formData: FormData
+): Promise<Result> {
   const session = await requireSession();
   const accountId = String(formData.get("accountId") ?? "");
   const documentId = String(formData.get("documentId") ?? "");
   const file = formData.get("file");
 
-  if (!(file instanceof File)) return { ok: false, error: "Choose a file to upload." };
+  if (!(file instanceof File))
+    return { ok: false, error: "Choose a file to upload." };
 
   const meta: UploadMeta = {
     documentNumber: String(formData.get("documentNumber") ?? ""),
@@ -94,7 +107,13 @@ export async function uploadRequirementAction(formData: FormData): Promise<Resul
     remarks: String(formData.get("remarks") ?? ""),
   };
 
-  const result = await uploadDocument(session, accountId, documentId, file, meta);
+  const result = await uploadDocument(
+    session,
+    accountId,
+    documentId,
+    file,
+    meta
+  );
   if (result.ok) refreshAll(accountId);
   return result;
 }

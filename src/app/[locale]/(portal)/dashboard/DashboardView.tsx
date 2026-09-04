@@ -16,7 +16,10 @@ import { StatusPill } from "@/components/portal/StatusPill";
 import { ROUTES } from "@/constants/route";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
-import type { DashboardSummary, Tile } from "@/services/portal/dashboard.server";
+import type {
+  DashboardSummary,
+  Tile,
+} from "@/services/portal/dashboard.server";
 import type { AuditEvent, Role } from "@/server/mock/types";
 
 /* ── tokens for the soft-tint tiles ────────────────────────────────── */
@@ -65,6 +68,74 @@ type Props = Readonly<{
   recent: AuditEvent[];
 }>;
 
+function buildCommandBandStats(summary: DashboardSummary) {
+  return [
+    {
+      icon: <FolderOpenIcon className="size-4" />,
+      label: "Accounts in scope",
+      value: String(summary.accountCount),
+      caption: `${summary.readyToSubmit} ready to submit`,
+    },
+    {
+      icon: <UploadCloudIcon className="size-4" />,
+      label: "Document readiness",
+      value: `${summary.completionPct}%`,
+      caption: `${summary.documentsIn} of ${summary.documentsRequired} mandatory in`,
+      accent: "teal" as const,
+    },
+    {
+      icon: <FileClockIcon className="size-4" />,
+      label: "Submitted / approved",
+      value: `${summary.submittedCount} / ${summary.approvedCount}`,
+      caption: `${summary.queriedCount} queried`,
+    },
+    {
+      icon: <AlertTriangleIcon className="size-4" />,
+      label: "Needs action",
+      value: String(summary.pendingUploadAccounts),
+      caption:
+        summary.oldestPendingDays > 0
+          ? `oldest untouched ${summary.oldestPendingDays}d`
+          : "nothing outstanding",
+      accent: "amber" as const,
+    },
+  ];
+}
+
+function renderAdditionalDocsAction(isLender: boolean) {
+  return (
+    <Link
+      href={isLender ? ROUTES.initiateClaim : ROUTES.additionalDocuments}
+      className="text-[12.5px] font-semibold text-brand-primary hover:underline"
+    >
+      {isLender ? "Initiate a claim" : "Open the workbench"} →
+    </Link>
+  );
+}
+
+function renderNeedsAttentionAction() {
+  return (
+    <Link
+      href={ROUTES.accounts}
+      className="inline-flex items-center gap-1 text-[13px] font-semibold text-brand-primary hover:underline"
+    >
+      All accounts <ArrowRightIcon className="size-3.5" />
+    </Link>
+  );
+}
+
+function renderUploadCloudIcon() {
+  return <UploadCloudIcon className="size-4" />;
+}
+
+function renderMessageWarningIcon() {
+  return <MessageSquareWarningIcon className="size-4" />;
+}
+
+function renderClockIcon() {
+  return <ClockIcon className="size-4" />;
+}
+
 export function DashboardView({
   role,
   firstName,
@@ -93,37 +164,7 @@ export function DashboardView({
             ? "Document readiness and claim progress across your portfolio"
             : "Document readiness and claim progress across every lender"
         }
-        stats={[
-          {
-            icon: <FolderOpenIcon className="size-4" />,
-            label: "Accounts in scope",
-            value: String(summary.accountCount),
-            caption: `${summary.readyToSubmit} ready to submit`,
-          },
-          {
-            icon: <UploadCloudIcon className="size-4" />,
-            label: "Document readiness",
-            value: `${summary.completionPct}%`,
-            caption: `${summary.documentsIn} of ${summary.documentsRequired} mandatory in`,
-            accent: "teal",
-          },
-          {
-            icon: <FileClockIcon className="size-4" />,
-            label: "Submitted / approved",
-            value: `${summary.submittedCount} / ${summary.approvedCount}`,
-            caption: `${summary.queriedCount} queried`,
-          },
-          {
-            icon: <AlertTriangleIcon className="size-4" />,
-            label: "Needs action",
-            value: String(summary.pendingUploadAccounts),
-            caption:
-              summary.oldestPendingDays > 0
-                ? `oldest untouched ${summary.oldestPendingDays}d`
-                : "nothing outstanding",
-            accent: "amber",
-          },
-        ]}
+        stats={buildCommandBandStats(summary)}
       />
 
       {/* ── In-progress cases ────────────────────────────────────── */}
@@ -159,25 +200,37 @@ export function DashboardView({
             ? "Documents IMGC has asked your organisation for"
             : "Requirements raised against cases, across every lender"
         }
-        action={
-          <Link
-            href={isLender ? ROUTES.requiredDocuments : ROUTES.additionalDocuments}
-            className="text-[12.5px] font-semibold text-brand-primary hover:underline"
-          >
-            {isLender ? "Open required documents" : "Open the workbench"} →
-          </Link>
-        }
+        action={renderAdditionalDocsAction(isLender)}
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: "Pending upload", value: summary.additional.pendingUpload, tone: "neutral" as const },
-            { label: "Under review", value: summary.additional.underReview, tone: "info" as const },
-            { label: "Re-upload required", value: summary.additional.reuploadRequired, tone: "warning" as const },
-            { label: "Approved", value: summary.additional.approved, tone: "success" as const },
+            {
+              label: "Pending upload",
+              value: summary.additional.pendingUpload,
+              tone: "neutral" as const,
+            },
+            {
+              label: "Under review",
+              value: summary.additional.underReview,
+              tone: "info" as const,
+            },
+            {
+              label: "Re-upload required",
+              value: summary.additional.reuploadRequired,
+              tone: "warning" as const,
+            },
+            {
+              label: "Approved",
+              value: summary.additional.approved,
+              tone: "success" as const,
+            },
           ].map((tile) => (
             <div
               key={tile.label}
-              className={cn("rounded-xl border px-4 py-3.5", TILE_TONE[tile.tone])}
+              className={cn(
+                "rounded-xl border px-4 py-3.5",
+                TILE_TONE[tile.tone]
+              )}
             >
               <p className="font-outfit text-[26px] font-bold leading-none">
                 {tile.value}
@@ -222,21 +275,21 @@ export function DashboardView({
       >
         <div className="grid gap-3 lg:grid-cols-3">
           <ActionCard
-            icon={<UploadCloudIcon className="size-4" />}
+            icon={renderUploadCloudIcon()}
             title="Pending document upload"
             value={summary.pendingUploadAccounts}
             unit="accounts pending"
             href={ROUTES.accounts}
           />
           <ActionCard
-            icon={<MessageSquareWarningIcon className="size-4" />}
+            icon={renderMessageWarningIcon()}
             title="Queries awaiting response"
             value={summary.queriedCount}
             unit="claims queried by IMGC"
             href={ROUTES.accounts}
           />
           <ActionCard
-            icon={<ClockIcon className="size-4" />}
+            icon={renderClockIcon()}
             title="Rejected documents"
             value={summary.rejectedDocCount}
             unit="held in the retention window"
@@ -289,14 +342,7 @@ export function DashboardView({
         <Card
           title="Needs attention"
           subtitle="Outstanding mandatory documents or an open query"
-          action={
-            <Link
-              href={ROUTES.accounts}
-              className="inline-flex items-center gap-1 text-[13px] font-semibold text-brand-primary hover:underline"
-            >
-              All accounts <ArrowRightIcon className="size-3.5" />
-            </Link>
-          }
+          action={renderNeedsAttentionAction()}
         >
           {attention.length === 0 ? (
             <Empty>Nothing outstanding — every mandatory document is in.</Empty>
@@ -373,7 +419,9 @@ function Card({
     <section className="rounded-xl border border-neutral-100 bg-white shadow-sm">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-neutral-100 px-5 py-3.5">
         <div className="min-w-0">
-          <h2 className="text-[14.5px] font-semibold text-neutral-950">{title}</h2>
+          <h2 className="text-[14.5px] font-semibold text-neutral-950">
+            {title}
+          </h2>
           <p className="mt-0.5 text-[12.5px] text-neutral-500">{subtitle}</p>
         </div>
         {action}

@@ -25,8 +25,6 @@ export const ROUTES = {
   buckets: "/buckets",
   /** IMGC — the cross-case additional-documents workbench. */
   additionalDocuments: "/additional-documents",
-  /** Lender — the documents IMGC is asking their organisation for. */
-  requiredDocuments: "/required-documents",
   notifications: "/notifications",
   /** IMGC only — provision lender access. */
   adminUsers: "/admin/users",
