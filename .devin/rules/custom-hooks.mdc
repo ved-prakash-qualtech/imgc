@@ -1,0 +1,56 @@
+---
+description: Custom React hook placement, structure, and return patterns
+globs: src/hooks/**/*.{ts,tsx},src/features/**/hooks/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Custom hooks
+
+## Where hooks live
+
+| Scope | Location | Examples |
+| ----- | -------- | -------- |
+| Shared, cross-feature | `src/hooks/` | `useDataTableUrlState`, `useErrorHandler`, `useLocalStorage` |
+| Domain-specific | `src/features/<name>/hooks/` | `useLoansTableColumns` |
+| Data mutations / queries | `src/features/<name>/api/` | `useCreateLoanMutation` (not under `hooks/`) |
+
+Extract hook logic from components when a file mixes UI + state/effects, or when two+ features need the same behaviour.
+
+## File and export shape
+
+- **camelCase** file matching the hook: `useDataTableUrlState.ts`.
+- **One primary `use*` export** per file; name matches the file.
+- Options type: `UseHookNameOptions` (use `Readonly<{ ... }>` when it is a props-like object).
+- **`"use client"`** at the top when the hook uses React hooks, Next.js navigation (`useRouter`, `useSearchParams`), or browser APIs.
+
+## Keep hooks thin
+
+- **Pure logic** (parse, serialize, validate, format) belongs in `@/lib/` or feature utils — hooks orchestrate React state and side effects only.
+- **No JSX** in `.ts` hook modules. Column/cell hooks that return React nodes may use `.tsx`.
+- **Storage keys** shared across call sites → export from `@/constants/`, not string literals in the hook.
+
+## Return patterns
+
+```typescript
+// Value + setter tuple
+return [stored, setValue] as const;
+
+// Named API surface (preferred when returning 3+ values)
+return { pagination, sorting, onPaginationChange, onSortingChange };
+
+// Single stable callback
+return useCallback((error: unknown) => { /* ... */ }, []);
+```
+
+- Wrap returned handlers in **`useCallback`**; memoize derived config with **`useMemo`**.
+- Prefer **`react-you-might-not-need-an-effect`** — do not sync state from props with `useEffect` when render can derive it.
+
+## Security and errors
+
+- **`useErrorHandler`** in async handlers and promise chains so errors reach `WidgetErrorBoundary` / Sentry (boundaries only catch render errors).
+- **Never** persist auth tokens, refresh tokens, or PII via `useLocalStorage` / `useSessionStorage` — httpOnly cookies only (see `core-engineering-rules.mdc`).
+
+## Imports
+
+- Consumers: `import { useDataTableUrlState } from "@/hooks/useDataTableUrlState"` — `@/` only, no barrel required.
+- Hooks import types from `@/types/` and validators from feature `validator/` — not the reverse.

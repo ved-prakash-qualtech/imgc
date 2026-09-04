@@ -1,0 +1,59 @@
+---
+description: How to evolve Cursor rules for this Next.js app and folder layout
+alwaysApply: true
+---
+
+# Rule improvement (next-recon-app)
+
+Single **Next.js 16 App Router** app under `src/`. Agent rules live in **`.cursor/rules/`** (canonical); run `pnpm agent:sync` to mirror to `.devin/rules/`.
+
+## Rule map
+
+| Rule | Scope | Purpose |
+| ---- | ----- | ------- |
+| `core-engineering-rules.mdc` | always | Non-negotiable code, security, resilience, workflow |
+| `security-guardrails.mdc` | always | Env/secrets handling and safe terminal use |
+| `docs-sync.mdc` | always | Keep `doc/` and rules aligned with code changes |
+| `rule-improvement.mdc` | always | When and how to update other rules (this file) |
+| `naming-conventions.mdc` | always | camelCase folders, PascalCase components |
+| `path-alias-imports.mdc` | always | `@/` imports only |
+| `types-and-validators.mdc` | always | Types in `src/types/`, Zod in feature `validator/` |
+| `app-default-constants.mdc` | always | `DEFAULT_*` in `src/constants/`, env via `env` |
+| `component-size-modularity.mdc` | always | Component size, `Readonly` props, splits |
+| `semantic-html.mdc` | always | Native HTML over ARIA role substitutes |
+| `custom-hooks.mdc` | `src/hooks/**`, `src/features/**/hooks/**` | Hook placement and return patterns |
+
+Project layout and conventions: [`doc/guides/folder-structure.md`](doc/guides/folder-structure.md), [`doc/guides/conventions.md`](doc/guides/conventions.md).
+
+## Out of scope for automatic improvement
+
+Apply triggers and update cadence **only** to the topic rules in the table above (except this file's own meta guidance).
+
+- **Do not** change [`security-guardrails.mdc`](security-guardrails.mdc) or [`.cursorignore`](.cursorignore) through self-improvement, refactors spotted in passing, or inferred best practices — even if triggers below would normally apply.
+- **Only** edit those security artifacts when the user (or designated owner) **explicitly** requests it; you may briefly mention a possible gap, but leave files unchanged unless asked.
+
+## Triggers
+
+- New patterns not covered by an existing rule for the relevant `src/` tree.
+- Repeated implementations (2–3+ files) that should be one convention.
+- Recurring bugs or review comments (auth, forms, query keys, error boundaries, env access).
+- New dependencies used consistently — update `core-engineering-rules.mdc` / docs; flag if outside approved stack (`technology-stack.md`).
+
+## Process
+
+- Compare new code with existing rules and [`doc/guides/conventions.md`](doc/guides/conventions.md); prefer examples from **this repo** (same folder as the pattern).
+- After refactors or major dependency bumps, update the relevant rule and trim outdated bullets.
+- Mirror edits to `.devin/rules/` via `pnpm agent:sync` (same basename).
+
+## When to add or change rules
+
+- **Security exception:** Never use the thresholds below as a reason to auto-update `security-guardrails.mdc` or `.cursorignore`; see **Out of scope for automatic improvement**.
+- **Add** when a technology or pattern appears in **3+ files** under the same area of `src/`, or when reviews repeat the same instruction.
+- **Change** when better examples exist in code, edge cases appear, or linked docs/APIs change.
+- **Deprecate** by marking old bullets deprecated and pointing to the new approach; remove when no code uses the old path.
+
+## Quality bar
+
+- Actionable, specific bullets; one concern per `.mdc` when files grow large.
+- Keep `globs` accurate on scoped rules (e.g. `custom-hooks.mdc`) so hook guidance does not attach to unrelated files.
+- Frontmatter: `description`, `alwaysApply` (or `globs` + `alwaysApply: false` for path-scoped rules).

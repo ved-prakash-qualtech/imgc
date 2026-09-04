@@ -1,0 +1,97 @@
+/*
+ * miFIN™ Design System color tokens (v1.0.1).
+ * Raw palette below is the single source of color, radius, shadow & spacing
+ * values — never hardcode hex/px in component code (miFIN rule #1).
+ * Semantic `--token-*` aliases map the palette to app-wide roles; shadcn
+ * tokens are wired to these in globals.css.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Brand */
+  --brand-primary: #0466c8;
+  --brand-dark: #044b95;
+  --brand-muted: #d4e4fb;
+  --brand-light: #eef6ff;
+
+  /* Neutral */
+  --neutral-950: #1f1f1f;
+  --neutral-900: #1e293b;
+  --neutral-700: #33415c;
+  --neutral-500: #5c677d;
+  --neutral-400: #8c97a8;
+  --neutral-200: #c7cdda;
+  --neutral-100: #e2e8f0;
+  --neutral-50: #f1f5f9;
+  --neutral-25: #f8fafc;
+  --white: #fff;
+
+  /* Semantic */
+  --success-900: #065f46;
+  --success-700: #047857;
+  --success-500: #0e9f6e;
+  --success-100: #d1fae5;
+  --success-50: #ecfdf5;
+  --warning-700: #b45309;
+  --warning-600: #d97706;
+  --warning-100: #fef3c7;
+  --warning-50: #fffbeb;
+  --danger-700: #b91c1c;
+  --danger-600: #dc2626;
+  --danger-100: #fee2e2;
+  --danger-50: #fef2f2;
+  --purple-700: #7c3aed;
+  --purple-100: #ede9fe;
+  --purple-50: #f5f3ff;
+  --info-700: #0369a1;
+  --info-100: #e0f2fe;
+  --info-50: #f0f9ff;
+
+  /* Gradients (v1.0.1) */
+  --grad-hero: linear-gradient(135deg, #0466c8 0%, #044b95 100%);
+  --grad-nav: linear-gradient(90deg, #1e293b 0%, #0466c8 100%);
+
+  /* Radius */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-xl: 12px;
+  --r-2xl: 16px;
+  --r-full: 9999px;
+
+  /* Shadow (named --ele-* to avoid colliding with Tailwind's --shadow-* theme keys) */
+  --ele-sm: 0 1px 2px 0 rgb(15 23 42 / 5%);
+  --ele-md:
+    0 4px 6px -1px rgb(15 23 42 / 8%), 0 2px 4px -2px rgb(15 23 42 / 6%);
+  --ele-lg:
+    0 10px 15px -3px rgb(15 23 42 / 10%), 0 4px 6px -4px rgb(15 23 42 / 8%);
+  --ele-xl:
+    0 20px 25px -5px rgb(15 23 42 / 12%), 0 8px 10px -6px rgb(15 23 42 / 10%);
+
+  /* Layout */
+  --sidebar-w: 224px;
+  --content-max: 1280px;
+  --gutter: 24px;
+
+  /* Semantic aliases (app roles → palette) */
+  --token-background: var(--neutral-25); /* page background — never dark */
+  --token-foreground: var(--neutral-950); /* primary text/headings */
+  --token-muted: var(--neutral-500); /* labels, metadata, helper text */
+  --token-surface: var(--white); /* cards, raised surfaces */
+  --token-border: var(--neutral-100); /* card borders, dividers, table lines */
+}
+
+/*
+ * Dark = the navigation shell only (miFIN rule #10). Content areas stay light,
+ * so this maps the shell surfaces (sidebar/navbar) — not a full page invert.
+ */
+.dark {
+  color-scheme: dark;
+
+  --token-background: var(--neutral-900);
+  --token-foreground: var(--white);
+  --token-muted: var(--neutral-400);
+  --token-surface: var(--neutral-900);
+  --token-border: rgb(255 255 255 / 12%);
+}

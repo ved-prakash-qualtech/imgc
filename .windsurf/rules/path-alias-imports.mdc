@@ -1,0 +1,31 @@
+---
+description: Use @/ path alias for all src imports in TS/TSX (no ./ or ../ module paths)
+alwaysApply: true
+---
+
+# Path alias imports (`@/`)
+
+`tsconfig.json` maps `@/*` to `./src/*`. **Always** import project modules with the `@/` prefix.
+
+## Do
+
+- Follow `naming-conventions.mdc`: **camelCase** folders, **PascalCase** component files, **camelCase** hook/util files.
+- `import { X } from "@/components/..."`
+- `import { X } from "@/features/loans/..."`
+- `import type { Loan } from "@/types/loans"` (types are declaration-only `.ts` files under `src/types/`)
+- `import { loanSchema } from "@/features/loans/validator/loan"` (Zod lives under the feature `validator/` folder)
+- `import Page from "@/app/login/page"` (including colocated tests importing the route module)
+
+## Do not
+
+- Parent-relative: `from "../api/foo"` or `from "../../lib/bar"`
+- Same-folder relative: `from "./Sibling"` or `from "./page"`
+
+## Exceptions
+
+- **Packages** and **Node built-ins** stay as usual: `from "react"`, `from "next/link"`, `from "node:path"`.
+- **CSS** in `.css` files may use relative `@import` for local theme chunks (PostCSS/Tailwind); this rule targets **TypeScript/JavaScript** imports only.
+
+## Enforcement
+
+`eslint.config.mjs` uses `no-restricted-imports` for `src/**/*.{js,jsx,ts,tsx}` to block `./` and `../` module specifiers.

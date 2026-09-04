@@ -1,0 +1,76 @@
+{
+  "common": {
+    "loans": "Loans",
+    "login": "Login",
+    "backToLoans": "Back to loans",
+    "language": "Language",
+    "english": "English",
+    "hindi": "Hindi"
+  },
+  "auth": {
+    "title": "Login",
+    "email": "Email",
+    "password": "Password",
+    "signIn": "Sign in"
+  },
+  "loans": {
+    "title": "Loans",
+    "cards": "Cards",
+    "table": "Table",
+    "newLoan": "New loan",
+    "loanBadge": "Loan",
+    "loanId": "Loan ID: {id}",
+    "columnTitle": "Title",
+    "columnAmount": "Amount",
+    "emptyMessage": "No loans found."
+  },
+  "loanForm": {
+    "title": "Title",
+    "titlePlaceholder": "Loan title",
+    "amount": "Amount (USD)",
+    "type": "Type",
+    "typePlaceholder": "Select type",
+    "saveDraft": "Save draft",
+    "saving": "Saving…",
+    "types": {
+      "term": "Term",
+      "revolving": "Revolving"
+    }
+  },
+  "metadata": {
+    "loans": "Loans",
+    "login": "Login",
+    "newLoan": "New loan"
+  },
+  "dataTable": {
+    "rowsTotal": "{count, plural, one {# row total} other {# rows total}}",
+    "rowsPerPage": "Rows per page",
+    "pageOf": "Page {page} of {total}",
+    "emptyMessage": "No results.",
+    "goToFirstPage": "Go to first page",
+    "goToPreviousPage": "Go to previous page",
+    "goToNextPage": "Go to next page",
+    "goToLastPage": "Go to last page",
+    "loading": "Loading table data"
+  },
+  "documents": {
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "zoomOut": "Zoom out",
+    "zoomIn": "Zoom in",
+    "download": "Download document",
+    "loadError": "Unable to load document. Please try again."
+  },
+  "errors": {
+    "app": {
+      "title": "Something went wrong",
+      "description": "An unexpected error occurred. Your data has been saved. Please try again or contact support if the problem persists.",
+      "retry": "Try again"
+    },
+    "widget": {
+      "failed": "Failed to load this section",
+      "failedWithLabel": "Failed to load {label}",
+      "retry": "Retry"
+    }
+  }
+}

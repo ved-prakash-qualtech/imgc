@@ -1,0 +1,36 @@
+---
+description: Update docs and agent rules when code APIs or conventions change
+alwaysApply: true
+---
+
+# Documentation sync (mandatory)
+
+When a change affects how developers or agents use the codebase, update the
+matching documentation and rules in the **same task** — do not leave stale names,
+paths, or examples.
+
+## Trigger — update docs when you
+
+- Rename, merge, or remove a public export (component, hook, route, constant, env field)
+- Change root wiring (`src/app/**/layout.tsx`, providers, `proxy.ts`)
+- Add or change a mandatory pattern (error boundaries, auth, documents, env)
+- Edit an always-on agent rule (`.cursor/rules/*.mdc`)
+
+## Where to update
+
+| Topic | Primary doc |
+| ----- | ----------- |
+| Error boundaries, documents, quality gates | `doc/guides/error-handling-and-documents.md` |
+| Folder structure, naming, imports | `doc/guides/folder-structure.md`, `doc/guides/conventions.md` |
+| AI rules and skills | `doc/guides/ai-agents-skills-and-rules.md`, `.cursor/rules/*.mdc` |
+| Documented components | `doc/components/*.md` |
+| Notable product or infra changes | `CHANGELOG.md` → `[Unreleased]` |
+
+## How
+
+1. Grep `doc/`, `CHANGELOG.md`, `.cursor/rules/`, `.devin/rules/`, and `AGENTS.md` for the old symbol or path.
+2. Replace with the new API; refresh code samples to match current imports and props.
+3. When consolidating duplicates, document the single component/API and remove obsolete sections.
+4. Mirror rule edits to `.devin/rules/` with `pnpm agent:sync` (same basename).
+
+Do **not** create new doc files unless the user asked or no existing guide section fits.

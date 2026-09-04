@@ -1,0 +1,39 @@
+---
+description: Qualtech core engineering rules the AI agent must always follow
+alwaysApply: true
+---
+
+# Core engineering rules (always-on)
+
+Tight, non-negotiable defaults for every change in this repo. When rules
+conflict, **security wins**, then data integrity, then the most specific rule.
+
+## Code
+
+1. **TypeScript strict, no `any`.** Use precise types / `unknown` + narrowing. `// @ts-ignore` is banned (`// @ts-expect-error` + reason only if unavoidable).
+2. **Server Components by default.** Add `'use client'` only for state, effects, or browser APIs.
+3. **`@/` imports only** — no `./` or `../` module paths. camelCase folders, PascalCase component files, camelCase hook/util files.
+4. **Validate all external input with Zod** at the boundary (forms and `app/api/*` route handlers). Never trust the client.
+5. **Centralize HTTP** in the axios client / `features/<f>/api`; no raw `fetch`/`axios` scattered in components. Handle loading / error / empty states for every data view.
+6. **No hardcoded user-facing strings** — use next-intl.
+7. **No raw `process.env` in app code** — use the Zod-validated `env` from `@/lib/utils/env`. `next.config.ts` imports `env` via a relative path (see `app-default-constants.mdc`).
+
+## Security (highest priority)
+
+8. **Secrets stay server-side.** httpOnly cookies for auth; never put tokens/PII in `localStorage` or the client bundle.
+9. **Sensitive documents use server-minted signed URLs** (`lib/documents/signedUrl.ts`) — never static or long-lived URLs. Use the shared `DocumentViewer`.
+10. **Never weaken security headers/CSP** in `next.config.ts`. No `dangerouslySetInnerHTML` without sanitisation.
+
+## Resilience
+
+11. **Error boundaries are mandatory:** `WidgetErrorBoundary` with `variant="app"` at the root (already wired in `src/app/[locale]/layout.tsx`) and `variant="widget"` (default) around every chart/table/async panel. Use `useErrorHandler` for async/event errors. See `doc/guides/error-handling-and-documents.md`.
+12. **No `console.log` in committed code** — use `@/lib/logging`. Never expose raw stack traces to users.
+
+## Workflow
+
+13. **Conventional Commits with a product scope** (`los`, `kyc`, `credit`, `leasing`, `banking`, `auth`, `reports`, `common`, `infra`, `deps`). Lower-case subject.
+14. **Green before done:** `pnpm type-check` and `pnpm lint` must pass; new/changed code must be **warning-free** (pre-commit runs `eslint --max-warnings 0` on staged files; `pnpm lint:strict` for the whole repo). Add/keep tests for new behaviour.
+15. **Approved stack only.** Do not add dependencies outside `technology-stack.md` without flagging.
+16. **Next.js 16 has breaking changes** — read `node_modules/next/dist/docs/` before using unfamiliar APIs (e.g. `cookies()`/`headers()`/`params` are async). Do not add or remove comments unless asked.
+17. **Keep docs in sync** — when public APIs, wiring, or enforced conventions change, update matching docs and rules in the same change (see `docs-sync.mdc`).
+18. **Prefer semantic HTML** over `<div>` / `<span>` with ARIA `role` when a native element exists (see `semantic-html.mdc`).

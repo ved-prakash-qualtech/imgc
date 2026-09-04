@@ -1,0 +1,16 @@
+---
+description: Types live in src/types (declarations only); Zod schemas live under features/*/validator only
+alwaysApply: true
+---
+
+# Types vs validators
+
+- **`src/types/*.ts`** — **TypeScript declarations only** (`type`, `interface`). No Zod, no runtime schemas. Examples: `@/types/loans`, `@/types/auth`, `@/types/global`.
+- **`src/features/<name>/validator/`** — **Zod schemas** for that domain. Schemas import `type` shapes from `@/types/...`. Shared primitives for a domain (e.g. `nonEmptyStringSchema` under auth) stay in that feature's `validator/` folder — do not use `src/lib/validation`.
+
+## Imports
+
+- Domain types: `import type { Loan } from "@/types/loans"`.
+- Domain validation: `import { loanSchema } from "@/features/loans/validator/loan"`.
+
+Do not add `validator/` under `src/types/` or validation modules under `src/lib/`.

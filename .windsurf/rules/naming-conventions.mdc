@@ -1,0 +1,31 @@
+---
+description: PascalCase component files and camelCase folder names
+alwaysApply: true
+---
+
+# Naming conventions
+
+## Folders — camelCase
+
+Use **camelCase** for all directory names under `src/`.
+
+- Good: `dataTable`, `hooks`, `utils`, `loanForm`
+- Avoid: `data-table`, `DataTable`, `loan-form`
+
+## React components — PascalCase files
+
+Component modules use a **PascalCase** file name matching the primary export.
+
+- Good: `DataTable.tsx` exporting `DataTable`, `LoansTable.tsx` exporting `LoansTable`
+- Avoid: `data-table.tsx`, `loans-table.tsx`
+
+## Non-component modules — camelCase files
+
+Hooks, utilities, validators, API helpers, and types use **camelCase** file names.
+
+- Good: `useDataTableUrlState.ts`, `dataTableUrlState.ts`, `twMergeUtils.ts`, `formatCurrency.ts`
+- Avoid: `use-data-table-url-state.ts`, `DataTableUrlState.ts`
+
+## Imports
+
+Always use `@/` path aliases (see `path-alias-imports.mdc`). Import by module path, not relative `./` or `../`.

@@ -1,0 +1,76 @@
+{
+  "common": {
+    "loans": "ऋण",
+    "login": "लॉगिन",
+    "backToLoans": "ऋण सूची पर वापस जाएँ",
+    "language": "भाषा",
+    "english": "अंग्रेज़ी",
+    "hindi": "हिन्दी"
+  },
+  "auth": {
+    "title": "लॉगिन",
+    "email": "ईमेल",
+    "password": "पासवर्ड",
+    "signIn": "साइन इन करें"
+  },
+  "loans": {
+    "title": "ऋण",
+    "cards": "कार्ड",
+    "table": "तालिका",
+    "newLoan": "नया ऋण",
+    "loanBadge": "ऋण",
+    "loanId": "ऋण ID: {id}",
+    "columnTitle": "शीर्षक",
+    "columnAmount": "राशि",
+    "emptyMessage": "कोई ऋण नहीं मिला।"
+  },
+  "loanForm": {
+    "title": "शीर्षक",
+    "titlePlaceholder": "ऋण शीर्षक",
+    "amount": "राशि (USD)",
+    "type": "प्रकार",
+    "typePlaceholder": "प्रकार चुनें",
+    "saveDraft": "ड्राफ़ सहेजें",
+    "saving": "सहेजा जा रहा है…",
+    "types": {
+      "term": "अवधि",
+      "revolving": "रिवॉल्विंग"
+    }
+  },
+  "metadata": {
+    "loans": "ऋण",
+    "login": "लॉगिन",
+    "newLoan": "नया ऋण"
+  },
+  "dataTable": {
+    "rowsTotal": "{count, plural, one {# पंक्ति कुल} other {# पंक्तियाँ कुल}}",
+    "rowsPerPage": "प्रति पृष्ठ पंक्तियाँ",
+    "pageOf": "पृष्ठ {page} / {total}",
+    "emptyMessage": "कोई परिणाम नहीं।",
+    "goToFirstPage": "पहले पृष्ठ पर जाएँ",
+    "goToPreviousPage": "पिछले पृष्ठ पर जाएँ",
+    "goToNextPage": "अगले पृष्ठ पर जाएँ",
+    "goToLastPage": "अंतिम पृष्ठ पर जाएँ",
+    "loading": "तालिका डेटा लोड हो रहा है"
+  },
+  "documents": {
+    "previousPage": "पिछला पृष्ठ",
+    "nextPage": "अगला पृष्ठ",
+    "zoomOut": "ज़ूम कम करें",
+    "zoomIn": "ज़ूम बढ़ाएँ",
+    "download": "दस्तावेज़ डाउनलोड करें",
+    "loadError": "दस्तावेज़ लोड नहीं हो सका। कृपया पुनः प्रयास करें।"
+  },
+  "errors": {
+    "app": {
+      "title": "कुछ गलत हो गया",
+      "description": "एक अप्रत्याशित त्रुटि हुई। आपका डेटा सुरक्षित है। कृपया पुनः प्रयास करें या समस्या बनी रहे तो सहायता से संपर्क करें।",
+      "retry": "पुनः प्रयास करें"
+    },
+    "widget": {
+      "failed": "यह अनुभाग लोड नहीं हो सका",
+      "failedWithLabel": "{label} लोड नहीं हो सका",
+      "retry": "पुनः प्रयास करें"
+    }
+  }
+}

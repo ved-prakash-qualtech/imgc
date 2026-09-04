@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Build output
+.next/
+out/
+build/
+
+# Test artifacts
+coverage/
+.vitest/
+test/playwright-report/
+test/test-results/
+test/blob-report/
+playwright/.cache/
+
+# Lockfiles (large, low signal for AI context)
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Environment and secrets
+.env*
+.env.sentry-build-plugin
+*.pem
+
+# Generated / toolchain
+next-env.d.ts
+*.tsbuildinfo
+.vercel
+
+# Logs and OS noise
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.DS_Store
+
+# Public static assets (images, icons)
+public/

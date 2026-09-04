@@ -1,0 +1,73 @@
+---
+description: React component size, modularity, and read-only props typing
+alwaysApply: true
+---
+
+# Component size and modularity
+
+## Component props (SonarQube)
+
+Mark every React component's props as **read-only** — satisfies SonarQube and matches React's immutability model.
+
+- Name the type `ComponentNameProps` and wrap it in `Readonly<{ ... }>`.
+- Use a named `type` (not an inline object on the function parameter).
+- For one-off inner components, `Readonly<{ ... }>` inline on the parameter is fine.
+
+```tsx
+type PageShellProps = Readonly<{
+  title: string;
+  children: React.ReactNode;
+}>;
+
+export function PageShell({ title, children }: PageShellProps) {
+  // ...
+}
+```
+
+- Do **not** inline mutable prop types: `({ title }: { title: string })`.
+- Do **not** omit `Readonly` on exported component props.
+
+## Line limit
+
+- **Maximum 350 lines** per component module (`.tsx` files that export React UI).
+- **Target ~200 lines**; refactor before hitting the cap.
+- Does **not** apply to: `page.tsx` route shells (keep thin), hooks (`.ts`), validators, API modules, types, or tests.
+
+## When to split
+
+Split when a file mixes multiple concerns, for example:
+
+- layout + data fetching + table/form + pagination in one file
+- several large JSX blocks that could be named subcomponents
+- hook logic that can move to `hooks/` or feature `hooks/`
+
+## How to split (preferred patterns)
+
+1. **Subcomponents** — `FeatureName/SubPart.tsx` (PascalCase), one primary export each.
+2. **Subfolders by concern** — e.g. `core/`, `body/`, `pagination/`, `lib/` under a feature or shared component folder (camelCase folder names).
+3. **Hooks** — extract to `src/hooks/` (shared) or `src/features/<name>/hooks/` (domain); see `custom-hooks.mdc`.
+4. **Pure logic** — `featureUtils.ts` or `lib/` (camelCase files); no JSX.
+5. **Barrel** — `index.ts` re-exports the public API; consumers import from `@/components/...` or `@/features/...`.
+
+## Do
+
+```tsx
+// LoansRouteView.tsx — orchestrates sections only
+export function LoansRouteView() {
+  return (
+    <PageShell title="Loans">
+      <LoansCardGrid loans={loans} />
+      <LoansTableSection loans={loans} />
+    </PageShell>
+  );
+}
+```
+
+## Do not
+
+- Grow a single `*RouteView.tsx` or `DataTable.tsx` past 350 lines instead of extracting sections.
+- Inline large column defs, skeleton config, and table markup in one file when they can live in `*Columns.tsx`, `*SkeletonBody.tsx`, etc.
+
+## Refactor trigger
+
+If you add code and the file would exceed **350 lines**, stop and extract modules first, then continue the feature.

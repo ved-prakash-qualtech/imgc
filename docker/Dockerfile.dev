@@ -1,0 +1,22 @@
+# Development: Node + pnpm; app source comes from Compose bind mounts.
+FROM node:24.17.0-bookworm-slim
+
+WORKDIR /app
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable && corepack prepare pnpm@11.8.0 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+
+EXPOSE 3000
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Bind mount hides image node_modules until the named volume is populated; install if missing.
+CMD ["sh", "-c", "if [ ! -f node_modules/.bin/next ]; then pnpm install --frozen-lockfile; fi && exec pnpm dev:no-open"]

@@ -1,0 +1,146 @@
+/*
+ * miFIN™ Design System type scale (web).
+ * Outfit = display (headings), Inter = body/UI. Weights: Outfit 400/500/600/700,
+ * Inter 400/500/600/700. Web scale only — do not mix with a mobile scale.
+ * Use the `.type-*` utility classes (or the `text-heading/body/lead` tokens
+ * wired in globals.css `@theme`).
+ */
+
+:root {
+  /* miFIN web type scale — size / line-height / letter-spacing per level */
+  --type-h1-size: 3rem; /* 48px */
+  --type-h1-leading: 3.75rem; /* 60px */
+  --type-h2-size: 2rem; /* 32px */
+  --type-h2-leading: 2.625rem; /* 42px */
+  --type-h3-size: 1.75rem; /* 28px */
+  --type-h3-leading: 2.5rem; /* 40px */
+  --type-h4-size: 1.5rem; /* 24px */
+  --type-h4-leading: 2.1875rem; /* 35px */
+  --type-h5-size: 1.25rem; /* 20px */
+  --type-h5-leading: 1.875rem; /* 30px */
+  --type-h6-size: 1.125rem; /* 18px */
+  --type-h6-leading: 1.875rem; /* 30px */
+  --type-paragraph-size: 1rem; /* 16px */
+  --type-paragraph-leading: 1.5rem; /* 24px */
+  --type-secondary-size: 0.875rem; /* 14px */
+  --type-secondary-leading: 1.25rem; /* 20px */
+  --type-tag-size: 0.875rem; /* 14px uppercase, 2px tracking */
+  --type-tag-leading: 1.25rem;
+  --type-small-size: 0.75rem; /* 12px */
+  --type-small-leading: 1.25rem;
+  --type-heading-tracking: 1px;
+
+  /* Aliases kept for existing `text-heading/body/lead` utilities */
+  --type-heading-size: var(--type-h3-size);
+  --type-heading-leading: var(--type-h3-leading);
+  --type-body-size: var(--type-paragraph-size);
+  --type-body-leading: var(--type-paragraph-leading);
+  --type-lead-size: var(--type-h6-size);
+  --type-lead-leading: var(--type-h6-leading);
+}
+
+/*
+ * Semantic type utilities — apply family + size + leading + weight + tracking
+ * in one class. Headings use Outfit; body/UI text uses Inter.
+ */
+@layer components {
+  .type-h1,
+  .type-h2,
+  .type-h3,
+  .type-h4,
+  .type-h5,
+  .type-h6 {
+    font-family: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: var(--type-heading-tracking);
+  }
+
+  .type-h1 {
+    font-size: var(--type-h1-size);
+    line-height: var(--type-h1-leading);
+    font-weight: 700;
+  }
+
+  .type-h2 {
+    font-size: var(--type-h2-size);
+    line-height: var(--type-h2-leading);
+    font-weight: 500;
+  }
+
+  .type-h3 {
+    font-size: var(--type-h3-size);
+    line-height: var(--type-h3-leading);
+    font-weight: 600;
+  }
+
+  .type-h4 {
+    font-size: var(--type-h4-size);
+    line-height: var(--type-h4-leading);
+    font-weight: 500;
+  }
+
+  .type-h5 {
+    font-size: var(--type-h5-size);
+    line-height: var(--type-h5-leading);
+    font-weight: 500;
+  }
+
+  .type-h6 {
+    font-size: var(--type-h6-size);
+    line-height: var(--type-h6-leading);
+    font-weight: 500;
+  }
+
+  .type-paragraph,
+  .type-caption,
+  .type-secondary,
+  .type-secondary-bold,
+  .type-tag,
+  .type-small,
+  .type-small-bold {
+    font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .type-paragraph {
+    font-size: var(--type-paragraph-size);
+    line-height: var(--type-paragraph-leading);
+    font-weight: 500;
+  }
+
+  .type-caption {
+    font-size: var(--type-paragraph-size);
+    line-height: var(--type-paragraph-leading);
+    font-weight: 600;
+  }
+
+  .type-secondary {
+    font-size: var(--type-secondary-size);
+    line-height: var(--type-secondary-leading);
+    font-weight: 500;
+  }
+
+  .type-secondary-bold {
+    font-size: var(--type-secondary-size);
+    line-height: var(--type-secondary-leading);
+    font-weight: 600;
+  }
+
+  .type-tag {
+    font-size: var(--type-tag-size);
+    line-height: var(--type-tag-leading);
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .type-small {
+    font-size: var(--type-small-size);
+    line-height: var(--type-small-leading);
+    font-weight: 500;
+  }
+
+  .type-small-bold {
+    font-size: var(--type-small-size);
+    line-height: var(--type-small-leading);
+    font-weight: 700;
+  }
+}

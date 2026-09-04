@@ -1,0 +1,45 @@
+---
+description: Prefer native semantic HTML over divs/spans with ARIA roles
+alwaysApply: true
+---
+
+# Semantic HTML
+
+Use **native HTML elements** for structure and interaction. Do not recreate
+built-in semantics with `<div>` / `<span>` plus `role`, except for patterns
+that have no native equivalent (e.g. custom combobox widgets).
+
+## Do
+
+| Need | Use |
+| ---- | --- |
+| Image (incl. error/placeholder) | `<img alt="…">` |
+| Modal / dialog surface | `<dialog>` (see shared `Modal`) |
+| Clickable action | `<button type="button">` |
+| Navigation target | `<a href="…">` |
+| Page sections | `<main>`, `<nav>`, `<header>`, `<footer>`, `<section>`, `<article>` |
+| Headings | `<h1>`–`<h6>` (one logical level per outline) |
+| Lists | `<ul>` / `<ol>` + `<li>` |
+| Data tables | `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, `<td>` |
+| Forms | `<form>`, `<label>`, `<input>`, `<textarea>`, `<select>` |
+
+## Do not
+
+- `<div role="img" aria-label="…">` — use `<img alt="…">` (transparent/data-URI `src` is fine for placeholders).
+- `<div role="dialog" aria-modal="true">` — use `<dialog>`.
+- `<div role="button" tabIndex={0}>` — use `<button>`.
+- `<div role="link">` — use `<a href="…">`.
+- `<div role="heading" aria-level="…">` — use `<h1>`–`<h6>`.
+- `<div role="list">` / `<div role="listitem">` — use list elements.
+
+## When ARIA roles are OK
+
+- **Live regions:** `role="alert"` / `role="status"` on error or status messages when not using a native live-region wrapper.
+- **Composite widgets:** `role="combobox"`, `role="listbox"`, etc. on custom controls built from primitives (Radix/Base UI patterns).
+- **Grouping:** `role="group"` when no fieldset/legend fits.
+
+## Enforcement
+
+SonarQube and `eslint-plugin-jsx-a11y` flag role-based substitutes for native
+elements. Prefer semantic tags first; add ARIA only to extend, not replace, HTML
+semantics.

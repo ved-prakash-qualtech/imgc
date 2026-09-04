@@ -1,0 +1,29 @@
+# Dependencies (installed in image)
+node_modules
+
+# Next.js
+.next
+out
+
+# Git and tooling
+.git
+.github
+.husky
+
+# IDE / local
+.cursor
+.vscode
+
+# MCP (local Cursor project metadata)
+mcps
+
+# Tests and coverage
+coverage
+
+# Debug logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Local-only env (do not bake into images; use .env.prod / .env.uat for builds)
+.env.local

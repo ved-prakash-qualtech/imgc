@@ -1,0 +1,62 @@
+# You can override the included template(s) by including variable overrides
+# SAST customization: https://docs.gitlab.com/user/application_security/sast/#available-cicd-variables
+# Secret Detection customization: https://docs.gitlab.com/user/application_security/secret_detection/pipeline/configure/
+# Dependency Scanning customization: https://docs.gitlab.com/user/application_security/dependency_scanning/dependency_scanning_sbom/#customizing-analyzer-behavior
+# Note that environment variables can be set in several places
+# See https://docs.gitlab.com/ci/variables/#cicd-variable-precedence
+stages:
+  - quality
+  - test
+  - security
+  - secret-detection
+
+.node:
+  image: node:24.17.0-alpine
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@11.8.0 --activate
+    - pnpm install --frozen-lockfile
+
+type-check:
+  extends: .node
+  stage: quality
+  script:
+    - pnpm type-check
+
+lint:
+  extends: .node
+  stage: quality
+  script:
+    - pnpm lint
+    - pnpm format:check
+    - pnpm stylelint
+
+unit-test:
+  extends: .node
+  stage: test
+  script:
+    - pnpm test:unit
+
+build:
+  extends: .node
+  stage: test
+  script:
+    - pnpm build
+
+dependency-audit:
+  extends: .node
+  stage: security
+  script:
+    - pnpm audit:ci
+  allow_failure: false
+
+sast:
+  stage: security
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
+  - template: Security/Dependency-Scanning.gitlab-ci.yml
+variables:
+  SECRET_DETECTION_ENABLED: "true"
+secret_detection:
+  stage: secret-detection

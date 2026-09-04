@@ -1,0 +1,31 @@
+---
+description: Repo security guardrails — env, secrets, and safe terminal use
+alwaysApply: true
+---
+
+# Security guardrails
+
+## Files and secrets
+
+- **Do not** read, reproduce, summarize, or suggest editing real secret files (e.g. `.env`, `.env.*`, `.env.local`, credential JSON, private keys under `.ssh`, `*.pem`).
+- Prefer **shape-only** docs: comments, README, or **`.env.example`** (placeholder values). Assume values are compromised if they appeared in chat.
+- **Never** ask the user to paste production passwords, tokens, API keys, or PEM contents into chat.
+- Treat **masked** placeholders (`<redacted>`, `<set-in-ci>`) in examples as non-secret.
+
+## Env and configuration (this repo)
+
+- **No raw `process.env`** in app code — use the Zod-validated singleton `env` from `@/lib/utils/env` (see `app-default-constants.mdc`).
+- Point to **variable names** and wiring (`src/constants/envDefaults.ts`, `src/constants/sentry.ts`, `src/constants/documents.ts`, `.gitlab-ci.yml`), not files holding live values.
+- **Auth secrets stay server-side** — httpOnly cookies only; never tokens or PII in `localStorage` / client bundles (see `core-engineering-rules.mdc`).
+- **Sensitive documents** use server-minted signed URLs (`src/lib/documents/signedUrl.ts`) — never static or long-lived URLs.
+
+## Terminal and commands
+
+- **Do not** suggest running destructive or irreversible commands without stating risk and confirming intent: recursive delete, mass `chmod`, DB drops/resets against non-local databases, overwriting deployment configs.
+- Avoid broad secret-leaking probes: dumping full `PATH`/`HOME` configs, unrestricted `grep`/`find` outside the repo root, piping **remote** scripts into a shell (`curl … | bash` / `iex` equivalents).
+- Prefer **scoped** searches under the workspace; use read-only repo inspection before mutating installs or globals.
+
+## Related
+
+- App security defaults: `core-engineering-rules.mdc` (CSP, signed URLs, auth cookies).
+- Root [`.cursorignore`](.cursorignore) excludes sensitive and heavy paths from indexing.

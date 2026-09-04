@@ -1,0 +1,48 @@
+---
+description: Keep DEFAULT_* fallback constants in src/constants only
+alwaysApply: true
+---
+
+# App default constants (`DEFAULT_*`)
+
+Static fallback values (env defaults, magic strings used when config is missing) belong in **`src/constants/`**, not inline in features, `lib/`, or route modules.
+
+## Do
+
+- Add or update `DEFAULT_*` values in `src/constants/` (e.g. `envDefaults.ts` for env fallbacks).
+- Import with `@/constants/...` (see `path-alias-imports.mdc`).
+- Use `UPPER_SNAKE_CASE` and the `DEFAULT_` prefix for these fallbacks.
+
+```typescript
+import { DEFAULT_API_BASE_URL } from "@/constants/envDefaults";
+```
+
+## Do not
+
+- Declare `const DEFAULT_* = ...` outside `src/constants/`.
+- Duplicate the same default string in multiple files — export once from `src/constants/`.
+
+## New defaults
+
+| Kind | File |
+|------|------|
+| Env / build-time fallbacks | `src/constants/envDefaults.ts` |
+| API paths, timeouts | `src/constants/api.ts` |
+| Routes | `src/constants/routes.ts` |
+| Auth cookie keys | `src/constants/authCookies.ts` |
+| Other app-wide static defaults | New `camelCase.ts` under `src/constants/` |
+
+Runtime config resolved from env belongs in `src/constants/config.ts` via `env`, not as raw `DEFAULT_*` literals elsewhere.
+
+## Env parsing (`src/lib/utils/env/`)
+
+All configuration from environment variables flows through one Zod-validated singleton:
+
+```typescript
+import { env } from "@/lib/utils/env";
+```
+
+- `process.env` is read **only** inside `src/lib/utils/env/env.ts` during parse — nowhere else.
+- Use `env.<field>` for typed values (`env.isProduction`, `env.sourceMapsEnabled`, `env.isSentryEnabled`, etc.).
+- Do **not** add `readEnvValue`, `parseBooleanEnvString`, or other raw env helpers.
+- **`next.config.ts` exception:** import `env` via a relative path (`./src/lib/utils/env/env`) because Next does not resolve `@/` in config.
