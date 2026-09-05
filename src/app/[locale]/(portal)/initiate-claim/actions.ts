@@ -123,7 +123,7 @@ export async function raiseQueryAction(
 ): Promise<Outcome> {
   const session = await requireSession();
   const result = await raiseQuery(session, claimId, input);
-  if (result.ok) refreshAll(undefined, claimId);
+  if (result.ok) refreshAll(result.accountId, claimId);
   return result;
 }
 
@@ -139,7 +139,7 @@ export async function askQuestionAction(
 ): Promise<Outcome> {
   const session = await requireSession();
   const result = await askClaimQuestion(session, claimId, question);
-  if (result.ok) refreshAll(undefined, claimId);
+  if (result.ok) refreshAll(result.accountId, claimId);
   return result;
 }
 
@@ -151,6 +151,6 @@ export async function updateClaimStatusAction(
 ): Promise<Outcome> {
   const session = await requireSession();
   const result = await updateClaimStatus(session, claimId, status, remarks);
-  if (result.ok) refreshAll(undefined, claimId);
+  if (result.ok) refreshAll(result.accountId, claimId);
   return result;
 }

@@ -90,6 +90,8 @@ export interface User {
   /** IMGC staff sign in with this + password. */
   employeeId?: string;
   passwordHash?: string;
+  /** IMGC staff only — shown on the lender-facing Help & Assistance card. */
+  phone?: string;
   /** Lender users only. */
   lenderOrgId?: string;
   createdAt: string;
@@ -320,6 +322,8 @@ export interface ClaimQuery {
   raisedById: string;
   raisedByName: string;
   raisedAt: string;
+  /** When the lender is expected to respond — set when the query is raised, never edited. */
+  dueDate?: string;
   respondedAt?: string;
   respondedById?: string;
   respondedByName?: string;

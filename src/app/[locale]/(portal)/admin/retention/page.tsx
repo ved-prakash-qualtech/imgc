@@ -31,7 +31,7 @@ export default async function RetentionPage() {
 
   return (
     <PortalShell activeKey="admin-retention" title="Document Retention">
-      <div className="space-y-6">
+      <div className="space-y-4">
         <CommandBand
           title="Document retention"
           subtitle={`Rejected documents stay in the system for ${RETENTION_DAYS} days so they can be reinstated with approval — after that they are purged and the checklist row returns to pending`}

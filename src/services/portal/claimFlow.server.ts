@@ -11,6 +11,7 @@ import {
   claimConfig,
   conditionReason,
   docConditionMet,
+  fieldVisible,
   LENDER_ACTIONABLE,
   TERMINAL_STATUSES,
 } from "@/config/claimConfig";
@@ -33,7 +34,13 @@ import type {
  * that lives entirely in `config/claimConfig`.
  */
 
-export type Outcome = Readonly<{ ok: boolean; error?: string; claimId?: string }>;
+export type Outcome = Readonly<{
+  ok: boolean;
+  error?: string;
+  claimId?: string;
+  /** So the caller can revalidate the account's own pages — not every mutation has one to give. */
+  accountId?: string;
+}>;
 
 /* ── eligibility ───────────────────────────────────────────────────── */
 
@@ -185,6 +192,65 @@ function advance(
     byName: session.name,
     byRole: session.role,
     note,
+  });
+}
+
+/**
+ * Keeps the Claim record's own status (and, for a query, its ClaimQuery row) in step with a
+ * decision made from the legacy per-account Overview tab (`accounts.server.ts`'s `setClaimStatus`).
+ *
+ * That screen only ever wrote `account.claimStatus`; the Claim entity — what Track Claim, the
+ * lender's workspace, and this claim's own status-history graph actually read — never moved, so
+ * an approval made there was invisible everywhere else. This is the sync point, not a duplicate
+ * decision path: it does not record its own audit event or notification — the caller already
+ * does both for the account-level change, and doing it twice would double both up. When the
+ * account has no open claim yet (a legacy-only account with nothing in `db.claims`), there is
+ * nothing to sync and this is a no-op.
+ */
+export async function syncClaimForAccountDecision(
+  session: AppSession,
+  accountId: string,
+  status: Extract<ClaimStatus, "APPROVED" | "QUERIED">,
+  note: string
+): Promise<void> {
+  await writeDb((db) => {
+    const claim = db.claims.find(
+      (c) => c.accountId === accountId && !TERMINAL_STATUSES.has(c.status)
+    );
+    if (!claim) return;
+
+    if (status === "APPROVED") {
+      advance(claim, "APPROVED", session, note || undefined);
+      claim.decision = {
+        outcome: "APPROVED",
+        byId: session.userId,
+        byName: session.name,
+        at: nowIso(),
+        remarks: note,
+      };
+      return;
+    }
+
+    // "QUERIED" here is the account-level status; the claim's own vocabulary for the same event
+    // is QUERY_RAISED, and Query Response is driven by there being a matching ClaimQuery row
+    // (`openQuery` in claimFlow's `decorate()`) — so a query raised this way needs one too, or
+    // the claim would show as queried with nothing for the lender to actually respond to.
+    const raisedAt = nowIso();
+    db.claimQueries.push({
+      id: newId("qry"),
+      claimId: claim.id,
+      reason: note.trim() || "Query raised from the account review.",
+      remarks: "",
+      requestedDocuments: [],
+      raisedById: session.userId,
+      raisedByName: session.name,
+      raisedAt,
+      dueDate: new Date(
+        new Date(raisedAt).getTime() + 4 * 24 * 60 * 60 * 1000
+      ).toISOString(),
+    });
+    claim.bucket = "LENDER";
+    advance(claim, "QUERY_RAISED", session, note || undefined);
   });
 }
 
@@ -366,6 +432,13 @@ export async function saveClaimDraft(
     claim.fields = { ...claim.fields, ...fields };
     claim.lastUpdatedAt = nowIso();
     claim.draftSaved = true;
+
+    // Saving a query response is a real, visible event on the claim's own record — not just an
+    // audit-log line — so Claim History shows it. Status is untouched: `advance()` to the same
+    // status only appends the history entry, exactly what "save without resolving" needs.
+    if (fields.__queryResponse !== undefined && claim.status === "QUERY_RAISED") {
+      advance(claim, claim.status, session, "Response saved as draft");
+    }
   });
 
   await recordEvent({
@@ -397,7 +470,12 @@ export async function checkSubmittable(
   const values = { ...claim.fields, ...(overrides ?? {}) };
 
   const missingFields = config.fields
-    .filter((f) => f.required && !String(values[f.id] ?? "").trim())
+    .filter(
+      (f) =>
+        f.required &&
+        fieldVisible(f, values) &&
+        !String(values[f.id] ?? "").trim()
+    )
     .map((f) => f.label);
 
   const missingDocuments = db.claimDocuments
@@ -523,7 +601,7 @@ export async function updateClaimStatus(
     event: "CLAIM_STATUS_CHANGED",
     unreadFor: ["LENDER"],
   });
-  return { ok: true, claimId };
+  return { ok: true, claimId, accountId: outcome.accountId };
 }
 
 export async function raiseQuery(
@@ -541,6 +619,7 @@ export async function raiseQuery(
       return { ok: false as const, error: "That claim is already closed." };
     }
 
+    const raisedAt = nowIso();
     db.claimQueries.push({
       id: newId("qry"),
       claimId,
@@ -549,7 +628,11 @@ export async function raiseQuery(
       requestedDocuments: input.requestedDocuments,
       raisedById: session.userId,
       raisedByName: session.name,
-      raisedAt: nowIso(),
+      raisedAt,
+      // Standard 4-day response window — not user-set, so it can't be forgotten or fudged.
+      dueDate: new Date(
+        new Date(raisedAt).getTime() + 4 * 24 * 60 * 60 * 1000
+      ).toISOString(),
     });
 
     // A requested document goes back to the lender to provide again.
@@ -583,7 +666,7 @@ export async function raiseQuery(
     event: "CLAIM_QUERY_RAISED",
     unreadFor: ["LENDER"],
   });
-  return { ok: true, claimId };
+  return { ok: true, claimId, accountId: outcome.accountId };
 }
 
 /* ── internals ─────────────────────────────────────────────────────── */
@@ -675,7 +758,7 @@ export async function askClaimQuestion(
     event: "CLAIM_QUESTION_RAISED",
     unreadFor: ["IMGC"],
   });
-  return { ok: true, claimId };
+  return { ok: true, claimId, accountId: claim.accountId };
 }
 
 /* ── lender-added additional documents ─────────────────────────────── */

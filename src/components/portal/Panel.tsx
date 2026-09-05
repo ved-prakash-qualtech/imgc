@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { cn } from "@/lib/utils/twMergeUtils";
+
 /**
  * The white surface portal content sits on: an optional titled header with a muted subtitle and
  * a slot for actions, then the content flush to the card's edges so tables and lists can run
@@ -10,14 +12,22 @@ export function Panel({
   description,
   actions,
   children,
+  id,
+  className,
 }: Readonly<{
   title?: string;
   description?: string;
   actions?: ReactNode;
   children: ReactNode;
+  /** Anchor target, e.g. for an in-page section nav. */
+  id?: string;
+  className?: string;
 }>) {
   return (
-    <section className="rounded-xl border border-neutral-100 bg-white shadow-sm">
+    <section
+      id={id}
+      className={cn("rounded-xl border border-neutral-100 bg-white shadow-sm", className)}
+    >
       {(title || actions) && (
         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-neutral-100 px-5 py-3.5">
           <div className="min-w-0">

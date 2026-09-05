@@ -33,7 +33,14 @@ export interface SessionUser {
   name: string;
   email: string | null;
   initials: string;
+  /** Shown under the name in the navbar — "IMGC Reviewer" / "Lender Officer". */
+  roleLabel: string;
 }
+
+const ROLE_LABELS: Record<Role, string> = {
+  IMGC: "IMGC Reviewer",
+  LENDER: "Lender Officer",
+};
 
 const DEV_FALLBACK_SECRET = "imgc-local-dev-session-secret";
 
@@ -161,5 +168,6 @@ export function toSessionUser(session: AppSession): SessionUser {
     name: session.name,
     email: session.email,
     initials,
+    roleLabel: ROLE_LABELS[session.role],
   };
 }

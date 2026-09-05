@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { DashboardShell } from "@/components/layout/dashboard/DashboardShell";
 import { navFor, type NavKey } from "@/constants/nav";
 import { requireSession, toSessionUser } from "@/lib/auth/appSession";
-import { getLenderOrgById } from "@/services/portal/users.server";
+import { getAssignedOfficer, getLenderOrgById } from "@/services/portal/users.server";
 import { unreadCount } from "@/services/portal/notifications.server";
 
 /**
@@ -19,9 +19,10 @@ export async function PortalShell({
   children,
 }: Readonly<{ activeKey: NavKey; title: string; children: ReactNode }>) {
   const session = await requireSession();
-  const [org, unread] = await Promise.all([
+  const [org, unread, assignedOfficer] = await Promise.all([
     session.role === "LENDER" ? getLenderOrgById(session.lenderOrgId) : null,
     unreadCount(session),
+    getAssignedOfficer(session),
   ]);
 
   return (
@@ -32,8 +33,10 @@ export async function PortalShell({
       navbarTitle={title}
       workspace={session.role === "IMGC" ? "IMGC" : (org?.name ?? "Lender")}
       user={toSessionUser(session)}
+      unreadCount={unread}
+      assignedOfficer={assignedOfficer}
     >
-      <main className="flex-1 px-6 py-6">{children}</main>
+      <main className="flex-1 px-6 py-4">{children}</main>
     </DashboardShell>
   );
 }

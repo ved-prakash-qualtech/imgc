@@ -7,6 +7,7 @@ import {
   notifyClaimDecision,
 } from "@/services/portal/notifications.server";
 import { addRemark } from "@/services/portal/remarks.server";
+import { syncClaimForAccountDecision } from "@/services/portal/claimFlow.server";
 import type { AppSession } from "@/lib/auth/appSession";
 import type { Account, Bucket, ClaimStatus, LenderOrg } from "@/server/mock/types";
 
@@ -117,6 +118,11 @@ export async function setClaimStatus(
     return { ok: true as const, from, account: { ...account } };
   });
   if (!outcome.ok) return outcome;
+
+  // The Overview tab only ever wrote this account's own claimStatus; the Claim entity — what
+  // Track Claim, the lender's workspace and this claim's status-history graph read — was left
+  // behind. Sync it here so an approval or query made from this screen shows up everywhere else.
+  await syncClaimForAccountDecision(session, accountId, status, trimmedNote);
 
   await recordEvent({
     accountId,

@@ -19,7 +19,7 @@ export default async function AdminUsersPage() {
 
   return (
     <PortalShell activeKey="admin-users" title="Lender Access">
-      <div className="space-y-6">
+      <div className="space-y-4">
         <CommandBand
           title="Lender access"
           subtitle="Grant a lender their first sign-in — they authenticate with a one-time code sent to that address, and see only their organisation's accounts"

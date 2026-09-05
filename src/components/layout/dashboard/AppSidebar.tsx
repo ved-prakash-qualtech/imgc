@@ -7,6 +7,8 @@ import {
   BellIcon,
   BuildingIcon,
   ChevronDownIcon,
+  ChevronsLeftIcon,
+  ChevronsRightIcon,
   CircleDotIcon,
   FileCheck2Icon,
   FolderOpenIcon,
@@ -15,7 +17,6 @@ import {
   LayersIcon,
   LayoutDashboardIcon,
   LayoutListIcon,
-  MenuIcon,
   ShieldIcon,
   TerminalIcon,
   UsersIcon,
@@ -99,10 +100,10 @@ function SidebarNavLink({
       title={collapsed ? item.label : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex items-center gap-2.5 rounded-lg text-left text-[13.5px] font-medium transition-colors",
-        collapsed ? "w-full justify-center px-0 py-2.5" : "w-full px-3 py-2",
+        "relative flex items-center gap-2.5 rounded-full text-left text-[13.5px] font-medium transition-colors",
+        collapsed ? "w-full justify-center px-0 py-2.5" : "w-full px-3.5 py-2.5",
         active
-          ? "bg-[linear-gradient(90deg,#f37819_0%,#c25c0d_100%)] text-white"
+          ? "bg-[linear-gradient(90deg,var(--color-brand-primary)_0%,var(--color-brand-dark)_100%)] text-white shadow-[0_4px_10px_-2px_rgb(0_0_0/25%)]"
           : "text-sidebar-text-muted hover:bg-white/5 hover:text-white"
       )}
     >
@@ -209,6 +210,8 @@ export type AppSidebarProps = Readonly<{
   /** Which item is highlighted. Passed in rather than derived from the URL: more than one item
    *  can point at the same route while sections are still being built. */
   activeKey?: NavKey;
+  /** Small uppercase label above the nav, e.g. "IMGC PORTAL" / "LENDER PORTAL". */
+  sectionLabel?: string;
   defaultCollapsed?: boolean;
   /** Overlay/drawer mode — sidebar floats over content instead of pushing it. */
   overlay?: boolean;
@@ -222,6 +225,7 @@ export function AppSidebar({
   items,
   activeKey,
   badges,
+  sectionLabel,
   defaultCollapsed = false,
   overlay = false,
   open = false,
@@ -262,6 +266,7 @@ export function AppSidebar({
           <SidebarContents
             items={items}
             activeKey={activeKey}
+            sectionLabel={sectionLabel}
             collapsed={false}
             onToggle={handleToggle}
             badges={badges}
@@ -274,13 +279,14 @@ export function AppSidebar({
   return (
     <aside
       className={cn(
-        "flex shrink-0 flex-col bg-sidebar-bg text-white transition-[width] duration-200",
+        "sticky top-0 flex h-screen shrink-0 flex-col bg-sidebar-bg text-white transition-[width] duration-200",
         isCollapsed ? "w-16" : "w-sidebar-w"
       )}
     >
       <SidebarContents
         items={items}
         activeKey={activeKey}
+        sectionLabel={sectionLabel}
         collapsed={isCollapsed}
         onToggle={handleToggle}
         badges={badges}
@@ -292,6 +298,7 @@ export function AppSidebar({
 type SidebarContentsProps = Readonly<{
   items: NavItem[];
   activeKey?: NavKey;
+  sectionLabel?: string;
   collapsed: boolean;
   onToggle: () => void;
   badges?: Partial<Record<NavKey, number>>;
@@ -300,67 +307,54 @@ type SidebarContentsProps = Readonly<{
 function SidebarContents({
   items,
   activeKey,
+  sectionLabel,
   collapsed,
   onToggle,
   badges,
 }: SidebarContentsProps) {
   return (
     <>
-      {/* Header */}
-      <div
-        className={cn(
-          "flex items-center py-4",
-          collapsed ? "flex-col gap-2 px-2" : "justify-between px-4"
-        )}
-      >
+      {/* Header — logo mark on a white card, so it reads against the dark rail */}
+      <div className={cn("px-4 pt-4 pb-3", collapsed && "px-2")}>
         <div
           className={cn(
-            "flex items-center gap-1.5",
-            collapsed && "flex-col gap-2"
+            "flex items-center gap-2.5 rounded-2xl bg-white/95 py-2.5 shadow-sm",
+            collapsed ? "justify-center px-0" : "px-3"
           )}
         >
           <Image
             src="/assets/icons/imgc-mark.svg"
             alt=""
-            width={24}
-            height={24}
+            width={26}
+            height={26}
             aria-hidden
           />
           {!collapsed && (
             <span className="flex flex-col leading-none">
-              <span className="text-[15px] font-semibold tracking-wide">
+              <span className="text-[15px] font-semibold tracking-wide text-neutral-950">
                 IMGC
               </span>
-              <span className="text-[9px] font-medium uppercase tracking-[0.18em] text-sidebar-text-muted">
+              <span className="text-[9px] font-medium uppercase tracking-[0.18em] text-neutral-500">
                 Defining Tomorrow
               </span>
             </span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          aria-expanded={!collapsed}
-          className="cursor-pointer text-sidebar-text-muted hover:text-white"
-        >
-          <MenuIcon className="size-4" />
-        </button>
       </div>
 
+      {!collapsed && sectionLabel && (
+        <p className="px-6 pt-1 pb-2 text-[10.5px] font-bold tracking-[0.14em] text-brand-primary uppercase">
+          {sectionLabel}
+        </p>
+      )}
+
       {/* Nav items */}
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-4">
-        {/*
-          No section heading.
-
-          There was one, and it read "Main" — printed once, above the whole nav, with nothing
-          beside it to be distinguished from. A heading that labels everything labels nothing; it
-          took a line of the rail to say the menu is the menu.
-
-          A console with genuinely separate groups of nav should name them, and the space below is
-          where those headings would go. This one has three items.
-        */}
-        {!collapsed && <div className="pt-2" />}
+      <nav
+        className={cn(
+          "flex flex-1 flex-col gap-1 overflow-y-auto px-2 pb-2",
+          collapsed && "pt-2"
+        )}
+      >
         {items.map((item) =>
           item.children?.length ? (
             <SidebarNavGroup
@@ -381,6 +375,33 @@ function SidebarContents({
           )
         )}
       </nav>
+
+      {/* Footer — app version + collapse toggle */}
+      <div
+        className={cn(
+          "flex items-center border-t border-white/10 px-4 py-3",
+          collapsed ? "justify-center" : "justify-between"
+        )}
+      >
+        {!collapsed && (
+          <span className="text-[11px] text-sidebar-text-muted">
+            IMGC Portal v1.0
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!collapsed}
+          className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg text-sidebar-text-muted ring-1 ring-white/10 hover:bg-white/5 hover:text-white"
+        >
+          {collapsed ? (
+            <ChevronsRightIcon className="size-3.5" />
+          ) : (
+            <ChevronsLeftIcon className="size-3.5" />
+          )}
+        </button>
+      </div>
     </>
   );
 }

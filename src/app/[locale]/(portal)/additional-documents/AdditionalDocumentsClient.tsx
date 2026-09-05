@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   BanIcon,
+  ChevronDownIcon,
+  DownloadIcon,
   EyeIcon,
   PencilIcon,
   PlusIcon,
@@ -27,6 +29,14 @@ import { Panel } from "@/components/portal/Panel";
 import { ReviewDrawer } from "@/components/portal/ReviewDrawer";
 import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PaginationNumbers } from "@/components/ui/pagination";
 import {
   Table,
   TableBody,
@@ -59,40 +69,82 @@ function shortDate(iso?: string): string {
   });
 }
 
-/** A single filter control — a row of pills, so the active value is always visible. */
-function FilterPills({
+/** Escapes a value for one CSV field. */
+function csvField(value: string | number): string {
+  const s = String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCsv(rows: RequirementRow[]): void {
+  const headers = [
+    "Case ID",
+    "Customer",
+    "Document",
+    "Required",
+    "Status",
+    "Lender",
+    "Added By",
+    "Added On",
+  ];
+  const lines = rows.map((r) =>
+    [
+      r.caseId,
+      r.customerName,
+      r.name,
+      r.required ? "Required" : "Optional",
+      r.active ? r.status : "DEACTIVATED",
+      r.lenderName,
+      r.addedByName,
+      r.addedOn.slice(0, 10),
+    ]
+      .map(csvField)
+      .join(",")
+  );
+  const csv = [headers.join(","), ...lines].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `additional-documents-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/** A single filter dropdown — collapses what used to be a row of pills per dimension into one
+ *  compact control, matching the filter style every other table in the portal uses. */
+function FilterSelect({
   label,
+  allLabel,
   options,
   value,
   onChange,
   render,
 }: Readonly<{
   label: string;
+  allLabel: string;
   options: readonly string[];
   value: string;
   onChange: (next: string) => void;
   render?: (v: string) => string;
 }>) {
   return (
-    <div className="flex flex-wrap items-center gap-1">
-      <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-        {label}
-      </span>
-      {["", ...options].map((option) => (
-        <button
-          key={option || "all"}
-          type="button"
-          onClick={() => onChange(option)}
-          className={cn(
-            "rounded-full px-2.5 py-1 text-[11.5px] font-medium transition",
-            value === option
-              ? "bg-brand-primary text-white"
-              : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
-          )}
-        >
-          {option === "" ? "All" : (render?.(option) ?? option)}
-        </button>
-      ))}
+    <div className="relative">
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-[12.5px] font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+      >
+        <option value="">{allLabel}</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {render?.(option) ?? option}
+          </option>
+        ))}
+      </select>
+      <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
     </div>
   );
 }
@@ -119,6 +171,8 @@ export function AdditionalDocumentsClient({
   const [status, setStatus] = useState("");
   const [necessity, setNecessity] = useState("");
   const [from, setFrom] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const [adding, setAdding] = useState(false);
   const [addCaseId, setAddCaseId] = useState("");
@@ -167,7 +221,20 @@ export function AdditionalDocumentsClient({
     setStatus("");
     setNecessity("");
     setFrom("");
+    setPage(1);
   }, []);
+
+  const pageCount = Math.ceil(filtered.length / pageSize) || 1;
+  const currentPage = Math.min(page, pageCount);
+  const currentRows = filtered.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+  const handlePageSizeChange = useCallback((val: string | null) => {
+    setPageSize(Number(val ?? "10"));
+    setPage(1);
+  }, []);
+  const handleExport = useCallback(() => downloadCsv(filtered), [filtered]);
 
   const onAdd = useCallback(
     async (input: RequirementInput) => {
@@ -216,15 +283,20 @@ export function AdditionalDocumentsClient({
         title={`${filtered.length} requirement${filtered.length === 1 ? "" : "s"}`}
         description="Every additional document IMGC has asked a lender for, across all cases."
         actions={
-          <Button
-            size="sm"
-            onClick={() => {
-              setEditing(null);
-              setAdding((v) => !v);
-            }}
-          >
-            <PlusIcon /> Add Document Requirement
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleExport}>
+              <DownloadIcon /> Export CSV
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditing(null);
+                setAdding((v) => !v);
+              }}
+            >
+              <PlusIcon /> Add Document Requirement
+            </Button>
+          </div>
         }
       >
         {adding && (
@@ -258,45 +330,81 @@ export function AdditionalDocumentsClient({
           />
         )}
 
-        {/* ── Search + filters ─────────────────────────────────── */}
-        <div className="space-y-2.5 border-b border-neutral-100 px-5 py-3.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="relative">
-              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Case, customer, document, lender…"
-                aria-label="Search requirements"
-                className="h-8 w-[280px] rounded-lg border border-neutral-200 pl-8 pr-2.5 text-[12.5px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-              />
-            </span>
-            <label className="flex items-center gap-1.5 text-[11.5px] text-neutral-500">
-              Added from
-              <input
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className="h-8 rounded-lg border border-neutral-200 px-2 text-[12.5px] outline-none focus:border-brand-primary"
-              />
-            </label>
-            {anyFilter && (
-              <Button size="xs" variant="outline" onClick={clearFilters}>
-                Clear filters
-              </Button>
-            )}
+        {/* ── Search + filters — six dimensions, one compact row of dropdowns instead of
+             six rows of pills, matching every other table in the portal. ── */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-4 py-2.5">
+          <div className="relative">
+            <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Case, customer, document, lender…"
+              aria-label="Search requirements"
+              className="h-8 w-[240px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            />
           </div>
-
-          <FilterPills label="Status" options={STATUSES} value={status} onChange={setStatus} render={(s) => s.replace(/_/g, " ").toLowerCase()} />
-          <FilterPills label="Required" options={["REQUIRED", "OPTIONAL"]} value={necessity} onChange={setNecessity} render={(v) => (v === "REQUIRED" ? "Required" : "Optional")} />
-          <FilterPills label="Case" options={options.cases} value={caseId} onChange={setCaseId} />
-          <FilterPills label="Lender" options={options.lenders} value={lender} onChange={setLender} />
-          <FilterPills label="Product" options={options.products} value={product} onChange={setProduct} />
-          <FilterPills label="Document" options={options.documents} value={document} onChange={setDocument} />
+          <FilterSelect
+            label="Status"
+            allLabel="All statuses"
+            options={STATUSES}
+            value={status}
+            onChange={setStatus}
+            render={(s) => s.replace(/_/g, " ").toLowerCase()}
+          />
+          <FilterSelect
+            label="Required"
+            allLabel="Required or optional"
+            options={["REQUIRED", "OPTIONAL"]}
+            value={necessity}
+            onChange={setNecessity}
+            render={(v) => (v === "REQUIRED" ? "Required" : "Optional")}
+          />
+          <FilterSelect
+            label="Case"
+            allLabel="All cases"
+            options={options.cases}
+            value={caseId}
+            onChange={setCaseId}
+          />
+          <FilterSelect
+            label="Lender"
+            allLabel="All lenders"
+            options={options.lenders}
+            value={lender}
+            onChange={setLender}
+          />
+          <FilterSelect
+            label="Product"
+            allLabel="All products"
+            options={options.products}
+            value={product}
+            onChange={setProduct}
+          />
+          <FilterSelect
+            label="Document"
+            allLabel="All documents"
+            options={options.documents}
+            value={document}
+            onChange={setDocument}
+          />
+          <label className="flex items-center gap-1.5 text-[11.5px] text-neutral-500">
+            Added from
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className="h-8 rounded-full border border-neutral-200 px-2.5 text-[12.5px] outline-none focus:border-brand-primary"
+            />
+          </label>
+          {anyFilter && (
+            <Button size="xs" variant="outline" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
         </div>
 
         {/* ── Table ────────────────────────────────────────────── */}
-        <div className="overflow-x-auto">
+        <div className="max-h-[50vh] overflow-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -312,7 +420,7 @@ export function AdditionalDocumentsClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 ? (
+              {currentRows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="py-14 text-center">
                     <SearchXIcon className="mx-auto mb-2 size-6 text-neutral-300" />
@@ -327,12 +435,12 @@ export function AdditionalDocumentsClient({
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((r) => (
+                currentRows.map((r) => (
                   <TableRow key={r.id} className={cn(!r.active && "opacity-55")}>
-                    <TableCell className="font-medium text-neutral-950">
+                    <TableCell>
                       <Link
                         href={ROUTES.account(r.accountId)}
-                        className="hover:text-brand-primary hover:underline"
+                        className="inline-flex items-center rounded-full bg-info/12 px-2.5 py-0.5 text-[12px] font-semibold text-info hover:underline"
                       >
                         {r.caseId}
                       </Link>
@@ -407,6 +515,39 @@ export function AdditionalDocumentsClient({
               )}
             </TableBody>
           </Table>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-2">
+          <div className="flex items-center gap-3 text-[13px] text-neutral-500">
+            <div className="flex items-center gap-2">
+              <span>Rows per page</span>
+              <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
+                <SelectTrigger size="sm" className="h-8 w-[70px] bg-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <span className="hidden sm:inline">
+              Total {filtered.length} requirement{filtered.length === 1 ? "" : "s"}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <span className="hidden text-[13px] text-neutral-500 sm:inline">
+              Page {currentPage} of {pageCount}
+            </span>
+            <PaginationNumbers
+              page={currentPage}
+              pageCount={pageCount}
+              onPageChange={setPage}
+            />
+          </div>
         </div>
       </Panel>
 

@@ -20,6 +20,8 @@ export type SessionUser = Readonly<{
   email: string | null;
   /** Two letters for the avatar. */
   initials: string;
+  /** Shown under the name in the navbar, e.g. "IMGC Reviewer". Absent in admin/system scope. */
+  roleLabel?: string;
 }>;
 
 export type SessionScope = Readonly<{

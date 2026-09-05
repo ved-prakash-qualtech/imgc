@@ -59,7 +59,9 @@ function FieldLabel({ children }: Readonly<{ children: React.ReactNode }>) {
 const INPUT_CLASS =
   "h-11 w-full rounded-lg border border-white/15 bg-white/8 pl-10 pr-10 text-[14px] text-white placeholder:text-white/55 outline-none transition focus:border-[#f37819] focus:bg-white/12 focus:ring-2 focus:ring-[#f37819]/30";
 
-export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
+export function LoginClient({
+  returnTo,
+}: Readonly<{ returnTo?: string }>) {
   const [step, setStep] = useState<Step>({ kind: "IDENTIFY" });
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -158,7 +160,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
        z-index, and without a stacking context here they paint *behind* this
        element's own opaque background — the video and the colour fields were
        rendering, invisibly, under a flat navy rectangle. */
-    <div className="relative isolate min-h-dvh w-full overflow-hidden bg-[#1a120c] text-white subpixel-antialiased">
+    <div className="relative isolate h-dvh w-full overflow-hidden bg-[#1a120c] text-white subpixel-antialiased">
       {/* ── Backdrop ────────────────────────────────────────────────────
           A looping video rather than a still: the page is the product's
           front door and motion is the cheapest way to make it feel alive.
@@ -197,7 +199,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
         className="imgc-drift-slow pointer-events-none absolute -right-32 -top-28 -z-10 h-[520px] w-[520px] rounded-full bg-[#d98b2b]/26 blur-[150px]"
       />
 
-      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[1440px] flex-col px-6 py-6 lg:px-10">
+      <div className="relative z-10 mx-auto flex h-dvh w-full max-w-[1440px] flex-col overflow-y-auto px-6 py-4 lg:px-10 lg:py-5">
         {/* ── Masthead ─────────────────────────────────────────────── */}
         <header className="imgc-rise flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -233,7 +235,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
         </header>
 
         {/* ── Body ─────────────────────────────────────────────────── */}
-        <div className="flex flex-1 flex-col gap-10 py-10 lg:flex-row lg:items-center lg:gap-16 lg:py-6">
+        <div className="flex flex-1 flex-col gap-6 py-4 lg:flex-row lg:items-center lg:gap-12 lg:py-2">
           {/* Left: the proposition */}
           <section className="imgc-rise min-w-0 flex-1">
             {/* text-white on the element itself: globals.css pins a colour on
@@ -248,7 +250,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
               complete audit trail on a single account.
             </p>
 
-            <ul className="mt-7 flex max-w-[620px] flex-wrap gap-2">
+            <ul className="mt-5 flex max-w-[620px] flex-wrap gap-2">
               {FEATURE_PILLS.map((pill) => (
                 <li
                   key={pill}
@@ -260,7 +262,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
               ))}
             </ul>
 
-            <dl className="mt-9 max-w-[560px] space-y-5 border-l border-white/12 pl-5">
+            <dl className="mt-6 max-w-[560px] space-y-4 border-l border-white/12 pl-5">
               {VALUE_ROWS.map((row) => (
                 <div key={row.title}>
                   <dt className="text-[14px] font-semibold text-white">
@@ -276,11 +278,11 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
 
           {/* Right: sign-in card */}
           <section className="imgc-rise w-full shrink-0 lg:w-[420px]">
-            <div className="rounded-2xl border border-white/12 bg-[#241812] p-7 shadow-2xl shadow-black/50">
-              <h2 className="font-outfit text-center text-[24px] font-bold tracking-tight text-white">
+            <div className="rounded-2xl border border-white/12 bg-[#241812] p-6 shadow-2xl shadow-black/50">
+              <h2 className="font-outfit text-center text-[22px] font-bold tracking-tight text-white">
                 Welcome Back
               </h2>
-              <p className="mt-1 mb-6 text-center text-[13px] text-white/80">
+              <p className="mt-1 mb-4 text-center text-[13px] text-white/80">
                 Sign in to your IMGC Lender Portal account
               </p>
 

@@ -62,7 +62,7 @@ const INITIATE_CLAIM: NavItem = {
 
 const TRACK_QUERY_RESPONSE: NavItem = {
   key: "track-query-response",
-  label: "Track & Query Response",
+  label: "Track Claim",
   href: ROUTES.trackQueryResponse,
 };
 

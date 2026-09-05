@@ -165,6 +165,17 @@
   .bg-grad-nav {
     background-image: var(--grad-nav);
   }
+
+  /* Dashboard shell backdrop — grey page background warming into the brand tint at the
+     bottom, built from tokens so it follows tenant theming instead of a fixed hex ramp. */
+  .bg-grad-shell {
+    background-image: linear-gradient(
+      180deg,
+      var(--color-neutral-25) 0%,
+      var(--color-neutral-50) 45%,
+      var(--color-brand-light) 100%
+    );
+  }
 }
 
 /* In @layer base, for the reason spelled out below: unlayered, this beats any utility class put

@@ -45,6 +45,42 @@ export async function getLenderOrgById(id: string | undefined): Promise<LenderOr
   return db.lenderOrgs.find((o) => o.id === id) ?? null;
 }
 
+export interface AssignedOfficer {
+  name: string;
+  email: string;
+  phone?: string;
+}
+
+/**
+ * The IMGC officer a lender's Help & Assistance card points to.
+ *
+ * Cases are assigned per account, not per lender, so there is no single field holding "this
+ * org's officer" — instead this picks whoever is assigned to the most of the lender's accounts,
+ * which is the person actually handling most of their open work. Ties break on account id order,
+ * which is stable rather than meaningful; a lender with no assigned cases yet gets no officer at
+ * all, so the caller can fall back to a general desk instead of naming someone with nothing to
+ * do with them.
+ */
+export async function getAssignedOfficer(
+  session: AppSession
+): Promise<AssignedOfficer | null> {
+  if (session.role !== "LENDER" || !session.lenderOrgId) return null;
+
+  const db = await readDb();
+  const counts = new Map<string, number>();
+  for (const account of db.accounts) {
+    if (account.lenderOrgId !== session.lenderOrgId || !account.assignedUserId) continue;
+    counts.set(account.assignedUserId, (counts.get(account.assignedUserId) ?? 0) + 1);
+  }
+  if (counts.size === 0) return null;
+
+  const [topUserId] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]!;
+  const officer = db.users.find((u) => u.id === topUserId);
+  if (!officer) return null;
+
+  return { name: officer.name, email: officer.email, phone: officer.phone };
+}
+
 export async function listUsers(session: AppSession): Promise<UserRow[]> {
   const db = await readDb();
   const visible =

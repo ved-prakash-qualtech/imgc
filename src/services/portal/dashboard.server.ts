@@ -38,6 +38,32 @@ export interface AgingBand {
   tone: "info" | "brand" | "warning" | "danger";
 }
 
+export interface PortfolioSummary {
+  loansOnBook: number;
+  totalLoanBookValue: number;
+  totalCollected: number;
+  collectedPrincipal: number;
+  collectedInterest: number;
+  activeLoans: number;
+  overdueLoans: number;
+  npaLoans: number;
+  npaGrossAmount: number;
+  npaRatioPct: number;
+  statusBreakdown: { active: number; overdue: number; closed: number };
+  /** Trailing months, oldest first — a deterministic spread of each account's own collected
+   *  amount, not a random walk, so the same accounts always draw the same bars. */
+  collectionsTrend: { label: string; amount: number }[];
+  urgent: {
+    accountId: string;
+    loanNo: string;
+    borrowerName: string;
+    outstandingAmount: number;
+    daysLate: number;
+    npa: boolean;
+    overdue: boolean;
+  }[];
+}
+
 export interface DashboardSummary {
   accountCount: number;
   documentsIn: number;
@@ -71,10 +97,122 @@ export interface DashboardSummary {
     claimApproved: number;
     claimRejected: number;
   };
+  /** IMGC only — the portfolio-wide command center at the top of the dashboard. */
+  portfolio?: PortfolioSummary;
 }
 
 function daysSince(iso: string): number {
   return Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 86_400_000));
+}
+
+/** Stable per-string fraction in [0, 1) — used to spread a real total across months without
+ *  the bars reshuffling on every render. */
+function seededFraction(seed: string): number {
+  let h = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return (h % 1000) / 1000;
+}
+
+const TREND_MONTHS = 11;
+
+function buildPortfolioSummary(
+  accounts: import("@/server/mock/types").Account[],
+  lastTouch: Map<string, string>
+): PortfolioSummary {
+  const loansOnBook = accounts.length || 1;
+  const totalLoanBookValue = accounts.reduce((s, a) => s + a.outstandingAmount, 0);
+  const collectedByAccount = new Map<string, number>();
+  let totalCollected = 0;
+  for (const a of accounts) {
+    const collected = Math.max(0, a.loanAmount - a.outstandingAmount);
+    collectedByAccount.set(a.id, collected);
+    totalCollected += collected;
+  }
+  // Illustrative principal/interest split of the collected total, not a tracked field.
+  const collectedInterest = Math.round(totalCollected * 0.34);
+  const collectedPrincipal = totalCollected - collectedInterest;
+
+  const closed = new Set(
+    accounts.filter((a) => a.writeOff || a.claimStatus === "APPROVED" || a.claimStatus === "REJECTED").map((a) => a.id)
+  );
+  const overdue = new Set(
+    accounts
+      .filter(
+        (a) =>
+          !closed.has(a.id) &&
+          daysSince(lastTouch.get(a.id) ?? a.createdAt) > 8
+      )
+      .map((a) => a.id)
+  );
+  const statusBreakdown = {
+    active: accounts.filter((a) => !closed.has(a.id) && !overdue.has(a.id)).length,
+    overdue: overdue.size,
+    closed: closed.size,
+  };
+
+  // Write-off outranks NPA — same mutually-exclusive classification the Accounts list uses
+  // (assetClassOf in AccountsClient.tsx), so a written-off account isn't double-counted here.
+  const npaAccounts = accounts.filter((a) => a.npa && !a.writeOff);
+  const npaGrossAmount = npaAccounts.reduce((s, a) => s + a.outstandingAmount, 0);
+
+  const MONTH_ABBR = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
+  const now = new Date();
+  const months = Array.from({ length: TREND_MONTHS }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (TREND_MONTHS - 1 - i), 1);
+    return {
+      key: `${d.getFullYear()}-${d.getMonth()}`,
+      label: `${MONTH_ABBR[d.getMonth()]} ${String(d.getFullYear()).slice(-2)}`,
+    };
+  });
+  const monthTotals = new Array(TREND_MONTHS).fill(0) as number[];
+  for (const a of accounts) {
+    const collected = collectedByAccount.get(a.id) ?? 0;
+    if (collected <= 0) continue;
+    const weights = months.map((_, i) => seededFraction(`${a.id}:${i}`) + 0.15);
+    const weightSum = weights.reduce((s, w) => s + w, 0);
+    weights.forEach((w, i) => {
+      monthTotals[i] = (monthTotals[i] ?? 0) + (collected * w) / weightSum;
+    });
+  }
+  const collectionsTrend = months.map((m, i) => ({
+    label: m.label,
+    amount: Math.round(monthTotals[i] ?? 0),
+  }));
+
+  const urgent = accounts
+    .filter((a) => overdue.has(a.id) || (a.npa && !a.writeOff))
+    .map((a) => ({
+      accountId: a.id,
+      loanNo: a.loanNo,
+      borrowerName: a.borrowerName,
+      outstandingAmount: a.outstandingAmount,
+      daysLate: daysSince(lastTouch.get(a.id) ?? a.createdAt),
+      npa: a.npa && !a.writeOff,
+      overdue: overdue.has(a.id),
+    }))
+    .sort((a, b) => b.daysLate - a.daysLate)
+    .slice(0, 5);
+
+  return {
+    loansOnBook: accounts.length,
+    totalLoanBookValue,
+    totalCollected,
+    collectedPrincipal,
+    collectedInterest,
+    activeLoans: statusBreakdown.active,
+    overdueLoans: statusBreakdown.overdue,
+    npaLoans: npaAccounts.length,
+    npaGrossAmount,
+    npaRatioPct: Math.round((npaAccounts.length / loansOnBook) * 1000) / 10,
+    statusBreakdown,
+    collectionsTrend,
+    urgent,
+  };
 }
 
 function isIn(doc: ClaimDocument): boolean {
@@ -122,7 +260,9 @@ export async function buildDashboardSummary(
   const byStatus = (status: string) =>
     accounts.filter((a) => a.claimStatus === status).length;
 
-  const npaCount = accounts.filter((a) => a.npa).length;
+  // Write-off outranks NPA — same mutually-exclusive classification the Accounts list uses
+  // (assetClassOf in AccountsClient.tsx).
+  const npaCount = accounts.filter((a) => a.npa && !a.writeOff).length;
 
   const isLender = session.role === "LENDER";
 
@@ -281,6 +421,7 @@ export async function buildDashboardSummary(
         approved: by("APPROVED"),
       };
     })(),
+    portfolio: session.role === "IMGC" ? buildPortfolioSummary(accounts, lastTouch) : undefined,
     lenderHero: (() => {
       const claims = db.claims.filter((c) => ids.has(c.accountId));
       const terminalOrDraft = new Set([

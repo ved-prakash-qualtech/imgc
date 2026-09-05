@@ -166,7 +166,7 @@ export function AuditTrailClient({
                   </TableCell>
                   <TableCell className="w-[100px] text-right">
                     <Link
-                      href={ROUTES.trackQueryWorkspace(e.accountId)}
+                      href={ROUTES.initiateClaimWorkspace(e.accountId)}
                       className="inline-flex h-8 items-center justify-center rounded-md border border-neutral-200 bg-white px-3 text-[12px] font-medium text-neutral-900 transition-colors hover:border-neutral-400 hover:bg-neutral-50"
                     >
                       View Case

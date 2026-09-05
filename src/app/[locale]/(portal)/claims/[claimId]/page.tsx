@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 
+import { ClaimHistory } from "@/components/portal/ClaimHistory";
 import { ClaimQueryDialog } from "@/components/portal/ClaimQueryDialog";
-import { ClaimTimeline } from "@/components/portal/ClaimTimeline";
+import { ClaimStatusHistoryGraph } from "@/components/portal/ClaimStatusHistoryGraph";
 import { CommandBand } from "@/components/portal/CommandBand";
 import { Panel } from "@/components/portal/Panel";
 import { PortalShell } from "@/components/portal/PortalShell";
@@ -17,8 +18,15 @@ import {
 } from "@/components/ui/table";
 import { claimConfig } from "@/config/claimConfig";
 import { requireSession } from "@/lib/auth/appSession";
+import { getAccount } from "@/services/portal/accounts.server";
 import { getClaim, listQueries } from "@/services/portal/claimFlow.server";
 import { listClaimDocuments } from "@/services/portal/requirements.server";
+
+const inr = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 0,
+});
 
 export const dynamic = "force-dynamic";
 
@@ -55,12 +63,17 @@ export default async function ClaimDetailsPage({
   const claim = await getClaim(session, claimId);
   if (!claim) notFound();
 
-  const [documents, queries] = await Promise.all([
+  const [documents, queries, account] = await Promise.all([
     listClaimDocuments(session, claim.id),
     listQueries(claim.id),
+    getAccount(session, claim.accountId),
   ]);
   const config = claimConfig(claim.claimType);
   const isLender = session.role === "LENDER";
+  const lastAnsweredQuery =
+    [...queries]
+      .filter((q) => q.respondedAt)
+      .sort((a, b) => b.respondedAt!.localeCompare(a.respondedAt!))[0] ?? null;
   const terminal =
     claim.status === "APPROVED" ||
     claim.status === "REJECTED" ||
@@ -69,7 +82,7 @@ export default async function ClaimDetailsPage({
   return (
     <PortalShell
       activeKey="initiate-claim"
-      title={`Claim · ${claim.claimNo}`}
+      title={`Track Claim · ${claim.claimNo}`}
     >
       <div className="space-y-6">
         <CommandBand
@@ -88,13 +101,42 @@ export default async function ClaimDetailsPage({
           }
         />
 
-        {/* ── Claim facts ──────────────────────────────────────── */}
-        <Panel title="Claim">
+        {/* ── Section nav — this is one long page, not four; the anchors just let a
+             reader jump straight to Query or History instead of scrolling past
+             Documents to find them. ── */}
+        <nav
+          aria-label="Sections on this page"
+          className="sticky top-0 z-10 -mx-6 flex gap-1 overflow-x-auto border-b border-neutral-100 bg-white/95 px-6 py-2 backdrop-blur"
+        >
+          <a href="#summary" className={SECTION_LINK_CLASS}>
+            Summary
+          </a>
+          <a href="#status" className={SECTION_LINK_CLASS}>
+            Status
+          </a>
+          <a href="#query" className={SECTION_LINK_CLASS}>
+            Query Response
+          </a>
+          <a href="#history" className={SECTION_LINK_CLASS}>
+            History
+          </a>
+          <a href="#documents" className={SECTION_LINK_CLASS}>
+            Documents
+          </a>
+        </nav>
+
+        {/* ── 1. Claim Summary ─────────────────────────────────── */}
+        <Panel title="Claim Summary" id="summary" className="scroll-mt-14">
           <dl className="grid divide-y divide-neutral-100 sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4">
             <Fact label="Claim number" value={claim.claimNo} />
-            <Fact label="Account number" value={claim.caseId} />
+            <Fact label="Loan account no." value={claim.caseId} />
             <Fact label="Customer name" value={claim.customerName} />
+            <Fact label="Lender" value={claim.lenderName} />
             <Fact label="Claim type" value={claim.typeLabel} />
+            <Fact
+              label="Claim amount"
+              value={account ? inr.format(account.outstandingAmount) : "—"}
+            />
             <Fact
               label="Submitted on"
               value={claim.submittedAt ? when(claim.submittedAt) : "Not yet submitted"}
@@ -102,20 +144,25 @@ export default async function ClaimDetailsPage({
             <Fact label="Current status" value={<StatusPill status={claim.status} />} />
             <Fact label="Last updated" value={when(claim.lastUpdatedAt)} />
             <Fact label="Assigned bucket" value={<StatusPill status={claim.bucket} />} />
+            {config.fields.map((f) => (
+              <Fact
+                key={f.id}
+                label={f.label}
+                value={claim.fields[f.id]?.trim() || "—"}
+              />
+            ))}
           </dl>
         </Panel>
 
-        {/* ── Timeline ─────────────────────────────────────────── */}
+        {/* ── 2. Claim Status Line Graph ───────────────────────── */}
         <Panel
-          title="Status timeline"
-          description="Derived from the claim type's configured flow and this claim's own history."
+          id="status"
+          className="scroll-mt-14"
+          title="Claim Status"
+          description="Generated from this claim's own status history — only what has actually happened."
         >
           <div className="px-5 py-4">
-            <ClaimTimeline
-              claimType={claim.claimType}
-              status={claim.status}
-              history={claim.statusHistory}
-            />
+            <ClaimStatusHistoryGraph history={claim.statusHistory} />
           </div>
         </Panel>
 
@@ -137,31 +184,34 @@ export default async function ClaimDetailsPage({
           </Panel>
         )}
 
-        {/* ── Query Response ───────────────────────────────────── */}
-        <QueryResponseSection
-          accountId={claim.accountId}
-          claimId={claim.id}
-          openQuery={claim.openQuery}
-          savedResponse={claim.fields.__queryResponse ?? ""}
-          documents={documents}
-          isLender={isLender}
-        />
+        {/* ── 3. Query Response ─────────────────────────────────── */}
+        <div id="query" className="scroll-mt-14">
+          <QueryResponseSection
+            accountId={claim.accountId}
+            claimId={claim.id}
+            claimStatus={claim.status}
+            openQuery={claim.openQuery}
+            lastAnsweredQuery={lastAnsweredQuery}
+            savedResponse={claim.fields.__queryResponse ?? ""}
+            documents={documents}
+            isLender={isLender}
+          />
+        </div>
 
-        {/* ── Submitted details ────────────────────────────────── */}
-        <Panel title={`${config.label} details`}>
-          <dl className="grid divide-y divide-neutral-100 sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3">
-            {config.fields.map((f) => (
-              <Fact
-                key={f.id}
-                label={f.label}
-                value={claim.fields[f.id]?.trim() || "—"}
-              />
-            ))}
-          </dl>
+        {/* ── 4. Claim History — every status change and past query, merged into
+             one chronological record so nothing that happened to this claim needs
+             a second panel to find it. ── */}
+        <Panel
+          id="history"
+          className="scroll-mt-14"
+          title="Claim History"
+          description="Every status change and query on this claim, in order."
+        >
+          <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
         </Panel>
 
         {/* ── Documents ────────────────────────────────────────── */}
-        <Panel title="Documents">
+        <Panel id="documents" className="scroll-mt-14" title="Documents">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -202,50 +252,10 @@ export default async function ClaimDetailsPage({
             </Table>
           </div>
         </Panel>
-
-        {/* ── Queries ──────────────────────────────────────────── */}
-        {queries.length > 0 && (
-          <Panel title={`Queries (${queries.length})`}>
-            <ol className="divide-y divide-neutral-100">
-              {queries.map((q) => (
-                <li key={q.id} className="px-5 py-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusPill status={q.respondedAt ? "APPROVED" : "QUERY_RAISED"} />
-                    <span className="text-[13.5px] font-semibold text-neutral-950">
-                      {q.reason}
-                    </span>
-                    <span className="text-[11.5px] text-neutral-500">
-                      {q.raisedByName} · {when(q.raisedAt)}
-                    </span>
-                  </div>
-                  {q.remarks && (
-                    <p className="mt-1 text-[12.5px] text-neutral-600">{q.remarks}</p>
-                  )}
-                  {q.requestedDocuments.length > 0 && (
-                    <p className="mt-1.5 flex flex-wrap gap-1.5">
-                      {q.requestedDocuments.map((n) => (
-                        <span
-                          key={n}
-                          className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-700"
-                        >
-                          {n}
-                        </span>
-                      ))}
-                    </p>
-                  )}
-                  {q.respondedAt && (
-                    <p className="mt-2 rounded-md bg-success/8 px-3 py-1.5 text-[12.5px] text-neutral-700">
-                      Answered by {q.respondedByName} · {when(q.respondedAt)}
-                      {q.responseRemarks ? ` — ${q.responseRemarks}` : ""}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </Panel>
-        )}
-
       </div>
     </PortalShell>
   );
 }
+
+const SECTION_LINK_CLASS =
+  "shrink-0 rounded-full px-3 py-1 text-[12.5px] font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900";

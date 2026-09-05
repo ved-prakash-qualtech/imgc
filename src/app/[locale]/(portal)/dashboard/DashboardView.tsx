@@ -10,8 +10,9 @@ import {
   UploadCloudIcon,
 } from "lucide-react";
 
-import { CommandBand, Section } from "@/components/portal/CommandBand";
 import { Donut } from "@/components/portal/Donut";
+import { Section } from "@/components/portal/CommandBand";
+import { PortfolioCommandCenter } from "@/components/portal/PortfolioCommandCenter";
 import { StatusPill } from "@/components/portal/StatusPill";
 import { ROUTES } from "@/constants/route";
 import { cn } from "@/lib/utils/twMergeUtils";
@@ -61,77 +62,6 @@ type Props = Readonly<{
   recent: AuditEvent[];
 }>;
 
-function buildCommandBandStats(summary: DashboardSummary, isLender: boolean) {
-  if (isLender && summary.lenderHero) {
-    return [
-      {
-        icon: <FolderOpenIcon className="size-4" />,
-        label: "Total Claims",
-        value: String(summary.lenderHero.totalClaims),
-        caption: "Visible within your scope",
-      },
-      {
-        icon: <FileClockIcon className="size-4" />,
-        label: "Claim Initiation",
-        value: String(summary.lenderHero.claimInitiation),
-        caption: "Draft claims in progress",
-      },
-      {
-        icon: <ClockIcon className="size-4" />,
-        label: "Under Progress",
-        value: String(summary.lenderHero.underProgress),
-        caption: "With IMGC for review",
-      },
-      {
-        icon: <CheckCircle2Icon className="size-4" />,
-        label: "Claim Approved",
-        value: String(summary.lenderHero.claimApproved),
-        caption: "Fully approved claims",
-        accent: "teal" as const,
-      },
-      {
-        icon: <AlertTriangleIcon className="size-4" />,
-        label: "Claim Rejected",
-        value: String(summary.lenderHero.claimRejected),
-        caption: "Rejected by IMGC",
-        accent: "rose" as const,
-      },
-    ];
-  }
-
-  return [
-    {
-      icon: <FolderOpenIcon className="size-4" />,
-      label: "Accounts in scope",
-      value: String(summary.accountCount),
-      caption: `${summary.readyToSubmit} ready to submit`,
-    },
-    {
-      icon: <UploadCloudIcon className="size-4" />,
-      label: "Document readiness",
-      value: `${summary.completionPct}%`,
-      caption: `${summary.documentsIn} of ${summary.documentsRequired} mandatory in`,
-      accent: "teal" as const,
-    },
-    {
-      icon: <FileClockIcon className="size-4" />,
-      label: "Submitted / approved",
-      value: `${summary.submittedCount} / ${summary.approvedCount}`,
-      caption: `${summary.queriedCount} queried`,
-    },
-    {
-      icon: <AlertTriangleIcon className="size-4" />,
-      label: "Needs action",
-      value: String(summary.pendingUploadAccounts),
-      caption:
-        summary.oldestPendingDays > 0
-          ? `oldest untouched ${summary.oldestPendingDays}d`
-          : "nothing outstanding",
-      accent: "amber" as const,
-    },
-  ];
-}
-
 function renderAdditionalDocsAction(isLender: boolean) {
   return (
     <Link
@@ -172,12 +102,8 @@ export function DashboardView({ role, summary, attention, recent }: Props) {
   return (
     <div className="space-y-6">
       {/* ── Command centre ───────────────────────────────────────── */}
-      {!isLender && (
-        <CommandBand
-          title="Claims Operations Centre"
-          subtitle="Document readiness and claim progress across every lender"
-          stats={buildCommandBandStats(summary, isLender)}
-        />
+      {!isLender && summary.portfolio && (
+        <PortfolioCommandCenter summary={summary.portfolio} />
       )}
 
       {/* ── In-progress cases ────────────────────────────────────── */}
@@ -312,21 +238,25 @@ export function DashboardView({ role, summary, attention, recent }: Props) {
             title="Pending document upload"
             value={summary.pendingUploadAccounts}
             unit="accounts pending"
-            href={ROUTES.accounts}
+            href={role === "IMGC" ? ROUTES.accounts : ROUTES.initiateClaim}
           />
           <ActionCard
             icon={renderMessageWarningIcon()}
             title="Queries awaiting response"
             value={summary.queriedCount}
             unit="claims queried by IMGC"
-            href={ROUTES.accounts}
+            href={role === "IMGC" ? ROUTES.accounts : ROUTES.trackQueryResponse}
           />
           <ActionCard
             icon={renderClockIcon()}
             title="Rejected documents"
             value={summary.rejectedDocCount}
             unit="held in the retention window"
-            href={role === "IMGC" ? ROUTES.adminRetention : ROUTES.accounts}
+            href={
+              role === "IMGC"
+                ? ROUTES.adminRetention
+                : `${ROUTES.trackQueryResponse}?status=REJECTED`
+            }
           />
         </div>
       </Section>

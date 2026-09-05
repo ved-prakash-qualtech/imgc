@@ -3,6 +3,7 @@ import { AppNavbar } from "@/components/layout/dashboard/AppNavbar";
 import { AppSidebar } from "@/components/layout/dashboard/AppSidebar";
 import type { NavItem, NavKey } from "@/constants/nav";
 import type { SessionUser } from "@/lib/auth/session";
+import type { AssignedOfficer } from "@/services/portal/users.server";
 import { forbidden } from "next/navigation";
 
 export type DashboardShellProps = Readonly<{
@@ -16,6 +17,11 @@ export type DashboardShellProps = Readonly<{
   /** Tenant short code, or the admin scope — shown at the left of the navbar. */
   workspace?: string;
   user?: SessionUser | null;
+  /** Unread notification count for the navbar bell badge. */
+  unreadCount?: number;
+  /** The IMGC officer handling most of this lender's cases — null for IMGC sessions and lenders
+   *  with no assigned cases yet, where the navbar's Help card falls back to a general desk. */
+  assignedOfficer?: AssignedOfficer | null;
   sidebarDefaultCollapsed?: boolean;
 }>;
 
@@ -54,6 +60,8 @@ export function DashboardShell({
   navbarTitle,
   workspace,
   user,
+  unreadCount,
+  assignedOfficer,
   sidebarDefaultCollapsed = false,
 }: DashboardShellProps) {
   if (activeKey && !granted(items, activeKey)) {
@@ -61,15 +69,22 @@ export function DashboardShell({
   }
 
   return (
-    <div className="flex min-h-screen bg-[linear-gradient(180deg,#FFFFFF_-6.3%,#FFF3E9_42.72%,#FAD9BC_96.7%)]">
+    <div className="bg-grad-shell flex min-h-screen">
       <AppSidebar
         items={items}
         activeKey={activeKey}
         badges={badges}
+        sectionLabel={workspace ? `${workspace} Portal` : undefined}
         defaultCollapsed={sidebarDefaultCollapsed}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppNavbar title={navbarTitle} workspace={workspace} user={user} />
+        <AppNavbar
+          title={navbarTitle}
+          workspace={workspace}
+          user={user}
+          unreadCount={unreadCount}
+          assignedOfficer={assignedOfficer}
+        />
         {/* flex-1 so a short page pushes the footer to the bottom rather than leaving
             it floating directly under the content. */}
         <div className="flex flex-1 flex-col">{children}</div>

@@ -25,7 +25,7 @@ export default async function AccountsPage() {
 
   return (
     <PortalShell activeKey="accounts" title="Accounts">
-      <div className="space-y-6">
+      <div className="space-y-4">
         <CommandBand
           title="Accounts"
           subtitle={

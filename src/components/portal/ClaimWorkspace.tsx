@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2Icon,
@@ -17,11 +17,12 @@ import {
   switchClaimTypeAction,
 } from "@/app/[locale]/(portal)/initiate-claim/actions";
 import { ClaimDocuments } from "@/components/portal/ClaimDocuments";
+import { ClaimProgramFields } from "@/components/portal/ClaimProgramFields";
 import { LoanDetailsCard } from "@/components/portal/LoanDetailsCard";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
-import { CLAIM_TYPE_KEYS, CLAIM_TYPES } from "@/config/claimConfig";
+import { claimConfig, CLAIM_TYPE_KEYS, CLAIM_TYPES, fieldVisible } from "@/config/claimConfig";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
 import type { RequirementRow } from "@/services/portal/requirements.server";
@@ -46,6 +47,7 @@ export function ClaimWorkspace({
   claimNo,
   claimType,
   status,
+  fields,
   documents,
   openQuery,
   backHref,
@@ -56,12 +58,29 @@ export function ClaimWorkspace({
   claimNo: string;
   claimType: ClaimTypeKey;
   status: ClaimStatus;
+  fields: Record<string, string>;
   documents: RequirementRow[];
   openQuery: ClaimQuery | null;
   backHref: string;
 }>) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [values, setValues] = useState<Record<string, string>>(fields);
+
+  const config = claimConfig(claimType);
+  const onFieldChange = useCallback((id: string, value: string) => {
+    setValues((prev) => ({ ...prev, [id]: value }));
+  }, []);
+
+  const missingFieldLabels = useMemo(
+    () =>
+      config.fields
+        .filter(
+          (f) => f.required && fieldVisible(f, values) && !values[f.id]?.trim()
+        )
+        .map((f) => f.label),
+    [config.fields, values]
+  );
 
   const missingDocs = useMemo(
     () =>
@@ -73,7 +92,7 @@ export function ClaimWorkspace({
         .map((d) => d.name),
     [documents]
   );
-  const canSubmit = missingDocs.length === 0;
+  const canSubmit = missingDocs.length === 0 && missingFieldLabels.length === 0;
 
   const resubmitting = status === "QUERY_RAISED";
   const locked =
@@ -81,7 +100,7 @@ export function ClaimWorkspace({
 
   const onSave = useCallback(() => {
     startTransition(async () => {
-      const result = await saveDraftAction(accountId, claimId, {});
+      const result = await saveDraftAction(accountId, claimId, values);
       if (!result.ok) {
         toast.error(result.error ?? "That could not be saved.");
         return;
@@ -89,11 +108,11 @@ export function ClaimWorkspace({
       toast.success("Claim saved.");
       router.refresh();
     });
-  }, [accountId, claimId, router]);
+  }, [accountId, claimId, router, values]);
 
   const onSubmit = useCallback(() => {
     startTransition(async () => {
-      const result = await submitClaimAction(accountId, claimId, {});
+      const result = await submitClaimAction(accountId, claimId, values);
       if (!result.ok) {
         toast.error(result.error ?? "That claim could not be submitted.");
         return;
@@ -105,7 +124,7 @@ export function ClaimWorkspace({
       );
       router.refresh();
     });
-  }, [accountId, claimId, claimNo, resubmitting, router]);
+  }, [accountId, claimId, claimNo, resubmitting, router, values]);
 
   const onChangeType = useCallback(
     (next: ClaimTypeKey) => {
@@ -143,11 +162,12 @@ export function ClaimWorkspace({
           {CLAIM_TYPE_KEYS.map((key) => {
             const t = CLAIM_TYPES[key];
             const active = key === claimType;
+            const locked = key === "SUBSEQUENT";
             return (
               <button
                 key={key}
                 type="button"
-                disabled={status !== "DRAFT" || pending}
+                disabled={status !== "DRAFT" || pending || locked}
                 aria-pressed={active}
                 onClick={() => onChangeType(key)}
                 className={cn(
@@ -174,6 +194,14 @@ export function ClaimWorkspace({
         </div>
       </Panel>
 
+      {/* ── Claim details: Claims Program, eligibility ───────── */}
+      <ClaimProgramFields
+        fields={config.fields}
+        values={values}
+        onChange={onFieldChange}
+        disabled={locked || pending}
+      />
+
       {/* ── Documents: required + additional ─────────────────── */}
       <ClaimDocuments
         accountId={accountId}
@@ -196,10 +224,14 @@ export function ClaimWorkspace({
               <p className="text-neutral-500">
                 <span className="font-medium text-neutral-700">
                   {resubmitting ? "Resubmit" : "Save & Submit"} unlocks once these are
-                  uploaded:
+                  in:
                 </span>{" "}
-                {missingDocs.slice(0, 4).join(", ")}
-                {missingDocs.length > 4 ? `, +${missingDocs.length - 4} more` : ""}
+                {[...missingFieldLabels, ...missingDocs]
+                  .slice(0, 4)
+                  .join(", ")}
+                {missingFieldLabels.length + missingDocs.length > 4
+                  ? `, +${missingFieldLabels.length + missingDocs.length - 4} more`
+                  : ""}
               </p>
             )}
           </div>

@@ -17,6 +17,13 @@ export type FieldType =
   | "textarea"
   | "currency";
 
+/** Shows/requires a field only when another field on the same claim already holds a value. */
+export interface FieldCondition {
+  field: string;
+  operator: "equals";
+  value: string;
+}
+
 export interface ClaimField {
   id: string;
   label: string;
@@ -28,6 +35,23 @@ export interface ClaimField {
   options?: readonly string[];
   /** Groups the field under a heading in the form. Fields with no section come first. */
   section?: string;
+  /**
+   * When present, the field is only shown — and only counted against `required` — once this
+   * condition holds against the claim's other field values. Absent ⇒ always shown.
+   */
+  visibleWhen?: FieldCondition;
+}
+
+/** Evaluate a field's visibility condition against the claim's current field values. */
+export function fieldVisible(
+  field: ClaimField,
+  values: Record<string, string>
+): boolean {
+  if (!field.visibleWhen) return true;
+  const { field: dep, operator, value } = field.visibleWhen;
+  const actual = values[dep] ?? "";
+  if (operator === "equals") return actual === value;
+  return true;
 }
 
 /** A configuration-driven rule that decides whether a document is mandatory. */
@@ -96,6 +120,37 @@ const STANDARD_FLOW: readonly ClaimStatus[] = [
   "CLOSED",
 ];
 
+/** Shared by every claim type — the claim-level data-entry fields above the checklist. */
+const CLAIM_PROGRAM_FIELDS: readonly ClaimField[] = [
+  {
+    id: "claimsProgram",
+    label: "Claims Program",
+    type: "select",
+    required: true,
+    options: [
+      "Developer Under Construction>85%",
+      "Developer Under Construction",
+      "Plot + Construction",
+      "Self Construction",
+      "Frictionless Claim",
+    ],
+  },
+  {
+    id: "ineligibleClaim",
+    label: "Ineligible Claim",
+    type: "select",
+    required: true,
+    options: ["No", "Yes"],
+  },
+  {
+    id: "reasonForIneligibleClaim",
+    label: "Reason for Ineligible Claim",
+    type: "textarea",
+    required: true,
+    visibleWhen: { field: "ineligibleClaim", operator: "equals", value: "Yes" },
+  },
+];
+
 export const CLAIM_TYPES: Readonly<Record<ClaimTypeKey, ClaimTypeConfig>> = {
   INITIAL: {
     key: "INITIAL",
@@ -103,7 +158,7 @@ export const CLAIM_TYPES: Readonly<Record<ClaimTypeKey, ClaimTypeConfig>> = {
     description:
       "First intimation of default. Establishes the claim and the documents IMGC needs to begin.",
     prefix: "CLM",
-    fields: [],
+    fields: CLAIM_PROGRAM_FIELDS,
     // The five predefined claim-initiation document categories. Rendered dynamically from here.
     documents: [
       {
@@ -161,7 +216,7 @@ export const CLAIM_TYPES: Readonly<Record<ClaimTypeKey, ClaimTypeConfig>> = {
     description:
       "Final claim for the net loss once recovery is complete — after settlement, auction or legal recovery.",
     prefix: "SUB",
-    fields: [],
+    fields: CLAIM_PROGRAM_FIELDS,
     documents: [
       {
         slug: "subsequent-claim-form",

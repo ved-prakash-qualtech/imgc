@@ -86,6 +86,7 @@ export default async function ClaimWorkspacePage({
               claimNo={claim.claimNo}
               claimType={claim.claimType}
               status={claim.status}
+              fields={claim.fields}
               documents={documents}
               openQuery={claim.openQuery}
               backHref={ROUTES.initiateClaim}

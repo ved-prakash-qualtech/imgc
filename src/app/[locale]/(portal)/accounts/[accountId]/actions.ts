@@ -145,6 +145,16 @@ export async function setClaimStatusAction(
 ): Promise<Result> {
   const session = await requireSession();
   const result = await setClaimStatus(session, accountId, status, note);
-  if (result.ok) refresh(accountId);
+  if (result.ok) {
+    refresh(accountId);
+    // This now also syncs the account's Claim entity (syncClaimForAccountDecision) — the same
+    // routes initiate-claim/actions.ts's refreshAll revalidates for a Claim-side change, so the
+    // lender's workspace and Track Claim pick it up too, not just this account's own page.
+    revalidatePath(ROUTES.initiateClaim);
+    revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
+    revalidatePath(ROUTES.trackQueryResponse);
+    revalidatePath(ROUTES.auditTrail);
+    revalidatePath(ROUTES.notifications);
+  }
   return result;
 }

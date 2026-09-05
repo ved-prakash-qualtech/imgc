@@ -40,7 +40,7 @@ export default async function InitiateClaimPage() {
 
   return (
     <PortalShell activeKey="initiate-claim" title="Initiate Claim">
-      <div className="space-y-6">
+      <div className="space-y-4">
         <EligibleCasesClient accounts={rows} />
       </div>
     </PortalShell>

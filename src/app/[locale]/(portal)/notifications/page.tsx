@@ -79,7 +79,7 @@ export default async function NotificationsPage() {
 
   return (
     <PortalShell activeKey="notifications" title="Notifications">
-      <div className="space-y-6">
+      <div className="space-y-4">
         <CommandBand
           title="Notifications"
           subtitle={

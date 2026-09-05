@@ -5,12 +5,15 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
   ArrowUpDownIcon,
+  ChevronDownIcon,
+  DownloadIcon,
   SearchIcon,
 } from "lucide-react";
 
 import { ClaimRowActions } from "@/components/portal/ClaimRowActions";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -28,12 +31,71 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { EligibleRow } from "@/app/[locale]/(portal)/initiate-claim/page";
+import type { ClaimStatus } from "@/server/mock/types";
 
 type SortKey = "loanNo" | "borrowerName" | "loanAmount" | "applicationDate";
 type SortDirection = "asc" | "desc" | null;
 
+/** The status filter's own values — "not started" isn't a real `ClaimStatus`, it's the absence
+ *  of a claim, so it needs a value of its own alongside the real ones. */
+const STATUS_OPTIONS = ["ALL", "NOT_STARTED", "DRAFT", "SUBMITTED", "UNDER_REVIEW", "QUERY_RAISED", "APPROVED", "REJECTED"] as const;
+
 /** 4500000 becomes 45,00,000 — Indian grouping, no currency symbol (matches the reference). */
 const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
+
+function date(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function statusLabel(v: (typeof STATUS_OPTIONS)[number]): string {
+  if (v === "ALL") return "All statuses";
+  if (v === "NOT_STARTED") return "Not started";
+  return v
+    .toLowerCase()
+    .split("_")
+    .map((w) => w[0]!.toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function purposeDisplay(v: string): string {
+  return v === "ALL" ? "All purposes" : v;
+}
+
+/** Escapes a value for one CSV field. */
+function csvField(value: string | number): string {
+  const s = String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCsv(rows: EligibleRow[]): void {
+  const headers = ["Loan ID", "Applicant", "Purpose", "Amount", "Login Date", "Status"];
+  const lines = rows.map((a) =>
+    [
+      a.loanNo,
+      a.borrowerName,
+      a.product,
+      a.loanAmount,
+      a.applicationDate.slice(0, 10),
+      a.claim ? a.claim.status : "NOT_STARTED",
+    ]
+      .map(csvField)
+      .join(",")
+  );
+  const csv = [headers.join(","), ...lines].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `eligible-cases-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 const SortIcon = ({
   column,
@@ -70,7 +132,7 @@ const SortableTableHead = ({
   return (
     <TableHead
       onClick={handleClick}
-      className="cursor-pointer select-none transition-colors hover:bg-neutral-50"
+      className="h-9 cursor-pointer select-none px-2.5 transition-colors hover:bg-neutral-50"
     >
       <div className="flex items-center">
         {label}
@@ -84,14 +146,53 @@ const SortableTableHead = ({
   );
 };
 
+function FilterSelect<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+  display,
+}: Readonly<{
+  label: string;
+  options: readonly T[];
+  value: T;
+  onChange: (next: T) => void;
+  display: (value: T) => string;
+}>) {
+  return (
+    <div className="relative">
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value as T)}
+        className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-[12.5px] font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {display(option)}
+          </option>
+        ))}
+      </select>
+      <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+    </div>
+  );
+}
+
 export function EligibleCasesClient({
   accounts,
 }: Readonly<{ accounts: EligibleRow[] }>) {
   const [query, setQuery] = useState("");
+  const [status, setStatus] = useState<(typeof STATUS_OPTIONS)[number]>("ALL");
+  const [product, setProduct] = useState("ALL");
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
+
+  const products = useMemo(
+    () => Array.from(new Set(accounts.map((a) => a.product))).sort(),
+    [accounts]
+  );
 
   const toggleSort = useCallback((key: SortKey) => {
     setSortKey((prevKey) => {
@@ -117,14 +218,35 @@ export function EligibleCasesClient({
     []
   );
 
+  const handleStatusChange = useCallback((v: (typeof STATUS_OPTIONS)[number]) => {
+    setStatus(v);
+    setPage(1);
+  }, []);
+
+  const handleProductChange = useCallback((v: string) => {
+    setProduct(v);
+    setPage(1);
+  }, []);
+
   const handlePageSizeChange = useCallback((val: string | null) => {
-    setPageSize(Number(val ?? "10"));
+    setPageSize(Number(val ?? "5"));
     setPage(1);
   }, []);
 
   const rows = useMemo(() => {
     // NPA-only grid.
     let result = accounts.filter((a) => a.npa);
+
+    if (status !== "ALL") {
+      result = result.filter((a) =>
+        status === "NOT_STARTED"
+          ? !a.claim
+          : a.claim?.status === (status as ClaimStatus)
+      );
+    }
+    if (product !== "ALL") {
+      result = result.filter((a) => a.product === product);
+    }
 
     const q = query.trim().toLowerCase();
     if (q) {
@@ -156,9 +278,6 @@ export function EligibleCasesClient({
             valA = a.applicationDate;
             valB = b.applicationDate;
             break;
-          default:
-            valA = "";
-            valB = "";
         }
         if (typeof valA === "string" && typeof valB === "string") {
           valA = valA.toLowerCase();
@@ -171,30 +290,55 @@ export function EligibleCasesClient({
     }
 
     return result;
-  }, [accounts, query, sortKey, sortDirection]);
+  }, [accounts, query, status, product, sortKey, sortDirection]);
 
   const pageCount = Math.ceil(rows.length / pageSize) || 1;
-  const currentRows = rows.slice((page - 1) * pageSize, page * pageSize);
+  const currentPage = Math.min(page, pageCount);
+  const currentRows = rows.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  const handleExport = useCallback(() => downloadCsv(rows), [rows]);
 
   return (
     <Panel
       title={`${rows.length} eligible case${rows.length === 1 ? "" : "s"}`}
       description="NPA accounts your organisation can raise a claim on."
+      actions={
+        <Button variant="outline" size="sm" onClick={handleExport}>
+          <DownloadIcon /> Export CSV
+        </Button>
+      }
     >
-      <div className="border-b border-neutral-100 p-4">
-        <div className="relative w-fit">
+      <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-4 py-2.5">
+        <div className="relative">
           <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
           <input
             value={query}
             onChange={handleQueryChange}
             placeholder="Loan ID or applicant"
             aria-label="Search cases"
-            className="h-9 w-[260px] rounded-lg border border-neutral-200 pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            className="h-8 w-[230px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           />
         </div>
+        <FilterSelect
+          label="Status"
+          options={STATUS_OPTIONS}
+          value={status}
+          onChange={handleStatusChange}
+          display={statusLabel}
+        />
+        <FilterSelect
+          label="Purpose"
+          options={["ALL", ...products] as const}
+          value={product}
+          onChange={handleProductChange}
+          display={purposeDisplay}
+        />
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="max-h-[60vh] overflow-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -212,6 +356,7 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
+              <TableHead className="h-9 px-2.5">Purpose</TableHead>
               <SortableTableHead
                 column="loanAmount"
                 label="Amount"
@@ -226,15 +371,15 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="h-9 px-2.5">Status</TableHead>
+              <TableHead className="h-9 px-2.5 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {currentRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="py-12 text-center text-[13px] text-neutral-500"
                 >
                   No eligible cases match your search.
@@ -243,17 +388,24 @@ export function EligibleCasesClient({
             ) : (
               currentRows.map((a) => (
                 <TableRow key={a.id}>
-                  <TableCell className="font-medium text-neutral-950">
-                    {a.loanNo}
+                  <TableCell className="px-2.5 py-2">
+                    <span className="inline-flex items-center rounded-full bg-info/12 px-2.5 py-0.5 text-[12px] font-semibold text-info">
+                      {a.loanNo}
+                    </span>
                   </TableCell>
-                  <TableCell>{a.borrowerName}</TableCell>
-                  <TableCell className="tabular-nums text-neutral-700">
-                    {inr.format(a.loanAmount)}
+                  <TableCell className="px-2.5 py-2 font-medium text-neutral-900">
+                    {a.borrowerName}
                   </TableCell>
-                  <TableCell className="tabular-nums text-neutral-500">
-                    {a.applicationDate.slice(0, 10)}
+                  <TableCell className="px-2.5 py-2 text-neutral-500">{a.product}</TableCell>
+                  <TableCell className="px-2.5 py-2">
+                    <span className="inline-flex items-center rounded-full bg-success-50 px-2.5 py-0.5 text-[12px] font-semibold tabular-nums text-success-700">
+                      {inr.format(a.loanAmount)}
+                    </span>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-2.5 py-2 tabular-nums text-neutral-500">
+                    {date(a.applicationDate)}
+                  </TableCell>
+                  <TableCell className="px-2.5 py-2">
                     {a.claim ? (
                       <StatusPill status={a.claim.status} />
                     ) : (
@@ -263,7 +415,7 @@ export function EligibleCasesClient({
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="px-2.5 py-2 text-right">
                     <ClaimRowActions
                       accountId={a.id}
                       claimId={a.claim?.id}
@@ -280,7 +432,7 @@ export function EligibleCasesClient({
         </Table>
       </div>
 
-      <div className="flex items-center justify-between border-t border-neutral-100 bg-neutral-25 px-5 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-2">
         <div className="flex items-center gap-3 text-[13px] text-neutral-500">
           <div className="flex items-center gap-2">
             <span>Rows per page</span>
@@ -306,10 +458,10 @@ export function EligibleCasesClient({
 
         <div className="flex items-center gap-4">
           <span className="hidden text-[13px] text-neutral-500 sm:inline">
-            Page {page} of {pageCount}
+            Page {currentPage} of {pageCount}
           </span>
           <PaginationNumbers
-            page={page}
+            page={currentPage}
             pageCount={pageCount}
             onPageChange={setPage}
           />

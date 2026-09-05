@@ -26,7 +26,7 @@ export default async function BucketsPage() {
 
   return (
     <PortalShell activeKey="buckets" title="Processing Buckets">
-      <div className="space-y-6">
+      <div className="space-y-4">
         <CommandBand
           title="Processing buckets"
           subtitle="Pull an account into IMGC for processing, or hand it back to the lender for documents — every move notifies the stakeholders"

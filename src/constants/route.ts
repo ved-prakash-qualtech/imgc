@@ -17,8 +17,6 @@ export const ROUTES = {
   trackQueryResponse: "/track-query-response",
   /** One claim's detail + timeline, reachable by both roles. */
   claimDetails: (claimId: string) => `/claims/${claimId}`,
-  trackQueryWorkspace: (accountId: string) =>
-    `/track-query-response/${accountId}`,
 
   auditTrail: "/audit-trail",
   auditTrailWorkspace: (accountId: string) => `/audit-trail/${accountId}`,

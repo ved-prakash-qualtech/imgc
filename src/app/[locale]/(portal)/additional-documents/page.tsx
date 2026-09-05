@@ -28,7 +28,7 @@ export default async function AdditionalDocumentsPage() {
 
   return (
     <PortalShell activeKey="additional-documents" title="Additional Documents">
-      <div className="space-y-6">
+      <div className="space-y-4">
         <CommandBand
           title="Additional documents"
           subtitle="Raise a document requirement against a case, then review what the lender uploads against it"

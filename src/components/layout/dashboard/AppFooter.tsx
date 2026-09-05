@@ -12,7 +12,7 @@
  */
 export function AppFooter() {
   return (
-    <footer className="shrink-0 border-t border-neutral-100 bg-[#E5EEFC] px-6 py-2.5 text-right text-[11px] text-neutral-400">
+    <footer className="shrink-0 border-t border-neutral-100 bg-neutral-50 px-6 py-2.5 text-right text-[11px] text-neutral-400">
       2026 © All Rights Reserved by Qualtech
     </footer>
   );
