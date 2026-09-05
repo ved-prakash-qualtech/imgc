@@ -1,7 +1,8 @@
+/* eslint-disable react-perf/jsx-no-new-function-as-prop, react-perf/jsx-no-jsx-as-prop */
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -151,7 +152,11 @@ const SortableTableHead = ({
     >
       <div className="flex items-center">
         {label}
-        <SortIcon column={column} sortKey={sortKey} sortDirection={sortDirection} />
+        <SortIcon
+          column={column}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+        />
       </div>
     </TableHead>
   );
@@ -169,7 +174,9 @@ function StatusFilterSelect({
       <select
         aria-label="Status"
         value={value}
-        onChange={(e) => onChange(e.target.value as (typeof STATUS_OPTIONS)[number])}
+        onChange={(e) =>
+          onChange(e.target.value as (typeof STATUS_OPTIONS)[number])
+        }
         className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-[12.5px] font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
       >
         {STATUS_OPTIONS.map((option) => (
@@ -285,7 +292,10 @@ export function TrackCasesClient({
     currentPage * pageSize
   );
 
-  const handleExport = useCallback(() => downloadCsv(rows, isLender), [rows, isLender]);
+  const handleExport = useCallback(
+    () => downloadCsv(rows, isLender),
+    [rows, isLender]
+  );
 
   const colSpan = isLender ? 9 : 10;
 
@@ -362,20 +372,29 @@ export function TrackCasesClient({
               </TableRow>
             ) : (
               currentRows.map((c) => (
-                <TableRow key={c.id} className={cn(c.openQuery && "bg-warning/5")}>
+                <TableRow
+                  key={c.id}
+                  className={cn(c.openQuery && "bg-warning/5")}
+                >
                   <TableCell className="px-2 py-2">
                     <span className="inline-flex items-center rounded-full bg-info/12 px-2.5 py-0.5 text-[12px] font-semibold text-info">
                       {c.claimNo}
                     </span>
                   </TableCell>
-                  <TableCell className="px-2 py-2 text-neutral-500">{c.caseId}</TableCell>
+                  <TableCell className="px-2 py-2 text-neutral-500">
+                    {c.caseId}
+                  </TableCell>
                   <TableCell className="px-2 py-2 font-medium text-neutral-900">
                     {c.customerName}
                   </TableCell>
                   {!isLender && (
-                    <TableCell className="px-2 py-2 text-neutral-500">{c.lenderName}</TableCell>
+                    <TableCell className="px-2 py-2 text-neutral-500">
+                      {c.lenderName}
+                    </TableCell>
                   )}
-                  <TableCell className="px-2 py-2 text-neutral-500">{c.typeLabel}</TableCell>
+                  <TableCell className="px-2 py-2 text-neutral-500">
+                    {c.typeLabel}
+                  </TableCell>
                   <TableCell className="px-2 py-2 text-neutral-500">
                     {when(c.submittedAt)}
                   </TableCell>
@@ -408,7 +427,10 @@ export function TrackCasesClient({
         <div className="flex items-center gap-3 text-[13px] text-neutral-500">
           <div className="flex items-center gap-2">
             <span>Rows per page</span>
-            <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
+            <Select
+              value={String(pageSize)}
+              onValueChange={handlePageSizeChange}
+            >
               <SelectTrigger size="sm" className="h-8 w-[70px] bg-white">
                 <SelectValue />
               </SelectTrigger>

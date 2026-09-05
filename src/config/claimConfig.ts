@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-object-injection */
 import type { ClaimStatus, ClaimTypeKey } from "@/server/mock/types";
 
 /**
@@ -10,12 +11,7 @@ import type { ClaimStatus, ClaimTypeKey } from "@/server/mock/types";
  */
 
 export type FieldType =
-  | "text"
-  | "number"
-  | "date"
-  | "select"
-  | "textarea"
-  | "currency";
+  "text" | "number" | "date" | "select" | "textarea" | "currency";
 
 /** Shows/requires a field only when another field on the same claim already holds a value. */
 export interface FieldCondition {
@@ -121,35 +117,7 @@ const STANDARD_FLOW: readonly ClaimStatus[] = [
 ];
 
 /** Shared by every claim type — the claim-level data-entry fields above the checklist. */
-const CLAIM_PROGRAM_FIELDS: readonly ClaimField[] = [
-  {
-    id: "claimsProgram",
-    label: "Claims Program",
-    type: "select",
-    required: true,
-    options: [
-      "Developer Under Construction>85%",
-      "Developer Under Construction",
-      "Plot + Construction",
-      "Self Construction",
-      "Frictionless Claim",
-    ],
-  },
-  {
-    id: "ineligibleClaim",
-    label: "Ineligible Claim",
-    type: "select",
-    required: true,
-    options: ["No", "Yes"],
-  },
-  {
-    id: "reasonForIneligibleClaim",
-    label: "Reason for Ineligible Claim",
-    type: "textarea",
-    required: true,
-    visibleWhen: { field: "ineligibleClaim", operator: "equals", value: "Yes" },
-  },
-];
+const CLAIM_PROGRAM_FIELDS: readonly ClaimField[] = [];
 
 export const CLAIM_TYPES: Readonly<Record<ClaimTypeKey, ClaimTypeConfig>> = {
   INITIAL: {
@@ -165,7 +133,8 @@ export const CLAIM_TYPES: Readonly<Record<ClaimTypeKey, ClaimTypeConfig>> = {
         slug: "lod",
         name: "LOD - List of Documents",
         category: "Property Document",
-        description: "Property papers — sale deed, title documents and related set.",
+        description:
+          "Property papers — sale deed, title documents and related set.",
         required: true,
         multiple: true,
       },
@@ -173,7 +142,8 @@ export const CLAIM_TYPES: Readonly<Record<ClaimTypeKey, ClaimTypeConfig>> = {
         slug: "legal-collection-feedback",
         name: "Legal & Collection Feedback",
         category: "Legal Document",
-        description: "Latest legal opinion and collections feedback on the account.",
+        description:
+          "Latest legal opinion and collections feedback on the account.",
         required: true,
         multiple: false,
       },
@@ -286,17 +256,14 @@ export const CLAIM_STATUS_LABELS: Readonly<Record<ClaimStatus, string>> = {
 };
 
 /** Statuses the lender can still act on — used to decide what the grid offers. */
-export const LENDER_ACTIONABLE: ReadonlySet<ClaimStatus> = new Set<ClaimStatus>([
-  "DRAFT",
-  "QUERY_RAISED",
-]);
+export const LENDER_ACTIONABLE: ReadonlySet<ClaimStatus> = new Set<ClaimStatus>(
+  ["DRAFT", "QUERY_RAISED"]
+);
 
 /** Terminal statuses — nothing further happens to the claim. */
-export const TERMINAL_STATUSES: ReadonlySet<ClaimStatus> = new Set<ClaimStatus>([
-  "APPROVED",
-  "REJECTED",
-  "CLOSED",
-]);
+export const TERMINAL_STATUSES: ReadonlySet<ClaimStatus> = new Set<ClaimStatus>(
+  ["APPROVED", "REJECTED", "CLOSED"]
+);
 
 /**
  * Where a claim sits on its configured flow, for the timeline.

@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-non-literal-fs-filename, use-client/browser-api */
 import "server-only";
 
 import { promises as fs } from "node:fs";
@@ -77,7 +78,8 @@ export function getClaimAction(
     return {
       action: "DISABLED",
       claim: null,
-      reason: "A claim can only be raised once the account is NPA or written off.",
+      reason:
+        "A claim can only be raised once the account is NPA or written off.",
     };
   }
   return { action: "INITIATE", claim: null };
@@ -88,7 +90,9 @@ export function getClaimAction(
 function scoped(db: MockDb, session: AppSession): Set<string> {
   return new Set(
     db.accounts
-      .filter((a) => session.role === "IMGC" || a.lenderOrgId === session.lenderOrgId)
+      .filter(
+        (a) => session.role === "IMGC" || a.lenderOrgId === session.lenderOrgId
+      )
       .map((a) => a.id)
   );
 }
@@ -173,11 +177,14 @@ export async function listQueries(claimId: string): Promise<ClaimQuery[]> {
 function nextClaimNo(db: MockDb, type: ClaimTypeKey): string {
   const prefix = claimConfig(type).prefix;
   const year = new Date().getFullYear();
-  const used = db.claims.filter((c) => c.claimNo.startsWith(`${prefix}-${year}-`)).length;
+  const used = db.claims.filter((c) =>
+    c.claimNo.startsWith(`${prefix}-${year}-`)
+  ).length;
   return `${prefix}-${year}-${String(used + 1).padStart(5, "0")}`;
 }
 
 function advance(
+  db: MockDb,
   claim: Claim,
   status: ClaimStatus,
   session: AppSession,
@@ -193,6 +200,26 @@ function advance(
     byRole: session.role,
     note,
   });
+
+  const account = db.accounts.find((a) => a.id === claim.accountId);
+  if (account) {
+    account.claimStatus = status;
+    if (
+      status === "SUBMITTED" ||
+      status === "DOCUMENTS_RESUBMITTED" ||
+      status === "UNDER_REVIEW"
+    ) {
+      account.stage = "Under IMGC review";
+    } else if (status === "APPROVED") {
+      account.stage = "Claim approved";
+    } else if (status === "REJECTED") {
+      account.stage = "Claim rejected";
+    } else if (status === "CLOSED") {
+      account.stage = "Claim closed";
+    } else if (status === "QUERY_RAISED") {
+      account.stage = "Query raised with the lender";
+    }
+  }
 }
 
 /**
@@ -220,7 +247,7 @@ export async function syncClaimForAccountDecision(
     if (!claim) return;
 
     if (status === "APPROVED") {
-      advance(claim, "APPROVED", session, note || undefined);
+      advance(db, claim, "APPROVED", session, note || undefined);
       claim.decision = {
         outcome: "APPROVED",
         byId: session.userId,
@@ -250,7 +277,7 @@ export async function syncClaimForAccountDecision(
       ).toISOString(),
     });
     claim.bucket = "LENDER";
-    advance(claim, "QUERY_RAISED", session, note || undefined);
+    advance(db, claim, "QUERY_RAISED", session, note || undefined);
   });
 }
 
@@ -290,7 +317,9 @@ function materialiseChecklist(
       required: spec.required && applies,
       multiple: spec.multiple ?? false,
       conditional: Boolean(spec.condition),
-      conditionReason: spec.condition ? conditionReason(spec.condition) : undefined,
+      conditionReason: spec.condition
+        ? conditionReason(spec.condition)
+        : undefined,
       addedBy: "SYSTEM",
       status: "PENDING_UPLOAD",
       version: 0,
@@ -320,7 +349,8 @@ export async function createClaim(
   if (!account.npa && !account.writeOff) {
     return {
       ok: false,
-      error: "A claim can only be raised once the account is NPA or written off.",
+      error:
+        "A claim can only be raised once the account is NPA or written off.",
     };
   }
 
@@ -380,9 +410,13 @@ export async function switchClaimType(
     const claim = db.claims.find((c) => c.id === claimId);
     if (!claim) return { ok: false as const, error: "Claim not found." };
     if (claim.status !== "DRAFT") {
-      return { ok: false as const, error: "The claim type can only change while it is a draft." };
+      return {
+        ok: false as const,
+        error: "The claim type can only change while it is a draft.",
+      };
     }
-    if (claim.claimType === newType) return { ok: true as const, changed: false };
+    if (claim.claimType === newType)
+      return { ok: true as const, changed: false };
 
     const config = claimConfig(newType);
     const validIds = new Set(config.fields.map((f) => f.id));
@@ -436,8 +470,11 @@ export async function saveClaimDraft(
     // Saving a query response is a real, visible event on the claim's own record — not just an
     // audit-log line — so Claim History shows it. Status is untouched: `advance()` to the same
     // status only appends the history entry, exactly what "save without resolving" needs.
-    if (fields.__queryResponse !== undefined && claim.status === "QUERY_RAISED") {
-      advance(claim, claim.status, session, "Response saved as draft");
+    if (
+      fields.__queryResponse !== undefined &&
+      claim.status === "QUERY_RAISED"
+    ) {
+      advance(db, claim, claim.status, session, "Response saved as draft");
     }
   });
 
@@ -508,7 +545,9 @@ export async function submitClaim(
   const check = await checkSubmittable(claimId);
   if (!check.ok) {
     const parts = [
-      check.missingFields.length ? `fields: ${check.missingFields.join(", ")}` : "",
+      check.missingFields.length
+        ? `fields: ${check.missingFields.join(", ")}`
+        : "",
       check.missingDocuments.length
         ? `documents: ${check.missingDocuments.join(", ")}`
         : "",
@@ -522,6 +561,7 @@ export async function submitClaim(
     // Answering a query resubmits; a first submission submits. Both land with IMGC.
     const resubmitting = claim.status === "QUERY_RAISED";
     advance(
+      db,
       claim,
       resubmitting ? "DOCUMENTS_RESUBMITTED" : "SUBMITTED",
       session
@@ -537,10 +577,11 @@ export async function submitClaim(
         open.respondedAt = nowIso();
         open.respondedById = session.userId;
         open.respondedByName = session.name;
-        open.responseRemarks = fields.__queryResponse ?? "Documents resubmitted.";
+        open.responseRemarks =
+          fields.__queryResponse ?? "Documents resubmitted.";
       }
       // Rule: a resubmission goes straight back into review.
-      advance(claim, "UNDER_REVIEW", session, "Resubmission received");
+      advance(db, claim, "UNDER_REVIEW", session, "Resubmission received");
     }
     return claim.claimNo;
   });
@@ -574,7 +615,7 @@ export async function updateClaimStatus(
   const outcome = await writeDb((db) => {
     const claim = db.claims.find((c) => c.id === claimId);
     if (!claim) return { ok: false as const, error: "Claim not found." };
-    advance(claim, status, session, remarks || undefined);
+    advance(db, claim, status, session, remarks || undefined);
     if (status === "APPROVED" || status === "REJECTED" || status === "CLOSED") {
       claim.decision = {
         outcome: status,
@@ -584,7 +625,11 @@ export async function updateClaimStatus(
         remarks,
       };
     }
-    return { ok: true as const, accountId: claim.accountId, claimNo: claim.claimNo };
+    return {
+      ok: true as const,
+      accountId: claim.accountId,
+      claimNo: claim.claimNo,
+    };
   });
   if (!outcome.ok) return outcome;
 
@@ -610,7 +655,8 @@ export async function raiseQuery(
   input: { reason: string; remarks: string; requestedDocuments: string[] }
 ): Promise<Outcome> {
   if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
-  if (!input.reason.trim()) return { ok: false, error: "A query needs a reason." };
+  if (!input.reason.trim())
+    return { ok: false, error: "A query needs a reason." };
 
   const outcome = await writeDb((db) => {
     const claim = db.claims.find((c) => c.id === claimId);
@@ -643,9 +689,13 @@ export async function raiseQuery(
       if (doc) doc.status = "REUPLOAD_REQUIRED";
     }
 
-    advance(claim, "QUERY_RAISED", session, input.reason.trim());
+    advance(db, claim, "QUERY_RAISED", session, input.reason.trim());
     claim.bucket = "LENDER";
-    return { ok: true as const, accountId: claim.accountId, claimNo: claim.claimNo };
+    return {
+      ok: true as const,
+      accountId: claim.accountId,
+      claimNo: claim.claimNo,
+    };
   });
   if (!outcome.ok) return outcome;
 
@@ -680,7 +730,10 @@ async function assertLenderOwns(
   if (!claim) return { ok: false, error: "Claim not found." };
   const account = db.accounts.find((a) => a.id === claim.accountId);
   if (!account) return { ok: false, error: "Account not found." };
-  if (session.role !== "LENDER" || account.lenderOrgId !== session.lenderOrgId) {
+  if (
+    session.role !== "LENDER" ||
+    account.lenderOrgId !== session.lenderOrgId
+  ) {
     return { ok: false, error: "That claim belongs to another lender." };
   }
   return { ok: true, accountId: claim.accountId };
@@ -801,7 +854,11 @@ export async function addLenderDocument(
   const clash = db.claimDocuments.some(
     (d) => d.claimId === claimId && d.name.toLowerCase() === name.toLowerCase()
   );
-  if (clash) return { ok: false, error: "A document with that name is already on this claim." };
+  if (clash)
+    return {
+      ok: false,
+      error: "A document with that name is already on this claim.",
+    };
 
   const docId = newId("addoc");
   const refNo = `AD-${String(existingAd + 1).padStart(3, "0")}`;

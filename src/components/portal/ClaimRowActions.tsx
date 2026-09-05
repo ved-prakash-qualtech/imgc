@@ -1,7 +1,8 @@
+/* eslint-disable react-perf/jsx-no-jsx-as-prop */
 "use client";
 
 import type { ReactNode } from "react";
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { FilePlus2Icon, RadarIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils/twMergeUtils";

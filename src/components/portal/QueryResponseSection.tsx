@@ -2,12 +2,7 @@
 
 import { useCallback, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  CheckCircle2Icon,
-  MessageSquareWarningIcon,
-  SaveIcon,
-  SendIcon,
-} from "lucide-react";
+import { SaveIcon, SendIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -28,11 +23,6 @@ function when(iso: string): string {
     month: "short",
     year: "numeric",
   });
-}
-
-/** The short id a lender sees, e.g. "qry_a1b2c3d4" → "QRY-A1B2C3D4". */
-function displayQueryId(id: string): string {
-  return `QRY-${id.replace(/^qry_/, "").slice(0, 8).toUpperCase()}`;
 }
 
 /** What to say when there's nothing to respond to — worded to the claim's actual state rather
@@ -68,7 +58,7 @@ export function QueryResponseSection({
   claimId,
   claimStatus,
   openQuery,
-  lastAnsweredQuery,
+  queries,
   savedResponse,
   documents,
   isLender,
@@ -77,9 +67,7 @@ export function QueryResponseSection({
   claimId: string;
   claimStatus: ClaimStatus;
   openQuery: ClaimQuery | null;
-  /** The most recent resolved query, so a just-submitted response still reads back here —
-   *  read-only — instead of the section going blank the moment the query closes. */
-  lastAnsweredQuery: ClaimQuery | null;
+  queries: ClaimQuery[];
   savedResponse: string;
   documents: RequirementRow[];
   isLender: boolean;
@@ -118,66 +106,29 @@ export function QueryResponseSection({
         return;
       }
       setDirty(false);
+      setResponse("");
       toast.success("Response submitted — back with IMGC for review.");
       router.refresh();
     });
   }, [accountId, claimId, response, router]);
 
-  if (!openQuery) {
-    if (!lastAnsweredQuery) {
-      return (
-        <Panel
-          title="Query Response"
-          description="Only actionable while IMGC has an open query on this claim."
-        >
-          <p className="px-5 py-8 text-center text-[13px] text-neutral-500">
-            {noQueryMessage(claimStatus)}
-          </p>
-        </Panel>
-      );
-    }
+  const handleResponseChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setResponse(e.target.value);
+      setDirty(true);
+    },
+    []
+  );
 
-    // ── Response Submitted — read-only recap ──────────────────────────
-    const respondedDocs = documents.filter((d) =>
-      lastAnsweredQuery.requestedDocuments.includes(d.name)
-    );
+  if (queries.length === 0) {
     return (
-      <Panel title="Query Response" description="Response submitted.">
-        <div className="space-y-4 px-5 py-4">
-          <p className="flex items-center gap-1.5 text-[13px] font-medium text-success-700">
-            <CheckCircle2Icon className="size-4" />
-            Response Submitted
-          </p>
-          <div>
-            <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-              Response
-            </span>
-            <p className="rounded-lg border border-neutral-200 bg-neutral-25 px-3 py-2 text-[13px] text-neutral-700">
-              {lastAnsweredQuery.responseRemarks || "—"}
-            </p>
-          </div>
-          {respondedDocs.length > 0 && (
-            <div>
-              <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                Supporting Documents
-              </span>
-              <ul className="flex flex-wrap gap-1.5">
-                {respondedDocs.map((d) => (
-                  <li
-                    key={d.id}
-                    className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11.5px] font-medium text-neutral-700"
-                  >
-                    {d.name}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <p className="text-[12px] text-neutral-500">
-            Submitted on {lastAnsweredQuery.respondedAt ? when(lastAnsweredQuery.respondedAt) : "—"}
-            {lastAnsweredQuery.respondedByName ? ` by ${lastAnsweredQuery.respondedByName}` : ""}
-          </p>
-        </div>
+      <Panel
+        title="Query Response"
+        description="Only actionable while IMGC has an open query on this claim."
+      >
+        <p className="px-5 py-8 text-center text-[13px] text-neutral-500">
+          {noQueryMessage(claimStatus)}
+        </p>
       </Panel>
     );
   }
@@ -185,131 +136,173 @@ export function QueryResponseSection({
   return (
     <Panel
       title="Query Response"
-      description="Respond to the open query and provide any supporting documents."
+      description="Communication between IMGC and the Lender regarding this claim."
     >
-      <div className="space-y-4 px-5 py-4">
-        {/* ── Query, read-only ────────────────────────────────── */}
-        <div className="rounded-xl border border-warning/40 bg-warning/8 px-4 py-3.5">
-          <header className="mb-2 flex items-center gap-2">
-            <MessageSquareWarningIcon className="size-4 text-warning" />
-            <h3 className="text-[13.5px] font-semibold text-neutral-950">
-              Query raised
-            </h3>
-          </header>
-
-          <dl className="mb-2 grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-4">
-            <div>
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                Query ID
-              </dt>
-              <dd className="text-[12.5px] font-medium text-neutral-900">
-                {displayQueryId(openQuery.id)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                Raised By
-              </dt>
-              <dd className="text-[12.5px] font-medium text-neutral-900">
-                {openQuery.raisedByName}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                Raised Date
-              </dt>
-              <dd className="text-[12.5px] font-medium text-neutral-900">
-                {when(openQuery.raisedAt)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                Due Date
-              </dt>
-              <dd className="text-[12.5px] font-medium text-neutral-900">
-                {openQuery.dueDate ? when(openQuery.dueDate) : "—"}
-              </dd>
-            </div>
-          </dl>
-
-          <p className="text-[13px] text-neutral-800">{openQuery.reason}</p>
-          {openQuery.remarks && (
-            <p className="mt-1 text-[12.5px] text-neutral-600">{openQuery.remarks}</p>
-          )}
-          {openQuery.requestedDocuments.length > 0 && (
-            <p className="mt-2 flex flex-wrap gap-1.5">
-              {openQuery.requestedDocuments.map((name) => (
-                <span
-                  key={name}
-                  className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-medium text-neutral-800 ring-1 ring-warning/40"
-                >
-                  {name}
-                </span>
-              ))}
-            </p>
-          )}
-        </div>
-
-        {!isLender ? (
-          <p className="rounded-lg bg-neutral-50 px-3.5 py-2.5 text-[12.5px] text-neutral-600">
-            Awaiting the lender&apos;s response.
-          </p>
-        ) : (
-          <>
-            {/* ── Response ──────────────────────────────────────── */}
-            <div>
-              <label htmlFor="query-response" className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                Response {response.trim() ? "" : "*"}
-              </label>
-              <textarea
-                id="query-response"
-                value={response}
-                maxLength={RESPONSE_MAX}
-                onChange={(e) => {
-                  setResponse(e.target.value);
-                  setDirty(true);
-                }}
-                rows={4}
-                placeholder="Enter your response to the query..."
-                className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-              />
-              <div className="mt-1 flex items-center justify-between text-[11.5px] text-neutral-400">
-                <span>Required before submitting.</span>
-                <span>
-                  {response.length}/{RESPONSE_MAX} characters
-                </span>
+      <div className="max-h-[500px] overflow-y-auto space-y-6 px-5 py-6">
+        {queries.map((q) => {
+          const respondedDocs = documents.filter((d) =>
+            q.requestedDocuments.includes(d.name)
+          );
+          return (
+            <div key={q.id} className="space-y-6">
+              {/* ── IMGC Query (Left) ── */}
+              <div className="flex justify-start">
+                <div className="w-full max-w-2xl rounded-2xl rounded-tl-sm border border-neutral-200 bg-neutral-50 px-4 py-3 shadow-sm">
+                  <div className="mb-2 flex items-center justify-between gap-4">
+                    <span className="text-[13px] font-semibold text-brand-primary">
+                      IMGC
+                    </span>
+                    <span className="text-[11px] text-neutral-500">
+                      {when(q.raisedAt)}
+                    </span>
+                  </div>
+                  {q.raisedByName && (
+                    <span className="mb-2 block text-[11.5px] font-medium text-neutral-600">
+                      {q.raisedByName}
+                    </span>
+                  )}
+                  <p className="whitespace-pre-wrap text-[13px] text-neutral-800">
+                    {q.reason}
+                  </p>
+                  {q.remarks && (
+                    <p className="mt-2 whitespace-pre-wrap text-[12.5px] text-neutral-600">
+                      {q.remarks}
+                    </p>
+                  )}
+                  {q.requestedDocuments.length > 0 && (
+                    <div className="mt-3">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                        Requested Documents
+                      </span>
+                      <ul className="mt-1 flex flex-wrap gap-1.5">
+                        {q.requestedDocuments.map((name) => (
+                          <li
+                            key={name}
+                            className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-medium text-neutral-800 ring-1 ring-neutral-200"
+                          >
+                            {name}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* ── Supporting documents — same upload machinery as the workspace ── */}
-            <div>
-              <span className="mb-1.5 block text-[12.5px] font-medium text-neutral-700">
-                Supporting Documents
-              </span>
-              <ClaimDocuments
-                accountId={accountId}
-                claimId={claimId}
-                documents={documents}
-                locked={false}
-              />
+              {/* ── Lender Response (Right) ── */}
+              {q.respondedAt && (
+                <div className="flex justify-end">
+                  <div className="w-full max-w-2xl rounded-2xl rounded-tr-sm border border-brand-primary/10 bg-brand-primary/5 px-4 py-3 shadow-sm">
+                    <div className="mb-2 flex items-center justify-between gap-4">
+                      <span className="text-[11px] text-neutral-500">
+                        {when(q.respondedAt)}
+                      </span>
+                      <span className="text-[13px] font-semibold text-brand-primary">
+                        Lender
+                      </span>
+                    </div>
+                    {q.respondedByName && (
+                      <span className="mb-2 block text-right text-[11.5px] font-medium text-neutral-600">
+                        {q.respondedByName}
+                      </span>
+                    )}
+                    <p className="whitespace-pre-wrap text-[13px] text-neutral-800">
+                      {q.responseRemarks || "No remarks provided."}
+                    </p>
+                    {respondedDocs.length > 0 && (
+                      <div className="mt-3">
+                        <span className="block text-right text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                          Attachments
+                        </span>
+                        <ul className="mt-1 flex flex-col items-end gap-1">
+                          {respondedDocs.map((d) => (
+                            <li
+                              key={d.id}
+                              className="flex items-center gap-1.5 text-[12.5px] font-medium text-brand-primary"
+                            >
+                              📎 {d.name}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-
-            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-neutral-100 pt-3.5">
-              <Button variant="outline" size="sm" onClick={onSave} disabled={pending}>
-                <SaveIcon /> Save Response
-              </Button>
-              <Button size="sm" onClick={onSubmit} disabled={pending}>
-                <SendIcon /> Submit Response
-              </Button>
-            </div>
-            {dirty && (
-              <p className="text-right text-[11.5px] text-neutral-400">
-                Unsaved changes — click Save Response to keep them.
-              </p>
-            )}
-          </>
-        )}
+          );
+        })}
       </div>
+
+      {/* ── Open Query Composer ── */}
+      {openQuery && (
+        <div className="px-5 pb-6">
+          <div className="border-t border-neutral-100 pt-6">
+            {!isLender ? (
+              <p className="text-center text-[12.5px] italic text-neutral-500">
+                Awaiting lender response...
+              </p>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="query-response"
+                    className="mb-1 block text-[12.5px] font-medium text-neutral-700"
+                  >
+                    Your Response {response.trim() ? "" : "*"}
+                  </label>
+                  <textarea
+                    id="query-response"
+                    value={response}
+                    maxLength={RESPONSE_MAX}
+                    onChange={handleResponseChange}
+                    rows={4}
+                    placeholder="Type your response to the query..."
+                    className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                  />
+                  <div className="mt-1 flex items-center justify-between text-[11.5px] text-neutral-400">
+                    <span>Required before submitting.</span>
+                    <span>
+                      {response.length}/{RESPONSE_MAX} characters
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="mb-1.5 block text-[12.5px] font-medium text-neutral-700">
+                    Attachments
+                  </span>
+                  <ClaimDocuments
+                    accountId={accountId}
+                    claimId={claimId}
+                    documents={documents}
+                    locked={false}
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onSave}
+                    disabled={pending}
+                  >
+                    <SaveIcon className="mr-1.5 size-4" /> Save Draft
+                  </Button>
+                  <Button size="sm" onClick={onSubmit} disabled={pending}>
+                    <SendIcon className="mr-1.5 size-4" /> Send Response
+                  </Button>
+                </div>
+                {dirty && (
+                  <p className="text-right text-[11.5px] text-neutral-400">
+                    Unsaved changes — click Save Draft to keep them.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </Panel>
   );
 }

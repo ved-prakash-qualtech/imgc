@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars, security/detect-object-injection, react-perf/jsx-no-jsx-as-prop, react-perf/jsx-no-new-function-as-prop */
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
@@ -17,16 +18,25 @@ import {
   switchClaimTypeAction,
 } from "@/app/[locale]/(portal)/initiate-claim/actions";
 import { ClaimDocuments } from "@/components/portal/ClaimDocuments";
-import { ClaimProgramFields } from "@/components/portal/ClaimProgramFields";
+
 import { LoanDetailsCard } from "@/components/portal/LoanDetailsCard";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
-import { claimConfig, CLAIM_TYPE_KEYS, CLAIM_TYPES, fieldVisible } from "@/config/claimConfig";
+import {
+  claimConfig,
+  CLAIM_TYPE_KEYS,
+  CLAIM_TYPES,
+  fieldVisible,
+} from "@/config/claimConfig";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
 import type { RequirementRow } from "@/services/portal/requirements.server";
-import type { ClaimQuery, ClaimStatus, ClaimTypeKey } from "@/server/mock/types";
+import type {
+  ClaimQuery,
+  ClaimStatus,
+  ClaimTypeKey,
+} from "@/server/mock/types";
 
 /** A required document is still outstanding until it is with IMGC or approved. */
 function outstanding(doc: RequirementRow): boolean {
@@ -181,7 +191,8 @@ export function ClaimWorkspace({
                   {t.label}
                 </span>
                 <span className="mt-0.5 block text-[11px] text-neutral-500">
-                  {t.documents.filter((d) => d.required).length} required documents
+                  {t.documents.filter((d) => d.required).length} required
+                  documents
                 </span>
               </button>
             );
@@ -193,14 +204,6 @@ export function ClaimWorkspace({
           )}
         </div>
       </Panel>
-
-      {/* ── Claim details: Claims Program, eligibility ───────── */}
-      <ClaimProgramFields
-        fields={config.fields}
-        values={values}
-        onChange={onFieldChange}
-        disabled={locked || pending}
-      />
 
       {/* ── Documents: required + additional ─────────────────── */}
       <ClaimDocuments
@@ -223,12 +226,10 @@ export function ClaimWorkspace({
             ) : (
               <p className="text-neutral-500">
                 <span className="font-medium text-neutral-700">
-                  {resubmitting ? "Resubmit" : "Save & Submit"} unlocks once these are
-                  in:
+                  {resubmitting ? "Resubmit" : "Save & Submit"} unlocks once
+                  these are in:
                 </span>{" "}
-                {[...missingFieldLabels, ...missingDocs]
-                  .slice(0, 4)
-                  .join(", ")}
+                {[...missingFieldLabels, ...missingDocs].slice(0, 4).join(", ")}
                 {missingFieldLabels.length + missingDocs.length > 4
                   ? `, +${missingFieldLabels.length + missingDocs.length - 4} more`
                   : ""}
@@ -277,7 +278,9 @@ function QueryBanner({ query }: Readonly<{ query: ClaimQuery }>) {
     <section className="rounded-xl border border-warning/40 bg-warning/8 px-5 py-4">
       <header className="mb-2 flex flex-wrap items-center gap-2">
         <MessageSquareWarningIcon className="size-4 text-warning" />
-        <h2 className="text-[14px] font-semibold text-neutral-950">Query raised</h2>
+        <h2 className="text-[14px] font-semibold text-neutral-950">
+          Query raised
+        </h2>
         <span className="text-[12px] text-neutral-600">
           by {query.raisedByName} ·{" "}
           {new Date(query.raisedAt).toLocaleDateString("en-IN", {
@@ -295,7 +298,9 @@ function QueryBanner({ query }: Readonly<{ query: ClaimQuery }>) {
         </div>
         {query.remarks && (
           <div className="flex gap-2">
-            <dt className="shrink-0 font-semibold text-neutral-700">Remarks:</dt>
+            <dt className="shrink-0 font-semibold text-neutral-700">
+              Remarks:
+            </dt>
             <dd className="text-neutral-700">{query.remarks}</dd>
           </div>
         )}

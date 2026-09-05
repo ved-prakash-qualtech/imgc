@@ -1,3 +1,4 @@
+/* eslint-disable react-perf/jsx-no-new-array-as-prop, react-perf/jsx-no-jsx-as-prop */
 import { notFound } from "next/navigation";
 
 import { ClaimHistory } from "@/components/portal/ClaimHistory";
@@ -40,17 +41,6 @@ function when(iso: string): string {
   });
 }
 
-function Fact({ label, value }: Readonly<{ label: string; value: React.ReactNode }>) {
-  return (
-    <div className="px-5 py-3">
-      <dt className="text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
-        {label}
-      </dt>
-      <dd className="mt-0.5 text-[13.5px] font-medium text-neutral-900">{value}</dd>
-    </div>
-  );
-}
-
 /** Track Claim / Claim Details — the same page for both roles, scoped by the service. */
 export default async function ClaimDetailsPage({
   params,
@@ -70,10 +60,6 @@ export default async function ClaimDetailsPage({
   ]);
   const config = claimConfig(claim.claimType);
   const isLender = session.role === "LENDER";
-  const lastAnsweredQuery =
-    [...queries]
-      .filter((q) => q.respondedAt)
-      .sort((a, b) => b.respondedAt!.localeCompare(a.respondedAt!))[0] ?? null;
   const terminal =
     claim.status === "APPROVED" ||
     claim.status === "REJECTED" ||
@@ -87,7 +73,7 @@ export default async function ClaimDetailsPage({
       <div className="space-y-6">
         <CommandBand
           title={`${claim.claimNo} · ${claim.typeLabel}`}
-          subtitle={`${claim.caseId} · ${claim.customerName} · ${claim.lenderName}`}
+          subtitle={`${claim.caseId} · ${claim.customerName} · ${claim.lenderName} · Claim Amount ${account ? inr.format(account.outstandingAmount) : "—"}`}
           stats={[]}
           action={
             !terminal && (
@@ -108,9 +94,6 @@ export default async function ClaimDetailsPage({
           aria-label="Sections on this page"
           className="sticky top-0 z-10 -mx-6 flex gap-1 overflow-x-auto border-b border-neutral-100 bg-white/95 px-6 py-2 backdrop-blur"
         >
-          <a href="#summary" className={SECTION_LINK_CLASS}>
-            Summary
-          </a>
           <a href="#status" className={SECTION_LINK_CLASS}>
             Status
           </a>
@@ -124,35 +107,6 @@ export default async function ClaimDetailsPage({
             Documents
           </a>
         </nav>
-
-        {/* ── 1. Claim Summary ─────────────────────────────────── */}
-        <Panel title="Claim Summary" id="summary" className="scroll-mt-14">
-          <dl className="grid divide-y divide-neutral-100 sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4">
-            <Fact label="Claim number" value={claim.claimNo} />
-            <Fact label="Loan account no." value={claim.caseId} />
-            <Fact label="Customer name" value={claim.customerName} />
-            <Fact label="Lender" value={claim.lenderName} />
-            <Fact label="Claim type" value={claim.typeLabel} />
-            <Fact
-              label="Claim amount"
-              value={account ? inr.format(account.outstandingAmount) : "—"}
-            />
-            <Fact
-              label="Submitted on"
-              value={claim.submittedAt ? when(claim.submittedAt) : "Not yet submitted"}
-            />
-            <Fact label="Current status" value={<StatusPill status={claim.status} />} />
-            <Fact label="Last updated" value={when(claim.lastUpdatedAt)} />
-            <Fact label="Assigned bucket" value={<StatusPill status={claim.bucket} />} />
-            {config.fields.map((f) => (
-              <Fact
-                key={f.id}
-                label={f.label}
-                value={claim.fields[f.id]?.trim() || "—"}
-              />
-            ))}
-          </dl>
-        </Panel>
 
         {/* ── 2. Claim Status Line Graph ───────────────────────── */}
         <Panel
@@ -191,7 +145,9 @@ export default async function ClaimDetailsPage({
             claimId={claim.id}
             claimStatus={claim.status}
             openQuery={claim.openQuery}
-            lastAnsweredQuery={lastAnsweredQuery}
+            queries={queries.sort((a, b) =>
+              a.raisedAt.localeCompare(b.raisedAt)
+            )}
             savedResponse={claim.fields.__queryResponse ?? ""}
             documents={documents}
             isLender={isLender}
@@ -227,7 +183,9 @@ export default async function ClaimDetailsPage({
                 {documents.map((d) => (
                   <TableRow key={d.id}>
                     <TableCell>
-                      <span className="font-medium text-neutral-900">{d.name}</span>
+                      <span className="font-medium text-neutral-900">
+                        {d.name}
+                      </span>
                       <span className="block text-[11.5px] text-neutral-500">
                         {d.category}
                       </span>

@@ -26,7 +26,7 @@ async function ensureDirs(): Promise<void> {
 }
 
 async function load(): Promise<MockDb> {
-  if (cache) return cache;
+  // if (cache) return cache; // Removed to prevent stale reads across Next.js module boundaries
   await ensureDirs();
   try {
     const raw = await fs.readFile(DB_FILE, "utf8");
@@ -54,7 +54,9 @@ export async function readDb(): Promise<MockDb> {
  * Apply `mutator` to the database and persist the result. Mutations are queued, so callers can
  * `await writeDb(...)` without racing. The mutator may return a value, which is passed back.
  */
-export async function writeDb<T>(mutator: (db: MockDb) => T | Promise<T>): Promise<T> {
+export async function writeDb<T>(
+  mutator: (db: MockDb) => T | Promise<T>
+): Promise<T> {
   const run = queue.then(async () => {
     const db = await load();
     const result = await mutator(db);

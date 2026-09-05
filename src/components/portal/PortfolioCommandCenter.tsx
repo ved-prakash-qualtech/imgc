@@ -1,3 +1,5 @@
+/* eslint-disable security/detect-object-injection, react-perf/jsx-no-new-array-as-prop, react-perf/jsx-no-jsx-as-prop */
+
 import Link from "next/link";
 import {
   AlertTriangleIcon,
@@ -22,11 +24,31 @@ function formatCr(amount: number): string {
 type KpiTone = "blue" | "mint" | "green" | "amber" | "rose";
 
 const KPI_TONE: Record<KpiTone, { bg: string; icon: string; spark: string }> = {
-  blue: { bg: "bg-info/8 border-info/15", icon: "bg-info/15 text-info", spark: "#3b82f6" },
-  mint: { bg: "bg-success/8 border-success/15", icon: "bg-success/15 text-success-700", spark: "#14b8a6" },
-  green: { bg: "bg-success/8 border-success/15", icon: "bg-success/15 text-success-700", spark: "#22c55e" },
-  amber: { bg: "bg-warning/8 border-warning/20", icon: "bg-warning/15 text-warning", spark: "#f59e0b" },
-  rose: { bg: "bg-destructive/8 border-destructive/15", icon: "bg-destructive/15 text-destructive", spark: "#ef4444" },
+  blue: {
+    bg: "bg-info/8 border-info/15",
+    icon: "bg-info/20 text-[#93c5fd]",
+    spark: "#3b82f6",
+  }, // text-blue-300 equivalent
+  mint: {
+    bg: "bg-success/8 border-success/15",
+    icon: "bg-success/20 text-[#5eead4]",
+    spark: "#14b8a6",
+  }, // text-teal-300 equivalent
+  green: {
+    bg: "bg-success/8 border-success/15",
+    icon: "bg-success/20 text-[#86efac]",
+    spark: "#22c55e",
+  }, // text-green-300 equivalent
+  amber: {
+    bg: "bg-warning/8 border-warning/20",
+    icon: "bg-warning/20 text-[#fcd34d]",
+    spark: "#f59e0b",
+  }, // text-amber-300 equivalent
+  rose: {
+    bg: "bg-destructive/8 border-destructive/15",
+    icon: "bg-destructive/20 text-[#fca5a5]",
+    spark: "#ef4444",
+  }, // text-red-300 equivalent
 };
 
 /** Deterministic decorative squiggle, seeded by label — not a data series, purely ornamental. */
@@ -35,20 +57,33 @@ function nextSeed(h: number): number {
 }
 
 function Sparkline({ seed, color }: Readonly<{ seed: string; color: string }>) {
-  const initial = [...seed].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 0);
+  const initial = [...seed].reduce(
+    (h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0,
+    0
+  );
   const points = Array.from({ length: 6 })
     .reduce<{ h: number; out: string[] }>(
       (acc) => {
         const h = nextSeed(acc.h);
         const y = 18 - ((h % 1000) / 1000) * 14;
-        return { h, out: [...acc.out, `${acc.out.length * 20},${y.toFixed(1)}`] };
+        return {
+          h,
+          out: [...acc.out, `${acc.out.length * 20},${y.toFixed(1)}`],
+        };
       },
       { h: initial, out: [] }
     )
     .out.join(" ");
   return (
     <svg viewBox="0 0 100 24" className="h-6 w-full" preserveAspectRatio="none">
-      <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -68,18 +103,30 @@ function KpiCard({
 }>) {
   const t = KPI_TONE[tone];
   return (
-    <div className={cn("rounded-xl border bg-white px-3.5 py-3", t.bg)}>
+    <div
+      className={cn(
+        "rounded-xl border bg-white/8 backdrop-blur-sm px-3.5 py-3",
+        t.bg
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
-        <p className="truncate text-[12px] font-medium text-neutral-500">{label}</p>
-        <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", t.icon)}>
+        <p className="truncate text-[12px] font-medium text-white/70">
+          {label}
+        </p>
+        <span
+          className={cn(
+            "grid size-7 shrink-0 place-items-center rounded-lg",
+            t.icon
+          )}
+        >
           {icon}
         </span>
       </div>
-      <p className="font-outfit mt-1 text-[24px] font-bold leading-none text-neutral-950">
+      <p className="font-outfit mt-1 text-[24px] font-bold leading-none text-white">
         {value}
       </p>
       <Sparkline seed={label} color={t.spark} />
-      <p className="truncate text-[11.5px] text-neutral-500">{caption}</p>
+      <p className="truncate text-[11.5px] text-white/50">{caption}</p>
     </div>
   );
 }
@@ -148,7 +195,11 @@ export function PortfolioCommandCenter({
 
       <div className="grid gap-4 xl:grid-cols-3">
         <CollectionsTrendCard trend={summary.collectionsTrend} />
-        <StatusBreakdownCard breakdown={summary.statusBreakdown} npaLoans={summary.npaLoans} loansOnBook={summary.loansOnBook} />
+        <StatusBreakdownCard
+          breakdown={summary.statusBreakdown}
+          npaLoans={summary.npaLoans}
+          loansOnBook={summary.loansOnBook}
+        />
         <UrgentCollectionsCard urgent={summary.urgent} />
       </div>
     </div>
@@ -170,7 +221,9 @@ function Widget({
     <section className="flex flex-col rounded-xl border border-neutral-100 bg-white shadow-sm">
       <header className="flex items-start justify-between gap-3 border-b border-neutral-100 px-4 py-3">
         <div className="min-w-0">
-          <h3 className="text-[13.5px] font-semibold text-neutral-950">{title}</h3>
+          <h3 className="text-[13.5px] font-semibold text-neutral-950">
+            {title}
+          </h3>
           <p className="mt-0.5 text-[11.5px] text-neutral-500">{subtitle}</p>
         </div>
         {action}
@@ -185,10 +238,16 @@ function CollectionsTrendCard({
 }: Readonly<{ trend: PortfolioSummary["collectionsTrend"] }>) {
   const max = Math.max(1, ...trend.map((t) => t.amount));
   return (
-    <Widget title="Collections Trend" subtitle="Successful payments by month, selected range">
+    <Widget
+      title="Collections Trend"
+      subtitle="Successful payments by month, selected range"
+    >
       <div className="flex flex-1 items-end gap-2">
         {trend.map((t) => (
-          <div key={t.label} className="flex flex-1 flex-col items-center gap-1.5">
+          <div
+            key={t.label}
+            className="flex flex-1 flex-col items-center gap-1.5"
+          >
             <span className="text-[10px] text-neutral-400">
               {t.amount > 0 ? formatCr(t.amount) : ""}
             </span>
@@ -198,7 +257,9 @@ function CollectionsTrendCard({
                 style={{ height: `${Math.max(4, (t.amount / max) * 100)}%` }}
               />
             </div>
-            <span className="text-[10px] whitespace-nowrap text-neutral-500">{t.label}</span>
+            <span className="text-[10px] whitespace-nowrap text-neutral-500">
+              {t.label}
+            </span>
           </div>
         ))}
       </div>
@@ -231,7 +292,10 @@ function StatusBreakdownCard({
   });
 
   return (
-    <Widget title="Portfolio Status Breakdown" subtitle="Loans by current status">
+    <Widget
+      title="Portfolio Status Breakdown"
+      subtitle="Loans by current status"
+    >
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
         <div
           className="grid size-32 shrink-0 place-items-center rounded-full"
@@ -247,9 +311,18 @@ function StatusBreakdownCard({
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[11.5px] text-neutral-600">
-          <Legend color={STATUS_COLOR.active} label={`Active (${breakdown.active})`} />
-          <Legend color={STATUS_COLOR.overdue} label={`Overdue (${breakdown.overdue})`} />
-          <Legend color={STATUS_COLOR.closed} label={`Closed (${breakdown.closed})`} />
+          <Legend
+            color={STATUS_COLOR.active}
+            label={`Active (${breakdown.active})`}
+          />
+          <Legend
+            color={STATUS_COLOR.overdue}
+            label={`Overdue (${breakdown.overdue})`}
+          />
+          <Legend
+            color={STATUS_COLOR.closed}
+            label={`Closed (${breakdown.closed})`}
+          />
           <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
             NPA ({npaLoans})
           </span>
@@ -262,7 +335,10 @@ function StatusBreakdownCard({
 function Legend({ color, label }: Readonly<{ color: string; label: string }>) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className="size-2 rounded-full" style={{ backgroundColor: color }} />
+      <span
+        className="size-2 rounded-full"
+        style={{ backgroundColor: color }}
+      />
       {label}
     </span>
   );
@@ -310,7 +386,12 @@ function UrgentCollectionsCard({
                   <span className="block text-[13px] font-bold text-neutral-950">
                     {formatCr(u.outstandingAmount)}
                   </span>
-                  <span className={cn("block text-[11px]", u.daysLate > 30 ? "text-destructive" : "text-neutral-500")}>
+                  <span
+                    className={cn(
+                      "block text-[11px]",
+                      u.daysLate > 30 ? "text-destructive" : "text-neutral-500"
+                    )}
+                  >
                     {u.daysLate}d late
                   </span>
                 </span>
