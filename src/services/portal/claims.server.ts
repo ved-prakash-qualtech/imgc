@@ -240,12 +240,15 @@ export async function uploadDocument(
     if (!row) return 0;
     const next = (row.version ?? 0) + 1;
 
-    // The previous version is superseded, never deleted, and carries the reason it was replaced
-    // so the history reads as a conversation rather than a pile of files.
-    for (const f of fresh.documentFiles) {
-      if (f.documentId === documentId && !f.supersededAt) {
-        f.supersededAt = nowIso();
-        f.supersededReason = row.review?.remarks;
+    // A multi-file category keeps every file it is given. A single-file one supersedes the
+    // previous version — never deleting it — and carries the reason it was replaced so the
+    // history reads as a conversation rather than a pile of files.
+    if (!row.multiple) {
+      for (const f of fresh.documentFiles) {
+        if (f.documentId === documentId && !f.supersededAt) {
+          f.supersededAt = nowIso();
+          f.supersededReason = row.review?.remarks;
+        }
       }
     }
     fresh.documentFiles.push({

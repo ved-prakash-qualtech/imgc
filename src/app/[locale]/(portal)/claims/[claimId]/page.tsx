@@ -1,20 +1,12 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  ArrowLeftIcon,
-  ClipboardListIcon,
-  FileTextIcon,
-  InboxIcon,
-  MessageSquareWarningIcon,
-} from "lucide-react";
 
 import { ClaimQueryDialog } from "@/components/portal/ClaimQueryDialog";
 import { ClaimTimeline } from "@/components/portal/ClaimTimeline";
 import { CommandBand } from "@/components/portal/CommandBand";
 import { Panel } from "@/components/portal/Panel";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { QueryResponseSection } from "@/components/portal/QueryResponseSection";
 import { StatusPill } from "@/components/portal/StatusPill";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -23,10 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { claimConfig, CLAIM_STATUS_LABELS } from "@/config/claimConfig";
-import { ROUTES } from "@/constants/route";
+import { claimConfig } from "@/config/claimConfig";
 import { requireSession } from "@/lib/auth/appSession";
-import { listAuditForAccount } from "@/services/portal/audit.server";
 import { getClaim, listQueries } from "@/services/portal/claimFlow.server";
 import { listClaimDocuments } from "@/services/portal/requirements.server";
 
@@ -65,10 +55,9 @@ export default async function ClaimDetailsPage({
   const claim = await getClaim(session, claimId);
   if (!claim) notFound();
 
-  const [documents, queries, audit] = await Promise.all([
+  const [documents, queries] = await Promise.all([
     listClaimDocuments(session, claim.id),
     listQueries(claim.id),
-    listAuditForAccount(claim.accountId),
   ]);
   const config = claimConfig(claim.claimType);
   const isLender = session.role === "LENDER";
@@ -77,84 +66,25 @@ export default async function ClaimDetailsPage({
     claim.status === "REJECTED" ||
     claim.status === "CLOSED";
 
-  const requiredAction = claim.openQuery
-    ? "Respond to the open query"
-    : claim.status === "DRAFT"
-      ? "Complete and submit the claim"
-      : claim.status === "QUERY_RAISED"
-        ? "Upload the requested documents"
-        : isLender
-          ? "Nothing — with IMGC"
-          : "IMGC review";
-
   return (
     <PortalShell
       activeKey="initiate-claim"
       title={`Claim · ${claim.claimNo}`}
     >
       <div className="space-y-6">
-        <Link
-          href={ROUTES.initiateClaim}
-          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-neutral-500 hover:text-neutral-800"
-        >
-          <ArrowLeftIcon className="size-3.5" /> All claims
-        </Link>
-
         <CommandBand
           title={`${claim.claimNo} · ${claim.typeLabel}`}
           subtitle={`${claim.caseId} · ${claim.customerName} · ${claim.lenderName}`}
-          stats={[
-            {
-              icon: <ClipboardListIcon className="size-4" />,
-              label: "Current status",
-              value: CLAIM_STATUS_LABELS[claim.status],
-              caption: `updated ${when(claim.lastUpdatedAt).split(",")[0]}`,
-              accent: claim.status === "REJECTED" ? "rose" : undefined,
-            },
-            {
-              icon: <FileTextIcon className="size-4" />,
-              label: "Documents approved",
-              value: `${claim.approvedDocs}/${claim.requiredDocs}`,
-              caption: "mandatory documents",
-              accent: "teal",
-            },
-            {
-              icon: <InboxIcon className="size-4" />,
-              label: "Assigned bucket",
-              value: claim.bucket,
-              caption:
-                claim.bucket === "IMGC" ? "with IMGC" : "with the lender",
-              accent: claim.bucket === "LENDER" ? "amber" : undefined,
-            },
-            {
-              icon: <MessageSquareWarningIcon className="size-4" />,
-              label: "Required action",
-              value: String(queries.filter((q) => !q.respondedAt).length),
-              caption: requiredAction,
-              accent: claim.openQuery ? "rose" : undefined,
-            },
-          ]}
+          stats={[]}
           action={
-            <div className="flex items-center gap-2">
-              {claim.openQuery && isLender && (
-                <Button
-                  size="sm"
-                  render={
-                    <Link href={ROUTES.initiateClaimWorkspace(claim.accountId)} />
-                  }
-                >
-                  Respond to query
-                </Button>
-              )}
-              {!terminal && (
-                <ClaimQueryDialog
-                  claimId={claim.id}
-                  claimNo={claim.claimNo}
-                  role={session.role}
-                  requestableDocuments={config.documents.map((d) => d.name)}
-                />
-              )}
-            </div>
+            !terminal && (
+              <ClaimQueryDialog
+                claimId={claim.id}
+                claimNo={claim.claimNo}
+                role={session.role}
+                requestableDocuments={config.documents.map((d) => d.name)}
+              />
+            )
           }
         />
 
@@ -206,6 +136,16 @@ export default async function ClaimDetailsPage({
             </div>
           </Panel>
         )}
+
+        {/* ── Query Response ───────────────────────────────────── */}
+        <QueryResponseSection
+          accountId={claim.accountId}
+          claimId={claim.id}
+          openQuery={claim.openQuery}
+          savedResponse={claim.fields.__queryResponse ?? ""}
+          documents={documents}
+          isLender={isLender}
+        />
 
         {/* ── Submitted details ────────────────────────────────── */}
         <Panel title={`${config.label} details`}>
@@ -305,38 +245,6 @@ export default async function ClaimDetailsPage({
           </Panel>
         )}
 
-        {/* ── Audit ────────────────────────────────────────────── */}
-        <Panel
-          title="Audit trail"
-          description="Every action recorded against this account, newest first."
-        >
-          <ol className="max-h-[420px] divide-y divide-neutral-100 overflow-y-auto">
-            {audit.length === 0 ? (
-              <li className="px-5 py-10 text-center text-[13px] text-neutral-500">
-                Nothing recorded yet.
-              </li>
-            ) : (
-              audit.map((e) => (
-                <li key={e.id} className="flex gap-3 px-5 py-3">
-                  <span className="w-[130px] shrink-0 text-[11.5px] text-neutral-400">
-                    {when(e.at)}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="text-[12.5px] font-medium text-neutral-800">
-                      {e.actorName}
-                      <span className="ml-1.5 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                        {e.actorRole}
-                      </span>
-                    </span>
-                    <span className="mt-0.5 block text-[12.5px] text-neutral-600">
-                      {e.summary}
-                    </span>
-                  </span>
-                </li>
-              ))
-            )}
-          </ol>
-        </Panel>
       </div>
     </PortalShell>
   );

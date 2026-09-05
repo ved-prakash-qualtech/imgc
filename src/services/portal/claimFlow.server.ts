@@ -1,10 +1,19 @@
 import "server-only";
 
-import { readDb, writeDb } from "@/server/mock/db";
+import { promises as fs } from "node:fs";
+import path from "node:path";
+
+import { readDb, writeDb, UPLOAD_DIR } from "@/server/mock/db";
 import { newId, nowIso } from "@/server/mock/ids";
 import { recordEvent } from "@/services/portal/audit.server";
 import { sendMail } from "@/server/mock/mailer";
-import { claimConfig, LENDER_ACTIONABLE, TERMINAL_STATUSES } from "@/config/claimConfig";
+import {
+  claimConfig,
+  conditionReason,
+  docConditionMet,
+  LENDER_ACTIONABLE,
+  TERMINAL_STATUSES,
+} from "@/config/claimConfig";
 import type { AppSession } from "@/lib/auth/appSession";
 import type {
   Account,
@@ -86,6 +95,13 @@ export interface ClaimRow extends Claim {
   openQuery: ClaimQuery | null;
   requiredDocs: number;
   approvedDocs: number;
+  /**
+   * Mirrors `Claim.draftSaved` — whether the lender has explicitly clicked Save or Save & Submit
+   * on this claim. A draft is auto-created the moment "Initiate Claim" is opened, so mere
+   * existence isn't enough: opening the workspace and leaving without saving anything should
+   * still read "Initiate Claim" in the grid, not "Continue Claim".
+   */
+  hasProgress: boolean;
 }
 
 function decorate(claim: Claim, db: MockDb): ClaimRow {
@@ -106,6 +122,7 @@ function decorate(claim: Claim, db: MockDb): ClaimRow {
         .sort((a, b) => b.raisedAt.localeCompare(a.raisedAt))[0] ?? null,
     requiredDocs: required.length,
     approvedDocs: required.filter((d) => d.status === "APPROVED").length,
+    hasProgress: Boolean(claim.draftSaved),
   };
 }
 
@@ -179,6 +196,44 @@ function advance(
  * The checklist is copied from config at creation rather than read live, so changing the config
  * later cannot silently alter what an in-flight claim was asked for.
  */
+/**
+ * Turn a claim type's document config into real checklist rows for one claim.
+ *
+ * Conditional documents are always materialised, but `required` reflects whether the rule held
+ * against the loan data — so a not-applicable conditional document sits in the list as optional
+ * and does not block submission.
+ */
+function materialiseChecklist(
+  fresh: MockDb,
+  claimId: string,
+  accountId: string,
+  claimType: ClaimTypeKey
+): void {
+  const account = fresh.accounts.find((a) => a.id === accountId);
+  const loan = (account ?? {}) as unknown as Record<string, unknown>;
+  claimConfig(claimType).documents.forEach((spec, i) => {
+    const applies = docConditionMet(spec.condition, loan);
+    fresh.claimDocuments.push({
+      id: `${claimId}_doc${i}`,
+      accountId,
+      claimId,
+      slug: spec.slug,
+      name: spec.name,
+      category: spec.category,
+      description: spec.description,
+      required: spec.required && applies,
+      multiple: spec.multiple ?? false,
+      conditional: Boolean(spec.condition),
+      conditionReason: spec.condition ? conditionReason(spec.condition) : undefined,
+      addedBy: "SYSTEM",
+      status: "PENDING_UPLOAD",
+      version: 0,
+      active: true,
+      createdAt: nowIso(),
+    });
+  });
+}
+
 export async function createClaim(
   session: AppSession,
   accountId: string,
@@ -231,31 +286,68 @@ export async function createClaim(
       bucket: "LENDER",
     });
 
-    config.documents.forEach((spec, i) => {
-      fresh.claimDocuments.push({
-        id: `${claimId}_doc${i}`,
-        accountId,
-        claimId,
-        name: spec.name,
-        category: spec.category,
-        description: spec.description,
-        required: spec.required,
-        addedBy: "SYSTEM",
-        status: "PENDING_UPLOAD",
-        version: 0,
-        active: true,
-        createdAt: nowIso(),
-      });
-    });
+    materialiseChecklist(fresh, claimId, accountId, claimType);
   });
 
-  await recordEvent({
-    accountId,
-    actor: session,
-    type: "CLAIM_STATUS_CHANGED",
-    summary: `${config.label} initiated`,
-    meta: { claimId, claimType },
+  // No audit entry here: the workspace calls this on every visit so there's a claim to attach
+  // documents to, but merely opening the page isn't a business event worth logging — only an
+  // explicit save is (see `saveClaimDraft`'s "Claim draft saved" entry).
+  return { ok: true, claimId };
+}
+
+/**
+ * Change a draft claim's type.
+ *
+ * Only while DRAFT: the type decides the field set and the checklist, and both are already
+ * materialised. Switching rebuilds the checklist from the new config and drops field values that
+ * the new type does not have; anything still valid is kept.
+ */
+export async function switchClaimType(
+  session: AppSession,
+  claimId: string,
+  newType: ClaimTypeKey
+): Promise<Outcome> {
+  const guard = await assertLenderOwns(session, claimId);
+  if (!guard.ok) return guard;
+
+  const outcome = await writeDb((db) => {
+    const claim = db.claims.find((c) => c.id === claimId);
+    if (!claim) return { ok: false as const, error: "Claim not found." };
+    if (claim.status !== "DRAFT") {
+      return { ok: false as const, error: "The claim type can only change while it is a draft." };
+    }
+    if (claim.claimType === newType) return { ok: true as const, changed: false };
+
+    const config = claimConfig(newType);
+    const validIds = new Set(config.fields.map((f) => f.id));
+    claim.claimType = newType;
+    // The claim has never left draft, so no one has referenced its number yet — reissue it
+    // with the new type's prefix so CLM/CLS/CLA matches the type on screen.
+    claim.claimNo = nextClaimNo(db, newType);
+    claim.fields = Object.fromEntries(
+      Object.entries(claim.fields).filter(([k]) => validIds.has(k))
+    );
+    claim.lastUpdatedAt = nowIso();
+
+    // Rebuild the system checklist from the new config. Lender-added additional documents are
+    // kept — they belong to the claim, not the type.
+    db.claimDocuments = db.claimDocuments.filter(
+      (d) => d.claimId !== claimId || d.addedBy === "LENDER"
+    );
+    materialiseChecklist(db, claimId, claim.accountId, newType);
+    return { ok: true as const, changed: true, accountId: claim.accountId };
   });
+  if (!outcome.ok) return outcome;
+
+  if (outcome.changed) {
+    await recordEvent({
+      accountId: guard.accountId as string,
+      actor: session,
+      type: "CLAIM_STATUS_CHANGED",
+      summary: `Claim type changed to ${claimConfig(newType).label}`,
+      meta: { claimId, claimType: newType },
+    });
+  }
   return { ok: true, claimId };
 }
 
@@ -273,6 +365,7 @@ export async function saveClaimDraft(
     if (!claim) return;
     claim.fields = { ...claim.fields, ...fields };
     claim.lastUpdatedAt = nowIso();
+    claim.draftSaved = true;
   });
 
   await recordEvent({
@@ -581,6 +674,170 @@ export async function askClaimQuestion(
     body: `${session.name} asked: ${body}`,
     event: "CLAIM_QUESTION_RAISED",
     unreadFor: ["IMGC"],
+  });
+  return { ok: true, claimId };
+}
+
+/* ── lender-added additional documents ─────────────────────────────── */
+
+/**
+ * A document the lender adds themselves, beyond the configured checklist.
+ *
+ * Modelled as a `ClaimDocument` with `addedBy: "LENDER"` and `required: false` — it uses the
+ * same upload, review, versioning and remark machinery as every other claim document, and it
+ * never touches the type's configuration. Added one at a time; there is no limit.
+ */
+export async function addLenderDocument(
+  session: AppSession,
+  claimId: string,
+  input: { name: string; description: string; remarks: string; file: File }
+): Promise<Outcome> {
+  const guard = await assertLenderOwns(session, claimId);
+  if (!guard.ok) return guard;
+
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "Give the document a name." };
+  if (!input.file || input.file.size === 0) {
+    return { ok: false, error: "Choose a file to upload." };
+  }
+  if (input.file.size > 15 * 1024 * 1024) {
+    return { ok: false, error: "That file is larger than 15 MB." };
+  }
+
+  const db = await readDb();
+  const claim = db.claims.find((c) => c.id === claimId);
+  if (!claim) return { ok: false, error: "Claim not found." };
+  if (TERMINAL_STATUSES.has(claim.status)) {
+    return { ok: false, error: "This claim is closed." };
+  }
+  const accountId = claim.accountId;
+
+  const existingAd = db.claimDocuments.filter(
+    (d) => d.claimId === claimId && d.addedBy === "LENDER"
+  ).length;
+  const clash = db.claimDocuments.some(
+    (d) => d.claimId === claimId && d.name.toLowerCase() === name.toLowerCase()
+  );
+  if (clash) return { ok: false, error: "A document with that name is already on this claim." };
+
+  const docId = newId("addoc");
+  const refNo = `AD-${String(existingAd + 1).padStart(3, "0")}`;
+  const fileId = newId("file");
+  const safeName = input.file.name.replace(/[^\w.\-]+/g, "_").slice(-120);
+  const dir = path.join(UPLOAD_DIR, accountId);
+  const storedPath = path.join(dir, `${fileId}__${safeName}`);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(storedPath, Buffer.from(await input.file.arrayBuffer()));
+
+  await writeDb((fresh) => {
+    fresh.claimDocuments.push({
+      id: docId,
+      accountId,
+      claimId,
+      refNo,
+      name,
+      category: "Additional Document",
+      description: input.description.trim() || undefined,
+      required: false,
+      multiple: false,
+      addedBy: "LENDER",
+      addedByName: session.name,
+      status: "UNDER_REVIEW",
+      version: 1,
+      currentFileId: fileId,
+      active: true,
+      createdAt: nowIso(),
+    });
+    fresh.documentFiles.push({
+      id: fileId,
+      documentId: docId,
+      accountId,
+      originalName: input.file.name,
+      storedPath,
+      size: input.file.size,
+      mime: input.file.type || "application/octet-stream",
+      uploadedBy: session.userId,
+      uploadedByName: session.name,
+      uploadedAt: nowIso(),
+      version: 1,
+      uploadRemarks: input.remarks.trim() || undefined,
+    });
+    if (input.remarks.trim()) {
+      fresh.remarks.unshift({
+        id: newId("rmk"),
+        accountId,
+        documentId: docId,
+        authorId: session.userId,
+        authorName: session.name,
+        authorRole: session.role,
+        body: input.remarks.trim(),
+        createdAt: nowIso(),
+      });
+    }
+  });
+
+  await recordEvent({
+    accountId,
+    actor: session,
+    type: "DOC_UPLOADED",
+    summary: `Additional document added: "${name}" (${refNo})`,
+    meta: { document: name, refNo },
+  });
+  return { ok: true, claimId };
+}
+
+/**
+ * Set the remark on one claim document.
+ *
+ * Upserts a single remark row for this author + document, so the per-category remark box behaves
+ * as one editable field rather than an ever-growing thread. Document remarks are kept distinct
+ * from claim-level and loan remarks.
+ */
+export async function upsertDocumentRemark(
+  session: AppSession,
+  claimId: string,
+  documentId: string,
+  body: string
+): Promise<Outcome> {
+  const guard = await assertLenderOwns(session, claimId);
+  if (!guard.ok) return guard;
+  const text = body.trim();
+
+  const db = await readDb();
+  const doc = db.claimDocuments.find(
+    (d) => d.id === documentId && d.claimId === claimId
+  );
+  if (!doc) return { ok: false, error: "Document not found." };
+
+  await writeDb((fresh) => {
+    fresh.remarks = fresh.remarks.filter(
+      (r) =>
+        !(
+          r.documentId === documentId &&
+          r.authorId === session.userId &&
+          r.accountId === guard.accountId
+        )
+    );
+    if (text) {
+      fresh.remarks.unshift({
+        id: newId("rmk"),
+        accountId: guard.accountId as string,
+        documentId,
+        authorId: session.userId,
+        authorName: session.name,
+        authorRole: session.role,
+        body: text,
+        createdAt: nowIso(),
+      });
+    }
+  });
+
+  await recordEvent({
+    accountId: guard.accountId as string,
+    actor: session,
+    type: "REMARK_ADDED",
+    summary: `Remark on "${doc.name}": ${text || "(cleared)"}`,
+    meta: { document: doc.name },
   });
   return { ok: true, claimId };
 }

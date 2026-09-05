@@ -5,12 +5,15 @@ import { revalidatePath } from "next/cache";
 import { ROUTES } from "@/constants/route";
 import { requireSession } from "@/lib/auth/appSession";
 import {
+  addLenderDocument,
   askClaimQuestion,
   createClaim,
   raiseQuery,
   saveClaimDraft,
   submitClaim,
+  switchClaimType,
   updateClaimStatus,
+  upsertDocumentRemark,
   type Outcome,
 } from "@/services/portal/claimFlow.server";
 import type { ClaimStatus, ClaimTypeKey } from "@/server/mock/types";
@@ -44,6 +47,50 @@ export async function createClaimAction(
   const session = await requireSession();
   const result = await createClaim(session, accountId, claimType);
   if (result.ok) refreshAll(accountId, result.claimId);
+  return result;
+}
+
+/** Lender only — change a draft claim's type, rebuilding its checklist from the new config. */
+export async function switchClaimTypeAction(
+  accountId: string,
+  claimId: string,
+  newType: ClaimTypeKey
+): Promise<Outcome> {
+  const session = await requireSession();
+  const result = await switchClaimType(session, claimId, newType);
+  if (result.ok) refreshAll(accountId, claimId);
+  return result;
+}
+
+/** Lender only — add an additional document (name + description + file + remarks). */
+export async function addLenderDocumentAction(
+  accountId: string,
+  formData: FormData
+): Promise<Outcome> {
+  const session = await requireSession();
+  const claimId = String(formData.get("claimId") ?? "");
+  const file = formData.get("file");
+  if (!(file instanceof File)) return { ok: false, error: "Choose a file to upload." };
+  const result = await addLenderDocument(session, claimId, {
+    name: String(formData.get("name") ?? ""),
+    description: String(formData.get("description") ?? ""),
+    remarks: String(formData.get("remarks") ?? ""),
+    file,
+  });
+  if (result.ok) refreshAll(accountId, claimId);
+  return result;
+}
+
+/** Lender only — save the remark on one claim document category. */
+export async function saveDocumentRemarkAction(
+  accountId: string,
+  claimId: string,
+  documentId: string,
+  body: string
+): Promise<Outcome> {
+  const session = await requireSession();
+  const result = await upsertDocumentRemark(session, claimId, documentId, body);
+  if (result.ok) refreshAll(accountId, claimId);
   return result;
 }
 

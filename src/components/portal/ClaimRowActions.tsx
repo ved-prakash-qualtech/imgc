@@ -1,40 +1,137 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { FilePlus2Icon, RadarIcon } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils/twMergeUtils";
 import { ROUTES } from "@/constants/route";
+import type { ClaimAction } from "@/server/mock/types";
 
 /**
- * One button per row, and only ever one of two.
+ * Both actions on every row, but never both live — exactly one pill is active, driven entirely
+ * by `getClaimAction()`'s single `action` value rather than two independently-derived booleans.
  *
- * A row either has a claim or it does not: no claim → Initiate Claim, a claim of any status →
- * Track Claim (that screen carries Continue / Respond / Raise Query inside it). The grid does
- * not branch on claim status.
+ * A claim that exists but hasn't been submitted yet (draft, or sent back with a query) is not
+ * "already initiated" — the lender still has work to do on it, so the left pill stays live and
+ * reads "Continue Claim" instead of going dark the moment a claim record is created. Once the
+ * claim has left the lender's hands (submitted, under review, decided — anything else), the left
+ * pill locks and the right one — always labelled "Track Claim" — takes over, whether the claim is
+ * still moving or already decided. Only three labels ever appear here: Initiate Claim, Continue
+ * Claim, Track Claim.
+ *
+ * A DRAFT claim is auto-created the moment the lender opens the workspace, so that alone can't
+ * be what "Continue Claim" means — opening the form and going straight back would otherwise
+ * relabel a row that's had zero actual work. `hasProgress` (has the lender explicitly clicked
+ * Save or Save & Submit) is the real signal; without it a draft still reads "Initiate Claim",
+ * even if documents were uploaded along the way — uploading isn't the same as committing to it.
  */
 export function ClaimRowActions({
   accountId,
   claimId,
-}: Readonly<{ accountId: string; claimId?: string }>) {
-  if (claimId) {
-    return (
-      <Button
-        size="xs"
+  claimNo,
+  action,
+  reason,
+  hasProgress,
+}: Readonly<{
+  accountId: string;
+  claimId?: string;
+  claimNo?: string;
+  action: ClaimAction;
+  /** Why the initiate side is disabled, e.g. not yet NPA. Ignored when resumable. */
+  reason?: string;
+  /** Has the lender explicitly saved/submitted this claim at least once? Governs the label only. */
+  hasProgress?: boolean;
+}>) {
+  const initiateActive = action === "INITIATE";
+  const resumable = initiateActive && Boolean(claimId) && Boolean(hasProgress);
+  const trackActive = action === "TRACK" || action === "VIEW";
+
+  return (
+    <div
+      role="group"
+      aria-label="Claim actions"
+      className="flex items-center justify-end gap-2"
+    >
+      <ActionPill
+        active={initiateActive}
+        href={ROUTES.initiateClaimWorkspace(accountId)}
+        icon={<FilePlus2Icon />}
+        label={resumable ? "Continue Claim" : "Initiate Claim"}
+        disabledHint={
+          reason ??
+          (action === "VIEW"
+            ? "This claim has already been decided."
+            : "This claim has already been submitted to IMGC.")
+        }
+      />
+      <ActionPill
+        active={trackActive}
+        href={trackActive ? ROUTES.claimDetails(claimId as string) : "#"}
+        icon={<RadarIcon />}
+        label="Track Claim"
+        title={claimNo}
+        disabledHint={
+          claimId
+            ? "Finish the claim on the left before tracking it."
+            : "Raise a claim first — there is nothing to track yet."
+        }
         variant="outline"
-        render={<Link href={ROUTES.claimDetails(claimId)} />}
+      />
+    </div>
+  );
+}
+
+function ActionPill({
+  active,
+  href,
+  icon,
+  label,
+  title,
+  disabledHint,
+  variant = "solid",
+}: Readonly<{
+  active: boolean;
+  href: string;
+  icon: ReactNode;
+  label: string;
+  title?: string;
+  disabledHint: string;
+  variant?: "solid" | "outline";
+}>) {
+  const base =
+    "inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[12px] font-semibold whitespace-nowrap transition-all [&_svg]:size-3.5";
+
+  if (!active) {
+    return (
+      <span
+        aria-disabled="true"
+        title={disabledHint}
+        className={cn(
+          base,
+          "cursor-not-allowed border border-neutral-200 bg-neutral-50 text-neutral-300"
+        )}
       >
-        <RadarIcon /> Track Claim
-      </Button>
+        {icon}
+        {label}
+      </span>
     );
   }
 
   return (
-    <Button
-      size="xs"
-      render={<Link href={ROUTES.initiateClaimWorkspace(accountId)} />}
+    <Link
+      href={href}
+      title={title}
+      className={cn(
+        base,
+        "shadow-sm active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary",
+        variant === "solid"
+          ? "bg-brand-primary text-white hover:bg-brand-dark hover:shadow"
+          : "border border-brand-primary bg-brand-light/60 text-brand-dark hover:bg-brand-primary hover:text-white"
+      )}
     >
-      <FilePlus2Icon /> Initiate Claim
-    </Button>
+      {icon}
+      {label}
+    </Link>
   );
 }

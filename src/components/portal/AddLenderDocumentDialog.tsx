@@ -2,10 +2,10 @@
 
 import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { PaperclipIcon, UploadIcon } from "lucide-react";
+import { PaperclipIcon, PlusIcon, UploadIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { uploadRequirementAction } from "@/app/[locale]/(portal)/additional-documents/actions";
+import { addLenderDocumentAction } from "@/app/[locale]/(portal)/initiate-claim/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,16 +15,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils/twMergeUtils";
-import type { RequirementRow } from "@/services/portal/requirements.server";
 
 const MAX_BYTES = 15 * 1024 * 1024;
-const ACCEPTED = [
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-] as const;
-
+const ACCEPTED = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
 const FIELD =
   "h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-[13px] text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20";
 
@@ -35,52 +28,41 @@ function bytes(n: number): string {
 }
 
 /**
- * The lender's upload, first time or re-upload.
+ * Add one additional document to the claim.
  *
- * File type and size are checked here as well as on the server. The client check exists so the
- * lender is told immediately rather than after a pointless upload; the server check is the one
- * that actually decides, because nothing arriving from a browser can be trusted.
+ * One at a time, no limit: submit closes the dialog and the document lands in the list; open it
+ * again for the next. The name is the lender's own — this never edits the configured checklist.
  */
-export function UploadDialog({
-  row,
-  open,
-  onOpenChange,
-  mode,
-}: Readonly<{
-  row: RequirementRow | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  /** "add" = a new file on a multi-file category (no supersede). Otherwise derived from state. */
-  mode?: "upload" | "add" | "replace";
-}>) {
+export function AddLenderDocumentDialog({
+  accountId,
+  claimId,
+}: Readonly<{ accountId: string; claimId: string }>) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const reset = useCallback(() => {
     setFile(null);
     setError("");
+    formRef.current?.reset();
     if (inputRef.current) inputRef.current.value = "";
   }, []);
 
   const onPick = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const picked = event.target.files?.[0] ?? null;
     setError("");
-    if (!picked) {
-      setFile(null);
-      return;
-    }
-    if (!(ACCEPTED as readonly string[]).includes(picked.type)) {
+    if (!picked) return setFile(null);
+    if (!ACCEPTED.includes(picked.type)) {
       setError("Only PDF, JPG, PNG or WEBP files are accepted.");
-      setFile(null);
-      return;
+      return setFile(null);
     }
     if (picked.size > MAX_BYTES) {
       setError(`That file is ${bytes(picked.size)} — the limit is 15 MB.`);
-      setFile(null);
-      return;
+      return setFile(null);
     }
     setFile(picked);
   }, []);
@@ -88,87 +70,76 @@ export function UploadDialog({
   const submit = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (!row) return;
       if (!file) {
         setError("Choose a file to upload.");
         return;
       }
       const data = new FormData(event.currentTarget);
-      data.set("accountId", row.accountId);
-      data.set("documentId", row.id);
+      data.set("claimId", claimId);
       data.set("file", file);
-
       startTransition(async () => {
-        const result = await uploadRequirementAction(data);
+        const result = await addLenderDocumentAction(accountId, data);
         if (!result.ok) {
-          toast.error(result.error ?? "That upload failed.");
+          toast.error(result.error ?? "That document could not be added.");
           return;
         }
-        toast.success(
-          effectiveMode === "add"
-            ? `File added to "${row.name}".`
-            : `${row.name} ${effectiveMode === "replace" ? "replaced" : "uploaded"} — now with IMGC for review.`
-        );
+        toast.success("Additional document added.");
         reset();
-        onOpenChange(false);
+        setOpen(false);
         router.refresh();
       });
     },
-    [row, file, reset, onOpenChange, router]
+    [file, claimId, accountId, reset, router]
   );
-
-  if (!row) return null;
-  const effectiveMode: "upload" | "add" | "replace" =
-    mode ?? ((row.version ?? 0) > 0 ? "replace" : "upload");
-  const isReupload = effectiveMode === "replace";
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         if (!next) reset();
-        onOpenChange(next);
+        setOpen(next);
       }}
     >
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+        <PlusIcon /> Add Additional Document
+      </Button>
+
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>
-            {effectiveMode === "add"
-              ? "Add file"
-              : effectiveMode === "replace"
-                ? "Replace"
-                : "Upload"}{" "}
-            · {row.name}
-          </DialogTitle>
+          <DialogTitle>Add additional document</DialogTitle>
           <DialogDescription>
-            {row.caseId} · {row.customerName}
-            {isReupload && ` · this will be version ${(row.version ?? 0) + 1}`}
+            Add one document at a time. It sits alongside the required list — it does not change
+            it.
           </DialogDescription>
         </DialogHeader>
 
-        {row.review?.remarks && isReupload && (
-          <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[12.5px] text-neutral-800">
-            <span className="font-semibold">IMGC asked for: </span>
-            {row.review.remarks}
-          </p>
-        )}
-        {row.description && (
-          <p className="rounded-md border border-brand-primary/15 bg-brand-light/50 px-3 py-2 text-[12.5px] text-neutral-700">
-            {row.description}
-          </p>
-        )}
-
-        <form onSubmit={submit} className="space-y-3">
+        <form ref={formRef} onSubmit={submit} className="space-y-3">
           <label className="block">
             <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-              Document name
+              Document Name *
             </span>
-            <input value={row.name} readOnly className={cn(FIELD, "bg-neutral-50")} />
+            <input
+              name="name"
+              required
+              placeholder="e.g. NOC"
+              className={FIELD}
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
+              Description
+            </span>
+            <input
+              name="description"
+              placeholder="e.g. No Objection Certificate from the builder"
+              className={FIELD}
+            />
           </label>
 
           <div>
             <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-              File *
+              Upload Document *
             </span>
             <label
               className={cn(
@@ -197,8 +168,8 @@ export function UploadDialog({
                 </>
               ) : (
                 <>
-                  <UploadIcon className="size-4 shrink-0" />
-                  Choose a file — PDF, JPG, PNG or WEBP, up to 15 MB
+                  <UploadIcon className="size-4 shrink-0" /> Choose a file — PDF, JPG, PNG or
+                  WEBP, up to 15 MB
                 </>
               )}
             </label>
@@ -209,25 +180,6 @@ export function UploadDialog({
             )}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                Document number
-              </span>
-              <input
-                name="documentNumber"
-                placeholder="e.g. MCGM/2026/88213"
-                className={FIELD}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                Document date
-              </span>
-              <input type="date" name="documentDate" className={FIELD} />
-            </label>
-          </div>
-
           <label className="block">
             <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
               Remarks
@@ -235,7 +187,7 @@ export function UploadDialog({
             <textarea
               name="remarks"
               rows={2}
-              placeholder="Anything IMGC should know about this document."
+              placeholder="e.g. NOC received from builder."
               className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
             />
           </label>
@@ -245,13 +197,13 @@ export function UploadDialog({
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => setOpen(false)}
               disabled={pending}
             >
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={pending}>
-              <UploadIcon /> {isReupload ? "Re-upload" : "Upload"}
+              <PlusIcon /> Add Document
             </Button>
           </div>
         </form>

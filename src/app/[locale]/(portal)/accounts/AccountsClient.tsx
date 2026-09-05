@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { SearchIcon } from "lucide-react";
+import { ChevronDownIcon, SearchIcon } from "lucide-react";
 
 import { BucketToggle } from "@/components/portal/BucketToggle";
 import { Panel } from "@/components/portal/Panel";
@@ -56,22 +56,22 @@ export function AccountsClient({
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
-            <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Loan no, borrower, lender"
+              placeholder="Search borrower or loan ID"
               aria-label="Search accounts"
-              className="h-9 w-[230px] rounded-lg border border-neutral-200 pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              className="h-9 w-[230px] rounded-full border border-neutral-200 bg-white pl-9 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
             />
           </div>
-          <FilterGroup
+          <FilterSelect
             label="Bucket"
             options={BUCKETS}
             value={bucket}
             onChange={setBucket}
           />
-          <FilterGroup
+          <FilterSelect
             label="Status"
             options={STATUSES}
             value={status}
@@ -160,7 +160,7 @@ export function AccountsClient({
   );
 }
 
-function FilterGroup<T extends string>({
+function FilterSelect<T extends string>({
   label,
   options,
   value,
@@ -172,27 +172,23 @@ function FilterGroup<T extends string>({
   onChange: (next: T) => void;
 }>) {
   return (
-    <div
-      className="flex items-center gap-0.5 rounded-lg border border-neutral-200 p-0.5"
-      role="group"
-      aria-label={label}
-    >
-      {options.map((option) => (
-        <button
-          key={option}
-          type="button"
-          onClick={() => onChange(option)}
-          aria-pressed={value === option}
-          className={cn(
-            "rounded-md px-2.5 py-1.5 text-[12px] font-medium capitalize transition-colors",
-            value === option
-              ? "bg-brand-primary text-white"
-              : "text-neutral-600 hover:bg-neutral-50"
-          )}
-        >
-          {option === "ALL" ? label : option.toLowerCase()}
-        </button>
-      ))}
+    <div className="relative">
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value as T)}
+        className={cn(
+          "h-9 appearance-none rounded-full border border-neutral-200 bg-white py-1.5 pl-3.5 pr-8 text-[12.5px] font-medium capitalize text-neutral-700 outline-none",
+          "focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+        )}
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option === "ALL" ? `All ${label.toLowerCase()}s` : option.toLowerCase()}
+          </option>
+        ))}
+      </select>
+      <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
     </div>
   );
 }

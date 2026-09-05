@@ -30,7 +30,7 @@ export type ClaimStatus =
   | "QUERIED";
 
 /** Which of the configured claim types a claim is. Values come from `config/claimConfig`. */
-export type ClaimTypeKey = "INITIAL" | "SETTLEMENT" | "AUCTION";
+export type ClaimTypeKey = "INITIAL" | "SUBSEQUENT";
 
 /** What the lender may do with an account, derived — never stored. */
 export type ClaimAction = "INITIATE" | "TRACK" | "VIEW" | "DISABLED";
@@ -107,7 +107,7 @@ export interface Otp {
 
 export interface Account {
   id: string;
-  /** Case / application reference, e.g. APP-100245. */
+  /** Loan / application ID shown to users, e.g. 3002060000000. */
   loanNo: string;
   borrowerName: string;
   lenderOrgId: string;
@@ -119,6 +119,21 @@ export interface Account {
   assignedUserName?: string;
   /** ISO date the application was received. */
   applicationDate: string;
+  /** Sanctioned loan amount, in rupees. */
+  loanAmount: number;
+  /** Principal + interest outstanding today, in rupees. */
+  outstandingAmount: number;
+  /** ISO date the loan was sanctioned. */
+  sanctionDate: string;
+  /** ISO date of first disbursement. */
+  disbursementDate: string;
+  /** Loan tenure in months. */
+  tenureMonths: number;
+  propertyType: string;
+  /** Human label, e.g. "Under Construction" / "Ready to Move". */
+  propertyStatus: string;
+  /** Machine value evaluated by conditional document rules. */
+  propertyStatusAtDisbursal: "UNDER_CONSTRUCTION" | "READY_TO_MOVE";
   bucket: Bucket;
   /** Free-text processing stage shown on the account. */
   stage: string;
@@ -168,7 +183,7 @@ export interface ClaimDocument {
   claimId?: string;
   name: string;
   required: boolean;
-  addedBy: "SYSTEM" | "IMGC";
+  addedBy: "SYSTEM" | "IMGC" | "LENDER";
   status: DocStatus;
   /** Points at the current `DocumentFile`. */
   currentFileId?: string;
@@ -199,6 +214,18 @@ export interface ClaimDocument {
   version?: number;
   /** Set by the last Approve / Reject / Request re-upload decision. */
   review?: DocumentReview;
+
+  /* ── configuration-driven claim document category ── */
+  /** The config id, e.g. "lod" / "income-banking". */
+  slug?: string;
+  /** This category holds many files (LOD, Income & Banking) rather than one. */
+  multiple?: boolean;
+  /** Materialised from a conditional spec — `required` reflects whether the condition held. */
+  conditional?: boolean;
+  /** Helper text explaining when the conditional document is mandatory. */
+  conditionReason?: string;
+  /** Display reference for a lender-added additional document, e.g. "AD-001". */
+  refNo?: string;
 }
 
 export interface DocumentReview {
@@ -321,6 +348,12 @@ export interface Claim {
   createdAt: string;
   submittedAt?: string;
   lastUpdatedAt: string;
+  /**
+   * Set once the lender has explicitly clicked Save or Save & Submit on this claim. A draft is
+   * auto-created the moment the workspace is opened so there's something to attach documents to
+   * — that alone isn't the lender committing to it, so this stays false until they do.
+   */
+  draftSaved?: boolean;
   /** Which side currently holds the claim. */
   bucket: Bucket;
   /** Set on APPROVED / REJECTED / CLOSED. */

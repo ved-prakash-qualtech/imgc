@@ -10,6 +10,7 @@ import {
 
 import { ClaimRowActions } from "@/components/portal/ClaimRowActions";
 import { Panel } from "@/components/portal/Panel";
+import { StatusPill } from "@/components/portal/StatusPill";
 import {
   Select,
   SelectContent,
@@ -28,8 +29,11 @@ import {
 } from "@/components/ui/table";
 import type { EligibleRow } from "@/app/[locale]/(portal)/initiate-claim/page";
 
-type SortKey = "loanNo" | "borrowerName" | "product" | "npa" | "stage";
+type SortKey = "loanNo" | "borrowerName" | "loanAmount" | "applicationDate";
 type SortDirection = "asc" | "desc" | null;
+
+/** 4500000 becomes 45,00,000 — Indian grouping, no currency symbol (matches the reference). */
+const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 
 const SortIcon = ({
   column,
@@ -66,10 +70,10 @@ const SortableTableHead = ({
   return (
     <TableHead
       onClick={handleClick}
-      className="cursor-pointer select-none hover:bg-neutral-50 transition-colors"
+      className="cursor-pointer select-none transition-colors hover:bg-neutral-50"
     >
       <div className="flex items-center">
-        {label}{" "}
+        {label}
         <SortIcon
           column={column}
           sortKey={sortKey}
@@ -84,14 +88,10 @@ export function EligibleCasesClient({
   accounts,
 }: Readonly<{ accounts: EligibleRow[] }>) {
   const [query, setQuery] = useState("");
-  const [productFilter, setProductFilter] = useState("all");
-  const [npaFilter, setNpaFilter] = useState("all");
-
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
-
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(10);
 
   const toggleSort = useCallback((key: SortKey) => {
     setSortKey((prevKey) => {
@@ -117,23 +117,13 @@ export function EligibleCasesClient({
     []
   );
 
-  const handleNpaFilterChange = useCallback((val: string | null) => {
-    setNpaFilter(val ?? "all");
-    setPage(1);
-  }, []);
-
-  const handleProductFilterChange = useCallback((val: string | null) => {
-    setProductFilter(val ?? "all");
-    setPage(1);
-  }, []);
-
   const handlePageSizeChange = useCallback((val: string | null) => {
-    setPageSize(Number(val ?? "5"));
+    setPageSize(Number(val ?? "10"));
     setPage(1);
   }, []);
 
-  const filteredAndSortedRows = useMemo(() => {
-    // This grid is NPA-only by design.
+  const rows = useMemo(() => {
+    // NPA-only grid.
     let result = accounts.filter((a) => a.npa);
 
     const q = query.trim().toLowerCase();
@@ -145,17 +135,10 @@ export function EligibleCasesClient({
       );
     }
 
-    if (productFilter !== "all") {
-      result = result.filter((a) => a.product === productFilter);
-    }
-    if (npaFilter !== "all") {
-      result = result.filter((a) => (npaFilter === "yes" ? a.npa : !a.npa));
-    }
-
     if (sortKey && sortDirection) {
       result = [...result].sort((a, b) => {
-        let valA: string | boolean;
-        let valB: string | boolean;
+        let valA: string | number;
+        let valB: string | number;
         switch (sortKey) {
           case "loanNo":
             valA = a.loanNo;
@@ -165,26 +148,22 @@ export function EligibleCasesClient({
             valA = a.borrowerName;
             valB = b.borrowerName;
             break;
-          case "product":
-            valA = a.product;
-            valB = b.product;
+          case "loanAmount":
+            valA = a.loanAmount;
+            valB = b.loanAmount;
             break;
-          case "npa":
-            valA = a.npa;
-            valB = b.npa;
-            break;
-          case "stage":
-            valA = a.stage;
-            valB = b.stage;
+          case "applicationDate":
+            valA = a.applicationDate;
+            valB = b.applicationDate;
             break;
           default:
             valA = "";
             valB = "";
         }
-
-        if (typeof valA === "string") valA = valA.toLowerCase();
-        if (typeof valB === "string") valB = valB.toLowerCase();
-
+        if (typeof valA === "string" && typeof valB === "string") {
+          valA = valA.toLowerCase();
+          valB = valB.toLowerCase();
+        }
         if (valA < valB) return sortDirection === "asc" ? -1 : 1;
         if (valA > valB) return sortDirection === "asc" ? 1 : -1;
         return 0;
@@ -192,68 +171,26 @@ export function EligibleCasesClient({
     }
 
     return result;
-  }, [
-    accounts,
-    query,
-    productFilter,
-    npaFilter,
-    sortKey,
-    sortDirection,
-  ]);
+  }, [accounts, query, sortKey, sortDirection]);
 
-  const pageCount = Math.ceil(filteredAndSortedRows.length / pageSize) || 1;
-  const currentRows = filteredAndSortedRows.slice(
-    (page - 1) * pageSize,
-    page * pageSize
-  );
-
-  const products = Array.from(new Set(accounts.map((a) => a.product)));
+  const pageCount = Math.ceil(rows.length / pageSize) || 1;
+  const currentRows = rows.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <Panel
-      title={`${filteredAndSortedRows.length} eligible case${filteredAndSortedRows.length === 1 ? "" : "s"}`}
-      description="Accounts tagged as NPA."
+      title={`${rows.length} eligible case${rows.length === 1 ? "" : "s"}`}
+      description="NPA accounts your organisation can raise a claim on."
     >
-      <div className="flex flex-col gap-4 border-b border-neutral-100 p-4 pb-0">
-        <div className="flex flex-wrap items-center gap-3 pb-4">
-          <div className="relative">
-            <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
-            <input
-              value={query}
-              onChange={handleQueryChange}
-              placeholder="Loan no, borrower"
-              aria-label="Search cases"
-              className="h-9 w-[230px] rounded-lg border border-neutral-200 pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-            />
-          </div>
-
-          <Select value={npaFilter} onValueChange={handleNpaFilterChange}>
-            <SelectTrigger size="sm" className="w-[140px]">
-              <SelectValue placeholder="NPA Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">NPA: All</SelectItem>
-              <SelectItem value="yes">NPA: YES</SelectItem>
-              <SelectItem value="no">NPA: NO</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={productFilter}
-            onValueChange={handleProductFilterChange}
-          >
-            <SelectTrigger size="sm" className="w-[140px]">
-              <SelectValue placeholder="Product" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Product: All</SelectItem>
-              {products.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {p}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="border-b border-neutral-100 p-4">
+        <div className="relative w-fit">
+          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+          <input
+            value={query}
+            onChange={handleQueryChange}
+            placeholder="Loan ID or applicant"
+            aria-label="Search cases"
+            className="h-9 w-[260px] rounded-lg border border-neutral-200 pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+          />
         </div>
       </div>
 
@@ -263,40 +200,34 @@ export function EligibleCasesClient({
             <TableRow>
               <SortableTableHead
                 column="loanNo"
-                label="Loan no."
+                label="Loan ID"
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="borrowerName"
-                label="Borrower"
+                label="Applicant"
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
-                column="product"
-                label="Product"
+                column="loanAmount"
+                label="Amount"
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
-                column="npa"
-                label="NPA Status"
+                column="applicationDate"
+                label="Login Date"
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <SortableTableHead
-                column="stage"
-                label="Current Stage"
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-              />
-              <TableHead className="text-right">Action</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -306,7 +237,7 @@ export function EligibleCasesClient({
                   colSpan={6}
                   className="py-12 text-center text-[13px] text-neutral-500"
                 >
-                  No eligible NPA cases match your filters.
+                  No eligible cases match your search.
                 </TableCell>
               </TableRow>
             ) : (
@@ -316,23 +247,30 @@ export function EligibleCasesClient({
                     {a.loanNo}
                   </TableCell>
                   <TableCell>{a.borrowerName}</TableCell>
-                  <TableCell className="text-neutral-500">
-                    {a.product}
+                  <TableCell className="tabular-nums text-neutral-700">
+                    {inr.format(a.loanAmount)}
+                  </TableCell>
+                  <TableCell className="tabular-nums text-neutral-500">
+                    {a.applicationDate.slice(0, 10)}
                   </TableCell>
                   <TableCell>
-                    {a.npa ? (
-                      <span className="text-amber-600 font-semibold">YES</span>
+                    {a.claim ? (
+                      <StatusPill status={a.claim.status} />
                     ) : (
-                      "NO"
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11.5px] font-medium text-neutral-600">
+                        <span className="size-1.5 rounded-full bg-neutral-400" />
+                        Not started
+                      </span>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-neutral-600">{a.stage}</span>
                   </TableCell>
                   <TableCell className="text-right">
                     <ClaimRowActions
                       accountId={a.id}
                       claimId={a.claim?.id}
+                      claimNo={a.claim?.claimNo}
+                      action={a.claimAction}
+                      reason={a.claimReason}
+                      hasProgress={a.claim?.hasProgress}
                     />
                   </TableCell>
                 </TableRow>
@@ -350,7 +288,7 @@ export function EligibleCasesClient({
               value={String(pageSize)}
               onValueChange={handlePageSizeChange}
             >
-              <SelectTrigger size="sm" className="w-[70px] h-8 bg-white">
+              <SelectTrigger size="sm" className="h-8 w-[70px] bg-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -362,13 +300,12 @@ export function EligibleCasesClient({
             </Select>
           </div>
           <span className="hidden sm:inline">
-            Total {filteredAndSortedRows.length} case
-            {filteredAndSortedRows.length === 1 ? "" : "s"}
+            Total {rows.length} case{rows.length === 1 ? "" : "s"}
           </span>
         </div>
 
         <div className="flex items-center gap-4">
-          <span className="text-[13px] text-neutral-500 hidden sm:inline">
+          <span className="hidden text-[13px] text-neutral-500 sm:inline">
             Page {page} of {pageCount}
           </span>
           <PaginationNumbers

@@ -1,5 +1,9 @@
 import { hashPasswordSync } from "@/lib/auth/password";
-import { CLAIM_TYPES } from "@/config/claimConfig";
+import {
+  CLAIM_TYPES,
+  conditionReason,
+  docConditionMet,
+} from "@/config/claimConfig";
 import type {
   Account,
   ClaimDocument,
@@ -92,7 +96,7 @@ const CASES: ReadonlyArray<{
 }> = [
   {
     id: "acc_100245",
-    loanNo: "APP-100245",
+    loanNo: "3002060000000",
     borrowerName: "Rajesh Sharma",
     orgId: "org_acme",
     product: "Home Loan",
@@ -154,7 +158,7 @@ const CASES: ReadonlyArray<{
   },
   {
     id: "acc_100246",
-    loanNo: "APP-100246",
+    loanNo: "3002060000001",
     borrowerName: "Kavya Iyer",
     orgId: "org_acme",
     product: "LAP",
@@ -203,7 +207,7 @@ const CASES: ReadonlyArray<{
   },
   {
     id: "acc_100247",
-    loanNo: "APP-100247",
+    loanNo: "3002060000002",
     borrowerName: "Imran Sheikh",
     orgId: "org_northgate",
     product: "Affordable Housing",
@@ -246,7 +250,7 @@ const CASES: ReadonlyArray<{
   },
   {
     id: "acc_100248",
-    loanNo: "APP-100248",
+    loanNo: "3002060000003",
     borrowerName: "Deepa Menon",
     orgId: "org_acme",
     product: "Home Loan",
@@ -269,7 +273,7 @@ const CASES: ReadonlyArray<{
   },
   {
     id: "acc_100249",
-    loanNo: "APP-100249",
+    loanNo: "3002060000004",
     borrowerName: "Sneha Pillai",
     orgId: "org_northgate",
     product: "Home Loan",
@@ -299,7 +303,7 @@ const CASES: ReadonlyArray<{
   },
   {
     id: "acc_100250",
-    loanNo: "APP-100250",
+    loanNo: "3002060000005",
     borrowerName: "Vikram Singh",
     orgId: "org_acme",
     product: "LAP",
@@ -322,7 +326,7 @@ const CASES: ReadonlyArray<{
   },
   {
     id: "acc_100251",
-    loanNo: "APP-100251",
+    loanNo: "3002060000006",
     borrowerName: "Fatima Khan",
     orgId: "org_northgate",
     product: "Home Loan",
@@ -348,7 +352,7 @@ const CASES: ReadonlyArray<{
   },
   {
     id: "acc_100252",
-    loanNo: "APP-100252",
+    loanNo: "3002060000007",
     borrowerName: "Nikhil Joshi",
     orgId: "org_acme",
     product: "Home Loan",
@@ -362,7 +366,7 @@ const CASES: ReadonlyArray<{
   },
   {
     id: "acc_100253",
-    loanNo: "APP-100253",
+    loanNo: "3002060000008",
     borrowerName: "Ananya Bose",
     orgId: "org_northgate",
     product: "LAP",
@@ -376,7 +380,7 @@ const CASES: ReadonlyArray<{
   },
   {
     id: "acc_100254",
-    loanNo: "APP-100254",
+    loanNo: "3002060000009",
     borrowerName: "Rohan Kapoor",
     orgId: "org_acme",
     product: "Home Loan",
@@ -481,6 +485,14 @@ export function buildSeed(): MockDb {
     const isNpa = c.id === "acc_100254" ? true : i % 3 !== 1;
     const isWriteOff = c.id === "acc_100254" ? false : i % 3 === 1;
 
+    // Odd-indexed accounts were under construction at disbursal — drives the conditional
+    // "Latest Technical Report" document. Even-indexed were ready to move.
+    // acc_100245 is forced true regardless of its (even) index: it backs CLM-2026-00001, the
+    // only seeded Initial Claim otherwise left demonstrating this document as always-optional —
+    // every other Initial Claim scenario also lands on an even index, so without this override
+    // no seeded claim ever shows "Latest Technical Report" as required.
+    const underConstruction = c.id === "acc_100245" ? true : i % 2 === 1;
+
     accounts.push({
       npa: isNpa,
       writeOff: isWriteOff,
@@ -494,6 +506,16 @@ export function buildSeed(): MockDb {
       assignedUserId: c.assigned[0],
       assignedUserName: c.assigned[1],
       applicationDate: ago(c.appDaysAgo),
+      loanAmount: sanctioned,
+      outstandingAmount: outstanding,
+      sanctionDate: ago(c.appDaysAgo + 1400).slice(0, 10),
+      disbursementDate: ago(c.appDaysAgo + 1387).slice(0, 10),
+      tenureMonths: 180 + (i % 4) * 60,
+      propertyType: i % 3 === 0 ? "Residential" : i % 3 === 1 ? "Residential" : "Commercial",
+      propertyStatus: underConstruction ? "Under Construction" : "Ready to Move",
+      propertyStatusAtDisbursal: underConstruction
+        ? "UNDER_CONSTRUCTION"
+        : "READY_TO_MOVE",
       bucket: c.bucket,
       stage: c.bucket === "IMGC" ? "Under IMGC review" : "Document collection",
       claimStatus: c.claimStatus,
@@ -619,7 +641,7 @@ export function buildSeed(): MockDb {
     });
   });
 
-  const { claims, claimQueries } = buildClaims(accounts, claimDocuments);
+  const { claims, claimQueries } = buildClaims(accounts, claimDocuments, documentFiles);
 
   return {
     lenderOrgs,
@@ -680,7 +702,7 @@ const SCENARIOS: readonly Scenario[] = [
   },
   {
     accountIndex: 1,
-    type: "SETTLEMENT",
+    type: "SUBSEQUENT",
     status: "DRAFT",
     daysAgo: 2,
     history: [],
@@ -698,7 +720,7 @@ const SCENARIOS: readonly Scenario[] = [
   },
   {
     accountIndex: 3,
-    type: "AUCTION",
+    type: "SUBSEQUENT",
     status: "UNDER_REVIEW",
     daysAgo: 6,
     history: ["DRAFT", "SUBMITTED"],
@@ -722,7 +744,7 @@ const SCENARIOS: readonly Scenario[] = [
   },
   {
     accountIndex: 5,
-    type: "SETTLEMENT",
+    type: "SUBSEQUENT",
     status: "APPROVED",
     daysAgo: 14,
     history: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
@@ -750,25 +772,55 @@ const SCENARIOS: readonly Scenario[] = [
 ];
 
 const SAMPLE_FIELDS: Record<string, string> = {
+  // Borrower
+  coApplicantName: "Sunita Sharma",
+  borrowerMobile: "9820012345",
+  borrowerEmail: "borrower@example.com",
+  borrowerPan: "ABCDE1234F",
+  // Loan
+  sanctionedAmount: "4500000",
+  disbursedAmount: "4500000",
+  disbursementDate: ago(1600).slice(0, 10),
+  loanTenureMonths: "240",
+  interestRate: "9.25",
+  emiAmount: "42000",
+  currentOutstanding: "3240000",
+  // Default
   npaDate: ago(120).slice(0, 10),
-  claimAmount: "2400000",
-  recoveryToDate: "150000",
-  contactPerson: "Arjun Mehta",
-  remarks: "Borrower unreachable since the second recall notice.",
-  defaultReason: "Loss of employment",
   lastEmiDate: ago(210).slice(0, 10),
-  settlementAmount: "1850000",
-  settlementDate: ago(45).slice(0, 10),
-  shortfall: "550000",
-  auctionDate: ago(60).slice(0, 10),
-  reservePrice: "2100000",
-  realisedAmount: "1780000",
-  possessionType: "Physical possession",
+  daysPastDue: "210",
+  assetClassification: "Doubtful 1",
+  defaultReason: "Loss of employment",
+  // Legal action (Initial)
+  recallNoticeDate: ago(90).slice(0, 10),
+  legalNoticeDate: ago(60).slice(0, 10),
+  sarfaesiStatus: "13(2) notice served",
+  recoverySuitFiled: "No",
+  // Claim & recovery
+  claimAmount: "2400000",
+  principalOutstanding: "2250000",
+  interestOutstanding: "150000",
+  recoveryToDate: "150000",
+  // Lender contact
+  contactPerson: "Arjun Mehta",
+  contactDesignation: "Manager - Recovery",
+  contactPhone: "9820098200",
+  contactEmail: "arjun@acme-bank.com",
+  // Additional
+  remarks: "Borrower unreachable since the second recall notice.",
+  // Subsequent (final loss)
+  recoveryMode: "One-time settlement",
+  recoveryClosedDate: ago(30).slice(0, 10),
+  grossRecovered: "1850000",
+  recoveryExpenses: "120000",
+  netLossClaimed: "550000",
+  subsequentApprovedBy: "Recovery Committee",
 };
 
 function buildClaims(
   accounts: Account[],
-  claimDocuments: ClaimDocument[]
+  claimDocuments: ClaimDocument[],
+  documentFiles: DocumentFile[]
 ): { claims: Claim[]; claimQueries: ClaimQuery[] } {
   const claims: Claim[] = [];
   const claimQueries: ClaimQuery[] = [];
@@ -822,6 +874,10 @@ function buildClaims(
       submittedAt: sc.status === "DRAFT" ? undefined : ago(sc.daysAgo - 1),
       lastUpdatedAt:
         statusHistory[statusHistory.length - 1]?.at ?? ago(sc.daysAgo),
+      // Every seeded scenario has real backstory (even "Draft" represents a lender mid-way
+      // through, not one who merely opened the form) — distinct from an account with no claim
+      // at all, which is how the seed represents a genuinely untouched "Initiate Claim" row.
+      draftSaved: true,
       bucket:
         sc.status === "DRAFT" || sc.status === "QUERY_RAISED"
           ? "LENDER"
@@ -850,17 +906,62 @@ function buildClaims(
             ? "PENDING_UPLOAD"
             : "UNDER_REVIEW";
 
+      const loan = account as unknown as Record<string, unknown>;
+      const applies = docConditionMet(spec.condition, loan);
+      const uploaded = applies && status !== "PENDING_UPLOAD";
+      const docId = `${claimId}_doc${i}`;
+      let currentFileId: string | undefined;
+
+      // A status of "Under review" or "Approved" with nothing behind it is exactly the
+      // inconsistency the lender flags as "not a document I uploaded" — so every fabricated
+      // status here gets a matching seeded file, the same way IMGC-authored additional documents
+      // already do above.
+      if (uploaded) {
+        currentFileId = `${docId}_f1`;
+        documentFiles.push({
+          id: currentFileId,
+          documentId: docId,
+          accountId: account.id,
+          originalName: `${spec.name}.pdf`,
+          storedPath: "",
+          size: 214_016,
+          mime: "application/pdf",
+          uploadedBy: actorId,
+          uploadedByName: actorName,
+          uploadedAt: ago(Math.max(1, sc.daysAgo - 1)),
+          version: 1,
+        });
+      }
+
       claimDocuments.push({
-        id: `${claimId}_doc${i}`,
+        id: docId,
         accountId: account.id,
         claimId,
+        slug: spec.slug,
         name: spec.name,
         category: spec.category,
         description: spec.description,
-        required: spec.required,
+        required: spec.required && applies,
+        multiple: spec.multiple ?? false,
+        conditional: Boolean(spec.condition),
+        conditionReason: spec.condition
+          ? conditionReason(spec.condition)
+          : undefined,
         addedBy: "SYSTEM",
-        status,
-        version: status === "PENDING_UPLOAD" ? 0 : 1,
+        status: applies ? status : "PENDING_UPLOAD",
+        version: uploaded ? 1 : 0,
+        currentFileId,
+        review:
+          status === "APPROVED"
+            ? {
+                decision: "APPROVED",
+                by: "usr_emp1",
+                byName: "Meera Nair",
+                at: ago(1),
+                remarks: "Verified.",
+                version: 1,
+              }
+            : undefined,
         active: true,
         createdAt: ago(sc.daysAgo),
       });

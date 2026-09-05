@@ -45,7 +45,17 @@ export interface RequirementRow {
 
   version: number;
   file?: DocumentFile;
+  /** All live (non-superseded) files — one for single categories, many for multi. */
+  files: DocumentFile[];
   history: DocumentFile[];
+
+  /* ── configuration-driven claim document category ── */
+  slug?: string;
+  multiple: boolean;
+  conditional: boolean;
+  conditionReason?: string;
+  /** Display reference for a lender-added additional document (AD-001). */
+  refNo?: string;
   review?: ClaimDocument["review"];
   /** The remark the lender most recently needs to act on, whichever side wrote it. */
   latestRemark: string;
@@ -89,7 +99,13 @@ function toRow(
 
     version: doc.version ?? 0,
     file: history.find((f) => f.id === doc.currentFileId),
+    files: history.filter((f) => !f.supersededAt),
     history,
+    slug: doc.slug,
+    multiple: doc.multiple ?? false,
+    conditional: doc.conditional ?? false,
+    conditionReason: doc.conditionReason,
+    refNo: doc.refNo,
     review: doc.review,
     latestRemark:
       doc.review?.remarks ||
@@ -154,13 +170,23 @@ export async function listClaimDocuments(
     return [];
   }
 
+  // Config order for the system checklist — the doc id is `<claimId>_doc<N>`. Lender-added
+  // documents (no such index) trail, in the order they were added.
+  const configIndex = (id: string): number => {
+    const m = /_doc(\d+)$/.exec(id);
+    return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER;
+  };
+
   return db.claimDocuments
     .filter((d) => d.claimId === claimId)
     .filter((d) => session.role === "IMGC" || isActive(d))
     .map((d) => toRow(d, db))
-    .sort((a, b) =>
-      a.required === b.required ? a.name.localeCompare(b.name) : a.required ? -1 : 1
-    );
+    .sort((a, b) => {
+      const ai = configIndex(a.id);
+      const bi = configIndex(b.id);
+      if (ai !== bi) return ai - bi;
+      return a.addedOn.localeCompare(b.addedOn);
+    });
 }
 
 /** The case list the "Select case" picker offers — scoped the same way. */
