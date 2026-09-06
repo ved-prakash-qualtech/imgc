@@ -201,17 +201,15 @@ export function LoginClient({
 
       <div className="relative z-10 mx-auto flex h-dvh w-full max-w-[1440px] flex-col overflow-y-auto px-6 py-4 lg:px-10 lg:py-5">
         {/* ── Masthead ─────────────────────────────────────────────── */}
-        <header className="imgc-rise flex items-start justify-between gap-4">
+        <header className="imgc-rise flex items-start gap-4">
           <div className="flex items-center gap-3">
-            <span className="grid size-11 place-items-center rounded-xl bg-white/10 ring-1 ring-white/15">
-              <Image
-                src="/assets/icons/imgc-mark.svg"
-                alt=""
-                width={26}
-                height={26}
-                aria-hidden
-              />
-            </span>
+            <Image
+              src="/assets/icons/logo.png"
+              alt="IMGC — Defining Tomorrow"
+              width={48}
+              height={48}
+              className="size-11"
+            />
             <span className="leading-tight">
               <span className="block font-outfit text-[17px] font-bold tracking-tight">
                 IMGC Lender Portal
@@ -221,17 +219,6 @@ export function LoginClient({
               </span>
             </span>
           </div>
-          <span className="flex flex-col items-end leading-none">
-            <span className="font-outfit text-[20px] font-semibold tracking-tight text-white">
-              IMGC
-              <span className="ml-1 align-super text-[10px] font-medium text-[#ffb27a]">
-                ®
-              </span>
-            </span>
-            <span className="mt-0.5 text-[9px] font-medium uppercase tracking-[0.22em] text-white/50">
-              Defining Tomorrow
-            </span>
-          </span>
         </header>
 
         {/* ── Body ─────────────────────────────────────────────────── */}
