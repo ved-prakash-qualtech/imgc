@@ -8,6 +8,7 @@ import {
   CheckIcon,
   EyeIcon,
   FileTextIcon,
+  MessageSquareWarningIcon,
   PaperclipIcon,
   PlusIcon,
   RotateCcwIcon,
@@ -21,6 +22,8 @@ import {
   addRequirementAction,
   decideDocumentAction,
   decideReinstateAction,
+  raiseQueryForRejectedDocumentAction,
+  reactivateDocumentAction,
   requestReinstateAction,
   setRequirementActiveAction,
   submitClaimAction,
@@ -50,6 +53,7 @@ type Props = Readonly<{
   claimStatus: ClaimStatus;
   canSubmit: boolean;
   retentionDays: number;
+  queriedDocNames: string[];
 }>;
 
 function bytes(n: number): string {
@@ -81,6 +85,7 @@ export function InitialClaimsTab({
   claimStatus,
   canSubmit,
   retentionDays,
+  queriedDocNames,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -199,6 +204,7 @@ export function InitialClaimsTab({
               onDraftChange={setDraft}
               onToggleActive={onToggleActive}
               retentionDays={retentionDays}
+              hasOpenQuery={queriedDocNames.includes(doc.name)}
             />
           ))}
         </ul>
@@ -255,6 +261,7 @@ function DocumentRowItem({
   onDraftChange,
   onToggleActive,
   retentionDays,
+  hasOpenQuery,
 }: Readonly<{
   doc: DocumentRow;
   accountId: string;
@@ -265,6 +272,9 @@ function DocumentRowItem({
   onDraftChange: (docId: string, value: string) => void;
   onToggleActive: (documentId: string, active: boolean) => void;
   retentionDays: number;
+  /** Does an open query already name this document — so a fresh rejection (already synced into
+   *  a query) doesn't get a redundant "Raise Query" button. */
+  hasOpenQuery: boolean;
 }>) {
   const router = useRouter();
   const [busy, startTransition] = useTransition();
@@ -316,6 +326,30 @@ function DocumentRowItem({
     },
     [accountId, doc.id, doc.name, router]
   );
+
+  const onReactivate = useCallback(() => {
+    startTransition(async () => {
+      const result = await reactivateDocumentAction(accountId, doc.id);
+      if (!result.ok) {
+        toast.error(result.error ?? "That could not be undone.");
+        return;
+      }
+      toast.success(`"${doc.name}" is back under review.`);
+      router.refresh();
+    });
+  }, [accountId, doc.id, doc.name, router]);
+
+  const onRaiseQuery = useCallback(() => {
+    startTransition(async () => {
+      const result = await raiseQueryForRejectedDocumentAction(accountId, doc.id);
+      if (!result.ok) {
+        toast.error(result.error ?? "That query could not be raised.");
+        return;
+      }
+      toast.success(`Query raised for "${doc.name}".`);
+      router.refresh();
+    });
+  }, [accountId, doc.id, doc.name, router]);
 
   const onReinstateRequest = useCallback(() => {
     startTransition(async () => {
@@ -558,6 +592,35 @@ function DocumentRowItem({
               >
                 <XIcon /> Reject
               </Button>
+            </div>
+          )}
+
+          {/* A rejected document is IMGC's to walk back (the rejection was the mistake, not the
+              document), and — only when nothing already raised one — theirs to turn into a
+              proper query too, for a document rejected before that started happening
+              automatically. A fresh rejection already has an open query, so this stays hidden. */}
+          {role === "IMGC" && doc.status === "REJECTED" && (
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={onReactivate}
+                disabled={working}
+                title="Undo the rejection — the document goes back under review"
+              >
+                <RotateCcwIcon /> Undo Rejection
+              </Button>
+              {!hasOpenQuery && (
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={onRaiseQuery}
+                  disabled={working}
+                  title="This rejection has no open query yet — raise one so the lender sees it"
+                >
+                  <MessageSquareWarningIcon /> Raise Query
+                </Button>
+              )}
             </div>
           )}
 

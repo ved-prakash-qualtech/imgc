@@ -256,9 +256,9 @@ export function QueryResponseSection({
                     value={response}
                     maxLength={RESPONSE_MAX}
                     onChange={handleResponseChange}
-                    rows={4}
+                    rows={2}
                     placeholder="Type your response to the query..."
-                    className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                    className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                   />
                   <div className="mt-1 flex items-center justify-between text-[11.5px] text-neutral-400">
                     <span>Required before submitting.</span>
@@ -277,6 +277,7 @@ export function QueryResponseSection({
                     claimId={claimId}
                     documents={documents}
                     locked={false}
+                    bare
                   />
                 </div>
 

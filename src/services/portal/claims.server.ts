@@ -6,6 +6,7 @@ import path from "node:path";
 import { readDb, writeDb, UPLOAD_DIR } from "@/server/mock/db";
 import { newId, nowIso } from "@/server/mock/ids";
 import { recordEvent } from "@/services/portal/audit.server";
+import { syncQueryForDocumentDecision } from "@/services/portal/claimFlow.server";
 import {
   notifyClaimSubmitted,
   notifyDocumentDecision,
@@ -383,11 +384,100 @@ export async function decideDocument(
     },
   });
 
+  // A rejection or a re-upload request is the lender's to fix — sync it into the Claim entity as
+  // a real query, or the claim's own Progress rail and Query Response section never learn this
+  // happened at all (see `syncQueryForDocumentDecision`).
+  if (decision === "REJECTED" || decision === "REUPLOAD_REQUESTED") {
+    await syncQueryForDocumentDecision(
+      session,
+      accountId,
+      outcome.name,
+      decision,
+      note
+    );
+  }
+
   const db = await readDb();
   const account = db.accounts.find((a) => a.id === accountId);
   if (account) {
     await notifyDocumentDecision(account, outcome.name, decision, note, session);
   }
+  return { ok: true };
+}
+
+/**
+ * IMGC undoes their own rejection directly — the same reset a lender's reinstatement request
+ * grants once approved (`decideReinstate`), just without making them ask for it first. For when
+ * the rejection itself was the mistake, not the document.
+ */
+export async function reactivateDocument(
+  session: AppSession,
+  accountId: string,
+  documentId: string
+): Promise<Outcome> {
+  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+
+  const outcome = await writeDb((db) => {
+    const row = db.claimDocuments.find(
+      (d) => d.id === documentId && d.accountId === accountId
+    );
+    if (!row) return { ok: false as const, error: "Document not found." };
+    if (row.status !== "REJECTED") {
+      return { ok: false as const, error: "That document isn't rejected." };
+    }
+    row.status = row.currentFileId ? "UNDER_REVIEW" : "PENDING_UPLOAD";
+    row.rejection = undefined;
+    return { ok: true as const, name: row.name };
+  });
+  if (!outcome.ok) return outcome;
+
+  await recordEvent({
+    accountId,
+    actor: session,
+    type: "DOC_REACTIVATED",
+    summary: `Rejection undone — "${outcome.name}" is back under review`,
+    meta: { document: outcome.name },
+  });
+  return { ok: true };
+}
+
+/**
+ * Manually raises the query a rejection should already carry — for a document rejected before
+ * `decideDocument` started syncing one automatically, so it sits "Rejected" with nothing on the
+ * claim's own Progress rail or Query Response to show for it. A fresh rejection never needs
+ * this; the caller only offers the button when no query already names the document.
+ */
+export async function raiseQueryForRejectedDocument(
+  session: AppSession,
+  accountId: string,
+  documentId: string
+): Promise<Outcome> {
+  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+
+  const db = await readDb();
+  const row = db.claimDocuments.find(
+    (d) => d.id === documentId && d.accountId === accountId
+  );
+  if (!row) return { ok: false, error: "Document not found." };
+  if (row.status !== "REJECTED" || !row.rejection) {
+    return { ok: false, error: "That document isn't rejected." };
+  }
+
+  await syncQueryForDocumentDecision(
+    session,
+    accountId,
+    row.name,
+    "REJECTED",
+    row.rejection.reason
+  );
+
+  await recordEvent({
+    accountId,
+    actor: session,
+    type: "CLAIM_STATUS_CHANGED",
+    summary: `Query raised for "${row.name}" — ${row.rejection.reason}`,
+    meta: { document: row.name },
+  });
   return { ok: true };
 }
 

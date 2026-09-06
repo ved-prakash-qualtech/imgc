@@ -58,17 +58,6 @@ function isIn(doc: RequirementRow): boolean {
   return doc.status === "UNDER_REVIEW" || doc.status === "APPROVED";
 }
 
-/** The row that most needs attention — used to decide which accordion item opens first. */
-function firstToActOn(docs: RequirementRow[]): string | undefined {
-  const needy = docs.find(
-    (d) =>
-      d.status === "PENDING_UPLOAD" ||
-      d.status === "REJECTED" ||
-      d.status === "REUPLOAD_REQUIRED"
-  );
-  return (needy ?? docs[0])?.id;
-}
-
 /**
  * The whole document section of a claim: the configured required list, then the lender's
  * additional documents, then the "add" control.
@@ -82,11 +71,15 @@ export function ClaimDocuments({
   claimId,
   documents,
   locked,
+  bare = false,
 }: Readonly<{
   accountId: string;
   claimId: string;
   documents: RequirementRow[];
   locked: boolean;
+  /** Drop the card's own border/shadow — for when it's already nested inside another panel
+   *  (Query Response's Attachments), where the default chrome reads as a card inside a card. */
+  bare?: boolean;
 }>) {
   const required = useMemo(
     () => documents.filter((d) => d.addedBy !== "LENDER"),
@@ -97,9 +90,9 @@ export function ClaimDocuments({
     [documents]
   );
 
-  const [openId, setOpenId] = useState<string | undefined>(() =>
-    firstToActOn(required)
-  );
+  // Every card starts collapsed — the checklist can run to a dozen rows, and opening on load
+  // with one already expanded reads as broken the moment there's more than a couple.
+  const [openId, setOpenId] = useState<string | undefined>(undefined);
   const [uploadTarget, setUploadTarget] = useState<{
     row: RequirementRow;
     mode: "upload" | "add" | "replace";
@@ -119,6 +112,7 @@ export function ClaimDocuments({
       <Panel
         title="Required documents"
         description={`${done} / ${applicable.length} required complete`}
+        className={bare ? "border-neutral-200 shadow-none" : undefined}
         actions={
           done === applicable.length && applicable.length > 0 ? (
             <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-success-700">
@@ -144,37 +138,40 @@ export function ClaimDocuments({
         </ol>
       </Panel>
 
-      {/* ── Additional documents ─────────────────────────────── */}
-      <Panel
-        title="Additional documents"
-        description="Anything beyond the required list. User-defined, added one at a time — no limit."
-        actions={
-          !locked ? (
-            <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
-          ) : null
-        }
-      >
-        {additional.length === 0 ? (
-          <p className="px-5 py-8 text-center text-[13px] text-neutral-500">
-            No additional documents added.
-          </p>
-        ) : (
-          <ol className="divide-y divide-neutral-100">
-            {additional.map((doc) => (
-              <DocAccordionItem
-                key={doc.id}
-                doc={doc}
-                accountId={accountId}
-                claimId={claimId}
-                locked={locked}
-                open={openId === doc.id}
-                onToggle={toggle}
-                onUpload={setUploadTarget}
-              />
-            ))}
-          </ol>
-        )}
-      </Panel>
+      {/* ── Additional documents — not shown nested inside Query Response: adding an
+          unrelated new document isn't part of resolving the query at hand. ── */}
+      {!bare && (
+        <Panel
+          title="Additional documents"
+          description="Anything beyond the required list. User-defined, added one at a time — no limit."
+          actions={
+            !locked ? (
+              <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
+            ) : null
+          }
+        >
+          {additional.length === 0 ? (
+            <p className="px-5 py-8 text-center text-[13px] text-neutral-500">
+              No additional documents added.
+            </p>
+          ) : (
+            <ol className="divide-y divide-neutral-100">
+              {additional.map((doc) => (
+                <DocAccordionItem
+                  key={doc.id}
+                  doc={doc}
+                  accountId={accountId}
+                  claimId={claimId}
+                  locked={locked}
+                  open={openId === doc.id}
+                  onToggle={toggle}
+                  onUpload={setUploadTarget}
+                />
+              ))}
+            </ol>
+          )}
+        </Panel>
+      )}
 
       <UploadDialog
         row={uploadTarget?.row ?? null}
@@ -247,7 +244,7 @@ function DocAccordionItem({
   return (
     <li className={cn(conditionalNotRequired && "bg-neutral-25")}>
       {/* ── Header ─────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-5 py-3">
+      <div className="flex items-center gap-2 px-4 py-2">
         <button
           type="button"
           onClick={() => onToggle(doc.id)}
@@ -308,20 +305,20 @@ function DocAccordionItem({
       {/* ── Body ───────────────────────────────────────────── */}
       <div
         id={bodyId}
-        className={cn("px-5 pb-4 pl-11", !open && "hidden")}
+        className={cn("px-4 pb-2.5 pl-10", !open && "hidden")}
       >
         {doc.description && (
           <p className="text-[12px] text-neutral-500">{doc.description}</p>
         )}
         {doc.conditional && doc.conditionReason && (
-          <p className="mt-1 text-[11.5px] italic text-neutral-500">
+          <p className="mt-0.5 text-[11.5px] italic text-neutral-500">
             {doc.conditionReason}
             {conditionalNotRequired && " — not required for this claim."}
           </p>
         )}
 
         {hasFiles ? (
-          <ul className="mt-2 space-y-1">
+          <ul className="mt-1.5 space-y-0.5">
             {doc.files.map((f) => (
               <li
                 key={f.id}
@@ -339,26 +336,26 @@ function DocAccordionItem({
             </li>
           </ul>
         ) : (
-          <p className="mt-2 flex items-center gap-1.5 text-[12.5px] text-neutral-400">
+          <p className="mt-1.5 flex items-center gap-1.5 text-[12.5px] text-neutral-400">
             <FileIcon className="size-3.5" /> Nothing uploaded yet.
           </p>
         )}
 
         {doc.status === "REJECTED" && doc.review?.remarks && (
-          <p className="mt-2 rounded-md border border-destructive/25 bg-destructive/5 px-2.5 py-1.5 text-[12px] text-neutral-700">
+          <p className="mt-1.5 rounded-md border border-destructive/25 bg-destructive/5 px-2.5 py-1.5 text-[12px] text-neutral-700">
             <span className="font-semibold">Reason: </span>
             {doc.review.remarks}
           </p>
         )}
         {doc.status === "REUPLOAD_REQUIRED" && doc.review?.remarks && (
-          <p className="mt-2 rounded-md border border-warning/30 bg-warning/8 px-2.5 py-1.5 text-[12px] text-neutral-700">
+          <p className="mt-1.5 rounded-md border border-warning/30 bg-warning/8 px-2.5 py-1.5 text-[12px] text-neutral-700">
             <span className="font-semibold">Query: </span>
             {doc.review.remarks}
           </p>
         )}
 
         {!locked && (
-          <div className="mt-3">
+          <div className="mt-2">
             <span className="mb-1 block text-[11.5px] font-medium text-neutral-600">
               Remarks
             </span>
@@ -372,7 +369,7 @@ function DocAccordionItem({
                 }}
                 rows={2}
                 placeholder="Notes against this document."
-                className="min-w-[240px] flex-1 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[12.5px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                className="min-w-[240px] flex-1 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-[12.5px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
               />
               <Button
                 size="xs"

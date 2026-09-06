@@ -10,6 +10,8 @@ import {
   type RequirementInput,
   decideDocument,
   decideReinstate,
+  raiseQueryForRejectedDocument,
+  reactivateDocument,
   requestReinstate,
   submitClaim,
   uploadDocument,
@@ -77,7 +79,47 @@ export async function decideDocumentAction(
     decision,
     reason
   );
+  if (result.ok) {
+    refresh(accountId);
+    // A rejection now syncs into the Claim entity as a query (`syncQueryForDocumentDecision`) —
+    // same broader revalidation `setClaimStatusAction` uses for a Claim-side change, so the
+    // lender's workspace and Track Claim pick it up too, not just this account's own page.
+    if (decision === "REJECTED") {
+      revalidatePath(ROUTES.initiateClaim);
+      revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
+      revalidatePath(ROUTES.trackQueryResponse);
+      revalidatePath(ROUTES.notifications);
+    }
+  }
+  return result;
+}
+
+/** IMGC undoes their own rejection — the document goes back under review. */
+export async function reactivateDocumentAction(
+  accountId: string,
+  documentId: string
+): Promise<Result> {
+  const session = await requireSession();
+  const result = await reactivateDocument(session, accountId, documentId);
   if (result.ok) refresh(accountId);
+  return result;
+}
+
+/** For a document rejected before rejections started syncing a query automatically — raises the
+ *  query that rejection should already have. */
+export async function raiseQueryForRejectedDocumentAction(
+  accountId: string,
+  documentId: string
+): Promise<Result> {
+  const session = await requireSession();
+  const result = await raiseQueryForRejectedDocument(session, accountId, documentId);
+  if (result.ok) {
+    refresh(accountId);
+    revalidatePath(ROUTES.initiateClaim);
+    revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
+    revalidatePath(ROUTES.trackQueryResponse);
+    revalidatePath(ROUTES.notifications);
+  }
   return result;
 }
 

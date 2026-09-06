@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { setClaimStatusAction } from "@/app/[locale]/(portal)/accounts/[accountId]/actions";
@@ -24,6 +24,19 @@ const TABS = [
   "Audit Trail",
 ] as const;
 
+/** URL-friendly slugs for `?tab=` — a notification linking into an account picks the tab that
+ *  actually shows what it's about (see notifications/page.tsx's `tabSlugForEvent`). */
+const TAB_SLUGS: Record<(typeof TABS)[number], string> = {
+  Overview: "overview",
+  "Accounting Values": "accounting-values",
+  "Initial Claims": "initial-claims",
+  "Audit Trail": "audit-trail",
+};
+
+function tabFromSlug(slug: string | null): (typeof TABS)[number] {
+  return TABS.find((t) => TAB_SLUGS[t] === slug) ?? "Overview";
+}
+
 type Props = Readonly<{
   account: AccountRow;
   role: Role;
@@ -32,6 +45,9 @@ type Props = Readonly<{
   events: AuditEvent[];
   canSubmit: boolean;
   retentionDays: number;
+  /** Names of documents an open query already covers — so a rejection from before that sync
+   *  existed can offer to raise one, and a fresh rejection (already covered) doesn't. */
+  queriedDocNames: string[];
 }>;
 
 export function AccountWorkspace({
@@ -42,8 +58,14 @@ export function AccountWorkspace({
   events,
   canSubmit,
   retentionDays,
+  queriedDocNames,
 }: Props) {
-  const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
+  // A notification deep-links here with `?tab=initial-claims` etc. — land on that tab instead of
+  // always defaulting to Overview. Read once; switching tabs afterwards stays plain local state.
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<(typeof TABS)[number]>(() =>
+    tabFromSlug(searchParams.get("tab"))
+  );
 
   return (
     <div>
@@ -97,6 +119,7 @@ export function AccountWorkspace({
           claimStatus={account.claimStatus}
           canSubmit={canSubmit}
           retentionDays={retentionDays}
+          queriedDocNames={queriedDocNames}
         />
       )}
       {tab === "Audit Trail" && <AuditTrailTab events={events} />}

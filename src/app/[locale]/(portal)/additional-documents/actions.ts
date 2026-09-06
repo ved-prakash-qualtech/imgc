@@ -85,7 +85,17 @@ export async function reviewDocumentAction(
     decision,
     remarks
   );
-  if (result.ok) refreshAll(accountId);
+  if (result.ok) {
+    refreshAll(accountId);
+    // Reject / re-upload now syncs into the Claim entity as a query
+    // (`syncQueryForDocumentDecision`), so the lender's workspace and Track Claim need the same
+    // revalidation a Claim-side change gets elsewhere.
+    if (decision === "REJECTED" || decision === "REUPLOAD_REQUESTED") {
+      revalidatePath(ROUTES.initiateClaim);
+      revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
+      revalidatePath(ROUTES.trackQueryResponse);
+    }
+  }
   return result;
 }
 

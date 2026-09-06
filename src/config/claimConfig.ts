@@ -131,7 +131,7 @@ export const CLAIM_TYPES: Readonly<Record<ClaimTypeKey, ClaimTypeConfig>> = {
     documents: [
       {
         slug: "lod",
-        name: "LOD - List of Documents",
+        name: "Property Paper(List of Documents)",
         category: "Property Document",
         description:
           "Property papers — sale deed, title documents and related set.",

@@ -10,6 +10,7 @@ import { RETENTION_DAYS } from "@/server/mock/retention";
 import { getAccount } from "@/services/portal/accounts.server";
 import { listAuditForAccount } from "@/services/portal/audit.server";
 import { canSubmit, listDocuments } from "@/services/portal/claims.server";
+import { getClaimForAccount, listQueries } from "@/services/portal/claimFlow.server";
 import { pullFromPas } from "@/services/portal/pas.server";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,19 @@ export default async function AccountPage({
     listAuditForAccount(accountId),
   ]);
 
+  // Which rejected documents already have an open query naming them — so a fresh rejection
+  // (already synced automatically) doesn't get a redundant "Raise Query" button, and only a
+  // document rejected before that sync existed does.
+  const claim = await getClaimForAccount(session, accountId);
+  const queriedDocNames = new Set<string>();
+  if (claim) {
+    const queries = await listQueries(claim.id);
+    for (const q of queries) {
+      if (q.respondedAt) continue;
+      for (const name of q.requestedDocuments) queriedDocNames.add(name);
+    }
+  }
+
   return (
     <PortalShell activeKey="accounts" title={account.loanNo}>
       <div className="space-y-3">
@@ -51,6 +65,7 @@ export default async function AccountPage({
           events={events}
           canSubmit={canSubmit(docs)}
           retentionDays={RETENTION_DAYS}
+          queriedDocNames={[...queriedDocNames]}
         />
       </div>
     </PortalShell>

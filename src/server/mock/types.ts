@@ -71,7 +71,8 @@ export type AuditType =
   | "DOC_REQUIREMENT_UPDATED"
   | "DOC_APPROVED"
   | "DOC_REJECTED"
-  | "DOC_REUPLOAD_REQUESTED";
+  | "DOC_REUPLOAD_REQUESTED"
+  | "DOC_REACTIVATED";
 
 export interface LenderOrg {
   id: string;

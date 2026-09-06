@@ -76,7 +76,9 @@ export default async function ClaimDetailsPage({
           subtitle={`${claim.caseId} · ${claim.customerName} · ${claim.lenderName} · Claim Amount ${account ? inr.format(account.outstandingAmount) : "—"}`}
           stats={[]}
           action={
-            !terminal && (
+            // Only IMGC gets to raise a query from here — a lender asking IMGC a free-form
+            // question isn't a flow the portal offers on this screen.
+            !terminal && !isLender && (
               <ClaimQueryDialog
                 claimId={claim.id}
                 claimNo={claim.claimNo}

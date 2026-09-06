@@ -96,6 +96,7 @@ export default async function InitialClaimWorkflowPage({
             claimStatus={account.claimStatus}
             canSubmit={canSubmit(docs)}
             retentionDays={RETENTION_DAYS}
+            queriedDocNames={[]}
           />
         </div>
       </div>

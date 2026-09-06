@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { MailIcon } from "lucide-react";
 import { Section } from "@/components/portal/CommandBand";
 import { PortalShell } from "@/components/portal/PortalShell";
@@ -10,6 +11,13 @@ import {
 import { ROUTES } from "@/constants/route";
 
 export const dynamic = "force-dynamic";
+
+/** Which account tab actually shows what this notification is about — matches the slugs
+ *  `AccountWorkspace` reads via `?tab=`. Falls back to Overview for anything doc-unrelated. */
+function tabSlugForEvent(event: string): string {
+  if (event.startsWith("DOC_") || event === "CLAIM_SUBMITTED") return "initial-claims";
+  return "overview";
+}
 
 export default async function NotificationsPage() {
   const session = await requireSession();
@@ -38,37 +46,57 @@ export default async function NotificationsPage() {
               </p>
             ) : (
               <ol className="divide-y divide-neutral-100">
-                {notifications.map((n) => (
-                  <li key={n.id} className="flex gap-3 px-5 py-4">
-                    <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-brand-light text-brand-primary">
-                      <MailIcon className="size-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[13.5px] font-semibold text-neutral-950">
-                          {n.subject}
-                        </span>
-                        <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-500">
-                          {n.event.replaceAll("_", " ")}
-                        </span>
-                        <span className="text-[11.5px] text-neutral-400">
-                          {new Date(n.sentAt).toLocaleString("en-IN", {
-                            day: "2-digit",
-                            month: "short",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
+                {notifications.map((n) => {
+                  const body = (
+                    <>
+                      <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-brand-light text-brand-primary">
+                        <MailIcon className="size-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[13.5px] font-semibold text-neutral-950">
+                            {n.subject}
+                          </span>
+                          <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-500">
+                            {n.event.replaceAll("_", " ")}
+                          </span>
+                          <span className="text-[11.5px] text-neutral-400">
+                            {new Date(n.sentAt).toLocaleString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[13px] leading-relaxed text-neutral-700">
+                          {n.body}
+                        </p>
+                        <p className="mt-1 truncate text-[11.5px] text-neutral-400">
+                          To: {n.to.join(", ")}
+                        </p>
                       </div>
-                      <p className="mt-1 text-[13px] leading-relaxed text-neutral-700">
-                        {n.body}
-                      </p>
-                      <p className="mt-1 truncate text-[11.5px] text-neutral-400">
-                        To: {n.to.join(", ")}
-                      </p>
-                    </div>
-                  </li>
-                ))}
+                    </>
+                  );
+
+                  // Every notification here is about one account's claim — link straight into it,
+                  // on the tab that actually shows what happened, instead of leaving the reader to
+                  // find it themselves in the accounts list.
+                  return (
+                    <li key={n.id}>
+                      {n.accountId ? (
+                        <Link
+                          href={`${ROUTES.account(n.accountId)}?tab=${tabSlugForEvent(n.event)}`}
+                          className="flex gap-3 px-5 py-4 transition-colors hover:bg-neutral-50"
+                        >
+                          {body}
+                        </Link>
+                      ) : (
+                        <div className="flex gap-3 px-5 py-4">{body}</div>
+                      )}
+                    </li>
+                  );
+                })}
               </ol>
             )}
           </div>

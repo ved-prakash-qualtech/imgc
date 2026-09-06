@@ -281,6 +281,56 @@ export async function syncClaimForAccountDecision(
   });
 }
 
+/**
+ * Keeps the Claim record in step with a document decision made through `claims.server.ts`'s
+ * `decideDocument` — the legacy per-account checklist (Accounts' Initial Claims tab, and the
+ * Additional Documents workbench, both go through it), which only ever wrote the shared
+ * `ClaimDocument` row and never touched the Claim entity.
+ *
+ * A document rejected or sent back for re-upload is exactly the same "the lender has something
+ * to fix" event a formal query is, so it gets one: a real `ClaimQuery` naming that document,
+ * the claim moved to QUERY_RAISED. Without this, the row's own status pill said "Rejected" but
+ * the claim's Progress rail and Query Response section had no idea anything had happened —
+ * nothing told the lender there was something to act on. An approval needs no such sync; there
+ * is nothing for the lender to do. Same non-duplicating contract as `syncClaimForAccountDecision`:
+ * no audit event or notification here, the caller already sends both for the document decision.
+ */
+export async function syncQueryForDocumentDecision(
+  session: AppSession,
+  accountId: string,
+  documentName: string,
+  decision: "REJECTED" | "REUPLOAD_REQUESTED",
+  note: string
+): Promise<void> {
+  await writeDb((db) => {
+    const claim = db.claims.find(
+      (c) => c.accountId === accountId && !TERMINAL_STATUSES.has(c.status)
+    );
+    if (!claim) return;
+
+    const raisedAt = nowIso();
+    db.claimQueries.push({
+      id: newId("qry"),
+      claimId: claim.id,
+      reason:
+        note.trim() ||
+        (decision === "REJECTED"
+          ? `"${documentName}" was rejected.`
+          : `"${documentName}" needs to be re-uploaded.`),
+      remarks: "",
+      requestedDocuments: [documentName],
+      raisedById: session.userId,
+      raisedByName: session.name,
+      raisedAt,
+      dueDate: new Date(
+        new Date(raisedAt).getTime() + 4 * 24 * 60 * 60 * 1000
+      ).toISOString(),
+    });
+    claim.bucket = "LENDER";
+    advance(db, claim, "QUERY_RAISED", session, note || undefined);
+  });
+}
+
 /* ── lender actions ────────────────────────────────────────────────── */
 
 /**
