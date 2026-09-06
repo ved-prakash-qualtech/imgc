@@ -7,8 +7,9 @@ import {
   notifyClaimDecision,
 } from "@/services/portal/notifications.server";
 import { addRemark } from "@/services/portal/remarks.server";
-import { syncClaimForAccountDecision } from "@/services/portal/claimFlow.server";
+import { getClaimForAccount, syncClaimForAccountDecision } from "@/services/portal/claimFlow.server";
 import { listDocuments, summariseDocs } from "@/services/portal/claims.server";
+import { listClaimDocuments } from "@/services/portal/requirements.server";
 import type { AppSession } from "@/lib/auth/appSession";
 import type { Account, Bucket, ClaimStatus, LenderOrg } from "@/server/mock/types";
 
@@ -117,7 +118,15 @@ export async function setClaimStatus(
   if (!outcome.ok) return outcome;
 
   if (status === "APPROVED") {
-    const docs = await listDocuments(session, accountId);
+    // Once a specific claim has been initiated, its own checklist (`claimId`-scoped) is the real
+    // document list for it — `listDocuments` also returns the account's older, claim-agnostic
+    // "standard" documents (from before the claim existed), and requiring those too meant a claim
+    // could sit fully approved on its own checklist and still get blocked by unrelated documents
+    // nobody was ever asked to touch for it.
+    const claim = await getClaimForAccount(session, accountId);
+    const docs = claim
+      ? await listClaimDocuments(session, claim.id)
+      : await listDocuments(session, accountId);
     const summary = summariseDocs(docs);
     if (!summary.complete) {
       return {

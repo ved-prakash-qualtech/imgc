@@ -476,13 +476,26 @@ function DocumentRowItem({
                   · {doc.history.length} versions
                 </span>
               )}
-              <button
-                type="button"
-                onClick={() => setPreviewing(true)}
-                className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
-              >
-                <EyeIcon className="size-3" /> View
-              </button>
+              {doc.file.storedPath ? (
+                // A real upload has real bytes on disk — open the actual file (its own tab's
+                // native PDF viewer gives a download button for free) instead of a mockup.
+                <a
+                  href={`/api/portal/files/${doc.file.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                >
+                  <EyeIcon className="size-3" /> View
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPreviewing(true)}
+                  className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                >
+                  <EyeIcon className="size-3" /> View
+                </button>
+              )}
             </p>
           ) : (
             <p className="mt-1.5 text-[12px] text-neutral-400">
@@ -706,11 +719,12 @@ function DocumentRowItem({
 }
 
 /**
- * What was actually uploaded, before Accept/Reject is decided — a demo preview, not a real file
- * render: the prototype stores no file bytes for seeded rows, and a broken `<embed>` would read
- * as a bug rather than as demo data. Same idiom as `ReviewDrawer`'s Preview section, so a
- * reviewer sees the same shape whether the document sits in an additional-document requirement
- * or a claim's own checklist.
+ * Fallback for a file with no real bytes on disk — every document seeded into the demo data,
+ * before a real upload replaces it. A real upload opens straight in a new tab via
+ * `/api/portal/files/[fileId]` instead (see the `doc.file.storedPath` check above this dialog's
+ * only remaining caller); this stays only so a seeded row's "View" isn't a dead click. Same idiom
+ * as `ReviewDrawer`'s Preview section, so a reviewer sees the same shape whether the document sits
+ * in an additional-document requirement or a claim's own checklist.
  */
 function DocumentPreviewDialog({
   file,

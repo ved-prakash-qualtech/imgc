@@ -4,6 +4,7 @@ import { useCallback, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckIcon,
+  ExternalLinkIcon,
   FileTextIcon,
   HistoryIcon,
   RotateCcwIcon,
@@ -221,7 +222,29 @@ export function ReviewDrawer({
           <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-neutral-500">
             Preview
           </h3>
-          {row.file ? (
+          {row.file?.storedPath ? (
+            // A real upload has real bytes on disk — the reviewer's own tab renders it (with a
+            // download button built into the browser's PDF viewer) instead of a mockup.
+            <a
+              href={`/api/portal/files/${row.file.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4 transition-colors hover:border-brand-primary hover:bg-brand-light/40"
+            >
+              <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-white text-destructive shadow-sm">
+                <FileTextIcon className="size-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-medium text-neutral-900">
+                  {row.file.originalName}
+                </span>
+                <span className="text-[11.5px] text-neutral-500">
+                  {bytes(row.file.size)} · opens in a new tab
+                </span>
+              </span>
+              <ExternalLinkIcon className="size-4 shrink-0 text-neutral-400" />
+            </a>
+          ) : row.file ? (
             <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
               <div className="mx-auto flex aspect-[1/1.3] w-full max-w-[280px] flex-col rounded-md border border-neutral-200 bg-white p-4 shadow-sm">
                 <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
@@ -230,9 +253,10 @@ export function ReviewDrawer({
                     {row.file.originalName}
                   </span>
                 </div>
-                {/* A stand-in page, not a real render: the prototype stores no file bytes for
-                    seeded rows, and a broken <embed> would read as a bug rather than as demo
-                    data. The shape is what the reviewer needs to orient by. */}
+                {/* A stand-in page, not a real render: this row was seeded as demo data with no
+                    file bytes behind it (a real upload gets the real-file link above instead),
+                    and a broken <embed> would read as a bug rather than as demo data. The shape
+                    is what the reviewer needs to orient by. */}
                 <div className="mt-3 flex-1 space-y-1.5" aria-hidden>
                   <div className="h-2 w-2/3 rounded bg-neutral-200" />
                   <div className="h-1.5 w-full rounded bg-neutral-100" />

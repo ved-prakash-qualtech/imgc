@@ -654,8 +654,14 @@ export interface CaseDocSummary {
 /**
  * Derived, never stored. A completion flag kept as its own column is a second source of truth
  * that goes stale the moment a status changes by any route that forgets to update it.
+ *
+ * Structural, not `DocumentRow[]`, on purpose: `setClaimStatus` needs to run this over a claim's
+ * own checklist (`RequirementRow[]`, from `listClaimDocuments`) once a claim exists, not the
+ * account's full document table — see the caller.
  */
-export function summariseDocs(docs: DocumentRow[]): CaseDocSummary {
+export function summariseDocs(
+  docs: ReadonlyArray<{ required: boolean; status: DocStatus; active?: boolean }>
+): CaseDocSummary {
   const required = docs.filter((d) => d.required && isActive(d));
   const count = (s: DocStatus) => required.filter((d) => d.status === s).length;
   const approved = count("APPROVED");
