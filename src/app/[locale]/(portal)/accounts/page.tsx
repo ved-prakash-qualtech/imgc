@@ -1,3 +1,4 @@
+/* eslint-disable react-perf/jsx-no-new-array-as-prop */
 import {
   AlertTriangleIcon,
   FileClockIcon,
@@ -26,42 +27,40 @@ export default async function AccountsPage() {
   return (
     <PortalShell activeKey="accounts" title="Accounts">
       <div className="space-y-4">
-        <CommandBand
-          title="Accounts"
-          subtitle={
-            isLender
-              ? "Accounts your organisation can act on — scope follows the domain of your sign-in address"
-              : "Every account IMGC guarantees, across all lenders"
-          }
-          stats={[
-            {
-              icon: <FolderOpenIcon className="size-4" />,
-              label: "Accounts in scope",
-              value: String(summary.accountCount),
-              caption: `${summary.readyToSubmit} ready to submit`,
-            },
-            {
-              icon: <UploadCloudIcon className="size-4" />,
-              label: "Document readiness",
-              value: `${summary.completionPct}%`,
-              caption: `${summary.documentsIn} of ${summary.documentsRequired} mandatory in`,
-              accent: "teal",
-            },
-            {
-              icon: <FileClockIcon className="size-4" />,
-              label: "Submitted / approved",
-              value: `${summary.submittedCount} / ${summary.approvedCount}`,
-              caption: `${summary.queriedCount} queried`,
-            },
-            {
-              icon: <AlertTriangleIcon className="size-4" />,
-              label: "Awaiting documents",
-              value: String(summary.pendingUploadAccounts),
-              caption: `${summary.rejectedDocCount} document(s) rejected`,
-              accent: "amber",
-            },
-          ]}
-        />
+        {isLender && (
+          <CommandBand
+            title="Accounts"
+            subtitle="Accounts your organisation can act on — scope follows the domain of your sign-in address"
+            stats={[
+              {
+                icon: <FolderOpenIcon className="size-4" />,
+                label: "Accounts in scope",
+                value: String(summary.accountCount),
+                caption: `${summary.readyToSubmit} ready to submit`,
+              },
+              {
+                icon: <UploadCloudIcon className="size-4" />,
+                label: "Document readiness",
+                value: `${summary.completionPct}%`,
+                caption: `${summary.documentsIn} of ${summary.documentsRequired} mandatory in`,
+                accent: "teal",
+              },
+              {
+                icon: <FileClockIcon className="size-4" />,
+                label: "Submitted / approved",
+                value: `${summary.submittedCount} / ${summary.approvedCount}`,
+                caption: `${summary.queriedCount} queried`,
+              },
+              {
+                icon: <AlertTriangleIcon className="size-4" />,
+                label: "Awaiting documents",
+                value: String(summary.pendingUploadAccounts),
+                caption: `${summary.rejectedDocCount} document(s) rejected`,
+                accent: "amber",
+              },
+            ]}
+          />
+        )}
 
         <AccountsClient accounts={accounts} role={session.role} />
       </div>

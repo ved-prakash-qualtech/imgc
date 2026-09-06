@@ -75,7 +75,7 @@ function Sparkline({ seed, color }: Readonly<{ seed: string; color: string }>) {
     )
     .out.join(" ");
   return (
-    <svg viewBox="0 0 100 24" className="h-6 w-full" preserveAspectRatio="none">
+    <svg viewBox="0 0 100 24" className="h-4 w-full" preserveAspectRatio="none">
       <polyline
         points={points}
         fill="none"
@@ -94,21 +94,19 @@ function KpiCard({
   value,
   caption,
   tone,
+  href,
 }: Readonly<{
   icon: React.ReactNode;
   label: string;
   value: string;
   caption: string;
   tone: KpiTone;
+  href?: string;
 }>) {
   const t = KPI_TONE[tone];
-  return (
-    <div
-      className={cn(
-        "rounded-xl border bg-white/8 backdrop-blur-sm px-3.5 py-3",
-        t.bg
-      )}
-    >
+
+  const content = (
+    <>
       <div className="flex items-start justify-between gap-2">
         <p className="truncate text-[12px] font-medium text-white/70">
           {label}
@@ -122,13 +120,29 @@ function KpiCard({
           {icon}
         </span>
       </div>
-      <p className="font-outfit mt-1 text-[24px] font-bold leading-none text-white">
+      <p className="font-outfit text-[22px] font-bold leading-none text-white">
         {value}
       </p>
       <Sparkline seed={label} color={t.spark} />
       <p className="truncate text-[11.5px] text-white/50">{caption}</p>
-    </div>
+    </>
   );
+
+  const className = cn(
+    "flex flex-col rounded-xl border bg-white/8 backdrop-blur-sm px-3 py-2",
+    t.bg,
+    href && "transition-colors hover:bg-white/12 cursor-pointer"
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {content}
+      </Link>
+    );
+  }
+
+  return <div className={className}>{content}</div>;
 }
 
 export function PortfolioCommandCenter({
@@ -140,6 +154,7 @@ export function PortfolioCommandCenter({
     value: string;
     caption: string;
     tone: KpiTone;
+    href?: string;
   }> = [
     {
       icon: <WalletIcon className="size-4" />,
@@ -157,17 +172,19 @@ export function PortfolioCommandCenter({
     },
     {
       icon: <TrendingUpIcon className="size-4" />,
-      label: "Active Loans",
-      value: String(summary.activeLoans),
-      caption: `${summary.overdueLoans} overdue · ${summary.statusBreakdown.closed} closed`,
+      label: "Total loans",
+      value: String(summary.loansOnBook),
+      caption: `${summary.activeLoans} active · ${summary.overdueLoans} overdue`,
       tone: "green",
+      href: ROUTES.accounts,
     },
     {
       icon: <AlertTriangleIcon className="size-4" />,
-      label: "Overdue Loans",
-      value: String(summary.overdueLoans),
-      caption: "Needs collections follow-up",
+      label: "Loans in IMGC bucket",
+      value: String(summary.loansInImgcBucket),
+      caption: "Needs processing by IMGC",
       tone: "amber",
+      href: "/accounts?bucket=IMGC",
     },
     {
       icon: <AlertTriangleIcon className="size-4" />,
@@ -175,6 +192,7 @@ export function PortfolioCommandCenter({
       value: String(summary.npaLoans),
       caption: `${formatCr(summary.npaGrossAmount)} Gross NPA · ${summary.npaRatioPct}% NPA Ratio`,
       tone: "rose",
+      href: "/accounts?assetClass=NPA",
     },
   ];
 
@@ -186,7 +204,7 @@ export function PortfolioCommandCenter({
         stats={[]}
         action={<RefreshButton />}
       >
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
           {stats.map((stat) => (
             <KpiCard key={stat.label} {...stat} />
           ))}
@@ -219,16 +237,16 @@ function Widget({
 }>) {
   return (
     <section className="flex flex-col rounded-xl border border-neutral-100 bg-white shadow-sm">
-      <header className="flex items-start justify-between gap-3 border-b border-neutral-100 px-4 py-3">
+      <header className="flex items-start justify-between gap-3 border-b border-neutral-100 px-3 py-2">
         <div className="min-w-0">
-          <h3 className="text-[13.5px] font-semibold text-neutral-950">
+          <h3 className="text-[13px] font-semibold text-neutral-950">
             {title}
           </h3>
-          <p className="mt-0.5 text-[11.5px] text-neutral-500">{subtitle}</p>
+          <p className="mt-0.5 text-[11px] text-neutral-500">{subtitle}</p>
         </div>
         {action}
       </header>
-      <div className="flex flex-1 flex-col p-4">{children}</div>
+      <div className="flex flex-1 flex-col p-2">{children}</div>
     </section>
   );
 }
@@ -242,22 +260,22 @@ function CollectionsTrendCard({
       title="Collections Trend"
       subtitle="Successful payments by month, selected range"
     >
-      <div className="flex flex-1 items-end gap-2">
+      <div className="flex flex-1 items-end gap-1.5 overflow-hidden">
         {trend.map((t) => (
           <div
             key={t.label}
-            className="flex flex-1 flex-col items-center gap-1.5"
+            className="flex min-w-0 flex-1 flex-col items-center gap-1.5"
           >
-            <span className="text-[10px] text-neutral-400">
+            <span className="w-full truncate text-center text-[10px] text-neutral-400">
               {t.amount > 0 ? formatCr(t.amount) : ""}
             </span>
-            <div className="flex h-32 w-full items-end">
+            <div className="flex h-16 w-full items-end">
               <div
                 className="w-full rounded-t-md bg-[linear-gradient(180deg,#4f7bff_0%,#c7d6ff_100%)]"
                 style={{ height: `${Math.max(4, (t.amount / max) * 100)}%` }}
               />
             </div>
-            <span className="text-[10px] whitespace-nowrap text-neutral-500">
+            <span className="w-full truncate text-center text-[10px] text-neutral-500">
               {t.label}
             </span>
           </div>
@@ -296,14 +314,14 @@ function StatusBreakdownCard({
       title="Portfolio Status Breakdown"
       subtitle="Loans by current status"
     >
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
+      <div className="flex flex-1 flex-col items-center justify-center gap-2">
         <div
-          className="grid size-32 shrink-0 place-items-center rounded-full"
+          className="grid size-20 shrink-0 place-items-center rounded-full"
           style={{ background: `conic-gradient(${stops.join(", ")})` }}
         >
-          <div className="grid size-24 place-items-center rounded-full bg-white text-center">
+          <div className="grid size-14 place-items-center rounded-full bg-white text-center">
             <div>
-              <p className="font-outfit text-[22px] font-bold leading-none text-neutral-950">
+              <p className="font-outfit text-[16px] font-bold leading-none text-neutral-950">
                 {loansOnBook}
               </p>
               <p className="text-[10.5px] text-neutral-500">LOANS</p>
@@ -362,7 +380,7 @@ function UrgentCollectionsCard({
             <li key={u.accountId}>
               <Link
                 href={ROUTES.account(u.accountId)}
-                className="flex items-center justify-between gap-3 px-1 py-2.5 hover:bg-neutral-50"
+                className="flex items-center justify-between gap-2 px-1 py-0.5 hover:bg-neutral-50"
               >
                 <span className="min-w-0">
                   <span className="block truncate text-[12.5px] font-semibold text-neutral-950">

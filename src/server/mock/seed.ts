@@ -214,7 +214,7 @@ const CASES: ReadonlyArray<{
     loanNo: "3002060000002",
     borrowerName: "Imran Sheikh",
     orgId: "org_northgate",
-    product: "Affordable Housing",
+    product: "Home Loan",
     region: "North",
     branch: "Rohini",
     assigned: ["usr_emp1", "Meera Nair"],
@@ -452,7 +452,7 @@ const CASES: ReadonlyArray<{
     loanNo: "3002060000013",
     borrowerName: "Suresh Nair",
     orgId: "org_acme",
-    product: "Affordable Housing",
+    product: "Home Loan",
     region: "South",
     branch: "Velachery",
     assigned: ["usr_emp2", "Rohit Sharma"],
@@ -550,7 +550,7 @@ const CASES: ReadonlyArray<{
     loanNo: "3002060000019",
     borrowerName: "Vivek Malhotra",
     orgId: "org_northgate",
-    product: "Affordable Housing",
+    product: "Home Loan",
     region: "West",
     branch: "Vashi",
     assigned: ["usr_emp3", "Anita Desai"],
@@ -703,7 +703,8 @@ export function buildSeed(): MockDb {
     // acc_100254 is the "eligible, no claim yet" demo row — force it NPA so it always shows
     // the Initiate Claim action for the Acme lender.
     const isNpa = c.forceNpa ?? (c.id === "acc_100254" ? true : i % 3 !== 1);
-    const isWriteOff = c.forceWriteOff ?? (c.id === "acc_100254" ? false : i % 3 === 1);
+    const isWriteOff =
+      c.forceWriteOff ?? (c.id === "acc_100254" ? false : i % 3 === 1);
 
     // Odd-indexed accounts were under construction at disbursal — drives the conditional
     // "Latest Technical Report" document. Even-indexed were ready to move.
@@ -731,8 +732,15 @@ export function buildSeed(): MockDb {
       sanctionDate: ago(c.appDaysAgo + 1400).slice(0, 10),
       disbursementDate: ago(c.appDaysAgo + 1387).slice(0, 10),
       tenureMonths: 180 + (i % 4) * 60,
-      propertyType: i % 3 === 0 ? "Residential" : i % 3 === 1 ? "Residential" : "Commercial",
-      propertyStatus: underConstruction ? "Under Construction" : "Ready to Move",
+      propertyType:
+        i % 3 === 0
+          ? "Residential"
+          : i % 3 === 1
+            ? "Residential"
+            : "Commercial",
+      propertyStatus: underConstruction
+        ? "Under Construction"
+        : "Ready to Move",
       propertyStatusAtDisbursal: underConstruction
         ? "UNDER_CONSTRUCTION"
         : "READY_TO_MOVE",
@@ -861,7 +869,11 @@ export function buildSeed(): MockDb {
     });
   });
 
-  const { claims, claimQueries } = buildClaims(accounts, claimDocuments, documentFiles);
+  const { claims, claimQueries } = buildClaims(
+    accounts,
+    claimDocuments,
+    documentFiles
+  );
 
   return {
     lenderOrgs,

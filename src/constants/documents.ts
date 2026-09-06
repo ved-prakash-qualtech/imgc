@@ -21,7 +21,6 @@ export const APPLICABLE_PRODUCTS = [
   "All products",
   "Home Loan",
   "LAP",
-  "Affordable Housing",
 ] as const;
 
 export const CASE_TYPES = [

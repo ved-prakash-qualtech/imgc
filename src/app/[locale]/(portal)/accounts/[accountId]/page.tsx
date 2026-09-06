@@ -1,3 +1,4 @@
+/* eslint-disable react-perf/jsx-no-new-array-as-prop */
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -54,10 +55,10 @@ export default async function AccountPage({
 
   return (
     <PortalShell activeKey="accounts" title={account.loanNo}>
-      <div className="space-y-6">
+      <div className="space-y-3">
         <Link
           href={ROUTES.accounts}
-          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-neutral-500 hover:text-neutral-800"
+          className="-mt-1 inline-flex items-center gap-1.5 text-[13px] font-medium text-neutral-500 hover:text-neutral-800"
         >
           <ArrowLeftIcon className="size-3.5" /> All accounts
         </Link>

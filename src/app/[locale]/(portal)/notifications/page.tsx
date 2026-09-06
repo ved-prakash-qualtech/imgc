@@ -1,11 +1,5 @@
-import {
-  ArrowLeftRightIcon,
-  FileClockIcon,
-  MailIcon,
-  UsersIcon,
-} from "lucide-react";
-
-import { CommandBand, Section } from "@/components/portal/CommandBand";
+import { MailIcon } from "lucide-react";
+import { Section } from "@/components/portal/CommandBand";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { requireSession } from "@/lib/auth/appSession";
 import { redirect } from "next/navigation";
@@ -16,48 +10,6 @@ import {
 import { ROUTES } from "@/constants/route";
 
 export const dynamic = "force-dynamic";
-
-/**
- * The outbox. There is no SMTP in the prototype, so every message the portal would have emailed
- * is recorded here (and written to the server console) — which also makes the lender's one-time
- * sign-in codes visible in development.
- */
-function buildNotificationStats(
-  notificationsLength: number,
-  count: (event: string) => number,
-  recipients: number,
-  latest: string | undefined
-) {
-  return [
-    {
-      icon: <MailIcon className="size-4" />,
-      label: "Messages sent",
-      value: String(notificationsLength),
-      caption: latest
-        ? `latest ${new Date(latest).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`
-        : "nothing sent yet",
-    },
-    {
-      icon: <ArrowLeftRightIcon className="size-4" />,
-      label: "Bucket shifts",
-      value: String(count("BUCKET_SHIFTED")),
-      caption: "accounts handed over",
-    },
-    {
-      icon: <FileClockIcon className="size-4" />,
-      label: "Claim submissions",
-      value: String(count("CLAIM_SUBMITTED")),
-      caption: "lender handoffs to IMGC",
-      accent: "teal" as const,
-    },
-    {
-      icon: <UsersIcon className="size-4" />,
-      label: "Distinct recipients",
-      value: String(recipients),
-      caption: "mailboxes on the distribution",
-    },
-  ];
-}
 
 export default async function NotificationsPage() {
   const session = await requireSession();
@@ -72,29 +24,9 @@ export default async function NotificationsPage() {
   // Opening the list is what marks it read — the badge clears for this role only.
   await markNotificationsRead(session);
 
-  const count = (event: string) =>
-    notifications.filter((n) => n.event === event).length;
-  const recipients = new Set(notifications.flatMap((n) => n.to)).size;
-  const latest = notifications[0]?.sentAt;
-
   return (
     <PortalShell activeKey="notifications" title="Notifications">
       <div className="space-y-4">
-        <CommandBand
-          title="Notifications"
-          subtitle={
-            session.role === "IMGC"
-              ? "Every message the portal has sent, newest first"
-              : "Messages sent to your organisation about your accounts"
-          }
-          stats={buildNotificationStats(
-            notifications.length,
-            count,
-            recipients,
-            latest
-          )}
-        />
-
         <Section
           title={`${notifications.length} message${notifications.length === 1 ? "" : "s"}`}
           subtitle="Prototype: nothing is delivered by email — this is the record of what would be sent."

@@ -1,5 +1,7 @@
+"use client";
 import "server-only";
 
+/* eslint-disable security/detect-object-injection */
 import { readDb } from "@/server/mock/db";
 import type { AppSession } from "@/lib/auth/appSession";
 import type { ClaimDocument } from "@/server/mock/types";
@@ -46,6 +48,7 @@ export interface PortfolioSummary {
   collectedInterest: number;
   activeLoans: number;
   overdueLoans: number;
+  loansInImgcBucket: number;
   npaLoans: number;
   npaGrossAmount: number;
   npaRatioPct: number;
@@ -122,7 +125,10 @@ function buildPortfolioSummary(
   lastTouch: Map<string, string>
 ): PortfolioSummary {
   const loansOnBook = accounts.length || 1;
-  const totalLoanBookValue = accounts.reduce((s, a) => s + a.outstandingAmount, 0);
+  const totalLoanBookValue = accounts.reduce(
+    (s, a) => s + a.outstandingAmount,
+    0
+  );
   const collectedByAccount = new Map<string, number>();
   let totalCollected = 0;
   for (const a of accounts) {
@@ -135,19 +141,26 @@ function buildPortfolioSummary(
   const collectedPrincipal = totalCollected - collectedInterest;
 
   const closed = new Set(
-    accounts.filter((a) => a.writeOff || a.claimStatus === "APPROVED" || a.claimStatus === "REJECTED").map((a) => a.id)
+    accounts
+      .filter(
+        (a) =>
+          a.writeOff ||
+          a.claimStatus === "APPROVED" ||
+          a.claimStatus === "REJECTED"
+      )
+      .map((a) => a.id)
   );
   const overdue = new Set(
     accounts
       .filter(
         (a) =>
-          !closed.has(a.id) &&
-          daysSince(lastTouch.get(a.id) ?? a.createdAt) > 8
+          !closed.has(a.id) && daysSince(lastTouch.get(a.id) ?? a.createdAt) > 8
       )
       .map((a) => a.id)
   );
   const statusBreakdown = {
-    active: accounts.filter((a) => !closed.has(a.id) && !overdue.has(a.id)).length,
+    active: accounts.filter((a) => !closed.has(a.id) && !overdue.has(a.id))
+      .length,
     overdue: overdue.size,
     closed: closed.size,
   };
@@ -155,15 +168,32 @@ function buildPortfolioSummary(
   // Write-off outranks NPA — same mutually-exclusive classification the Accounts list uses
   // (assetClassOf in AccountsClient.tsx), so a written-off account isn't double-counted here.
   const npaAccounts = accounts.filter((a) => a.npa && !a.writeOff);
-  const npaGrossAmount = npaAccounts.reduce((s, a) => s + a.outstandingAmount, 0);
+  const npaGrossAmount = npaAccounts.reduce(
+    (s, a) => s + a.outstandingAmount,
+    0
+  );
 
   const MONTH_ABBR = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
   ];
   const now = new Date();
   const months = Array.from({ length: TREND_MONTHS }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (TREND_MONTHS - 1 - i), 1);
+    const d = new Date(
+      now.getFullYear(),
+      now.getMonth() - (TREND_MONTHS - 1 - i),
+      1
+    );
     return {
       key: `${d.getFullYear()}-${d.getMonth()}`,
       label: `${MONTH_ABBR[d.getMonth()]} ${String(d.getFullYear()).slice(-2)}`,
@@ -206,6 +236,7 @@ function buildPortfolioSummary(
     collectedInterest,
     activeLoans: statusBreakdown.active,
     overdueLoans: statusBreakdown.overdue,
+    loansInImgcBucket: accounts.filter((a) => a.bucket === "IMGC").length,
     npaLoans: npaAccounts.length,
     npaGrossAmount,
     npaRatioPct: Math.round((npaAccounts.length / loansOnBook) * 1000) / 10,
@@ -421,7 +452,10 @@ export async function buildDashboardSummary(
         approved: by("APPROVED"),
       };
     })(),
-    portfolio: session.role === "IMGC" ? buildPortfolioSummary(accounts, lastTouch) : undefined,
+    portfolio:
+      session.role === "IMGC"
+        ? buildPortfolioSummary(accounts, lastTouch)
+        : undefined,
     lenderHero: (() => {
       const claims = db.claims.filter((c) => ids.has(c.accountId));
       const terminalOrDraft = new Set([

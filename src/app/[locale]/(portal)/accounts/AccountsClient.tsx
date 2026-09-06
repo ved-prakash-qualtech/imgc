@@ -1,7 +1,8 @@
+/* eslint-disable security/detect-object-injection, react-perf/jsx-no-new-function-as-prop */
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -11,7 +12,6 @@ import {
   SearchIcon,
 } from "lucide-react";
 
-import { BucketToggle } from "@/components/portal/BucketToggle";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
@@ -56,7 +56,12 @@ const ASSET_CLASS_LABEL: Record<AssetClass, string> = {
   WRITE_OFF: "Write-off",
 };
 
-type SortKey = "loanNo" | "borrowerName" | "loanAmount" | "outstandingAmount" | "disbursementDate";
+type SortKey =
+  | "loanNo"
+  | "borrowerName"
+  | "loanAmount"
+  | "outstandingAmount"
+  | "disbursementDate";
 type SortDirection = "asc" | "desc" | null;
 
 const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
@@ -171,7 +176,11 @@ const SortableTableHead = ({
   >
     <div className="flex items-center">
       {label}
-      <SortIcon column={column} sortKey={sortKey} sortDirection={sortDirection} />
+      <SortIcon
+        column={column}
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+      />
     </div>
   </TableHead>
 );
@@ -180,10 +189,17 @@ export function AccountsClient({
   accounts,
   role,
 }: Readonly<{ accounts: AccountRow[]; role: Role }>) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
-  const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>("ALL");
+  const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>(
+    (searchParams.get("bucket") as (typeof BUCKETS)[number] | null) ?? "ALL"
+  );
   const [status, setStatus] = useState<(typeof STATUSES)[number]>("ALL");
-  const [assetClass, setAssetClass] = useState<(typeof ASSET_CLASSES)[number]>("ALL");
+  const [assetClass, setAssetClass] = useState<(typeof ASSET_CLASSES)[number]>(
+    (searchParams.get("assetClass") as (typeof ASSET_CLASSES)[number] | null) ??
+      "ALL"
+  );
   const [product, setProduct] = useState<string>("ALL");
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
@@ -262,7 +278,16 @@ export function AccountsClient({
       });
     }
     return result;
-  }, [accounts, query, bucket, status, assetClass, product, sortKey, sortDirection]);
+  }, [
+    accounts,
+    query,
+    bucket,
+    status,
+    assetClass,
+    product,
+    sortKey,
+    sortDirection,
+  ]);
 
   const pageCount = Math.ceil(filtered.length / pageSize) || 1;
   const currentPage = Math.min(page, pageCount);
@@ -275,7 +300,10 @@ export function AccountsClient({
     setPageSize(Number(val ?? "5"));
     setPage(1);
   }, []);
-  const handleExport = useCallback(() => downloadCsv(filtered, role), [filtered, role]);
+  const handleExport = useCallback(
+    () => downloadCsv(filtered, role),
+    [filtered, role]
+  );
   const handleQueryChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setQuery(e.target.value);
@@ -365,28 +393,52 @@ export function AccountsClient({
         <Table>
           <TableHeader>
             <TableRow>
-              <SortableTableHead column="loanNo" label="Loan no." sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              <SortableTableHead column="borrowerName" label="Borrower" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              {role === "IMGC" && <TableHead className="h-9">Lender</TableHead>}
-              <TableHead className="h-9">Purpose</TableHead>
-              <SortableTableHead column="loanAmount" label="Principal" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              <SortableTableHead column="outstandingAmount" label="Outstanding" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              <SortableTableHead column="disbursementDate" label="Disbursed" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              <TableHead className="h-9">Asset Class</TableHead>
-              <TableHead className="h-9">Documents</TableHead>
-              <TableHead className="h-9">Bucket</TableHead>
-              <TableHead className="h-9">Claim</TableHead>
+              <SortableTableHead
+                className="px-3"
+                column="loanNo"
+                label="Loan no."
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                className="px-3"
+                column="borrowerName"
+                label="Borrower"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
               {role === "IMGC" && (
-                <TableHead className="h-9 text-right">Processing</TableHead>
+                <TableHead className="h-9 px-3">Lender</TableHead>
               )}
-              <TableHead className="h-9 text-right">Open</TableHead>
+              <TableHead className="h-9 px-3">Purpose</TableHead>
+              <SortableTableHead
+                className="px-3"
+                column="loanAmount"
+                label="Principal"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                className="px-3"
+                column="disbursementDate"
+                label="Disbursed"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <TableHead className="h-9 px-3">Asset Class</TableHead>
+              <TableHead className="h-9 px-3">Bucket</TableHead>
+              <TableHead className="h-9 px-3">Claim</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {currentRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={role === "IMGC" ? 12 : 10}
+                  colSpan={role === "IMGC" ? 9 : 8}
                   className="py-12 text-center text-[13px] text-neutral-500"
                 >
                   No accounts match those filters.
@@ -396,23 +448,32 @@ export function AccountsClient({
               currentRows.map((a) => {
                 const cls = assetClassOf(a);
                 return (
-                  <TableRow key={a.id}>
-                    <TableCell className="py-2 font-medium text-neutral-950">
+                  <TableRow
+                    key={a.id}
+                    onClick={() => router.push(ROUTES.account(a.id))}
+                    className="cursor-pointer transition-colors hover:bg-neutral-50"
+                  >
+                    <TableCell className="py-3 px-3 font-medium text-neutral-950">
                       {a.loanNo}
                     </TableCell>
-                    <TableCell className="py-2">{a.borrowerName}</TableCell>
-                    {role === "IMGC" && <TableCell className="py-2">{a.lenderOrgName}</TableCell>}
-                    <TableCell className="py-2 text-neutral-500">{a.product}</TableCell>
-                    <TableCell className="py-2 tabular-nums text-neutral-700">
+                    <TableCell className="py-3 px-3">
+                      {a.borrowerName}
+                    </TableCell>
+                    {role === "IMGC" && (
+                      <TableCell className="py-3 px-3">
+                        {a.lenderOrgName}
+                      </TableCell>
+                    )}
+                    <TableCell className="py-3 px-3 text-neutral-500">
+                      {a.product}
+                    </TableCell>
+                    <TableCell className="py-3 px-3 tabular-nums text-neutral-700">
                       {inr.format(a.loanAmount)}
                     </TableCell>
-                    <TableCell className="py-2 tabular-nums text-neutral-700">
-                      {inr.format(a.outstandingAmount)}
-                    </TableCell>
-                    <TableCell className="py-2 tabular-nums text-neutral-500">
+                    <TableCell className="py-3 px-3 tabular-nums text-neutral-500">
                       {date(a.disbursementDate)}
                     </TableCell>
-                    <TableCell className="py-2">
+                    <TableCell className="py-3 px-3">
                       <span
                         className={cn(
                           "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-medium",
@@ -426,39 +487,11 @@ export function AccountsClient({
                         {ASSET_CLASS_LABEL[cls]}
                       </span>
                     </TableCell>
-                    <TableCell className="py-2">
-                      <span
-                        className={cn(
-                          "text-[12.5px] font-medium",
-                          a.pendingDocs > 0 ? "text-warning" : "text-success-700"
-                        )}
-                      >
-                        {a.requiredDocs - a.pendingDocs}/{a.requiredDocs} in
-                      </span>
-                    </TableCell>
-                    <TableCell className="py-2">
+                    <TableCell className="py-3 px-3">
                       <StatusPill status={a.bucket} />
                     </TableCell>
-                    <TableCell className="py-2">
+                    <TableCell className="py-3 px-3">
                       <StatusPill status={a.claimStatus} />
-                    </TableCell>
-                    {role === "IMGC" && (
-                      <TableCell className="py-2 text-right">
-                        <BucketToggle
-                          accountId={a.id}
-                          loanNo={a.loanNo}
-                          bucket={a.bucket}
-                          size="xs"
-                        />
-                      </TableCell>
-                    )}
-                    <TableCell className="py-2 text-right">
-                      <Link
-                        href={ROUTES.account(a.id)}
-                        className="text-[13px] font-semibold text-brand-primary hover:underline"
-                      >
-                        Open
-                      </Link>
                     </TableCell>
                   </TableRow>
                 );
@@ -472,7 +505,10 @@ export function AccountsClient({
         <div className="flex items-center gap-3 text-[13px] text-neutral-500">
           <div className="flex items-center gap-2">
             <span>Rows per page</span>
-            <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
+            <Select
+              value={String(pageSize)}
+              onValueChange={handlePageSizeChange}
+            >
               <SelectTrigger size="sm" className="h-8 w-[70px] bg-white">
                 <SelectValue />
               </SelectTrigger>

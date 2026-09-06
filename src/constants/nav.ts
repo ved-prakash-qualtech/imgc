@@ -72,13 +72,6 @@ const AUDIT_TRAIL: NavItem = {
   href: ROUTES.auditTrail,
 };
 
-/** IMGC only — the cross-case additional-documents workbench. */
-const ADDITIONAL_DOCUMENTS: NavItem = {
-  key: "additional-documents",
-  label: "Additional Documents",
-  href: ROUTES.additionalDocuments,
-};
-
 /** IMGC only — moving an account between the two processing buckets. */
 const BUCKETS: NavItem = {
   key: "buckets",
@@ -106,14 +99,6 @@ const ADMINISTRATION: NavItem = {
  */
 export function navFor(role: Role): NavItem[] {
   return role === "IMGC"
-    ? [
-        DASHBOARD,
-        ACCOUNTS,
-        INITIATE_CLAIM,
-        ADDITIONAL_DOCUMENTS,
-        BUCKETS,
-        NOTIFICATIONS,
-        ADMINISTRATION,
-      ]
+    ? [DASHBOARD, ACCOUNTS, BUCKETS, NOTIFICATIONS, ADMINISTRATION]
     : [DASHBOARD, INITIATE_CLAIM, TRACK_QUERY_RESPONSE, AUDIT_TRAIL];
 }

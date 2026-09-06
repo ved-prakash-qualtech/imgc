@@ -1,11 +1,7 @@
 import Link from "next/link";
 import {
-  AlertTriangleIcon,
   ArrowRightIcon,
-  CheckCircle2Icon,
   ClockIcon,
-  FileClockIcon,
-  FolderOpenIcon,
   MessageSquareWarningIcon,
   UploadCloudIcon,
 } from "lucide-react";
@@ -13,15 +9,14 @@ import {
 import { Donut } from "@/components/portal/Donut";
 import { Section } from "@/components/portal/CommandBand";
 import { PortfolioCommandCenter } from "@/components/portal/PortfolioCommandCenter";
-import { StatusPill } from "@/components/portal/StatusPill";
 import { ROUTES } from "@/constants/route";
 import { cn } from "@/lib/utils/twMergeUtils";
-import type { AccountRow } from "@/services/portal/accounts.server";
+
 import type {
   DashboardSummary,
   Tile,
 } from "@/services/portal/dashboard.server";
-import type { AuditEvent, Role } from "@/server/mock/types";
+import type { Role } from "@/server/mock/types";
 
 /* ── tokens for the soft-tint tiles ────────────────────────────────── */
 
@@ -42,15 +37,6 @@ const BAR_TONE = {
   danger: "bg-destructive",
 } as const;
 
-function when(iso: string): string {
-  return new Date(iso).toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 /* ── page ──────────────────────────────────────────────────────────── */
 
 type Props = Readonly<{
@@ -58,31 +44,7 @@ type Props = Readonly<{
   firstName: string;
   workspace: string;
   summary: DashboardSummary;
-  attention: AccountRow[];
-  recent: AuditEvent[];
 }>;
-
-function renderAdditionalDocsAction(isLender: boolean) {
-  return (
-    <Link
-      href={isLender ? ROUTES.initiateClaim : ROUTES.additionalDocuments}
-      className="text-[12.5px] font-semibold text-brand-primary hover:underline"
-    >
-      {isLender ? "Initiate a claim" : "Open the workbench"} →
-    </Link>
-  );
-}
-
-function renderNeedsAttentionAction() {
-  return (
-    <Link
-      href={ROUTES.accounts}
-      className="inline-flex items-center gap-1 text-[13px] font-semibold text-brand-primary hover:underline"
-    >
-      All accounts <ArrowRightIcon className="size-3.5" />
-    </Link>
-  );
-}
 
 function renderUploadCloudIcon() {
   return <UploadCloudIcon className="size-4" />;
@@ -96,7 +58,7 @@ function renderClockIcon() {
   return <ClockIcon className="size-4" />;
 }
 
-export function DashboardView({ role, summary, attention, recent }: Props) {
+export function DashboardView({ role, summary }: Props) {
   const isLender = role === "LENDER";
 
   return (
@@ -107,296 +69,158 @@ export function DashboardView({ role, summary, attention, recent }: Props) {
       )}
 
       {/* ── In-progress cases ────────────────────────────────────── */}
-      <Section
-        title="In progress claim cases"
-        subtitle="Where every account currently stands"
-      >
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {summary.progressTiles.map((tile) => {
-            const Inner = (
-              <>
-                <p className="font-outfit text-[26px] font-bold leading-none">
-                  {tile.value}
-                </p>
-                <p className="mt-1.5 text-[12.5px] font-medium opacity-80">
-                  {tile.label}
-                </p>
-              </>
-            );
-            const className = cn(
-              "rounded-xl border px-4 py-3.5 transition-colors block",
-              tile.href && "hover:opacity-80 hover:shadow-sm",
-              TILE_TONE[tile.tone]
-            );
-            return tile.href ? (
-              <Link key={tile.key} href={tile.href} className={className}>
-                {Inner}
-              </Link>
-            ) : (
-              <div key={tile.key} className={className}>
-                {Inner}
-              </div>
-            );
-          })}
-        </div>
-      </Section>
-
-      {/* ── Additional documents (summary only — the workbench is its own page) ── */}
-      {!isLender && (
+      {isLender && (
         <Section
-          title="Additional documents"
-          subtitle="Requirements raised against cases, across every lender"
-          action={renderAdditionalDocsAction(isLender)}
+          title="In progress claim cases"
+          subtitle="Where every account currently stands"
         >
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              {
-                label: "Pending upload",
-                value: summary.additional.pendingUpload,
-                tone: "neutral" as const,
-              },
-              {
-                label: "Under review",
-                value: summary.additional.underReview,
-                tone: "info" as const,
-              },
-              {
-                label: "Re-upload required",
-                value: summary.additional.reuploadRequired,
-                tone: "warning" as const,
-              },
-              {
-                label: "Approved",
-                value: summary.additional.approved,
-                tone: "success" as const,
-              },
-            ].map((tile) => (
+            {summary.progressTiles.map((tile) => {
+              const Inner = (
+                <>
+                  <p className="font-outfit text-[26px] font-bold leading-none">
+                    {tile.value}
+                  </p>
+                  <p className="mt-1.5 text-[12.5px] font-medium opacity-80">
+                    {tile.label}
+                  </p>
+                </>
+              );
+              const className = cn(
+                "rounded-xl border px-4 py-3.5 transition-colors block",
+                tile.href && "hover:opacity-80 hover:shadow-sm",
+                TILE_TONE[tile.tone]
+              );
+              return tile.href ? (
+                <Link key={tile.key} href={tile.href} className={className}>
+                  {Inner}
+                </Link>
+              ) : (
+                <div key={tile.key} className={className}>
+                  {Inner}
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      )}
+
+      {/* ── Portfolio overview ───────────────────────────────────── */}
+      {isLender && (
+        <Section
+          title="Portfolio overview"
+          subtitle="Claim and document counts against their totals"
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {summary.rings.map((ring) => {
+              const Inner = (
+                <>
+                  <Donut value={ring.value} total={ring.total} />
+                  <div className="min-w-0">
+                    <p className="truncate text-[12.5px] text-neutral-500">
+                      {ring.label}
+                    </p>
+                    <p className="font-outfit text-[22px] font-bold leading-tight text-neutral-950">
+                      {ring.value}
+                    </p>
+                  </div>
+                </>
+              );
+              const className = cn(
+                "flex items-center gap-3 rounded-xl border border-neutral-100 bg-white px-4 py-3.5 shadow-sm transition-colors",
+                ring.href && "hover:border-brand-primary/50 hover:shadow-md"
+              );
+              return ring.href ? (
+                <Link key={ring.key} href={ring.href} className={className}>
+                  {Inner}
+                </Link>
+              ) : (
+                <div key={ring.key} className={className}>
+                  {Inner}
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      )}
+
+      {/* ── Actionable items ─────────────────────────────────────── */}
+      {isLender && (
+        <Section
+          title="Actionable items"
+          subtitle="What is waiting on you right now"
+        >
+          <div className="grid gap-3 lg:grid-cols-3">
+            <ActionCard
+              icon={renderUploadCloudIcon()}
+              title="Pending document upload"
+              value={summary.pendingUploadAccounts}
+              unit="accounts pending"
+              href={ROUTES.initiateClaim}
+            />
+            <ActionCard
+              icon={renderMessageWarningIcon()}
+              title="Queries awaiting response"
+              value={summary.queriedCount}
+              unit="claims queried by IMGC"
+              href={ROUTES.trackQueryResponse}
+            />
+            <ActionCard
+              icon={renderClockIcon()}
+              title="Rejected documents"
+              value={summary.rejectedDocCount}
+              unit="held in the retention window"
+              href={`${ROUTES.trackQueryResponse}?status=REJECTED`}
+            />
+          </div>
+        </Section>
+      )}
+
+      {/* ── Aging ────────────────────────────────────────────────── */}
+      {isLender && (
+        <Section
+          title="Aging overview — open cases"
+          subtitle="Days since anything last happened on the account"
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {summary.aging.map((band) => (
               <div
-                key={tile.label}
-                className={cn(
-                  "rounded-xl border px-4 py-3.5",
-                  TILE_TONE[tile.tone]
-                )}
+                key={band.label}
+                className="rounded-xl border border-neutral-100 bg-white px-4 py-3.5 shadow-sm"
               >
-                <p className="font-outfit text-[26px] font-bold leading-none">
-                  {tile.value}
-                </p>
-                <p className="mt-1.5 text-[12.5px] font-medium opacity-80">
-                  {tile.label}
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-[12.5px] text-neutral-500">{band.label}</p>
+                  <p
+                    className={cn(
+                      "font-outfit text-[24px] font-bold leading-none",
+                      band.tone === "danger" && "text-destructive",
+                      band.tone === "warning" && "text-warning",
+                      band.tone === "brand" && "text-brand-primary",
+                      band.tone === "info" && "text-info"
+                    )}
+                  >
+                    {band.count}
+                  </p>
+                </div>
+                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
+                  <div
+                    className={cn("h-full rounded-full", BAR_TONE[band.tone])}
+                    style={{ width: `${band.share}%` }}
+                  />
+                </div>
+                <p className="mt-1.5 text-[11.5px] text-neutral-400">
+                  {band.share}% of open cases
                 </p>
               </div>
             ))}
           </div>
         </Section>
       )}
-
-      {/* ── Portfolio overview ───────────────────────────────────── */}
-      <Section
-        title={isLender ? "Portfolio overview" : "Pool overview"}
-        subtitle="Claim and document counts against their totals"
-      >
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {summary.rings.map((ring) => {
-            const Inner = (
-              <>
-                <Donut value={ring.value} total={ring.total} />
-                <div className="min-w-0">
-                  <p className="truncate text-[12.5px] text-neutral-500">
-                    {ring.label}
-                  </p>
-                  <p className="font-outfit text-[22px] font-bold leading-tight text-neutral-950">
-                    {ring.value}
-                  </p>
-                </div>
-              </>
-            );
-            const className = cn(
-              "flex items-center gap-3 rounded-xl border border-neutral-100 bg-white px-4 py-3.5 shadow-sm transition-colors",
-              ring.href && "hover:border-brand-primary/50 hover:shadow-md"
-            );
-            return ring.href ? (
-              <Link key={ring.key} href={ring.href} className={className}>
-                {Inner}
-              </Link>
-            ) : (
-              <div key={ring.key} className={className}>
-                {Inner}
-              </div>
-            );
-          })}
-        </div>
-      </Section>
-
-      {/* ── Actionable items ─────────────────────────────────────── */}
-      <Section
-        title="Actionable items"
-        subtitle="What is waiting on you right now"
-      >
-        <div className="grid gap-3 lg:grid-cols-3">
-          <ActionCard
-            icon={renderUploadCloudIcon()}
-            title="Pending document upload"
-            value={summary.pendingUploadAccounts}
-            unit="accounts pending"
-            href={role === "IMGC" ? ROUTES.accounts : ROUTES.initiateClaim}
-          />
-          <ActionCard
-            icon={renderMessageWarningIcon()}
-            title="Queries awaiting response"
-            value={summary.queriedCount}
-            unit="claims queried by IMGC"
-            href={role === "IMGC" ? ROUTES.accounts : ROUTES.trackQueryResponse}
-          />
-          <ActionCard
-            icon={renderClockIcon()}
-            title="Rejected documents"
-            value={summary.rejectedDocCount}
-            unit="held in the retention window"
-            href={
-              role === "IMGC"
-                ? ROUTES.adminRetention
-                : `${ROUTES.trackQueryResponse}?status=REJECTED`
-            }
-          />
-        </div>
-      </Section>
-
-      {/* ── Aging ────────────────────────────────────────────────── */}
-      <Section
-        title="Aging overview — open cases"
-        subtitle="Days since anything last happened on the account"
-      >
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {summary.aging.map((band) => (
-            <div
-              key={band.label}
-              className="rounded-xl border border-neutral-100 bg-white px-4 py-3.5 shadow-sm"
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <p className="text-[12.5px] text-neutral-500">{band.label}</p>
-                <p
-                  className={cn(
-                    "font-outfit text-[24px] font-bold leading-none",
-                    band.tone === "danger" && "text-destructive",
-                    band.tone === "warning" && "text-warning",
-                    band.tone === "brand" && "text-brand-primary",
-                    band.tone === "info" && "text-info"
-                  )}
-                >
-                  {band.count}
-                </p>
-              </div>
-              <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
-                <div
-                  className={cn("h-full rounded-full", BAR_TONE[band.tone])}
-                  style={{ width: `${band.share}%` }}
-                />
-              </div>
-              <p className="mt-1.5 text-[11.5px] text-neutral-400">
-                {band.share}% of open cases
-              </p>
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* ── Needs attention + activity ───────────────────────────── */}
-      {!isLender && (
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-          <Card
-            title="Needs attention"
-            subtitle="Outstanding mandatory documents or an open query"
-            action={renderNeedsAttentionAction()}
-          >
-            {attention.length === 0 ? (
-              <Empty>
-                Nothing outstanding — every mandatory document is in.
-              </Empty>
-            ) : (
-              <ul className="divide-y divide-neutral-100">
-                {attention.map((a) => (
-                  <li key={a.id}>
-                    <Link
-                      href={ROUTES.account(a.id)}
-                      className="flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-neutral-50"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate text-[13.5px] font-semibold text-neutral-950">
-                          {a.loanNo} · {a.borrowerName}
-                        </span>
-                        <span className="block truncate text-[12px] text-neutral-500">
-                          {a.lenderOrgName} ·{" "}
-                          {a.pendingDocs > 0
-                            ? `${a.pendingDocs} of ${a.requiredDocs} mandatory outstanding`
-                            : "all documents in"}
-                        </span>
-                      </span>
-                      <span className="flex shrink-0 items-center gap-2">
-                        <StatusPill status={a.claimStatus} />
-                        <StatusPill status={a.bucket} />
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          <Card
-            title="Recent activity"
-            subtitle="The audit trail across accounts you can see"
-          >
-            {recent.length === 0 ? (
-              <Empty>No activity recorded yet.</Empty>
-            ) : (
-              <ol className="divide-y divide-neutral-100">
-                {recent.map((e) => (
-                  <li key={e.id} className="px-5 py-3">
-                    <p className="text-[13px] leading-snug text-neutral-800">
-                      {e.summary}
-                    </p>
-                    <p className="mt-0.5 text-[11.5px] text-neutral-400">
-                      {e.actorName} · {when(e.at)}
-                    </p>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </Card>
-        </div>
-      )}
     </div>
   );
 }
 
 /* ── building blocks ───────────────────────────────────────────────── */
-
-function Card({
-  title,
-  subtitle,
-  action,
-  children,
-}: Readonly<{
-  title: string;
-  subtitle: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}>) {
-  return (
-    <section className="rounded-xl border border-neutral-100 bg-white shadow-sm">
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-neutral-100 px-5 py-3.5">
-        <div className="min-w-0">
-          <h2 className="text-[14.5px] font-semibold text-neutral-950">
-            {title}
-          </h2>
-          <p className="mt-0.5 text-[12.5px] text-neutral-500">{subtitle}</p>
-        </div>
-        {action}
-      </header>
-      {children}
-    </section>
-  );
-}
 
 function ActionCard({
   icon,
@@ -430,14 +254,5 @@ function ActionCard({
         View details <ArrowRightIcon className="size-3.5" />
       </Link>
     </div>
-  );
-}
-
-function Empty({ children }: Readonly<{ children: React.ReactNode }>) {
-  return (
-    <p className="flex items-center justify-center gap-2 px-5 py-12 text-center text-[13px] text-neutral-500">
-      <CheckCircle2Icon className="size-4 text-success-700" />
-      {children}
-    </p>
   );
 }

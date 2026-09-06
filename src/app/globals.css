@@ -200,6 +200,7 @@
  *
  * Inside @layer base the defaults still apply everywhere they did before; a utility on the
  * element can now win, which is the whole point of having them. */
+
 /* ── IMGC sign-in page — ambient background motion ─────────────────────
  * Two slow-drifting colour fields over the looping backdrop video, plus a
  * one-shot rise for the content. Transform/opacity only, so the whole thing
@@ -209,6 +210,7 @@
   100% {
     transform: translate3d(0, 0, 0) scale(1);
   }
+
   50% {
     transform: translate3d(5%, -4%, 0) scale(1.12);
   }
@@ -219,6 +221,7 @@
   100% {
     transform: translate3d(0, 0, 0) scale(1.08);
   }
+
   50% {
     transform: translate3d(-6%, 5%, 0) scale(1);
   }
@@ -229,6 +232,7 @@
     opacity: 0;
     transform: translateY(16px);
   }
+
   to {
     opacity: 1;
     transform: none;
@@ -266,4 +270,14 @@
     color: var(--color-neutral-950);
     letter-spacing: -0.01em;
   }
+}
+
+/* Hide scrollbar globally */
+::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
