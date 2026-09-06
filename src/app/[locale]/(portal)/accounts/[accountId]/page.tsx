@@ -9,8 +9,9 @@ import { requireSession } from "@/lib/auth/appSession";
 import { RETENTION_DAYS } from "@/server/mock/retention";
 import { getAccount } from "@/services/portal/accounts.server";
 import { listAuditForAccount } from "@/services/portal/audit.server";
+import { getClaimForAccount, listQueries } from "@/services/portal/claimFlow.server";
 import { canSubmit, listDocuments } from "@/services/portal/claims.server";
-import { pullFromPas } from "@/services/portal/pas.server";
+import { listClaimDocuments } from "@/services/portal/requirements.server";
 
 export const dynamic = "force-dynamic";
 
@@ -27,10 +28,15 @@ export default async function AccountPage({
   const account = await getAccount(session, accountId);
   if (!account) notFound();
 
-  const [docs, pasValues, events] = await Promise.all([
+  const [docs, events, claim] = await Promise.all([
     listDocuments(session, accountId),
-    pullFromPas(session, accountId),
     listAuditForAccount(accountId),
+    getClaimForAccount(session, accountId),
+  ]);
+
+  const [queries, claimDocuments] = await Promise.all([
+    claim ? listQueries(claim.id) : Promise.resolve([]),
+    claim ? listClaimDocuments(session, claim.id) : Promise.resolve([]),
   ]);
 
   return (
@@ -45,9 +51,11 @@ export default async function AccountPage({
 
         <AccountWorkspace
           account={account}
+          claim={claim}
+          queries={queries}
+          claimDocuments={claimDocuments}
           role={session.role}
           docs={docs}
-          pasValues={pasValues}
           events={events}
           canSubmit={canSubmit(docs)}
           retentionDays={RETENTION_DAYS}

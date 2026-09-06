@@ -7,6 +7,7 @@ import { readDb, writeDb, UPLOAD_DIR } from "@/server/mock/db";
 import { newId, nowIso } from "@/server/mock/ids";
 import { recordEvent } from "@/services/portal/audit.server";
 import {
+  notifyBucketShift,
   notifyClaimSubmitted,
   notifyDocumentDecision,
   notifyDocumentUploaded,
@@ -14,6 +15,7 @@ import {
 } from "@/services/portal/notifications.server";
 import type { AppSession } from "@/lib/auth/appSession";
 import type {
+  Bucket,
   ClaimDocument,
   DocStatus,
   DocumentFile,
@@ -423,13 +425,24 @@ export async function submitClaim(
     return { ok: false, error: "Every mandatory document must be uploaded first." };
   }
 
-  await writeDb((db) => {
+  let bucketChangedFrom: Bucket | null = null;
+  const updateOutcome = await writeDb((db) => {
     const account = db.accounts.find((a) => a.id === accountId);
-    if (!account) return;
+    if (!account) return { ok: false as const };
+    
+    if (account.bucket !== "IMGC") {
+      bucketChangedFrom = account.bucket;
+      account.bucket = "IMGC";
+    }
+    
     account.claimStatus = "SUBMITTED";
     account.submittedAt = nowIso();
     account.stage = "Submitted to IMGC";
+    
+    return { ok: true as const };
   });
+  
+  if (!updateOutcome.ok) return { ok: true };
 
   await recordEvent({
     accountId,
@@ -437,10 +450,25 @@ export async function submitClaim(
     type: "CLAIM_SUBMITTED",
     summary: `Initial claim submitted with ${docs.filter((d) => d.required).length} mandatory documents`,
   });
+  
+  if (bucketChangedFrom) {
+    await recordEvent({
+      accountId,
+      actor: session,
+      type: "BUCKET_SHIFTED",
+      summary: `Account moved from the ${bucketChangedFrom} bucket to the IMGC bucket`,
+      meta: { from: bucketChangedFrom, to: "IMGC" },
+    });
+  }
 
   const db = await readDb();
   const account = db.accounts.find((a) => a.id === accountId);
-  if (account) await notifyClaimSubmitted(account, session);
+  if (account) {
+    if (bucketChangedFrom) {
+      await notifyBucketShift(account, bucketChangedFrom, "IMGC", session);
+    }
+    await notifyClaimSubmitted(account, session);
+  }
   return { ok: true };
 }
 

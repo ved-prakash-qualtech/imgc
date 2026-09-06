@@ -8,6 +8,7 @@ import { readDb, writeDb, UPLOAD_DIR } from "@/server/mock/db";
 import { newId, nowIso } from "@/server/mock/ids";
 import { recordEvent } from "@/services/portal/audit.server";
 import { sendMail } from "@/server/mock/mailer";
+import { notifyBucketShift } from "@/services/portal/notifications.server";
 import {
   claimConfig,
   conditionReason,
@@ -555,9 +556,9 @@ export async function submitClaim(
     return { ok: false, error: `Still outstanding — ${parts.join("; ")}.` };
   }
 
-  const claimNo = await writeDb((db) => {
+  const { claimNo, bucketChangedFrom, accountId, account } = await writeDb((db) => {
     const claim = db.claims.find((c) => c.id === claimId);
-    if (!claim) return "";
+    if (!claim) return { claimNo: "", bucketChangedFrom: null, accountId: "", account: null };
     // Answering a query resubmits; a first submission submits. Both land with IMGC.
     const resubmitting = claim.status === "QUERY_RAISED";
     advance(
@@ -583,7 +584,15 @@ export async function submitClaim(
       // Rule: a resubmission goes straight back into review.
       advance(db, claim, "UNDER_REVIEW", session, "Resubmission received");
     }
-    return claim.claimNo;
+    
+    let bucketChangedFrom = null;
+    const account = db.accounts.find((a) => a.id === claim.accountId);
+    if (account && account.bucket !== "IMGC") {
+      bucketChangedFrom = account.bucket;
+      account.bucket = "IMGC";
+    }
+    
+    return { claimNo: claim.claimNo, bucketChangedFrom, accountId: claim.accountId, account: account ? { ...account } : null };
   });
 
   await recordEvent({
@@ -593,6 +602,19 @@ export async function submitClaim(
     summary: `Claim ${claimNo} submitted to IMGC`,
     meta: { claimId },
   });
+
+  if (bucketChangedFrom) {
+    await recordEvent({
+      accountId: accountId,
+      actor: session,
+      type: "BUCKET_SHIFTED",
+      summary: `Account moved from the ${bucketChangedFrom} bucket to the IMGC bucket`,
+      meta: { from: bucketChangedFrom, to: "IMGC" },
+    });
+    if (account) {
+      await notifyBucketShift(account, bucketChangedFrom, "IMGC", session);
+    }
+  }
   await notify(guard.accountId!, {
     subject: `Claim ${claimNo} submitted`,
     body: `${session.name} submitted claim ${claimNo}. It is now with IMGC for review.`,
@@ -691,10 +713,20 @@ export async function raiseQuery(
 
     advance(db, claim, "QUERY_RAISED", session, input.reason.trim());
     claim.bucket = "LENDER";
+    
+    let bucketChangedFrom = null;
+    const account = db.accounts.find((a) => a.id === claim.accountId);
+    if (account && account.bucket !== "LENDER") {
+      bucketChangedFrom = account.bucket;
+      account.bucket = "LENDER";
+    }
+
     return {
       ok: true as const,
       accountId: claim.accountId,
       claimNo: claim.claimNo,
+      bucketChangedFrom,
+      account: account ? { ...account } : null,
     };
   });
   if (!outcome.ok) return outcome;
@@ -706,6 +738,20 @@ export async function raiseQuery(
     summary: `Query raised on ${outcome.claimNo} — ${input.reason.trim()}`,
     meta: { claimId },
   });
+
+  if (outcome.bucketChangedFrom) {
+    await recordEvent({
+      accountId: outcome.accountId,
+      actor: session,
+      type: "BUCKET_SHIFTED",
+      summary: `Account moved from the ${outcome.bucketChangedFrom} bucket to the LENDER bucket`,
+      meta: { from: outcome.bucketChangedFrom, to: "LENDER" },
+    });
+    if (outcome.account) {
+      await notifyBucketShift(outcome.account, outcome.bucketChangedFrom, "LENDER", session);
+    }
+  }
+
   await notify(outcome.accountId, {
     subject: `Query raised on claim ${outcome.claimNo}`,
     body:
