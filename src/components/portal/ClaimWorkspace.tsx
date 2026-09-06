@@ -132,9 +132,13 @@ export function ClaimWorkspace({
           ? `${claimNo} resubmitted — back with IMGC for review.`
           : `${claimNo} submitted to IMGC.`
       );
-      router.refresh();
+      // Away from the workspace, not a refresh-in-place: the claim is now with IMGC, so there is
+      // nothing left to do here until a query brings it back. Re-opening it (Continue/Track) picks
+      // up wherever it actually stands, rather than leaving this same Save & Submit bar sitting on
+      // screen looking clickable right after a successful submission.
+      router.push(backHref);
     });
-  }, [accountId, claimId, claimNo, resubmitting, router, values]);
+  }, [accountId, backHref, claimId, claimNo, resubmitting, router, values]);
 
   const onChangeType = useCallback(
     (next: ClaimTypeKey) => {

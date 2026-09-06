@@ -13,13 +13,12 @@ import type { ClaimAction } from "@/server/mock/types";
  * Both actions on every row, but never both live — exactly one pill is active, driven entirely
  * by `getClaimAction()`'s single `action` value rather than two independently-derived booleans.
  *
- * A claim that exists but hasn't been submitted yet (draft, or sent back with a query) is not
- * "already initiated" — the lender still has work to do on it, so the left pill stays live and
- * reads "Continue Claim" instead of going dark the moment a claim record is created. Once the
- * claim has left the lender's hands (submitted, under review, decided — anything else), the left
- * pill locks and the right one — always labelled "Track Claim" — takes over, whether the claim is
- * still moving or already decided. Only three labels ever appear here: Initiate Claim, Continue
- * Claim, Track Claim.
+ * A claim that exists but hasn't been submitted yet (still DRAFT) is not "already initiated" —
+ * the lender still has work to do on it, so the left pill stays live and reads "Continue Claim"
+ * instead of going dark the moment a claim record is created. Everything past that, including a
+ * query sent back — which has its own reply-and-reattach composer inside Track Claim, not this
+ * workspace — locks the left pill and hands off to the right one, always labelled "Track Claim".
+ * Only three labels ever appear here: Initiate Claim, Continue Claim, Track Claim.
  *
  * A DRAFT claim is auto-created the moment the lender opens the workspace, so that alone can't
  * be what "Continue Claim" means — opening the form and going straight back would otherwise

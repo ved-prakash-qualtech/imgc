@@ -6,6 +6,7 @@ import {
   BanIcon,
   CalendarClockIcon,
   CheckIcon,
+  EyeIcon,
   FileTextIcon,
   PaperclipIcon,
   PlusIcon,
@@ -29,6 +30,13 @@ import { AddRequirementForm } from "@/components/portal/AddRequirementForm";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { daysUntil } from "@/constants/documents";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { DocumentRow, RequirementInput } from "@/services/portal/claims.server";
@@ -261,6 +269,7 @@ function DocumentRowItem({
   const router = useRouter();
   const [busy, startTransition] = useTransition();
   const [rejecting, setRejecting] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const isLender = role === "LENDER";
   const working = pending || busy;
@@ -433,6 +442,13 @@ function DocumentRowItem({
                   · {doc.history.length} versions
                 </span>
               )}
+              <button
+                type="button"
+                onClick={() => setPreviewing(true)}
+                className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+              >
+                <EyeIcon className="size-3" /> View
+              </button>
             </p>
           ) : (
             <p className="mt-1.5 text-[12px] text-neutral-400">
@@ -614,6 +630,70 @@ function DocumentRowItem({
           className="h-9 w-full rounded-lg border border-neutral-200 bg-neutral-25 px-3 text-[12.5px] outline-none placeholder:text-neutral-400 focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/20"
         />
       </div>
+
+      {doc.file && (
+        <DocumentPreviewDialog
+          file={doc.file}
+          open={previewing}
+          onOpenChange={setPreviewing}
+        />
+      )}
     </li>
+  );
+}
+
+/**
+ * What was actually uploaded, before Accept/Reject is decided — a demo preview, not a real file
+ * render: the prototype stores no file bytes for seeded rows, and a broken `<embed>` would read
+ * as a bug rather than as demo data. Same idiom as `ReviewDrawer`'s Preview section, so a
+ * reviewer sees the same shape whether the document sits in an additional-document requirement
+ * or a claim's own checklist.
+ */
+function DocumentPreviewDialog({
+  file,
+  open,
+  onOpenChange,
+}: Readonly<{
+  file: DocumentRow["file"];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}>) {
+  if (!file) return null;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[420px]">
+        <DialogHeader>
+          <DialogTitle className="truncate text-[15px]">
+            {file.originalName}
+          </DialogTitle>
+          <DialogDescription>
+            {file.uploadedByName} · {when(file.uploadedAt)}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+          <div className="mx-auto flex aspect-[1/1.3] w-full max-w-[240px] flex-col rounded-md border border-neutral-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
+              <FileTextIcon className="size-4 text-destructive" />
+              <span className="truncate text-[11px] font-semibold text-neutral-700">
+                {file.originalName}
+              </span>
+            </div>
+            <div className="mt-3 flex-1 space-y-1.5" aria-hidden>
+              <div className="h-2 w-2/3 rounded bg-neutral-200" />
+              <div className="h-1.5 w-full rounded bg-neutral-100" />
+              <div className="h-1.5 w-full rounded bg-neutral-100" />
+              <div className="h-1.5 w-4/5 rounded bg-neutral-100" />
+              <div className="mt-3 h-16 w-full rounded bg-neutral-100" />
+              <div className="h-1.5 w-full rounded bg-neutral-100" />
+              <div className="h-1.5 w-3/4 rounded bg-neutral-100" />
+            </div>
+            <p className="mt-2 border-t border-neutral-100 pt-2 text-center text-[9.5px] text-neutral-400">
+              Demo preview · {bytes(file.size)}
+            </p>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

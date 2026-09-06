@@ -8,7 +8,6 @@ import { setClaimStatusAction } from "@/app/[locale]/(portal)/accounts/[accountI
 import { AccountingValuesTab } from "@/app/[locale]/(portal)/accounts/[accountId]/AccountingValuesTab";
 import { AuditTrailTab } from "@/app/[locale]/(portal)/accounts/[accountId]/AuditTrailTab";
 import { InitialClaimsTab } from "@/app/[locale]/(portal)/accounts/[accountId]/InitialClaimsTab";
-import { RemarksTab } from "@/app/[locale]/(portal)/accounts/[accountId]/RemarksTab";
 import { BucketToggle } from "@/components/portal/BucketToggle";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
@@ -16,13 +15,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
 import type { DocumentRow } from "@/services/portal/claims.server";
-import type { AuditEvent, PasValue, Remark, Role } from "@/server/mock/types";
+import type { AuditEvent, PasValue, Role } from "@/server/mock/types";
 
 const TABS = [
   "Overview",
   "Accounting Values",
   "Initial Claims",
-  "Remarks",
   "Audit Trail",
 ] as const;
 
@@ -31,7 +29,6 @@ type Props = Readonly<{
   role: Role;
   docs: DocumentRow[];
   pasValues: PasValue[];
-  remarks: Remark[];
   events: AuditEvent[];
   canSubmit: boolean;
   retentionDays: number;
@@ -42,14 +39,11 @@ export function AccountWorkspace({
   role,
   docs,
   pasValues,
-  remarks,
   events,
   canSubmit,
   retentionDays,
 }: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
-
-  const documentNames = Object.fromEntries(docs.map((d) => [d.id, d.name]));
 
   return (
     <div>
@@ -103,13 +97,6 @@ export function AccountWorkspace({
           claimStatus={account.claimStatus}
           canSubmit={canSubmit}
           retentionDays={retentionDays}
-        />
-      )}
-      {tab === "Remarks" && (
-        <RemarksTab
-          accountId={account.id}
-          remarks={remarks}
-          documentNames={documentNames}
         />
       )}
       {tab === "Audit Trail" && <AuditTrailTab events={events} />}

@@ -233,7 +233,10 @@ export function EligibleCasesClient({
   const [pageSize, setPageSize] = useState(5);
 
   const products = useMemo(
-    () => Array.from(new Set(accounts.map((a) => a.product))).sort(),
+    () =>
+      Array.from(new Set(accounts.map((a) => a.product)))
+        .filter((p) => p !== "Affordable Housing")
+        .sort(),
     [accounts]
   );
 

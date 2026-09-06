@@ -7,7 +7,7 @@ export const ROUTES = {
 
   /* ── IMGC Lender Portal ─────────────────────────────────────────── */
   accounts: "/accounts",
-  /** One account's claim workspace (Overview / Accounting / Documents / Remarks / Audit). */
+  /** One account's claim workspace (Overview / Accounting / Documents / Audit). */
   account: (accountId: string) => `/accounts/${accountId}`,
 
   /* ── Lender specific screens ── */
@@ -25,7 +25,9 @@ export const ROUTES = {
   auditTrail: "/audit-trail",
   auditTrailWorkspace: (accountId: string) => `/audit-trail/${accountId}`,
 
-  /** IMGC only — move accounts between the IMGC and Lender processing buckets. */
+  /** @deprecated the dedicated bulk-move screen is gone — `BucketToggle` on each account's own
+   *  Overview tab does the same move, from wherever the decision is actually made. Kept only so
+   *  an old link/bookmark redirects somewhere instead of 404ing. */
   buckets: "/buckets",
   /** IMGC — the cross-case additional-documents workbench. */
   additionalDocuments: "/additional-documents",

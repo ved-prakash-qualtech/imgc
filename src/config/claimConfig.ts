@@ -255,9 +255,13 @@ export const CLAIM_STATUS_LABELS: Readonly<Record<ClaimStatus, string>> = {
   QUERIED: "Queried",
 };
 
-/** Statuses the lender can still act on — used to decide what the grid offers. */
+/** Statuses that still route the grid's left action to the Initiate Claim workspace.
+ *
+ * A query response has its own composer inside Track Claim (`QueryResponseSection` — reply text
+ * plus document attachments, same upload widget), so a raised query is a "go track it" moment,
+ * not a "go initiate it" one — only a still-unsubmitted draft is. */
 export const LENDER_ACTIONABLE: ReadonlySet<ClaimStatus> = new Set<ClaimStatus>(
-  ["DRAFT", "QUERY_RAISED"]
+  ["DRAFT"]
 );
 
 /** Terminal statuses — nothing further happens to the claim. */

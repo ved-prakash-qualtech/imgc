@@ -1,4 +1,3 @@
-"use client";
 import "server-only";
 
 /* eslint-disable security/detect-object-injection */

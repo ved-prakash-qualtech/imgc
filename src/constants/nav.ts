@@ -12,7 +12,6 @@ export type NavKey =
   | "dashboard"
   | "accounts"
   | "additional-documents"
-  | "buckets"
   | "notifications"
   | "initiate-claim"
   | "audit-trail"
@@ -67,13 +66,6 @@ const AUDIT_TRAIL: NavItem = {
   href: ROUTES.auditTrail,
 };
 
-/** IMGC only — moving an account between the two processing buckets. */
-const BUCKETS: NavItem = {
-  key: "buckets",
-  label: "Processing Buckets",
-  href: ROUTES.buckets,
-};
-
 /** IMGC only — who may sign in, and what happens to rejected documents. */
 const ADMINISTRATION: NavItem = {
   key: "administration",
@@ -94,6 +86,6 @@ const ADMINISTRATION: NavItem = {
  */
 export function navFor(role: Role): NavItem[] {
   return role === "IMGC"
-    ? [DASHBOARD, ACCOUNTS, BUCKETS, NOTIFICATIONS, ADMINISTRATION]
+    ? [DASHBOARD, ACCOUNTS, NOTIFICATIONS, ADMINISTRATION]
     : [DASHBOARD, CLAIM, AUDIT_TRAIL];
 }
