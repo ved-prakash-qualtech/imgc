@@ -94,29 +94,29 @@ export function ClaimHistory({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Date &amp; Time</TableHead>
-            <TableHead>Activity</TableHead>
-            <TableHead>Performed By</TableHead>
-            <TableHead>Remarks</TableHead>
+            <TableHead className="h-8 px-1.5 text-[10.5px]">Date &amp; Time</TableHead>
+            <TableHead className="h-8 px-1.5 text-[10.5px]">Activity</TableHead>
+            <TableHead className="h-8 px-1.5 text-[10.5px]">Performed By</TableHead>
+            <TableHead className="h-8 px-1.5 text-[10.5px]">Remarks</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((row, i) => (
             <TableRow key={`${row.at}-${row.activity}-${i}`}>
-              <TableCell className="whitespace-nowrap text-neutral-500">
+              <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-500">
                 {when(row.at)}
               </TableCell>
-              <TableCell className="font-medium text-neutral-900">
+              <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-900">
                 {row.activity}
               </TableCell>
-              <TableCell>
+              <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap">
                 {row.by}
-                <span className="ml-1.5 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                <span className="ml-1 rounded bg-neutral-100 px-1 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-neutral-500">
                   {row.role}
                 </span>
               </TableCell>
-              <TableCell className="max-w-[320px]">
-                <span className="line-clamp-2 text-[12.5px] text-neutral-600">
+              <TableCell className="max-w-[320px] px-1.5 py-1.5">
+                <span className="line-clamp-2 text-[11.5px] text-neutral-600">
                   {row.remarks}
                 </span>
               </TableCell>

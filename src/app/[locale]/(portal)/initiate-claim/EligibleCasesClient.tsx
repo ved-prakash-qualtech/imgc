@@ -33,12 +33,30 @@ import {
 import type { EligibleRow } from "@/app/[locale]/(portal)/initiate-claim/page";
 import type { ClaimStatus } from "@/server/mock/types";
 
-type SortKey = "loanNo" | "borrowerName" | "loanAmount" | "applicationDate";
+type SortKey =
+  | "loanNo"
+  | "claimNo"
+  | "borrowerName"
+  | "loanAmount"
+  | "applicationDate"
+  | "lastUpdatedAt";
 type SortDirection = "asc" | "desc" | null;
 
 /** The status filter's own values — "not started" isn't a real `ClaimStatus`, it's the absence
- *  of a claim, so it needs a value of its own alongside the real ones. */
-const STATUS_OPTIONS = ["ALL", "NOT_STARTED", "DRAFT", "SUBMITTED", "UNDER_REVIEW", "QUERY_RAISED", "APPROVED", "REJECTED"] as const;
+ *  of a claim, so it needs a value of its own alongside the real ones. Covers the full status
+ *  range (this grid is now Initiate Claim and Track Claim combined, not just the former). */
+const STATUS_OPTIONS = [
+  "ALL",
+  "NOT_STARTED",
+  "DRAFT",
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "QUERY_RAISED",
+  "DOCUMENTS_RESUBMITTED",
+  "APPROVED",
+  "REJECTED",
+  "CLOSED",
+] as const;
 
 /** 4500000 becomes 45,00,000 — Indian grouping, no currency symbol (matches the reference). */
 const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
@@ -49,6 +67,10 @@ function date(iso: string): string {
     month: "short",
     year: "numeric",
   });
+}
+
+function dateOrDash(iso?: string): string {
+  return iso ? date(iso) : "—";
 }
 
 function statusLabel(v: (typeof STATUS_OPTIONS)[number]): string {
@@ -65,6 +87,14 @@ function purposeDisplay(v: string): string {
   return v === "ALL" ? "All purposes" : v;
 }
 
+/** A claim record exists the moment the lender opens the workspace — that's a plumbing detail
+ *  (there has to be something to attach a checklist and documents to), not something the lender
+ *  did. Nothing here reads as "started" until they've actually clicked Save at least once
+ *  (`hasProgress`), so a row with an unsaved claim still shows and filters as "Not started". */
+function isNotStarted(a: EligibleRow): boolean {
+  return !a.claim || !a.claim.hasProgress;
+}
+
 /** Escapes a value for one CSV field. */
 function csvField(value: string | number): string {
   const s = String(value);
@@ -72,15 +102,28 @@ function csvField(value: string | number): string {
 }
 
 function downloadCsv(rows: EligibleRow[]): void {
-  const headers = ["Loan ID", "Applicant", "Purpose", "Amount", "Login Date", "Status"];
+  const headers = [
+    "Loan ID",
+    "Claim No",
+    "Applicant",
+    "Purpose",
+    "Amount",
+    "Login Date",
+    "Status",
+    "Bucket",
+    "Last Updated",
+  ];
   const lines = rows.map((a) =>
     [
       a.loanNo,
+      a.claim?.claimNo ?? "",
       a.borrowerName,
       a.product,
       a.loanAmount,
       a.applicationDate.slice(0, 10),
-      a.claim ? a.claim.status : "NOT_STARTED",
+      isNotStarted(a) ? "NOT_STARTED" : (a.claim as NonNullable<EligibleRow["claim"]>).status,
+      a.claim?.bucket ?? "",
+      a.claim?.lastUpdatedAt.slice(0, 10) ?? "",
     ]
       .map(csvField)
       .join(",")
@@ -90,7 +133,7 @@ function downloadCsv(rows: EligibleRow[]): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `eligible-cases-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `claims-${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -107,11 +150,11 @@ const SortIcon = ({
   sortDirection: SortDirection;
 }) => {
   if (sortKey !== column)
-    return <ArrowUpDownIcon className="ml-1 size-3.5 text-neutral-400" />;
+    return <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />;
   return sortDirection === "asc" ? (
-    <ArrowUpIcon className="ml-1 size-3.5 text-neutral-800" />
+    <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
   ) : (
-    <ArrowDownIcon className="ml-1 size-3.5 text-neutral-800" />
+    <ArrowDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
   );
 };
 
@@ -132,7 +175,7 @@ const SortableTableHead = ({
   return (
     <TableHead
       onClick={handleClick}
-      className="h-9 cursor-pointer select-none px-2.5 transition-colors hover:bg-neutral-50"
+      className="h-8 cursor-pointer select-none px-1 text-[10.5px] transition-colors hover:bg-neutral-50"
     >
       <div className="flex items-center">
         {label}
@@ -234,14 +277,15 @@ export function EligibleCasesClient({
   }, []);
 
   const rows = useMemo(() => {
-    // NPA-only grid.
-    let result = accounts.filter((a) => a.npa);
+    // Eligibility (NPA, or an existing claim) is already decided server-side — every row here is
+    // meant to be shown.
+    let result = accounts;
 
     if (status !== "ALL") {
       result = result.filter((a) =>
         status === "NOT_STARTED"
-          ? !a.claim
-          : a.claim?.status === (status as ClaimStatus)
+          ? isNotStarted(a)
+          : !isNotStarted(a) && a.claim?.status === (status as ClaimStatus)
       );
     }
     if (product !== "ALL") {
@@ -253,7 +297,8 @@ export function EligibleCasesClient({
       result = result.filter(
         (a) =>
           a.loanNo.toLowerCase().includes(q) ||
-          a.borrowerName.toLowerCase().includes(q)
+          a.borrowerName.toLowerCase().includes(q) ||
+          (a.claim?.claimNo.toLowerCase().includes(q) ?? false)
       );
     }
 
@@ -277,6 +322,14 @@ export function EligibleCasesClient({
           case "applicationDate":
             valA = a.applicationDate;
             valB = b.applicationDate;
+            break;
+          case "claimNo":
+            valA = a.claim?.claimNo ?? "";
+            valB = b.claim?.claimNo ?? "";
+            break;
+          case "lastUpdatedAt":
+            valA = a.claim?.lastUpdatedAt ?? "";
+            valB = b.claim?.lastUpdatedAt ?? "";
             break;
         }
         if (typeof valA === "string" && typeof valB === "string") {
@@ -303,8 +356,8 @@ export function EligibleCasesClient({
 
   return (
     <Panel
-      title={`${rows.length} eligible case${rows.length === 1 ? "" : "s"}`}
-      description="NPA accounts your organisation can raise a claim on."
+      title={`${rows.length} claim${rows.length === 1 ? "" : "s"}`}
+      description="Every NPA account you can raise a claim on, and every claim already in flight."
       actions={
         <Button variant="outline" size="sm" onClick={handleExport}>
           <DownloadIcon /> Export CSV
@@ -317,7 +370,7 @@ export function EligibleCasesClient({
           <input
             value={query}
             onChange={handleQueryChange}
-            placeholder="Loan ID or applicant"
+            placeholder="Loan ID, claim no. or applicant"
             aria-label="Search cases"
             className="h-8 w-[230px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           />
@@ -350,13 +403,20 @@ export function EligibleCasesClient({
                 onToggle={toggleSort}
               />
               <SortableTableHead
+                column="claimNo"
+                label="Claim No."
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
                 column="borrowerName"
                 label="Applicant"
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <TableHead className="h-9 px-2.5">Purpose</TableHead>
+              <TableHead className="h-8 px-1 text-[10.5px]">Purpose</TableHead>
               <SortableTableHead
                 column="loanAmount"
                 label="Amount"
@@ -371,51 +431,80 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <TableHead className="h-9 px-2.5">Status</TableHead>
-              <TableHead className="h-9 px-2.5 text-right">Actions</TableHead>
+              <TableHead className="h-8 px-1 text-[10.5px]">Status</TableHead>
+              <TableHead className="h-8 px-1 text-[10.5px]">Bucket</TableHead>
+              <SortableTableHead
+                column="lastUpdatedAt"
+                label="Last Updated"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <TableHead className="h-8 px-1 text-right text-[10.5px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {currentRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={10}
                   className="py-12 text-center text-[13px] text-neutral-500"
                 >
-                  No eligible cases match your search.
+                  No claims match your search.
                 </TableCell>
               </TableRow>
             ) : (
               currentRows.map((a) => (
                 <TableRow key={a.id}>
-                  <TableCell className="px-2.5 py-2">
-                    <span className="inline-flex items-center rounded-full bg-info/12 px-2.5 py-0.5 text-[12px] font-semibold text-info">
+                  <TableCell className="px-1 py-1.5 text-[12px]">
+                    <span className="inline-flex items-center rounded-full bg-info/12 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap text-info">
                       {a.loanNo}
                     </span>
                   </TableCell>
-                  <TableCell className="px-2.5 py-2 font-medium text-neutral-900">
+                  <TableCell className="px-1 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
+                    {a.claim?.claimNo ?? "—"}
+                  </TableCell>
+                  <TableCell className="px-1 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-900">
                     {a.borrowerName}
                   </TableCell>
-                  <TableCell className="px-2.5 py-2 text-neutral-500">{a.product}</TableCell>
-                  <TableCell className="px-2.5 py-2">
-                    <span className="inline-flex items-center rounded-full bg-success-50 px-2.5 py-0.5 text-[12px] font-semibold tabular-nums text-success-700">
+                  <TableCell className="px-1 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
+                    {a.product}
+                  </TableCell>
+                  <TableCell className="px-1 py-1.5 text-[12px]">
+                    <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-success-700">
                       {inr.format(a.loanAmount)}
                     </span>
                   </TableCell>
-                  <TableCell className="px-2.5 py-2 tabular-nums text-neutral-500">
+                  <TableCell className="px-1 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
                     {date(a.applicationDate)}
                   </TableCell>
-                  <TableCell className="px-2.5 py-2">
-                    {a.claim ? (
-                      <StatusPill status={a.claim.status} />
+                  <TableCell className="px-1 py-1.5">
+                    {!isNotStarted(a) && a.claim ? (
+                      <StatusPill
+                        status={a.claim.status}
+                        className="px-1 py-0.5 text-[10.5px]"
+                      />
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11.5px] font-medium text-neutral-600">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-1 py-0.5 text-[10.5px] font-medium whitespace-nowrap text-neutral-600">
                         <span className="size-1.5 rounded-full bg-neutral-400" />
                         Not started
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="px-2.5 py-2 text-right">
+                  <TableCell className="px-1 py-1.5">
+                    {a.claim ? (
+                      <StatusPill
+                        status={a.claim.bucket}
+                        className="px-1 py-0.5 text-[10.5px]"
+                      />
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell className="px-1 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
+                    {dateOrDash(a.claim?.lastUpdatedAt)}
+                  </TableCell>
+                  <TableCell className="px-1 py-1.5 text-right">
                     <ClaimRowActions
                       accountId={a.id}
                       claimId={a.claim?.id}

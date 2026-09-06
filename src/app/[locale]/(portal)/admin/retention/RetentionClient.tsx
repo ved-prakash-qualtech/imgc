@@ -181,12 +181,12 @@ export function RetentionClient({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Document</TableHead>
-                  <TableHead>Account</TableHead>
-                  <TableHead>Lender</TableHead>
-                  <TableHead>Reason</TableHead>
-                  <TableHead>Retention</TableHead>
-                  <TableHead className="text-right">Reinstatement</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px]">Document</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px]">Account</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px]">Lender</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px]">Reason</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px]">Retention</TableHead>
+                  <TableHead className="h-8 px-1.5 text-right text-[10.5px]">Reinstatement</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -199,26 +199,26 @@ export function RetentionClient({
                 ) : (
                   currentRows.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell className="font-medium text-neutral-950">
+                      <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
                         {row.name}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-1.5 py-1.5">
                         <Link
                           href={ROUTES.account(row.accountId)}
-                          className="inline-flex items-center rounded-full bg-info/12 px-2.5 py-0.5 text-[12px] font-semibold text-info hover:underline"
+                          className="inline-flex items-center rounded-full bg-info/12 px-1.5 py-0.5 text-[10.5px] font-semibold whitespace-nowrap text-info hover:underline"
                         >
                           {row.accountLoanNo}
                         </Link>
-                        <span className="block text-[12px] text-neutral-500">
+                        <span className="block text-[11px] whitespace-nowrap text-neutral-500">
                           {row.borrowerName}
                         </span>
                       </TableCell>
-                      <TableCell className="text-neutral-600">
+                      <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-600">
                         {row.lenderOrgName}
                       </TableCell>
-                      <TableCell className="max-w-[260px] text-[12.5px] text-neutral-600">
+                      <TableCell className="max-w-[260px] px-1.5 py-1.5 text-[11.5px] text-neutral-600">
                         {row.rejection.reason}
-                        <span className="block text-[11.5px] text-neutral-400">
+                        <span className="block text-[10.5px] text-neutral-400">
                           by {row.rejection.by} ·{" "}
                           {new Date(row.rejection.at).toLocaleDateString("en-IN", {
                             day: "2-digit",
@@ -227,15 +227,15 @@ export function RetentionClient({
                           })}
                         </span>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-1.5 py-1.5">
                         {row.held ? (
-                          <span className="text-[12.5px] font-medium text-warning">
+                          <span className="text-[11.5px] font-medium whitespace-nowrap text-warning">
                             Held
                           </span>
                         ) : (
                           <span
                             className={cn(
-                              "text-[12.5px] font-medium tabular-nums",
+                              "text-[11.5px] font-medium whitespace-nowrap tabular-nums",
                               row.daysLeft <= 14 ? "text-destructive" : "text-neutral-600"
                             )}
                           >
@@ -243,7 +243,7 @@ export function RetentionClient({
                           </span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="px-1.5 py-1.5 text-right">
                         {row.rejection.reinstate?.status === "REQUESTED" ? (
                           <span className="flex justify-end gap-2">
                             <Button
@@ -264,9 +264,12 @@ export function RetentionClient({
                             </Button>
                           </span>
                         ) : row.rejection.reinstate ? (
-                          <StatusPill status={row.rejection.reinstate.status} />
+                          <StatusPill
+                            status={row.rejection.reinstate.status}
+                            className="px-1.5 py-0.5 text-[10.5px]"
+                          />
                         ) : (
-                          <span className="text-[12.5px] text-neutral-400">
+                          <span className="text-[11.5px] whitespace-nowrap text-neutral-400">
                             Not requested
                           </span>
                         )}

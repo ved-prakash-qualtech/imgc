@@ -172,35 +172,35 @@ export default async function ClaimDetailsPage({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Document</TableHead>
-                  <TableHead>Required</TableHead>
-                  <TableHead>Version</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Remarks</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px]">Document</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px]">Required</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px]">Version</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px]">Status</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px]">Remarks</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {documents.map((d) => (
                   <TableRow key={d.id}>
-                    <TableCell>
-                      <span className="font-medium text-neutral-900">
+                    <TableCell className="px-1.5 py-1.5">
+                      <span className="text-[12px] font-medium whitespace-nowrap text-neutral-900">
                         {d.name}
                       </span>
-                      <span className="block text-[11.5px] text-neutral-500">
+                      <span className="block text-[10.5px] whitespace-nowrap text-neutral-500">
                         {d.category}
                       </span>
                     </TableCell>
-                    <TableCell className="text-[12.5px] text-neutral-600">
+                    <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-600">
                       {d.required ? "Required" : "Optional"}
                     </TableCell>
-                    <TableCell className="text-[12.5px] text-neutral-600">
+                    <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-600">
                       {d.version > 0 ? `v${d.version}` : "—"}
                     </TableCell>
-                    <TableCell>
-                      <StatusPill status={d.status} />
+                    <TableCell className="px-1.5 py-1.5">
+                      <StatusPill status={d.status} className="px-1.5 py-0.5 text-[10.5px]" />
                     </TableCell>
-                    <TableCell className="max-w-[260px]">
-                      <span className="line-clamp-2 text-[12.5px] text-neutral-600">
+                    <TableCell className="max-w-[260px] px-1.5 py-1.5">
+                      <span className="line-clamp-2 text-[11.5px] text-neutral-600">
                         {d.latestRemark || "—"}
                       </span>
                     </TableCell>

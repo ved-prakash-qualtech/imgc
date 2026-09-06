@@ -144,11 +144,11 @@ const SortIcon = ({
   sortDirection: SortDirection;
 }) => {
   if (sortKey !== column)
-    return <ArrowUpDownIcon className="ml-1 size-3.5 text-neutral-400" />;
+    return <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />;
   return sortDirection === "asc" ? (
-    <ArrowUpIcon className="ml-1 size-3.5 text-neutral-800" />
+    <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
   ) : (
-    <ArrowDownIcon className="ml-1 size-3.5 text-neutral-800" />
+    <ArrowDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
   );
 };
 
@@ -170,7 +170,7 @@ const SortableTableHead = ({
   <TableHead
     onClick={() => onToggle(column)}
     className={cn(
-      "h-9 cursor-pointer select-none transition-colors hover:bg-neutral-50",
+      "h-8 cursor-pointer select-none px-1.5 text-[10.5px] transition-colors hover:bg-neutral-50",
       className
     )}
   >
@@ -393,45 +393,15 @@ export function AccountsClient({
         <Table>
           <TableHeader>
             <TableRow>
-              <SortableTableHead
-                className="px-3"
-                column="loanNo"
-                label="Loan no."
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-              />
-              <SortableTableHead
-                className="px-3"
-                column="borrowerName"
-                label="Borrower"
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-              />
-              {role === "IMGC" && (
-                <TableHead className="h-9 px-3">Lender</TableHead>
-              )}
-              <TableHead className="h-9 px-3">Purpose</TableHead>
-              <SortableTableHead
-                className="px-3"
-                column="loanAmount"
-                label="Principal"
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-              />
-              <SortableTableHead
-                className="px-3"
-                column="disbursementDate"
-                label="Disbursed"
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-              />
-              <TableHead className="h-9 px-3">Asset Class</TableHead>
-              <TableHead className="h-9 px-3">Bucket</TableHead>
-              <TableHead className="h-9 px-3">Claim</TableHead>
+              <SortableTableHead column="loanNo" label="Loan no." sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <SortableTableHead column="borrowerName" label="Borrower" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              {role === "IMGC" && <TableHead className="h-8 px-1.5 text-[10.5px]">Lender</TableHead>}
+              <TableHead className="h-8 px-1.5 text-[10.5px]">Purpose</TableHead>
+              <SortableTableHead column="loanAmount" label="Principal" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <SortableTableHead column="disbursementDate" label="Disbursed" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <TableHead className="h-8 px-1.5 text-[10.5px]">Asset Class</TableHead>
+              <TableHead className="h-8 px-1.5 text-[10.5px]">Bucket</TableHead>
+              <TableHead className="h-8 px-1.5 text-[10.5px]">Claim</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -453,30 +423,30 @@ export function AccountsClient({
                     onClick={() => router.push(ROUTES.account(a.id))}
                     className="cursor-pointer transition-colors hover:bg-neutral-50"
                   >
-                    <TableCell className="py-3 px-3 font-medium text-neutral-950">
+                    <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
                       {a.loanNo}
                     </TableCell>
-                    <TableCell className="py-3 px-3">
+                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap">
                       {a.borrowerName}
                     </TableCell>
                     {role === "IMGC" && (
-                      <TableCell className="py-3 px-3">
+                      <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap">
                         {a.lenderOrgName}
                       </TableCell>
                     )}
-                    <TableCell className="py-3 px-3 text-neutral-500">
+                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
                       {a.product}
                     </TableCell>
-                    <TableCell className="py-3 px-3 tabular-nums text-neutral-700">
+                    <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-700">
                       {inr.format(a.loanAmount)}
                     </TableCell>
-                    <TableCell className="py-3 px-3 tabular-nums text-neutral-500">
+                    <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
                       {date(a.disbursementDate)}
                     </TableCell>
-                    <TableCell className="py-3 px-3">
+                    <TableCell className="px-1.5 py-1.5">
                       <span
                         className={cn(
-                          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-medium",
+                          "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-medium whitespace-nowrap",
                           cls === "NPA"
                             ? "bg-danger-50 text-danger-700"
                             : cls === "WRITE_OFF"
@@ -487,11 +457,11 @@ export function AccountsClient({
                         {ASSET_CLASS_LABEL[cls]}
                       </span>
                     </TableCell>
-                    <TableCell className="py-3 px-3">
-                      <StatusPill status={a.bucket} />
+                    <TableCell className="px-1.5 py-1.5">
+                      <StatusPill status={a.bucket} className="px-1.5 py-0.5 text-[10.5px]" />
                     </TableCell>
-                    <TableCell className="py-3 px-3">
-                      <StatusPill status={a.claimStatus} />
+                    <TableCell className="px-1.5 py-1.5">
+                      <StatusPill status={a.claimStatus} className="px-1.5 py-0.5 text-[10.5px]" />
                     </TableCell>
                   </TableRow>
                 );

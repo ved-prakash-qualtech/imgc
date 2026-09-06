@@ -52,13 +52,13 @@ export function ClaimRowActions({
     <div
       role="group"
       aria-label="Claim actions"
-      className="flex items-center justify-end gap-2"
+      className="flex items-center justify-end gap-1"
     >
       <ActionPill
         active={initiateActive}
         href={ROUTES.initiateClaimWorkspace(accountId)}
         icon={<FilePlus2Icon />}
-        label={resumable ? "Continue Claim" : "Initiate Claim"}
+        label={resumable ? "Continue" : "Initiate"}
         disabledHint={
           reason ??
           (action === "VIEW"
@@ -70,7 +70,7 @@ export function ClaimRowActions({
         active={trackActive}
         href={trackActive ? ROUTES.claimDetails(claimId as string) : "#"}
         icon={<RadarIcon />}
-        label="Track Claim"
+        label="Track"
         title={claimNo}
         disabledHint={
           claimId
@@ -101,7 +101,7 @@ function ActionPill({
   variant?: "solid" | "outline";
 }>) {
   const base =
-    "inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[12px] font-semibold whitespace-nowrap transition-all [&_svg]:size-3.5";
+    "inline-flex h-[26px] items-center gap-0.5 rounded-full px-2 text-[10px] font-semibold whitespace-nowrap transition-all [&_svg]:size-2.5";
 
   if (!active) {
     return (

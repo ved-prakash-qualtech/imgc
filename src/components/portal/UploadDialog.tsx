@@ -25,9 +25,6 @@ const ACCEPTED = [
   "image/webp",
 ] as const;
 
-const FIELD =
-  "h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-[13px] text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20";
-
 function bytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
@@ -159,13 +156,6 @@ export function UploadDialog({
         )}
 
         <form onSubmit={submit} className="space-y-3">
-          <label className="block">
-            <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-              Document name
-            </span>
-            <input value={row.name} readOnly className={cn(FIELD, "bg-neutral-50")} />
-          </label>
-
           <div>
             <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
               File *
@@ -207,25 +197,6 @@ export function UploadDialog({
                 {error}
               </p>
             )}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                Document number
-              </span>
-              <input
-                name="documentNumber"
-                placeholder="e.g. MCGM/2026/88213"
-                className={FIELD}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                Document date
-              </span>
-              <input type="date" name="documentDate" className={FIELD} />
-            </label>
           </div>
 
           <label className="block">

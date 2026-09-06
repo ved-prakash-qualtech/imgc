@@ -1,4 +1,4 @@
-import { CheckIcon, CircleDotIcon, XIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, XIcon } from "lucide-react";
 
 import { StatusPill } from "@/components/portal/StatusPill";
 import {
@@ -16,6 +16,10 @@ import type { ClaimStatus, ClaimTypeKey } from "@/server/mock/types";
  * `status` against its type's `statusFlow`. Extracted out of `ClaimTimeline` so a page can show
  * the rail and the history list as two separate sections (Track Claim needs Query Response
  * between them) without duplicating the flow-position logic.
+ *
+ * Same pill-and-chevron design as `ClaimStatusHistoryGraph` (Track Claim's own status rail) —
+ * one visual language for "where is this claim" everywhere it's shown, whether that's the whole
+ * configured pipeline (here) or only what has actually happened (there).
  */
 export function ClaimStatusGraph({
   claimType,
@@ -38,45 +42,60 @@ export function ClaimStatusGraph({
 
           return (
             <li key={step} className="flex items-center">
-              <span className="flex items-center gap-2">
+              <div
+                className={cn(
+                  "flex items-center gap-2 rounded-full border px-3 py-1.5",
+                  failed
+                    ? "border-destructive/50 bg-destructive/10"
+                    : current
+                      ? "border-brand-primary/50 bg-brand-light/70"
+                      : done
+                        ? "border-neutral-200 bg-neutral-100"
+                        : "border-neutral-100 bg-neutral-50"
+                )}
+              >
                 <span
                   className={cn(
-                    "grid size-6 shrink-0 place-items-center rounded-full border-2 transition",
+                    "grid size-6 shrink-0 place-items-center rounded-full",
                     failed
-                      ? "border-destructive bg-destructive text-white"
+                      ? "bg-destructive text-white"
                       : done
-                        ? "border-success-500 bg-success-500 text-white"
+                        ? "bg-success-500 text-white"
                         : current
-                          ? "border-brand-primary bg-brand-primary text-white"
-                          : "border-neutral-200 bg-white text-neutral-300"
+                          ? "bg-brand-primary text-white"
+                          : "bg-white text-neutral-300 ring-1 ring-inset ring-neutral-200"
                   )}
                 >
                   {failed ? (
-                    <XIcon className="size-3.5" />
+                    <XIcon className="size-3.5" strokeWidth={3} />
                   ) : done ? (
-                    <CheckIcon className="size-3.5" />
+                    <CheckIcon className="size-3.5" strokeWidth={3} />
                   ) : (
-                    <CircleDotIcon className="size-3" />
+                    <span className="text-[9.5px] font-bold">{i + 1}</span>
                   )}
                 </span>
                 <span
                   className={cn(
-                    "text-[12.5px] font-medium whitespace-nowrap",
-                    done || current || failed
-                      ? "text-neutral-900"
-                      : "text-neutral-400"
+                    "text-[12.5px] font-semibold whitespace-nowrap",
+                    failed
+                      ? "text-destructive"
+                      : current
+                        ? "text-brand-primary"
+                        : done
+                          ? "text-neutral-900"
+                          : "text-neutral-400"
                   )}
                 >
                   {CLAIM_STATUS_LABELS[step]}
-                </span>
-              </span>
-              {i < flow.length - 1 && (
-                <span
-                  className={cn(
-                    "mx-3 h-0.5 w-8 rounded-full",
-                    i < index ? "bg-success-500" : "bg-neutral-200"
+                  {current && (
+                    <span className="ml-1.5 rounded-full bg-brand-primary/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-brand-primary uppercase">
+                      Current
+                    </span>
                   )}
-                />
+                </span>
+              </div>
+              {i < flow.length - 1 && (
+                <ChevronRightIcon className="mx-1.5 size-4 shrink-0 text-neutral-300" />
               )}
             </li>
           );

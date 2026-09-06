@@ -15,7 +15,6 @@ export type NavKey =
   | "buckets"
   | "notifications"
   | "initiate-claim"
-  | "track-query-response"
   | "audit-trail"
   | "administration"
   | "admin-users"
@@ -54,16 +53,12 @@ const NOTIFICATIONS: NavItem = {
   href: ROUTES.notifications,
 };
 
-const INITIATE_CLAIM: NavItem = {
+/** Initiating a claim and tracking one used to be two tabs; one grid now does both, so there is
+ *  only one nav entry for it. */
+const CLAIM: NavItem = {
   key: "initiate-claim",
-  label: "Initiate Claim",
+  label: "Claim",
   href: ROUTES.initiateClaim,
-};
-
-const TRACK_QUERY_RESPONSE: NavItem = {
-  key: "track-query-response",
-  label: "Track Claim",
-  href: ROUTES.trackQueryResponse,
 };
 
 const AUDIT_TRAIL: NavItem = {
@@ -100,5 +95,5 @@ const ADMINISTRATION: NavItem = {
 export function navFor(role: Role): NavItem[] {
   return role === "IMGC"
     ? [DASHBOARD, ACCOUNTS, BUCKETS, NOTIFICATIONS, ADMINISTRATION]
-    : [DASHBOARD, INITIATE_CLAIM, TRACK_QUERY_RESPONSE, AUDIT_TRAIL];
+    : [DASHBOARD, CLAIM, AUDIT_TRAIL];
 }

@@ -1,4 +1,4 @@
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon } from "lucide-react";
 
 import { CLAIM_STATUS_LABELS } from "@/config/claimConfig";
 import { cn } from "@/lib/utils/twMergeUtils";
@@ -14,6 +14,24 @@ function when(iso: string): string {
   });
 }
 
+/** Collapses a run of consecutive same-status entries (e.g. a query bounced back and forth
+ *  between IMGC and the lender a few times) into just the latest one — the step is "query
+ *  raised", not "query raised, again, again". */
+function collapseConsecutive(
+  history: readonly ClaimStatusEntry[]
+): ClaimStatusEntry[] {
+  const out: ClaimStatusEntry[] = [];
+  for (const entry of history) {
+    const last = out[out.length - 1];
+    if (last && last.status === entry.status) {
+      out[out.length - 1] = entry;
+    } else {
+      out.push(entry);
+    }
+  }
+  return out;
+}
+
 /**
  * The claim's status progression, generated only from what actually happened.
  *
@@ -24,15 +42,15 @@ function when(iso: string): string {
  * hallucinating a step that hasn't occurred — so this reads the history directly instead of
  * comparing it against `claimConfig`'s flow.
  *
- * A single scrollable row rather than `flex-wrap`: wrapping broke alignment the moment a claim
- * had more than five or six events (the second row's dots didn't line up under the first row's),
- * and a claim's real history can run well past that once a query bounces back and forth a few
- * times. Scrolling keeps every node on one baseline no matter how long the history gets.
+ * Each step is a self-contained pill with a chevron between them, not fixed-width columns joined
+ * by a connecting line — that earlier design either had to scroll horizontally forever, or wrap
+ * and leave the second row's dots misaligned under the first row's. A wrapping run of pills has
+ * no such alignment to keep, so it never needs either.
  */
 export function ClaimStatusHistoryGraph({
   history,
 }: Readonly<{ history: readonly ClaimStatusEntry[] }>) {
-  const entries = [...history];
+  const entries = collapseConsecutive(history);
 
   if (entries.length === 0) {
     return (
@@ -43,58 +61,64 @@ export function ClaimStatusHistoryGraph({
   }
 
   return (
-    <div className="-mx-1 overflow-x-auto px-1 pb-1">
-      <ol className="flex min-w-max items-start">
-        {entries.map((entry, i) => {
-          const isCurrent = i === entries.length - 1;
-          return (
-            <li key={`${entry.status}-${entry.at}-${i}`} className="flex items-start">
-              <div className="flex w-[104px] shrink-0 flex-col items-center text-center">
-                <span
+    <ol className="flex flex-wrap items-center gap-y-3">
+      {entries.map((entry, i) => {
+        const isCurrent = i === entries.length - 1;
+        return (
+          <li
+            key={`${entry.status}-${entry.at}-${i}`}
+            className="flex items-center"
+          >
+            <div
+              className={cn(
+                "flex items-center gap-2 rounded-full border px-3 py-1.5",
+                isCurrent
+                  ? "border-brand-primary/50 bg-brand-light/70"
+                  : "border-neutral-200 bg-neutral-100"
+              )}
+            >
+              <span
+                className={cn(
+                  "relative grid size-6 shrink-0 place-items-center rounded-full text-white",
+                  isCurrent ? "bg-brand-primary" : "bg-success-500"
+                )}
+              >
+                {isCurrent ? (
+                  <span className="absolute inline-flex size-6 animate-ping rounded-full bg-brand-primary/50" />
+                ) : null}
+                <span className="relative">
+                  {isCurrent ? (
+                    <span className="text-[9.5px] font-bold">{i + 1}</span>
+                  ) : (
+                    <CheckIcon className="size-3.5" strokeWidth={3} />
+                  )}
+                </span>
+              </span>
+              <div>
+                <p
                   className={cn(
-                    "relative grid size-8 shrink-0 place-items-center rounded-full text-white shadow-sm ring-4",
-                    isCurrent
-                      ? "bg-brand-primary ring-brand-light"
-                      : "bg-success-500 ring-success-50"
+                    "text-[12.5px] leading-tight font-semibold whitespace-nowrap",
+                    isCurrent ? "text-brand-primary" : "text-neutral-900"
                   )}
                 >
-                  {isCurrent ? (
-                    <span className="absolute inline-flex size-8 animate-ping rounded-full bg-brand-primary/50" />
-                  ) : null}
-                  <span className="relative">
-                    {isCurrent ? (
-                      <span className="text-[11px] font-bold">{i + 1}</span>
-                    ) : (
-                      <CheckIcon className="size-4" strokeWidth={3} />
-                    )}
-                  </span>
-                </span>
-                <div className="mt-2">
-                  <p
-                    className={cn(
-                      "text-[12.5px] leading-tight font-semibold whitespace-nowrap",
-                      isCurrent ? "text-brand-primary" : "text-neutral-900"
-                    )}
-                  >
-                    {CLAIM_STATUS_LABELS[entry.status]}
-                  </p>
-                  <p className="mt-1 text-[10.5px] leading-tight whitespace-nowrap text-neutral-500">
-                    {when(entry.at)}
-                  </p>
+                  {CLAIM_STATUS_LABELS[entry.status]}
                   {isCurrent && (
-                    <span className="mt-1.5 inline-flex items-center rounded-full bg-brand-light px-2 py-0.5 text-[9.5px] font-bold tracking-wide text-brand-primary uppercase">
+                    <span className="ml-1.5 rounded-full bg-brand-primary/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-brand-primary uppercase">
                       Current
                     </span>
                   )}
-                </div>
+                </p>
+                <p className="text-[10.5px] leading-tight whitespace-nowrap text-neutral-500">
+                  {when(entry.at)}
+                </p>
               </div>
-              {i < entries.length - 1 && (
-                <div className="mt-4 h-0.5 w-10 shrink-0 self-start rounded-full bg-[linear-gradient(90deg,var(--color-success-500)_0%,var(--color-success-500)_100%)] sm:w-16" />
-              )}
-            </li>
-          );
-        })}
-      </ol>
-    </div>
+            </div>
+            {i < entries.length - 1 && (
+              <ChevronRightIcon className="mx-1.5 size-4 shrink-0 text-neutral-300" />
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }

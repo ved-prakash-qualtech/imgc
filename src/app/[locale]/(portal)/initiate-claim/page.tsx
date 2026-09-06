@@ -27,11 +27,13 @@ export default async function InitiateClaimPage() {
 
   const byAccount = new Map(claims.map((c) => [c.accountId, c]));
 
-  // NPA-only: the grid is for raising claims on non-performing accounts. A claim that exists on
-  // a write-off-only account is still reachable from Track & Query Response. Eligibility and the
-  // resulting action are decided once here, in the service — no component re-derives it.
+  // A row exists here for every NPA account (new claims can only be raised on those) plus every
+  // account that already carries a claim, NPA or not — a write-off-only account can't start a
+  // fresh claim from this grid, but a claim already raised on one still needs to be tracked here,
+  // since this is now the only place claims are tracked. Eligibility and the resulting action are
+  // decided once here, in the service — no component re-derives it.
   const rows: EligibleRow[] = accounts
-    .filter((a) => a.npa)
+    .filter((a) => a.npa || byAccount.has(a.id))
     .map((a) => {
       const claim = byAccount.get(a.id) ?? null;
       const state = getClaimAction(a, claim);
@@ -39,7 +41,7 @@ export default async function InitiateClaimPage() {
     });
 
   return (
-    <PortalShell activeKey="initiate-claim" title="Initiate Claim">
+    <PortalShell activeKey="initiate-claim" title="Claim">
       <div className="space-y-4">
         <EligibleCasesClient accounts={rows} />
       </div>

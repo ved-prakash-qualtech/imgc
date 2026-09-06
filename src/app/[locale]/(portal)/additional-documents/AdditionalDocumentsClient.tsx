@@ -408,15 +408,15 @@ export function AdditionalDocumentsClient({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Case ID</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Document</TableHead>
-                <TableHead>Required</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Lender</TableHead>
-                <TableHead>Added by</TableHead>
-                <TableHead>Added on</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Case ID</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Customer</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Document</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Required</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Status</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Lender</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Added by</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Added on</TableHead>
+                <TableHead className="h-8 px-1.5 text-right text-[10.5px]">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -437,26 +437,30 @@ export function AdditionalDocumentsClient({
               ) : (
                 currentRows.map((r) => (
                   <TableRow key={r.id} className={cn(!r.active && "opacity-55")}>
-                    <TableCell>
+                    <TableCell className="px-1.5 py-1.5">
                       <Link
                         href={ROUTES.account(r.accountId)}
-                        className="inline-flex items-center rounded-full bg-info/12 px-2.5 py-0.5 text-[12px] font-semibold text-info hover:underline"
+                        className="inline-flex items-center rounded-full bg-info/12 px-1.5 py-0.5 text-[10.5px] font-semibold whitespace-nowrap text-info hover:underline"
                       >
                         {r.caseId}
                       </Link>
                     </TableCell>
-                    <TableCell>{r.customerName}</TableCell>
-                    <TableCell>
-                      <span className="font-medium text-neutral-900">{r.name}</span>
-                      <span className="block text-[11.5px] text-neutral-500">
+                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap">
+                      {r.customerName}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5">
+                      <span className="text-[12px] font-medium whitespace-nowrap text-neutral-900">
+                        {r.name}
+                      </span>
+                      <span className="block text-[10.5px] whitespace-nowrap text-neutral-500">
                         {r.category}
                         {r.version > 0 && ` · v${r.version}`}
                       </span>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-1.5 py-1.5">
                       <span
                         className={cn(
-                          "rounded px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide",
+                          "rounded px-1 py-0.5 text-[9.5px] font-semibold whitespace-nowrap uppercase tracking-wide",
                           r.required
                             ? "bg-neutral-100 text-neutral-600"
                             : "bg-neutral-50 text-neutral-400"
@@ -465,19 +469,25 @@ export function AdditionalDocumentsClient({
                         {r.required ? "Required" : "Optional"}
                       </span>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-1.5 py-1.5">
                       {r.active ? (
-                        <StatusPill status={r.status} />
+                        <StatusPill status={r.status} className="px-1.5 py-0.5 text-[10.5px]" />
                       ) : (
-                        <span className="rounded-full bg-neutral-200 px-2.5 py-0.5 text-[11.5px] font-semibold text-neutral-600">
+                        <span className="rounded-full bg-neutral-200 px-1.5 py-0.5 text-[10.5px] font-semibold whitespace-nowrap text-neutral-600">
                           Deactivated
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="text-neutral-500">{r.lenderName}</TableCell>
-                    <TableCell className="text-neutral-500">{r.addedByName}</TableCell>
-                    <TableCell className="text-neutral-500">{shortDate(r.addedOn)}</TableCell>
-                    <TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
+                      {r.lenderName}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
+                      {r.addedByName}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
+                      {shortDate(r.addedOn)}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5">
                       <div className="flex justify-end gap-1">
                         <Button
                           size="xs"

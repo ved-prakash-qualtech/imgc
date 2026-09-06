@@ -11,10 +11,14 @@ export const ROUTES = {
   account: (accountId: string) => `/accounts/${accountId}`,
 
   /* ── Lender specific screens ── */
+  /** "Claim" in the sidebar — initiating a claim and tracking one are the same grid now, not
+   *  two separate tabs. `/track-query-response` redirects here for anything still pointing at
+   *  the old URL. */
   initiateClaim: "/initiate-claim",
   initiateClaimWorkspace: (accountId: string) => `/initiate-claim/${accountId}`,
 
-  trackQueryResponse: "/track-query-response",
+  /** @deprecated alias of `initiateClaim`, kept only so old links/bookmarks still land somewhere. */
+  trackQueryResponse: "/initiate-claim",
   /** One claim's detail + timeline, reachable by both roles. */
   claimDetails: (claimId: string) => `/claims/${claimId}`,
 

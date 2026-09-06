@@ -234,11 +234,11 @@ export function UsersClient({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Organisation</TableHead>
-                <TableHead>Sign-in</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Name</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Email</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Role</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Organisation</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Sign-in</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -251,14 +251,16 @@ export function UsersClient({
               ) : (
               currentUsers.map((u) => (
                 <TableRow key={u.id}>
-                  <TableCell className="font-medium text-neutral-950">
+                  <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
                     {u.name}
                   </TableCell>
-                  <TableCell className="text-neutral-600">{u.email}</TableCell>
-                  <TableCell>
+                  <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-600">
+                    {u.email}
+                  </TableCell>
+                  <TableCell className="px-1.5 py-1.5">
                     <span
                       className={cn(
-                        "rounded px-1.5 py-0.5 text-[10.5px] font-semibold",
+                        "rounded px-1.5 py-0.5 text-[10.5px] font-semibold whitespace-nowrap",
                         u.role === "IMGC"
                           ? "bg-brand-muted text-brand-dark"
                           : "bg-warning/15 text-warning"
@@ -267,10 +269,10 @@ export function UsersClient({
                       {u.role}
                     </span>
                   </TableCell>
-                  <TableCell className="text-neutral-600">
+                  <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-600">
                     {u.lenderOrgName ?? "IMGC"}
                   </TableCell>
-                  <TableCell className="text-[12.5px] text-neutral-500">
+                  <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-500">
                     {u.role === "IMGC"
                       ? `Employee ID ${u.employeeId}`
                       : "Email one-time code"}
@@ -327,23 +329,23 @@ export function UsersClient({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Organisation</TableHead>
-                <TableHead>Email domain</TableHead>
-                <TableHead>Stakeholder mailboxes</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Organisation</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Email domain</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Stakeholder mailboxes</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {orgs.map((o) => (
                 <TableRow key={o.id}>
-                  <TableCell className="font-medium text-neutral-950">
+                  <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
                     {o.name}
                   </TableCell>
-                  <TableCell>
-                    <code className="rounded bg-neutral-100 px-1.5 py-0.5 text-[12px]">
+                  <TableCell className="px-1.5 py-1.5">
+                    <code className="rounded bg-neutral-100 px-1.5 py-0.5 text-[11px] whitespace-nowrap">
                       @{o.emailDomain}
                     </code>
                   </TableCell>
-                  <TableCell className="text-[12.5px] text-neutral-600">
+                  <TableCell className="px-1.5 py-1.5 text-[11.5px] text-neutral-600">
                     {o.contactEmails.join(", ") || "—"}
                   </TableCell>
                 </TableRow>

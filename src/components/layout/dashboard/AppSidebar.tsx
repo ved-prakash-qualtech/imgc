@@ -21,7 +21,6 @@ import {
   TerminalIcon,
   UsersIcon,
   FilePlusIcon,
-  MessageCircleIcon,
   ListTreeIcon,
 } from "lucide-react";
 
@@ -44,7 +43,6 @@ const ICONS = new Map<NavKey, typeof LayoutDashboardIcon>([
   ["dashboard", LayoutDashboardIcon],
   ["accounts", FolderOpenIcon],
   ["initiate-claim", FilePlusIcon],
-  ["track-query-response", MessageCircleIcon],
   ["audit-trail", ListTreeIcon],
   ["additional-documents", FileCheck2Icon],
   ["buckets", InboxIcon],

@@ -25,9 +25,9 @@ function years(months: number): string {
 
 function Row({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
-    <div className="flex justify-between gap-4 px-5 py-2.5 odd:bg-neutral-25">
-      <dt className="text-[12.5px] text-neutral-500">{label}</dt>
-      <dd className="text-right text-[13px] font-medium text-neutral-900">
+    <div className="flex items-center justify-between gap-4 px-5 py-1.5 odd:bg-neutral-25">
+      <dt className="text-[12px] text-neutral-500">{label}</dt>
+      <dd className="text-right text-[12.5px] font-medium whitespace-nowrap text-neutral-900">
         {value}
       </dd>
     </div>

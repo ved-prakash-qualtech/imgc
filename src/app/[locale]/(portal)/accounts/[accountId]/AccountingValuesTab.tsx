@@ -73,11 +73,11 @@ export function AccountingValuesTab({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Field</TableHead>
-              <TableHead>Value</TableHead>
-              <TableHead>Source</TableHead>
-              <TableHead>Last updated</TableHead>
-              <TableHead className="text-right">Action</TableHead>
+              <TableHead className="h-8 px-1.5 text-[10.5px]">Field</TableHead>
+              <TableHead className="h-8 px-1.5 text-[10.5px]">Value</TableHead>
+              <TableHead className="h-8 px-1.5 text-[10.5px]">Source</TableHead>
+              <TableHead className="h-8 px-1.5 text-[10.5px]">Last updated</TableHead>
+              <TableHead className="h-8 px-1.5 text-right text-[10.5px]">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -93,10 +93,10 @@ export function AccountingValuesTab({
             ) : (
               values.map((v) => (
                 <TableRow key={v.key}>
-                  <TableCell className="font-medium text-neutral-950">
+                  <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
                     {v.label}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-1.5 py-1.5 text-[12px]">
                     {editing === v.key ? (
                       <input
                         // Replaces the cell the user just clicked Edit on, so focus follows
@@ -106,18 +106,18 @@ export function AccountingValuesTab({
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
                         aria-label={`New value for ${v.label}`}
-                        className="h-9 w-[200px] rounded-lg border border-neutral-200 px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                        className="h-8 w-[200px] rounded-lg border border-neutral-200 px-2.5 text-[12px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                       />
                     ) : (
                       <span className="tabular-nums">{v.value}</span>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-semibold text-neutral-600">
+                  <TableCell className="px-1.5 py-1.5">
+                    <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-semibold whitespace-nowrap text-neutral-600">
                       {v.source}
                     </span>
                   </TableCell>
-                  <TableCell className="text-[12.5px] text-neutral-500">
+                  <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-500">
                     {new Date(v.updatedAt).toLocaleDateString("en-IN", {
                       day: "2-digit",
                       month: "short",
@@ -125,9 +125,9 @@ export function AccountingValuesTab({
                     })}{" "}
                     · {v.updatedBy}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="px-1.5 py-1.5 text-right">
                     {editing === v.key ? (
-                      <span className="flex justify-end gap-2">
+                      <span className="flex justify-end gap-1.5">
                         <Button
                           size="xs"
                           onClick={() => onSave(v.key)}

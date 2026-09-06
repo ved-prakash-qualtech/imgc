@@ -164,13 +164,13 @@ export function BucketsClient({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Loan no.</TableHead>
-              <TableHead>Borrower</TableHead>
-              <TableHead>Lender</TableHead>
-              <TableHead>Bucket</TableHead>
-              <TableHead>Claim</TableHead>
-              <TableHead>Extra recipients</TableHead>
-              <TableHead className="text-right">Move</TableHead>
+              <TableHead className="h-8 px-1.5 text-[10.5px]">Loan no.</TableHead>
+              <TableHead className="h-8 px-1.5 text-[10.5px]">Borrower</TableHead>
+              <TableHead className="h-8 px-1.5 text-[10.5px]">Lender</TableHead>
+              <TableHead className="h-8 px-1.5 text-[10.5px]">Bucket</TableHead>
+              <TableHead className="h-8 px-1.5 text-[10.5px]">Claim</TableHead>
+              <TableHead className="h-8 px-1.5 text-[10.5px]">Extra recipients</TableHead>
+              <TableHead className="h-8 px-1.5 text-right text-[10.5px]">Move</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -183,25 +183,27 @@ export function BucketsClient({
             ) : (
               currentRows.map((a) => (
                 <TableRow key={a.id}>
-                  <TableCell>
+                  <TableCell className="px-1.5 py-1.5">
                     <Link
                       href={ROUTES.account(a.id)}
-                      className="inline-flex items-center rounded-full bg-info/12 px-2.5 py-0.5 text-[12px] font-semibold text-info hover:underline"
+                      className="inline-flex items-center rounded-full bg-info/12 px-1.5 py-0.5 text-[10.5px] font-semibold whitespace-nowrap text-info hover:underline"
                     >
                       {a.loanNo}
                     </Link>
                   </TableCell>
-                  <TableCell className="font-medium text-neutral-900">
+                  <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-900">
                     {a.borrowerName}
                   </TableCell>
-                  <TableCell className="text-neutral-500">{a.lenderOrgName}</TableCell>
-                  <TableCell>
-                    <StatusPill status={a.bucket} />
+                  <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
+                    {a.lenderOrgName}
                   </TableCell>
-                  <TableCell>
-                    <StatusPill status={a.claimStatus} />
+                  <TableCell className="px-1.5 py-1.5">
+                    <StatusPill status={a.bucket} className="px-1.5 py-0.5 text-[10.5px]" />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-1.5 py-1.5">
+                    <StatusPill status={a.claimStatus} className="px-1.5 py-0.5 text-[10.5px]" />
+                  </TableCell>
+                  <TableCell className="px-1.5 py-1.5">
                     {editing === a.id ? (
                       <span className="flex items-center gap-1.5">
                         <input
@@ -237,16 +239,16 @@ export function BucketsClient({
                           setEditing(a.id);
                           setRecipients(a.pushRecipients.join(", "));
                         }}
-                        className="inline-flex items-center gap-1.5 text-[12.5px] text-neutral-600 hover:text-brand-primary"
+                        className="inline-flex items-center gap-1 text-[12px] whitespace-nowrap text-neutral-600 hover:text-brand-primary"
                       >
-                        <MailPlusIcon className="size-3.5" />
+                        <MailPlusIcon className="size-3" />
                         {a.pushRecipients.length > 0
                           ? a.pushRecipients.join(", ")
                           : "Add"}
                       </button>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="px-1.5 py-1.5 text-right">
                     <Button
                       size="xs"
                       variant="outline"

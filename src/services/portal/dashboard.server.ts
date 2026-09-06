@@ -329,7 +329,7 @@ export async function buildDashboardSummary(
       value: byStatus("SUBMITTED"),
       tone: "violet",
       href: isLender
-        ? "/track-query-response?status=SUBMITTED"
+        ? "/initiate-claim?status=SUBMITTED"
         : "/accounts?status=SUBMITTED",
     },
     {
@@ -338,7 +338,7 @@ export async function buildDashboardSummary(
       value: byStatus("QUERIED"),
       tone: "warning",
       href: isLender
-        ? "/track-query-response?status=QUERY_RAISED"
+        ? "/initiate-claim?status=QUERY_RAISED"
         : "/accounts?status=QUERIED",
     },
     {
@@ -347,7 +347,7 @@ export async function buildDashboardSummary(
       value: byStatus("APPROVED"),
       tone: "success",
       href: isLender
-        ? "/track-query-response?status=APPROVED"
+        ? "/initiate-claim?status=APPROVED"
         : "/accounts?status=APPROVED",
     },
     {
@@ -355,7 +355,7 @@ export async function buildDashboardSummary(
       label: "Rejected",
       value: rejectedDocCount,
       tone: "danger",
-      href: isLender ? "/track-query-response?status=REJECTED" : "/accounts",
+      href: isLender ? "/initiate-claim?status=REJECTED" : "/accounts",
     },
   ];
 
@@ -380,7 +380,7 @@ export async function buildDashboardSummary(
       value: byStatus("SUBMITTED"),
       total: accounts.length || 1,
       href: isLender
-        ? "/track-query-response?status=SUBMITTED"
+        ? "/initiate-claim?status=SUBMITTED"
         : "/accounts?status=SUBMITTED",
     },
   ];
