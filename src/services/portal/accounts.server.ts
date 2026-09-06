@@ -8,6 +8,7 @@ import {
 } from "@/services/portal/notifications.server";
 import { addRemark } from "@/services/portal/remarks.server";
 import { syncClaimForAccountDecision } from "@/services/portal/claimFlow.server";
+import { listDocuments, summariseDocs } from "@/services/portal/claims.server";
 import type { AppSession } from "@/lib/auth/appSession";
 import type { Account, Bucket, ClaimStatus, LenderOrg } from "@/server/mock/types";
 
@@ -111,13 +112,49 @@ export async function setClaimStatus(
     const account = db.accounts.find((a) => a.id === accountId);
     if (!account) return { ok: false as const, error: "Account not found." };
     const from = account.claimStatus;
+    return { ok: true as const, from, account: { ...account } };
+  });
+  if (!outcome.ok) return outcome;
+
+  if (status === "APPROVED") {
+    const docs = await listDocuments(session, accountId);
+    const summary = summariseDocs(docs);
+    if (!summary.complete) {
+      return {
+        ok: false,
+        error: "Please approve all required documents before marking the claim approved.",
+      };
+    }
+  }
+
+  const updateOutcome = await writeDb((db) => {
+    const account = db.accounts.find((a) => a.id === accountId);
+    if (!account) return { ok: false as const, error: "Account not found." };
+    
+    let bucketChangedFrom = null;
+    if (status === "QUERIED" && account.bucket !== "LENDER") {
+      bucketChangedFrom = account.bucket;
+      account.bucket = "LENDER";
+    }
+
     account.claimStatus = status;
     // The processing itself happened in PAS; the portal records the outcome and the stage the
     // lender now sees against the account.
     account.stage = status === "APPROVED" ? "Claim approved" : "Query raised with the lender";
-    return { ok: true as const, from, account: { ...account } };
+    return { ok: true as const, from: outcome.from, bucketChangedFrom, account: { ...account } };
   });
-  if (!outcome.ok) return outcome;
+  if (!updateOutcome.ok) return updateOutcome;
+
+  if (updateOutcome.bucketChangedFrom) {
+    await recordEvent({
+      accountId,
+      actor: session,
+      type: "BUCKET_SHIFTED",
+      summary: `Account moved from the ${updateOutcome.bucketChangedFrom} bucket to the LENDER bucket`,
+      meta: { from: updateOutcome.bucketChangedFrom, to: "LENDER" },
+    });
+    await notifyBucketShift(updateOutcome.account, updateOutcome.bucketChangedFrom, "LENDER", session);
+  }
 
   // The Overview tab only ever wrote this account's own claimStatus; the Claim entity — what
   // Track Claim, the lender's workspace and this claim's status-history graph read — was left
@@ -143,7 +180,7 @@ export async function setClaimStatus(
     );
   }
 
-  await notifyClaimDecision(outcome.account, status, trimmedNote, session);
+  await notifyClaimDecision(updateOutcome.account, status, trimmedNote, session);
   return { ok: true };
 }
 

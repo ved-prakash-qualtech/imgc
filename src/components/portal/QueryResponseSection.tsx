@@ -2,7 +2,7 @@
 
 import { useCallback, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { SaveIcon, SendIcon } from "lucide-react";
+import { SaveIcon, SendIcon, FileTextIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -62,6 +62,7 @@ export function QueryResponseSection({
   savedResponse,
   documents,
   isLender,
+  imgcComposer,
 }: Readonly<{
   accountId: string;
   claimId: string;
@@ -71,6 +72,7 @@ export function QueryResponseSection({
   savedResponse: string;
   documents: RequirementRow[];
   isLender: boolean;
+  imgcComposer?: React.ReactNode;
 }>) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -121,6 +123,17 @@ export function QueryResponseSection({
   );
 
   if (queries.length === 0) {
+    if (!isLender && imgcComposer) {
+      return (
+        <Panel
+          title="Processing outcome"
+          description="Processing itself happens in PAS. Record the outcome here so the lender can see it."
+        >
+          {imgcComposer}
+        </Panel>
+      );
+    }
+
     return (
       <Panel
         title="Query Response"
@@ -139,10 +152,29 @@ export function QueryResponseSection({
       description="Communication between IMGC and the Lender regarding this claim."
     >
       <div className="max-h-[500px] overflow-y-auto space-y-6 px-5 py-6">
-        {queries.map((q) => {
-          const respondedDocs = documents.filter((d) =>
-            q.requestedDocuments.includes(d.name)
-          );
+        {/* Sort ascending so the oldest message is at top and the latest is at the bottom */}
+      {[...queries]
+        .sort((a, b) => a.raisedAt.localeCompare(b.raisedAt))
+        .map((q) => {
+          /**
+           * Link lender-uploaded documents to this query by timestamp.
+           *
+           * The domain model has no FK from ClaimDocument → ClaimQuery.  When the lender
+           * responds (`submitClaim`), the open query gets `respondedAt = nowIso()` and the
+           * document they added just beforehand already has its `createdAt` written. Both calls
+           * happen within the same user interaction, so the document's `addedOn` always falls
+           * in the half-open window [raisedAt, respondedAt].  Only LENDER-added documents are
+           * candidates — SYSTEM docs belong to the checklist, not a response.
+           */
+          const respondedDocs =
+            q.respondedAt
+              ? documents.filter(
+                  (d) =>
+                    d.addedBy === "LENDER" &&
+                    d.addedOn >= q.raisedAt &&
+                    d.addedOn <= q.respondedAt!
+                )
+              : [];
           return (
             <div key={q.id} className="space-y-6">
               {/* ── IMGC Query (Left) ── */}
@@ -214,13 +246,30 @@ export function QueryResponseSection({
                         <span className="block text-right text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
                           Attachments
                         </span>
-                        <ul className="mt-1 flex flex-col items-end gap-1">
+                        <ul className="mt-1 flex flex-col items-end gap-1.5">
                           {respondedDocs.map((d) => (
                             <li
                               key={d.id}
-                              className="flex items-center gap-1.5 text-[12.5px] font-medium text-brand-primary"
+                              className="flex items-center gap-2 rounded-md border border-brand-primary/10 bg-brand-light/30 px-2.5 py-1.5 shadow-sm"
                             >
-                              📎 {d.name}
+                              <FileTextIcon className="size-3.5 text-brand-primary" />
+                              <span className="text-[12px] font-medium text-brand-dark">
+                                {d.name}
+                              </span>
+                              {d.file?.id ? (
+                                <a
+                                  href={`/api/portal/files/${d.file.id}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="ml-2 inline-flex h-6 items-center rounded border border-brand-primary/30 bg-white px-2.5 text-[11px] font-semibold text-brand-primary hover:bg-neutral-50"
+                                >
+                                  View document
+                                </a>
+                              ) : (
+                                <span className="ml-2 text-[11px] text-neutral-400">
+                                  No file uploaded
+                                </span>
+                              )}
                             </li>
                           ))}
                         </ul>
@@ -235,13 +284,17 @@ export function QueryResponseSection({
       </div>
 
       {/* ── Open Query Composer ── */}
-      {openQuery && (
+      {openQuery ? (
         <div className="px-5 pb-6">
           <div className="border-t border-neutral-100 pt-6">
             {!isLender ? (
-              <p className="text-center text-[12.5px] italic text-neutral-500">
-                Awaiting lender response...
-              </p>
+              imgcComposer ? (
+                imgcComposer
+              ) : (
+                <p className="text-center text-[12.5px] italic text-neutral-500">
+                  Awaiting lender response...
+                </p>
+              )
             ) : (
               <div className="space-y-4">
                 <div>
@@ -303,6 +356,14 @@ export function QueryResponseSection({
             )}
           </div>
         </div>
+      ) : (
+        !isLender && imgcComposer && (
+          <div className="px-5 pb-6">
+            <div className="border-t border-neutral-100 pt-6">
+              {imgcComposer}
+            </div>
+          </div>
+        )
       )}
     </Panel>
   );

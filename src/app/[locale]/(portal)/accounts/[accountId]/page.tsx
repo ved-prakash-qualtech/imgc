@@ -9,9 +9,9 @@ import { requireSession } from "@/lib/auth/appSession";
 import { RETENTION_DAYS } from "@/server/mock/retention";
 import { getAccount } from "@/services/portal/accounts.server";
 import { listAuditForAccount } from "@/services/portal/audit.server";
-import { canSubmit, listDocuments } from "@/services/portal/claims.server";
 import { getClaimForAccount, listQueries } from "@/services/portal/claimFlow.server";
-import { pullFromPas } from "@/services/portal/pas.server";
+import { canSubmit, listDocuments } from "@/services/portal/claims.server";
+import { listClaimDocuments } from "@/services/portal/requirements.server";
 
 export const dynamic = "force-dynamic";
 
@@ -28,23 +28,24 @@ export default async function AccountPage({
   const account = await getAccount(session, accountId);
   if (!account) notFound();
 
-  const [docs, pasValues, events] = await Promise.all([
+  const [docs, events, claim] = await Promise.all([
     listDocuments(session, accountId),
-    pullFromPas(session, accountId),
     listAuditForAccount(accountId),
+    getClaimForAccount(session, accountId),
+  ]);
+
+  const [queries, claimDocuments] = await Promise.all([
+    claim ? listQueries(claim.id) : Promise.resolve([]),
+    claim ? listClaimDocuments(session, claim.id) : Promise.resolve([]),
   ]);
 
   // Which rejected documents already have an open query naming them — so a fresh rejection
   // (already synced automatically) doesn't get a redundant "Raise Query" button, and only a
   // document rejected before that sync existed does.
-  const claim = await getClaimForAccount(session, accountId);
   const queriedDocNames = new Set<string>();
-  if (claim) {
-    const queries = await listQueries(claim.id);
-    for (const q of queries) {
-      if (q.respondedAt) continue;
-      for (const name of q.requestedDocuments) queriedDocNames.add(name);
-    }
+  for (const q of queries) {
+    if (q.respondedAt) continue;
+    for (const name of q.requestedDocuments) queriedDocNames.add(name);
   }
 
   return (
@@ -59,9 +60,11 @@ export default async function AccountPage({
 
         <AccountWorkspace
           account={account}
+          claim={claim}
+          queries={queries}
+          claimDocuments={claimDocuments}
           role={session.role}
           docs={docs}
-          pasValues={pasValues}
           events={events}
           canSubmit={canSubmit(docs)}
           retentionDays={RETENTION_DAYS}

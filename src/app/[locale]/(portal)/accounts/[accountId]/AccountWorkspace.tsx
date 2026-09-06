@@ -1,3 +1,4 @@
+/* eslint-disable react-perf/jsx-no-new-function-as-prop, react-perf/jsx-no-jsx-as-prop */
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
@@ -5,21 +6,22 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { setClaimStatusAction } from "@/app/[locale]/(portal)/accounts/[accountId]/actions";
-import { AccountingValuesTab } from "@/app/[locale]/(portal)/accounts/[accountId]/AccountingValuesTab";
+
 import { AuditTrailTab } from "@/app/[locale]/(portal)/accounts/[accountId]/AuditTrailTab";
 import { InitialClaimsTab } from "@/app/[locale]/(portal)/accounts/[accountId]/InitialClaimsTab";
-import { BucketToggle } from "@/components/portal/BucketToggle";
 import { Panel } from "@/components/portal/Panel";
+import { QueryResponseSection } from "@/components/portal/QueryResponseSection";
 import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
 import type { DocumentRow } from "@/services/portal/claims.server";
-import type { AuditEvent, PasValue, Role } from "@/server/mock/types";
+import type { ClaimRow } from "@/services/portal/claimFlow.server";
+import type { RequirementRow } from "@/services/portal/requirements.server";
+import type { AuditEvent, ClaimQuery, Role } from "@/server/mock/types";
 
 const TABS = [
   "Overview",
-  "Accounting Values",
   "Initial Claims",
   "Audit Trail",
 ] as const;
@@ -28,7 +30,6 @@ const TABS = [
  *  actually shows what it's about (see notifications/page.tsx's `tabSlugForEvent`). */
 const TAB_SLUGS: Record<(typeof TABS)[number], string> = {
   Overview: "overview",
-  "Accounting Values": "accounting-values",
   "Initial Claims": "initial-claims",
   "Audit Trail": "audit-trail",
 };
@@ -41,8 +42,10 @@ type Props = Readonly<{
   account: AccountRow;
   role: Role;
   docs: DocumentRow[];
-  pasValues: PasValue[];
   events: AuditEvent[];
+  claim: ClaimRow | null;
+  queries: ClaimQuery[];
+  claimDocuments: RequirementRow[];
   canSubmit: boolean;
   retentionDays: number;
   /** Names of documents an open query already covers — so a rejection from before that sync
@@ -54,8 +57,10 @@ export function AccountWorkspace({
   account,
   role,
   docs,
-  pasValues,
   events,
+  claim,
+  queries,
+  claimDocuments,
   canSubmit,
   retentionDays,
   queriedDocNames,
@@ -106,10 +111,16 @@ export function AccountWorkspace({
         ))}
       </div>
 
-      {tab === "Overview" && <OverviewTab account={account} role={role} />}
-      {tab === "Accounting Values" && (
-        <AccountingValuesTab accountId={account.id} values={pasValues} />
+      {tab === "Overview" && (
+        <OverviewTab
+          account={account}
+          role={role}
+          claim={claim}
+          queries={queries}
+          claimDocuments={claimDocuments}
+        />
       )}
+
       {tab === "Initial Claims" && (
         <InitialClaimsTab
           accountId={account.id}
@@ -143,7 +154,16 @@ function Fact({ label, value }: Readonly<{ label: string; value: React.ReactNode
 function OverviewTab({
   account,
   role,
-}: Readonly<{ account: AccountRow; role: Role }>) {
+  claim,
+  queries,
+  claimDocuments,
+}: Readonly<{
+  account: AccountRow;
+  role: Role;
+  claim: ClaimRow | null;
+  queries: ClaimQuery[];
+  claimDocuments: RequirementRow[];
+}>) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState("");
@@ -166,25 +186,7 @@ function OverviewTab({
 
   return (
     <div className="space-y-4">
-      <Panel
-        title="Account"
-        description={
-          role === "IMGC"
-            ? account.bucket === "IMGC"
-              ? "In the IMGC bucket. Hand it back once the lender has more to do."
-              : "With the lender. Pull it into the IMGC bucket to process it."
-            : undefined
-        }
-        actions={
-          role === "IMGC" ? (
-            <BucketToggle
-              accountId={account.id}
-              loanNo={account.loanNo}
-              bucket={account.bucket}
-            />
-          ) : null
-        }
-      >
+      <Panel title="Account">
         <div className="grid divide-y divide-neutral-100 sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4">
           <Fact label="Loan number" value={account.loanNo} />
           <Fact label="Borrower" value={account.borrowerName} />
@@ -200,11 +202,8 @@ function OverviewTab({
         </div>
       </Panel>
 
-      {role === "IMGC" && (
-        <Panel
-          title="Processing outcome"
-          description="Processing itself happens in PAS. Record the outcome here so the lender can see it."
-        >
+      {role === "IMGC" && (() => {
+        const imgcComposer = (
           <div className="flex flex-wrap items-end gap-3 px-5 py-4">
             <label className="min-w-[280px] flex-1">
               <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
@@ -234,8 +233,30 @@ function OverviewTab({
               Raise a query
             </Button>
           </div>
-        </Panel>
-      )}
+        );
+
+        return claim ? (
+          <QueryResponseSection
+            accountId={account.id}
+            claimId={claim.id}
+            claimStatus={claim.status}
+            openQuery={claim.openQuery ?? null}
+            queries={queries}
+            savedResponse={claim.fields.__queryResponse ?? ""}
+            documents={claimDocuments}
+            isLender={false}
+            imgcComposer={imgcComposer}
+          />
+        ) : (
+          <Panel
+            title="Processing outcome"
+            description="Processing itself happens in PAS. Record the outcome here so the lender can see it."
+          >
+            {imgcComposer}
+          </Panel>
+        );
+      })()}
+
 
       {account.pushRecipients.length > 0 && (
         <Panel title="Notification recipients">
