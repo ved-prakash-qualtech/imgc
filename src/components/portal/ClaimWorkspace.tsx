@@ -136,7 +136,12 @@ export function ClaimWorkspace({
       // nothing left to do here until a query brings it back. Re-opening it (Continue/Track) picks
       // up wherever it actually stands, rather than leaving this same Save & Submit bar sitting on
       // screen looking clickable right after a successful submission.
-      router.push(backHref);
+      // Return to the grid sorted by Last Updated descending so the newly submitted
+      // claim (lastUpdatedAt = now) appears at the top of page 1 immediately.
+      const backWithSort = backHref.includes("?")
+        ? `${backHref}&sort=lastUpdatedAt_desc`
+        : `${backHref}?sort=lastUpdatedAt_desc`;
+      router.push(backWithSort);
     });
   }, [accountId, backHref, claimId, claimNo, resubmitting, router, values]);
 
