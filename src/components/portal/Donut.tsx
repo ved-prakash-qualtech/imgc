@@ -2,12 +2,28 @@
  * Small progress ring. Pure SVG — no chart library for a single arc, and it renders on the
  * server with the rest of the card.
  */
+/** Ring color — same semantic tokens used across the KPI tiles, so a card's donut, icon chip
+ *  and value all agree on what the number means (risk, in-flight, healthy). */
+const DONUT_STROKE = {
+  brand: "var(--brand-primary)",
+  danger: "var(--color-destructive)",
+  info: "var(--color-info)",
+  success: "var(--color-success)",
+} as const;
+
 export function Donut({
   value,
   total,
   size = 56,
   stroke = 7,
-}: Readonly<{ value: number; total: number; size?: number; stroke?: number }>) {
+  tone = "brand",
+}: Readonly<{
+  value: number;
+  total: number;
+  size?: number;
+  stroke?: number;
+  tone?: keyof typeof DONUT_STROKE;
+}>) {
   const safeTotal = total > 0 ? total : 1;
   const pct = Math.min(1, Math.max(0, value / safeTotal));
   const radius = (size - stroke) / 2;
@@ -35,7 +51,7 @@ export function Donut({
         cy={size / 2}
         r={radius}
         fill="none"
-        stroke="var(--brand-primary)"
+        stroke={DONUT_STROKE[tone]}
         strokeWidth={stroke}
         strokeLinecap="round"
         strokeDasharray={circumference}

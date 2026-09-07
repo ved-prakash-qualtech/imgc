@@ -345,7 +345,7 @@ export function AdditionalDocumentsClient({
           </div>
           <FilterSelect
             label="Status"
-            allLabel="All statuses"
+            allLabel="Document Status"
             options={STATUSES}
             value={status}
             onChange={setStatus}

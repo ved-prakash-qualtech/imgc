@@ -58,7 +58,7 @@ const STATUS_OPTIONS = [
 ] as const;
 
 function statusLabel(v: (typeof STATUS_OPTIONS)[number]): string {
-  if (v === "ALL") return "All statuses";
+  if (v === "ALL") return "Claim Status";
   if (v === "NOT_STARTED") return "Not initiated";
   return v
     .toLowerCase()

@@ -130,6 +130,10 @@ function assetClassDisplay(v: (typeof ASSET_CLASSES)[number]): string {
   return v === "ALL" ? "All classes" : ASSET_CLASS_LABEL[v];
 }
 
+function statusDisplay(v: (typeof STATUSES)[number]): string {
+  return v === "ALL" ? "Claim Status" : v.toLowerCase();
+}
+
 function purposeDisplay(v: string): string {
   return v === "ALL" ? "All purposes" : v;
 }
@@ -388,6 +392,7 @@ export function AccountsClient({
         <FilterSelect
           label="Status"
           options={STATUSES}
+          display={statusDisplay}
           value={status}
           onChange={handleStatusChange}
         />

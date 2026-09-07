@@ -30,6 +30,21 @@ const RING_ICON: Record<string, React.ReactNode> = {
   submitted: <CheckCircle2Icon className="size-4" />,
 };
 
+/** What each ring means, not just what it looks like: NPA exposure is risk, in-progress loans are
+ *  neutral/in-flight, active loans are the healthy count — the donut, icon chip and value all pick
+ *  up this tone together instead of every ring reading as the same generic brand-orange. */
+const RING_TONE: Record<string, keyof typeof RING_TONE_STYLE> = {
+  accounts: "danger",
+  "in-progress": "info",
+  submitted: "success",
+};
+
+const RING_TONE_STYLE = {
+  danger: { chip: "bg-destructive/10 text-destructive", value: "text-destructive" },
+  info: { chip: "bg-info/10 text-info", value: "text-info" },
+  success: { chip: "bg-success/10 text-success", value: "text-success" },
+} as const;
+
 const BAR_TONE = {
   info: "bg-info",
   brand: "bg-brand-primary",
@@ -122,6 +137,9 @@ export function DashboardView({ role, summary }: Props) {
         >
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {summary.rings.map((ring) => {
+              const tone = RING_TONE[ring.key];
+              const style = tone ? RING_TONE_STYLE[tone] : undefined;
+              const pct = Math.round((ring.value / (ring.total || 1)) * 100);
               const card = (
                 <Panel
                   size="compact"
@@ -129,7 +147,12 @@ export function DashboardView({ role, summary }: Props) {
                   description={`${ring.value} of ${ring.total} accounts`}
                   actions={
                     RING_ICON[ring.key] && (
-                      <span className="grid size-6 shrink-0 place-items-center rounded-md bg-brand-light text-brand-primary">
+                      <span
+                        className={cn(
+                          "grid size-6 shrink-0 place-items-center rounded-md",
+                          style?.chip ?? "bg-brand-light text-brand-primary"
+                        )}
+                      >
                         {RING_ICON[ring.key]}
                       </span>
                     )
@@ -141,14 +164,26 @@ export function DashboardView({ role, summary }: Props) {
                 >
                   <div className="flex flex-1 items-center justify-center py-4">
                     <div className="relative grid place-items-center">
-                      <Donut value={ring.value} total={ring.total} size={84} stroke={9} />
+                      <Donut
+                        value={ring.value}
+                        total={ring.total}
+                        size={84}
+                        stroke={9}
+                        tone={tone ?? "brand"}
+                      />
                       <div className="pointer-events-none absolute inset-0 grid place-items-center">
-                        <p className="font-outfit text-[19px] font-bold leading-none text-neutral-950">
+                        <p
+                          className={cn(
+                            "font-outfit text-[19px] font-bold leading-none",
+                            style?.value ?? "text-neutral-950"
+                          )}
+                        >
                           {ring.value}
                         </p>
                       </div>
                     </div>
                   </div>
+                  <p className="text-center text-[11.5px] text-neutral-400">{pct}% of book</p>
                 </Panel>
               );
               return ring.href ? (
@@ -176,6 +211,7 @@ export function DashboardView({ role, summary }: Props) {
               value={summary.pendingUploadAccounts}
               unit="accounts pending"
               href={ROUTES.initiateClaim}
+              tone="warning"
             />
             <ActionCard
               icon={renderMessageWarningIcon()}
@@ -183,6 +219,7 @@ export function DashboardView({ role, summary }: Props) {
               value={summary.queriedCount}
               unit="claims queried by IMGC"
               href={ROUTES.trackQueryResponse}
+              tone="info"
             />
             <ActionCard
               icon={renderClockIcon()}
@@ -190,6 +227,7 @@ export function DashboardView({ role, summary }: Props) {
               value={summary.rejectedDocCount}
               unit="held in the retention window"
               href={`${ROUTES.trackQueryResponse}?status=REJECTED`}
+              tone="danger"
             />
           </div>
         </Section>
@@ -296,28 +334,40 @@ function PipelineKpiCard({
   );
 }
 
+/** Same tone language as the portfolio rings: how urgent an actionable item is, not just what
+ *  it's about — an upload backlog reads differently from a rejected document past retention. */
+const ACTION_TONE = {
+  warning: { chip: "bg-warning/10 text-warning", accent: "bg-warning", value: "text-neutral-950" },
+  info: { chip: "bg-info/10 text-info", accent: "bg-info", value: "text-neutral-950" },
+  danger: { chip: "bg-destructive/10 text-destructive", accent: "bg-destructive", value: "text-destructive" },
+} as const;
+
 function ActionCard({
   icon,
   title,
   value,
   unit,
   href,
+  tone,
 }: Readonly<{
   icon: React.ReactNode;
   title: string;
   value: number;
   unit: string;
   href: string;
+  tone: keyof typeof ACTION_TONE;
 }>) {
+  const t = ACTION_TONE[tone];
   return (
-    <div className="flex flex-col rounded-xl border border-neutral-100 bg-white p-5 shadow-sm">
+    <div className="group relative flex flex-col overflow-hidden rounded-xl border border-neutral-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+      <span className={cn("absolute inset-x-0 top-0 h-1", t.accent)} />
       <div className="mb-3 flex items-center gap-2">
-        <span className="grid size-8 place-items-center rounded-lg bg-brand-light text-brand-primary">
+        <span className={cn("grid size-8 place-items-center rounded-lg", t.chip)}>
           {icon}
         </span>
         <p className="text-[13.5px] font-semibold text-neutral-950">{title}</p>
       </div>
-      <p className="font-outfit text-[32px] font-bold leading-none text-neutral-950">
+      <p className={cn("font-outfit text-[32px] font-bold leading-none", t.value)}>
         {value}
       </p>
       <p className="mt-1.5 text-[12.5px] text-neutral-500">{unit}</p>
