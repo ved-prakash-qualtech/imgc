@@ -578,7 +578,7 @@ function DocumentRowItem({
 
         {/* Row actions */}
         <div className="flex shrink-0 flex-col items-end gap-2">
-          {isLender && doc.status !== "APPROVED" && !submitted && (
+          {isLender && doc.status !== "APPROVED" && !submitted && doc.file?.uploadedBy !== "system" && (
             <>
               <input
                 ref={fileInput}

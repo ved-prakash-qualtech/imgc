@@ -36,7 +36,12 @@ import type { EligibleRow } from "@/app/[locale]/(portal)/initiate-claim/page";
 import type { ClaimStatus } from "@/server/mock/types";
 
 type SortKey =
-  "loanNo" | "claimNo" | "borrowerName" | "loanAmount" | "lastUpdatedAt";
+  | "loanNo"
+  | "claimNo"
+  | "borrowerName"
+  | "loanAmount"
+  | "dpd"
+  | "lastUpdatedAt";
 type SortDirection = "asc" | "desc" | null;
 
 /** Parse the ?sort= param. Returns null state if the value is not a known sort.
@@ -56,6 +61,7 @@ function sortFromParam(value: string | null): {
     "claimNo",
     "borrowerName",
     "loanAmount",
+    "dpd",
     "lastUpdatedAt",
   ];
   const key = validKeys.includes(rawKey as SortKey)
@@ -148,6 +154,7 @@ function downloadCsv(rows: EligibleRow[]): void {
     "Applicant",
     "Purpose",
     "Amount",
+    "DPD",
     "Status",
     "Bucket",
     "Last Updated",
@@ -159,6 +166,7 @@ function downloadCsv(rows: EligibleRow[]): void {
       a.borrowerName,
       a.product,
       a.loanAmount,
+      a.dpd ?? "",
       isNotStarted(a)
         ? "NOT_STARTED"
         : (a.claim as NonNullable<EligibleRow["claim"]>).status,
@@ -428,6 +436,10 @@ export function EligibleCasesClient({
             valA = a.loanAmount;
             valB = b.loanAmount;
             break;
+          case "dpd":
+            valA = a.dpd ?? 0;
+            valB = b.dpd ?? 0;
+            break;
           case "claimNo":
             valA = a.claim?.claimNo ?? "";
             valB = b.claim?.claimNo ?? "";
@@ -529,6 +541,13 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
+              <SortableTableHead
+                column="dpd"
+                label="DPD"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
               <TableHead className="h-8 px-1 text-[10.5px]">Status</TableHead>
               <TableHead className="h-8 px-1 text-[10.5px]">Bucket</TableHead>
               <SortableTableHead
@@ -574,6 +593,9 @@ export function EligibleCasesClient({
                     <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-success-700">
                       {inr.format(a.loanAmount)}
                     </span>
+                  </TableCell>
+                  <TableCell className="px-1 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
+                    {a.dpd ? `${a.dpd} days` : "—"}
                   </TableCell>
                   <TableCell className="px-1 py-1.5">
                     {!isNotStarted(a) && a.claim ? (

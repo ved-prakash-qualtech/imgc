@@ -51,7 +51,7 @@ const ACCOUNTS: NavItem = {
  *  grid already shows, not restricted to NPA. */
 const DPD: NavItem = {
   key: "dpd",
-  label: "DPD",
+  label: "Accounts",
   href: ROUTES.dpd,
 };
 
@@ -83,12 +83,13 @@ const ADMINISTRATION: NavItem = {
   ],
 };
 
-/**
- * The lender sees their specific set of screens; everything that administers
- * the portal, or that spans lenders, is IMGC's.
- */
+const ALL_LOANS: NavItem = {
+  ...DPD,
+  label: "All Loans",
+};
+
 export function navFor(role: Role): NavItem[] {
   return role === "IMGC"
-    ? [DASHBOARD, ACCOUNTS, DPD, ADMINISTRATION]
+    ? [DASHBOARD, ACCOUNTS, ALL_LOANS, ADMINISTRATION]
     : [DASHBOARD, CLAIM, DPD, AUDIT_TRAIL];
 }

@@ -207,8 +207,9 @@ function DocAccordionItem({
   const conditionalNotRequired = doc.conditional && !doc.required;
   const bodyId = `docbody-${doc.id}`;
 
+  const isPreSeeded = doc.files.some((f) => f.uploadedBy === "system");
   const action =
-    !locked && doc.status !== "APPROVED"
+    !locked && doc.status !== "APPROVED" && !isPreSeeded
       ? !hasFiles
         ? { mode: "upload" as const, label: "Upload", icon: <UploadIcon /> }
         : doc.multiple
