@@ -2,8 +2,9 @@ import "server-only";
 
 /* eslint-disable security/detect-object-injection */
 import { readDb } from "@/server/mock/db";
+import { listClaims } from "@/services/portal/claimFlow.server";
 import type { AppSession } from "@/lib/auth/appSession";
-import type { ClaimDocument } from "@/server/mock/types";
+import type { Claim, ClaimDocument } from "@/server/mock/types";
 
 /**
  * Everything the dashboard shows, computed from the accounts this session can see.
@@ -66,6 +67,20 @@ export interface PortfolioSummary {
   }[];
 }
 
+/** Pipeline health, not a status count — see `DashboardSummary.claimPipeline`. */
+export interface ClaimPipelineKpis {
+  /** Approved ÷ (Approved + Rejected) among decided claims — 0 when nothing has been decided
+   *  yet, rather than a misleading 0% or 100%. */
+  approvalRatePct: number | null;
+  /** Mean days from `submittedAt` to the decision, over decided claims that actually have a
+   *  `submittedAt` to measure from. */
+  avgTurnaroundDays: number | null;
+  /** Claims submitted in the current calendar month. */
+  claimsThisMonth: number;
+  /** Open queries already past their `dueDate`. */
+  overdueQueries: number;
+}
+
 export interface DashboardSummary {
   accountCount: number;
   documentsIn: number;
@@ -78,7 +93,6 @@ export interface DashboardSummary {
   pendingUploadAccounts: number;
   readyToSubmit: number;
   oldestPendingDays: number;
-  progressTiles: Tile[];
   rings: Ring[];
   aging: AgingBand[];
   lastActivityAt: string | null;
@@ -92,13 +106,12 @@ export interface DashboardSummary {
     reuploadRequired: number;
     approved: number;
   };
-  lenderHero?: {
-    totalClaims: number;
-    claimInitiation: number;
-    underProgress: number;
-    claimApproved: number;
-    claimRejected: number;
-  };
+  /**
+   * Lender only — deliberately NOT the same breakdown as the Claim page's own "Claims Overview"
+   * band (that would just restate the same six numbers). This is the pipeline-health view: how
+   * claims are actually performing, not how many sit in each status.
+   */
+  claimPipeline?: ClaimPipelineKpis;
   /** IMGC only — the portfolio-wide command center at the top of the dashboard. */
   portfolio?: PortfolioSummary;
 }
@@ -245,6 +258,61 @@ function buildPortfolioSummary(
   };
 }
 
+/** When a claim was actually decided — the last `statusHistory` entry matching its current
+ *  (terminal) status, falling back to `lastUpdatedAt` for older records with a thinner history. */
+function decidedAt(claim: Claim): string {
+  const entry = [...claim.statusHistory]
+    .reverse()
+    .find((h) => h.status === claim.status);
+  return entry?.at ?? claim.lastUpdatedAt;
+}
+
+function buildClaimPipelineKpis(
+  claims: readonly Claim[],
+  queries: ReadonlyArray<{ claimId: string; dueDate?: string; respondedAt?: string }>
+): ClaimPipelineKpis {
+  const decided = claims.filter(
+    (c) => c.status === "APPROVED" || c.status === "REJECTED"
+  );
+  const approvalRatePct = decided.length
+    ? Math.round(
+        (decided.filter((c) => c.status === "APPROVED").length / decided.length) * 100
+      )
+    : null;
+
+  const turnarounds = decided
+    .filter((c): c is Claim & { submittedAt: string } => Boolean(c.submittedAt))
+    .map((c) => (Date.parse(decidedAt(c)) - Date.parse(c.submittedAt)) / 86_400_000)
+    .filter((days) => days >= 0);
+  const avgTurnaroundDays = turnarounds.length
+    ? Math.round(
+        (turnarounds.reduce((sum, d) => sum + d, 0) / turnarounds.length) * 10
+      ) / 10
+    : null;
+
+  const now = new Date();
+  const claimsThisMonth = claims.filter((c) => {
+    if (!c.submittedAt) return false;
+    const submitted = new Date(c.submittedAt);
+    return (
+      submitted.getFullYear() === now.getFullYear() &&
+      submitted.getMonth() === now.getMonth()
+    );
+  }).length;
+
+  const claimIds = new Set(claims.map((c) => c.id));
+  const nowMs = Date.now();
+  const overdueQueries = queries.filter(
+    (q) =>
+      claimIds.has(q.claimId) &&
+      !q.respondedAt &&
+      q.dueDate &&
+      Date.parse(q.dueDate) < nowMs
+  ).length;
+
+  return { approvalRatePct, avgTurnaroundDays, claimsThisMonth, overdueQueries };
+}
+
 function isIn(doc: ClaimDocument): boolean {
   return doc.status === "UNDER_REVIEW" || doc.status === "APPROVED";
 }
@@ -260,6 +328,8 @@ export async function buildDashboardSummary(
   const ids = new Set(accounts.map((a) => a.id));
   const docs = db.claimDocuments.filter((d) => ids.has(d.accountId));
   const events = db.auditEvents.filter((e) => ids.has(e.accountId));
+
+  const claims = await listClaims(session);
 
   const required = docs.filter((d) => d.required);
   const documentsRequired = required.length;
@@ -295,68 +365,6 @@ export async function buildDashboardSummary(
   const npaCount = accounts.filter((a) => a.npa && !a.writeOff).length;
 
   const isLender = session.role === "LENDER";
-
-  const progressTiles: Tile[] = [
-    {
-      key: "new",
-      label: "New",
-      value: untouched,
-      tone: "neutral",
-      href: isLender ? "/initiate-claim" : "/accounts?status=DRAFT&docs=none",
-    },
-    {
-      key: "collecting",
-      label: "Underwriting",
-      value: partly,
-      tone: "info",
-      href: isLender
-        ? "/initiate-claim"
-        : "/accounts?status=DRAFT&docs=partial",
-    },
-    {
-      key: "ready",
-      label: "Pre Offer",
-      value: readyToSubmit,
-      tone: "teal",
-      href: isLender
-        ? "/initiate-claim"
-        : "/accounts?status=DRAFT&docs=complete",
-    },
-    {
-      key: "submitted",
-      label: "Invoiced",
-      value: byStatus("SUBMITTED"),
-      tone: "violet",
-      href: isLender
-        ? "/initiate-claim?status=SUBMITTED"
-        : "/accounts?status=SUBMITTED",
-    },
-    {
-      key: "queried",
-      label: "Queried",
-      value: byStatus("QUERIED"),
-      tone: "warning",
-      href: isLender
-        ? "/initiate-claim?status=QUERY_RAISED"
-        : "/accounts?status=QUERIED",
-    },
-    {
-      key: "approved",
-      label: "Approved",
-      value: byStatus("APPROVED"),
-      tone: "success",
-      href: isLender
-        ? "/initiate-claim?status=APPROVED"
-        : "/accounts?status=APPROVED",
-    },
-    {
-      key: "rejected",
-      label: "Rejected",
-      value: rejectedDocCount,
-      tone: "danger",
-      href: isLender ? "/initiate-claim?status=REJECTED" : "/accounts",
-    },
-  ];
 
   const rings: Ring[] = [
     {
@@ -433,7 +441,6 @@ export async function buildDashboardSummary(
     pendingUploadAccounts,
     readyToSubmit,
     oldestPendingDays: ages.length ? Math.max(...ages) : 0,
-    progressTiles,
     rings,
     aging,
     lastActivityAt: events[0]?.at ?? null,
@@ -455,22 +462,8 @@ export async function buildDashboardSummary(
       session.role === "IMGC"
         ? buildPortfolioSummary(accounts, lastTouch)
         : undefined,
-    lenderHero: (() => {
-      const claims = db.claims.filter((c) => ids.has(c.accountId));
-      const terminalOrDraft = new Set([
-        "DRAFT",
-        "APPROVED",
-        "REJECTED",
-        "CLOSED",
-      ]);
-      return {
-        totalClaims: claims.length,
-        claimInitiation: claims.filter((c) => c.status === "DRAFT").length,
-        underProgress: claims.filter((c) => !terminalOrDraft.has(c.status))
-          .length,
-        claimApproved: claims.filter((c) => c.status === "APPROVED").length,
-        claimRejected: claims.filter((c) => c.status === "REJECTED").length,
-      };
-    })(),
+    claimPipeline: isLender
+      ? buildClaimPipelineKpis(claims, db.claimQueries)
+      : undefined,
   };
 }

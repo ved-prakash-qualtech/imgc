@@ -1,13 +1,28 @@
 import { EligibleCasesClient } from "@/app/[locale]/(portal)/initiate-claim/EligibleCasesClient";
+import { ClaimOverviewBand } from "@/components/portal/ClaimOverviewBand";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { ROUTES } from "@/constants/route";
 import { requireSession } from "@/lib/auth/appSession";
 import { listAccounts, type AccountRow } from "@/services/portal/accounts.server";
 import {
   getClaimAction,
   listClaims,
+  summariseClaimOverview,
+  type ClaimOverviewCounts,
   type ClaimRow,
 } from "@/services/portal/claimFlow.server";
 import type { ClaimAction } from "@/server/mock/types";
+
+/** Each tile links to this same grid, pre-filtered to the exact bucket it counted — the grid
+ *  reads the same `?status=` values back out via `statusFromParam` in EligibleCasesClient. */
+const CLAIM_OVERVIEW_HREFS: Record<keyof ClaimOverviewCounts, string> = {
+  total: ROUTES.initiateClaim,
+  initiation: `${ROUTES.initiateClaim}?status=INITIATION`,
+  underProgress: `${ROUTES.initiateClaim}?status=UNDER_PROGRESS`,
+  approved: `${ROUTES.initiateClaim}?status=APPROVED`,
+  rejected: `${ROUTES.initiateClaim}?status=REJECTED`,
+  paid: `${ROUTES.initiateClaim}?status=CLOSED`,
+};
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +58,10 @@ export default async function InitiateClaimPage() {
   return (
     <PortalShell activeKey="initiate-claim" title="Claim">
       <div className="space-y-4">
+        <ClaimOverviewBand
+          counts={summariseClaimOverview(rows)}
+          hrefs={CLAIM_OVERVIEW_HREFS}
+        />
         <EligibleCasesClient accounts={rows} />
       </div>
     </PortalShell>
