@@ -2,94 +2,26 @@ import Link from "next/link";
 import {
   AlertTriangleIcon,
   ArrowRightIcon,
+  CalendarClockIcon,
   CheckCircle2Icon,
-  ClipboardListIcon,
   ClockIcon,
-  FilePlus2Icon,
   MessageSquareWarningIcon,
-  SendIcon,
+  PercentIcon,
   TrendingUpIcon,
   UploadCloudIcon,
-  XCircleIcon,
 } from "lucide-react";
 
 import { CommandBand, Section } from "@/components/portal/CommandBand";
 import { Donut } from "@/components/portal/Donut";
+import { Panel } from "@/components/portal/Panel";
 import { PortfolioCommandCenter } from "@/components/portal/PortfolioCommandCenter";
-import { RefreshButton } from "@/components/portal/RefreshButton";
 import { ROUTES } from "@/constants/route";
 import { cn } from "@/lib/utils/twMergeUtils";
 
-import type {
-  DashboardSummary,
-  Tile,
-} from "@/services/portal/dashboard.server";
+import type { DashboardSummary } from "@/services/portal/dashboard.server";
 import type { Role } from "@/server/mock/types";
 
 /* ── tokens for the soft-tint tiles ────────────────────────────────── */
-
-/** One icon per progress-tile key — a purely visual cue, not a new data source (see the `key`
- *  values `dashboard.server.ts` already assigns each tile). */
-const TILE_ICON: Record<string, React.ReactNode> = {
-  new: <FilePlus2Icon className="size-4" />,
-  collecting: <ClipboardListIcon className="size-4" />,
-  ready: <CheckCircle2Icon className="size-4" />,
-  submitted: <SendIcon className="size-4" />,
-  queried: <MessageSquareWarningIcon className="size-4" />,
-  approved: <CheckCircle2Icon className="size-4" />,
-  rejected: <XCircleIcon className="size-4" />,
-};
-
-/** Same dark-band card language as `PortfolioCommandCenter`'s KpiCard — reimplemented locally
- *  (rather than importing IMGC's version) so nothing about the IMGC command centre is touched
- *  while this matches its look for the lender's own two preserved KPI sections. */
-const DARK_TILE_TONE: Record<
-  Tile["tone"],
-  { bg: string; icon: string; spark: string }
-> = {
-  neutral: { bg: "bg-white/8 border-white/12", icon: "bg-white/12 text-white/80", spark: "#a3a3a3" },
-  info: { bg: "bg-info/8 border-info/15", icon: "bg-info/20 text-[#93c5fd]", spark: "#3b82f6" },
-  warning: { bg: "bg-warning/8 border-warning/20", icon: "bg-warning/20 text-[#fcd34d]", spark: "#f59e0b" },
-  success: { bg: "bg-success/8 border-success/15", icon: "bg-success/20 text-[#86efac]", spark: "#22c55e" },
-  danger: { bg: "bg-destructive/8 border-destructive/15", icon: "bg-destructive/20 text-[#fca5a5]", spark: "#ef4444" },
-  violet: { bg: "bg-[#ffc48a]/10 border-[#ffc48a]/20", icon: "bg-[#ffc48a]/20 text-[#ffc48a]", spark: "#ffb27a" },
-  teal: { bg: "bg-success/8 border-success/15", icon: "bg-success/20 text-[#5eead4]", spark: "#14b8a6" },
-};
-
-/** Deterministic decorative squiggle, seeded by label — not a data series, purely ornamental
- *  (same idiom as `PortfolioCommandCenter`'s Sparkline). */
-function nextSeed(h: number): number {
-  return (h * 1103515245 + 12345) >>> 0;
-}
-
-function Sparkline({ seed, color }: Readonly<{ seed: string; color: string }>) {
-  const initial = [...seed].reduce(
-    (h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0,
-    0
-  );
-  const points = Array.from({ length: 6 })
-    .reduce<{ h: number; out: string[] }>(
-      (acc) => {
-        const h = nextSeed(acc.h);
-        const y = 18 - ((h % 1000) / 1000) * 14;
-        return { h, out: [...acc.out, `${acc.out.length * 20},${y.toFixed(1)}`] };
-      },
-      { h: initial, out: [] }
-    )
-    .out.join(" ");
-  return (
-    <svg viewBox="0 0 100 24" className="h-4 w-full" preserveAspectRatio="none">
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 /** One icon per portfolio-overview ring key — same idea, presentational only. */
 const RING_ICON: Record<string, React.ReactNode> = {
@@ -136,55 +68,48 @@ export function DashboardView({ role, summary }: Props) {
         <PortfolioCommandCenter summary={summary.portfolio} />
       )}
 
-      {/* ── In-progress cases ────────────────────────────────────── */}
-      {isLender && (
+      {/* ── Claims performance ───────────────────────────────────── */}
+      {isLender && summary.claimPipeline && (
         <CommandBand
-          title="In progress claim cases"
-          subtitle="Where every account currently stands"
+          title="Claims Performance"
+          subtitle="Approval rate, turnaround time and activity at a glance"
           stats={[]}
-          action={<RefreshButton />}
         >
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            {summary.progressTiles.map((tile) => {
-              const tone = DARK_TILE_TONE[tile.tone];
-              const Inner = (
-                <>
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="truncate text-[12px] font-medium text-white/70">
-                      {tile.label}
-                    </p>
-                    {TILE_ICON[tile.key] && (
-                      <span
-                        className={cn(
-                          "grid size-7 shrink-0 place-items-center rounded-lg",
-                          tone.icon
-                        )}
-                      >
-                        {TILE_ICON[tile.key]}
-                      </span>
-                    )}
-                  </div>
-                  <p className="font-outfit text-[22px] font-bold leading-none text-white">
-                    {tile.value}
-                  </p>
-                  <Sparkline seed={tile.label} color={tone.spark} />
-                </>
-              );
-              const className = cn(
-                "flex flex-col rounded-xl border bg-white/8 backdrop-blur-sm px-3 py-2",
-                tone.bg,
-                tile.href && "transition-colors hover:bg-white/12 cursor-pointer"
-              );
-              return tile.href ? (
-                <Link key={tile.key} href={tile.href} className={className}>
-                  {Inner}
-                </Link>
-              ) : (
-                <div key={tile.key} className={className}>
-                  {Inner}
-                </div>
-              );
-            })}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <PipelineKpiCard
+              icon={<PercentIcon className="size-4" />}
+              label="Approval Rate"
+              value={
+                summary.claimPipeline.approvalRatePct === null
+                  ? "—"
+                  : `${summary.claimPipeline.approvalRatePct}%`
+              }
+              tone="success"
+            />
+            <PipelineKpiCard
+              icon={<ClockIcon className="size-4" />}
+              label="Avg. Turnaround"
+              value={
+                summary.claimPipeline.avgTurnaroundDays === null
+                  ? "—"
+                  : `${summary.claimPipeline.avgTurnaroundDays}d`
+              }
+              tone="info"
+            />
+            <PipelineKpiCard
+              icon={<CalendarClockIcon className="size-4" />}
+              label="Claims This Month"
+              value={String(summary.claimPipeline.claimsThisMonth)}
+              tone="violet"
+              href={ROUTES.initiateClaim}
+            />
+            <PipelineKpiCard
+              icon={<AlertTriangleIcon className="size-4" />}
+              label="Overdue Queries"
+              value={String(summary.claimPipeline.overdueQueries)}
+              tone={summary.claimPipeline.overdueQueries > 0 ? "danger" : "success"}
+              href={ROUTES.trackQueryResponse}
+            />
           </div>
         </CommandBand>
       )}
@@ -195,40 +120,43 @@ export function DashboardView({ role, summary }: Props) {
           title="Portfolio overview"
           subtitle="Claim and document counts against their totals"
         >
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {summary.rings.map((ring) => {
-              const Inner = (
-                <>
-                  <Donut value={ring.value} total={ring.total} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-[12.5px] text-neutral-500">
-                        {ring.label}
-                      </p>
-                      {RING_ICON[ring.key] && (
-                        <span className="grid size-6 shrink-0 place-items-center rounded-md bg-brand-light text-brand-primary">
-                          {RING_ICON[ring.key]}
-                        </span>
-                      )}
+              const card = (
+                <Panel
+                  size="compact"
+                  title={ring.label}
+                  description={`${ring.value} of ${ring.total} accounts`}
+                  actions={
+                    RING_ICON[ring.key] && (
+                      <span className="grid size-6 shrink-0 place-items-center rounded-md bg-brand-light text-brand-primary">
+                        {RING_ICON[ring.key]}
+                      </span>
+                    )
+                  }
+                  className={cn(
+                    "flex h-full flex-col transition-all",
+                    ring.href && "hover:-translate-y-0.5 hover:border-brand-primary/50 hover:shadow-md"
+                  )}
+                >
+                  <div className="flex flex-1 items-center justify-center py-4">
+                    <div className="relative grid place-items-center">
+                      <Donut value={ring.value} total={ring.total} size={84} stroke={9} />
+                      <div className="pointer-events-none absolute inset-0 grid place-items-center">
+                        <p className="font-outfit text-[19px] font-bold leading-none text-neutral-950">
+                          {ring.value}
+                        </p>
+                      </div>
                     </div>
-                    <p className="font-outfit text-[22px] font-bold leading-tight text-neutral-950">
-                      {ring.value}
-                    </p>
                   </div>
-                </>
-              );
-              const className = cn(
-                "flex items-center gap-3 rounded-xl border border-neutral-100 bg-white px-4 py-3.5 shadow-sm transition-all",
-                ring.href && "hover:-translate-y-0.5 hover:border-brand-primary/50 hover:shadow-md"
+                </Panel>
               );
               return ring.href ? (
-                <Link key={ring.key} href={ring.href} className={className}>
-                  {Inner}
+                <Link key={ring.key} href={ring.href} className="block">
+                  {card}
                 </Link>
               ) : (
-                <div key={ring.key} className={className}>
-                  {Inner}
-                </div>
+                <div key={ring.key}>{card}</div>
               );
             })}
           </div>
@@ -312,6 +240,61 @@ export function DashboardView({ role, summary }: Props) {
 }
 
 /* ── building blocks ───────────────────────────────────────────────── */
+
+/** Same dark-tile language as the Claim page's own "Claims Overview" band — matched for visual
+ *  consistency only; the KPIs themselves are deliberately different (see the Section subtitle). */
+const PIPELINE_TONE = {
+  success: { bg: "bg-success/10 border-success/25", icon: "bg-success text-white" },
+  info: { bg: "bg-info/10 border-info/20", icon: "bg-info text-white" },
+  violet: { bg: "bg-brand-primary/10 border-brand-primary/25", icon: "bg-brand-primary text-white" },
+  danger: { bg: "bg-destructive/10 border-destructive/25", icon: "bg-destructive text-white" },
+} as const;
+
+function PipelineKpiCard({
+  icon,
+  label,
+  value,
+  tone,
+  href,
+}: Readonly<{
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  tone: keyof typeof PIPELINE_TONE;
+  href?: string;
+}>) {
+  const t = PIPELINE_TONE[tone];
+  const inner = (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-outfit text-[26px] font-bold leading-none text-white">
+          {value}
+        </span>
+        <span
+          className={cn(
+            "grid size-8 shrink-0 place-items-center rounded-lg",
+            t.icon
+          )}
+        >
+          {icon}
+        </span>
+      </div>
+      <p className="mt-2 truncate text-[12.5px] font-medium text-white/85">{label}</p>
+    </>
+  );
+  const className = cn(
+    "rounded-xl border bg-white/8 backdrop-blur-sm px-4 py-3.5",
+    t.bg,
+    href && "transition-colors hover:bg-white/12 cursor-pointer"
+  );
+  return href ? (
+    <Link href={href} className={className}>
+      {inner}
+    </Link>
+  ) : (
+    <div className={className}>{inner}</div>
+  );
+}
 
 function ActionCard({
   icon,

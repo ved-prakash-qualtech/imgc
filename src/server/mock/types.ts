@@ -143,6 +143,14 @@ export interface Account {
   claimStatus: ClaimStatus;
   npa: boolean;
   writeOff: boolean;
+  /**
+   * Days Past Due — a collections metric independent of `npa`/`writeOff`. An account can carry a
+   * real DPD well before (or without ever) crossing into NPA; the two are related in the real
+   * world but never derived from each other here. Optional so an older/incomplete record can
+   * still exist — render "—" rather than `0` when it's missing, since a missing DPD is not the
+   * same claim as "zero days past due".
+   */
+  dpd?: number;
   submittedAt?: string;
   /** Extra mailboxes an IMGC processor wants pushed on this account's events. */
   pushRecipients: string[];

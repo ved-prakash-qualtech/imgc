@@ -173,6 +173,54 @@ export async function listQueries(claimId: string): Promise<ClaimQuery[]> {
     .sort((a, b) => b.raisedAt.localeCompare(a.raisedAt));
 }
 
+/* ── claim overview (shared by the Claim page and the Dashboard) ─────── */
+
+/** In-flight — submitted but not yet decided one way or the other. */
+const UNDER_PROGRESS_STATUSES = new Set<ClaimStatus>([
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "QUERY_RAISED",
+  "DOCUMENTS_RESUBMITTED",
+]);
+
+export interface ClaimOverviewCounts {
+  total: number;
+  initiation: number;
+  underProgress: number;
+  approved: number;
+  rejected: number;
+  /** Stand-in for "paid" — the claim workflow has no PAID status yet, so a CLOSED claim is the
+   *  closest real signal until that concept exists. */
+  paid: number;
+}
+
+/**
+ * The same five mutually-exclusive buckets, over whatever universe of accounts the caller
+ * considers "in scope" (the Claim page's own eligible-accounts row set; the Dashboard's
+ * lender/IMGC-scoped account set) — one function, so the Claim page and the Dashboard can never
+ * quietly disagree about what "under progress" or "approved" means.
+ */
+export function summariseClaimOverview(
+  rows: ReadonlyArray<{ claim: { status: ClaimStatus } | null }>
+): ClaimOverviewCounts {
+  let initiation = 0;
+  let underProgress = 0;
+  let approved = 0;
+  let rejected = 0;
+  let paid = 0;
+
+  for (const row of rows) {
+    const status = row.claim?.status;
+    if (!status || status === "DRAFT") initiation += 1;
+    else if (UNDER_PROGRESS_STATUSES.has(status)) underProgress += 1;
+    else if (status === "APPROVED") approved += 1;
+    else if (status === "REJECTED") rejected += 1;
+    else if (status === "CLOSED") paid += 1;
+  }
+
+  return { total: rows.length, initiation, underProgress, approved, rejected, paid };
+}
+
 /* ── helpers ───────────────────────────────────────────────────────── */
 
 function nextClaimNo(db: MockDb, type: ClaimTypeKey): string {

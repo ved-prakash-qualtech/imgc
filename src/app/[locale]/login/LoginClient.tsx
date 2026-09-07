@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
   ArrowRightIcon,
   CheckCircle2Icon,
@@ -50,14 +50,14 @@ const VALUE_ROWS = [
 
 function FieldLabel({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <label className="mb-1.5 block text-[13px] font-semibold text-white/90">
+    <label className="mb-1.5 block text-[13px] font-semibold text-slate-800">
       {children}
     </label>
   );
 }
 
 const INPUT_CLASS =
-  "h-11 w-full rounded-lg border border-white/15 bg-white/8 pl-10 pr-10 text-[14px] text-white placeholder:text-white/55 outline-none transition focus:border-[#f37819] focus:bg-white/12 focus:ring-2 focus:ring-[#f37819]/30";
+  "h-11 w-full rounded-lg border border-neutral-200 bg-white/80 pl-10 pr-10 text-[14px] text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-[#f26e22] focus:bg-white focus:ring-2 focus:ring-[#f26e22]/20";
 
 export function LoginClient({
   returnTo,
@@ -70,6 +70,18 @@ export function LoginClient({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+  const codeInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus the field for whichever step just became active — same effect as autoFocus,
+  // without the accessibility footgun jsx-a11y/no-autofocus flags (a screen reader user
+  // gets yanked to the field before hearing the label/instructions around it).
+  useEffect(() => {
+    if (step.kind === "PASSWORD") passwordInputRef.current?.focus();
+    if (step.kind === "OTP") codeInputRef.current?.focus();
+  }, [step.kind]);
+
+
 
   const reset = useCallback(() => {
     setStep({ kind: "IDENTIFY" });
@@ -156,47 +168,24 @@ export function LoginClient({
   }, []);
 
   return (
-    /* `isolate` is load-bearing: the backdrop layers below sit at negative
-       z-index, and without a stacking context here they paint *behind* this
-       element's own opaque background — the video and the colour fields were
-       rendering, invisibly, under a flat navy rectangle. */
-    <div className="relative isolate h-dvh w-full overflow-hidden bg-[#1a120c] text-white subpixel-antialiased">
+    <div className="relative isolate h-dvh w-full overflow-hidden bg-[#fdf1e2] text-slate-800 subpixel-antialiased">
       {/* ── Backdrop ────────────────────────────────────────────────────
-          A looping video rather than a still: the page is the product's
-          front door and motion is the cheapest way to make it feel alive.
-          Muted + playsInline so it autoplays everywhere, aria-hidden and
-          pointer-events-none so it is scenery and nothing else. */}
+          The same looping video as before, under a warmer, more orange-led
+          wash — still the same cream-to-orange family, just leaning further
+          into the orange throughout instead of holding cream so long. */}
       <video
         autoPlay
         loop
         muted
         playsInline
         aria-hidden
-        /* The clip averages ~25/255 brightness, so straight out of the file it
-           reads as a flat black rectangle. Lifting it here is what makes the
-           motion visible at all; the wash below then takes it back down to a
-           level white text sits on comfortably. */
-        className="pointer-events-none absolute inset-0 -z-20 size-full object-cover [filter:brightness(1.4)_contrast(1.05)_saturate(0.55)_sepia(0.25)]"
+        className="pointer-events-none absolute inset-0 -z-20 size-full object-cover [filter:brightness(1.12)_contrast(1.04)_saturate(1.05)]"
       >
         <source src="/assets/videos/login-bg.mp4" type="video/mp4" />
       </video>
-
-      {/* Darkening wash — enough to keep white text legible over a moving
-          picture, light enough that the motion still reads. Heavier on the
-          left, where the headline sits. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(100deg,rgba(20,12,8,0.94)_0%,rgba(28,17,10,0.78)_45%,rgba(20,12,8,0.85)_100%)]"
-      />
-
-      {/* Two slow-drifting colour fields. Transform/opacity only. */}
-      <div
-        aria-hidden
-        className="imgc-drift pointer-events-none absolute -left-40 top-1/4 -z-10 h-[560px] w-[560px] rounded-full bg-[#f37819]/30 blur-[150px]"
-      />
-      <div
-        aria-hidden
-        className="imgc-drift-slow pointer-events-none absolute -right-32 -top-28 -z-10 h-[520px] w-[520px] rounded-full bg-[#d98b2b]/26 blur-[150px]"
+        className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(115deg,rgba(253,235,211,0.84)_0%,rgba(247,175,108,0.68)_32%,rgba(238,101,25,0.8)_100%)]"
       />
 
       <div className="relative z-10 mx-auto flex h-dvh w-full max-w-[1440px] flex-col overflow-y-auto px-6 py-4 lg:px-10 lg:py-5">
@@ -211,10 +200,10 @@ export function LoginClient({
               className="size-11"
             />
             <span className="leading-tight">
-              <span className="block font-outfit text-[17px] font-bold tracking-tight">
+              <span className="block font-outfit text-[17px] font-bold tracking-tight text-slate-900">
                 IMGC Lender Portal
               </span>
-              <span className="block text-[12px] text-white/75">
+              <span className="block text-[12px] text-slate-700">
                 Initial Claims Platform
               </span>
             </span>
@@ -225,14 +214,11 @@ export function LoginClient({
         <div className="flex flex-1 flex-col gap-6 py-4 lg:flex-row lg:items-center lg:gap-12 lg:py-2">
           {/* Left: the proposition */}
           <section className="imgc-rise min-w-0 flex-1">
-            {/* text-white on the element itself: globals.css pins a colour on
-                h1..h6 in @layer base, which beats a colour inherited from the
-                panel around it. */}
-            <h1 className="font-outfit max-w-[620px] text-[34px] font-bold leading-[1.12] tracking-tight text-white sm:text-[44px]">
+            <h1 className="font-outfit max-w-[620px] text-[34px] font-bold leading-[1.12] tracking-tight text-slate-900 sm:text-[44px]">
               One claims workspace{" "}
-              <span className="text-[#ffb27a]">for every lender.</span>
+              <span className="text-[#d85811]">for every lender.</span>
             </h1>
-            <p className="mt-4 max-w-[540px] text-[15px] leading-relaxed text-white/85">
+            <p className="mt-4 max-w-[540px] text-[15px] leading-relaxed text-slate-800">
               Collect once, review everywhere — documents, PAS values and a
               complete audit trail on a single account.
             </p>
@@ -241,21 +227,21 @@ export function LoginClient({
               {FEATURE_PILLS.map((pill) => (
                 <li
                   key={pill}
-                  className="flex items-center gap-1.5 rounded-full border border-white/12 bg-[#2f1f16] px-3 py-1.5 text-[12px] font-medium text-white/90"
+                  className="flex items-center gap-1.5 rounded-full border border-[#f26e22]/20 bg-white/60 px-3 py-1.5 text-[12px] font-medium text-slate-800"
                 >
-                  <CheckCircle2Icon className="size-3.5 shrink-0 text-[#ffb27a]" />
+                  <CheckCircle2Icon className="size-3.5 shrink-0 text-[#f26e22]" />
                   {pill}
                 </li>
               ))}
             </ul>
 
-            <dl className="mt-6 max-w-[560px] space-y-4 border-l border-white/12 pl-5">
+            <dl className="mt-6 max-w-[560px] space-y-4 border-l border-[#f26e22]/30 pl-5">
               {VALUE_ROWS.map((row) => (
                 <div key={row.title}>
-                  <dt className="text-[14px] font-semibold text-white">
+                  <dt className="text-[14px] font-semibold text-slate-900">
                     {row.title}
                   </dt>
-                  <dd className="mt-0.5 text-[13px] leading-relaxed text-white/75">
+                  <dd className="mt-0.5 text-[13px] font-medium leading-relaxed text-slate-800">
                     {row.body}
                   </dd>
                 </div>
@@ -265,24 +251,24 @@ export function LoginClient({
 
           {/* Right: sign-in card */}
           <section className="imgc-rise w-full shrink-0 lg:w-[420px]">
-            <div className="rounded-2xl border border-white/12 bg-[#241812] p-6 shadow-2xl shadow-black/50">
-              <h2 className="font-outfit text-center text-[22px] font-bold tracking-tight text-white">
+            <div className="rounded-2xl border border-white/60 bg-white/95 backdrop-blur-xl p-6 shadow-2xl shadow-[#f26e22]/25">
+              <h2 className="font-outfit text-center text-[22px] font-bold tracking-tight text-slate-900">
                 Welcome Back
               </h2>
-              <p className="mt-1 mb-4 text-center text-[13px] text-white/80">
+              <p className="mt-1 mb-4 text-center text-[13px] text-slate-700">
                 Sign in to your IMGC Lender Portal account
               </p>
 
               {error && (
                 <p
                   role="alert"
-                  className="mb-4 rounded-lg border border-[#ff5f57]/40 bg-[#ff5f57]/10 px-3 py-2 text-[12.5px] text-[#ffb4b0]"
+                  className="mb-4 rounded-lg border border-red-500/30 bg-red-50 px-3 py-2 text-[12.5px] text-red-700"
                 >
                   {error}
                 </p>
               )}
               {!error && notice && (
-                <p className="mb-4 rounded-lg border border-[#ffb27a]/30 bg-[#ffb27a]/10 px-3 py-2 text-[12.5px] text-[#9df0de]">
+                <p className="mb-4 rounded-lg border border-blue-500/30 bg-blue-50 px-3 py-2 text-[12.5px] text-blue-700">
                   {notice}
                 </p>
               )}
@@ -291,7 +277,7 @@ export function LoginClient({
                 <form onSubmit={onIdentify} noValidate>
                   <FieldLabel>Employee ID or Email</FieldLabel>
                   <div className="relative">
-                    <UserIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/60" />
+                    <UserIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                     <input
                       name="identifier"
                       value={identifier}
@@ -301,7 +287,7 @@ export function LoginClient({
                       className={INPUT_CLASS}
                     />
                   </div>
-                  <p className="mt-2 text-[12px] leading-relaxed text-white/70">
+                  <p className="mt-2 text-[12px] leading-relaxed text-slate-600">
                     IMGC staff sign in with an Employee ID and password. Lender
                     users sign in with their work email — we send a one-time code.
                   </p>
@@ -318,13 +304,9 @@ export function LoginClient({
                   />
                   <FieldLabel>Password</FieldLabel>
                   <div className="relative">
-                    <LockIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/60" />
+                    <LockIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                     <input
-                      // This field exists only because the user just pressed Continue, so
-                      // focusing it continues the action they started rather than seizing
-                      // focus on page load.
-                      // eslint-disable-next-line jsx-a11y/no-autofocus
-                      autoFocus
+                      ref={passwordInputRef}
                       type={showPassword ? "text" : "password"}
                       name="password"
                       value={password}
@@ -337,7 +319,7 @@ export function LoginClient({
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
                       aria-label={showPassword ? "Hide password" : "Show password"}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/65 hover:text-white/75"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                     >
                       {showPassword ? (
                         <EyeOffIcon className="size-4" />
@@ -348,7 +330,7 @@ export function LoginClient({
                   </div>
 
                   <div className="mt-3.5 flex items-center justify-between">
-                    <label className="flex cursor-pointer items-center gap-2 text-[13px] text-white/85">
+                    <label className="flex cursor-pointer items-center gap-2 text-[13px] text-slate-700">
                       <input
                         type="checkbox"
                         defaultChecked
@@ -356,7 +338,7 @@ export function LoginClient({
                       />
                       Remember me
                     </label>
-                    <span className="text-[13px] font-medium text-white/70">
+                    <span className="text-[13px] font-medium text-slate-600">
                       Forgot password?
                     </span>
                   </div>
@@ -374,10 +356,7 @@ export function LoginClient({
                   />
                   <FieldLabel>One-time code</FieldLabel>
                   <input
-                    // Revealed by the user's own Continue press; entering the code is the
-                    // only thing left to do.
-                    // eslint-disable-next-line jsx-a11y/no-autofocus
-                    autoFocus
+                    ref={codeInputRef}
                     inputMode="numeric"
                     maxLength={6}
                     name="code"
@@ -385,12 +364,12 @@ export function LoginClient({
                     onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                     placeholder="••••••"
                     autoComplete="one-time-code"
-                    className="h-12 w-full rounded-lg border border-white/15 bg-white/8 text-center font-mono text-[22px] tracking-[0.5em] text-white placeholder:text-white/45 outline-none transition focus:border-[#f37819] focus:bg-white/12 focus:ring-2 focus:ring-[#f37819]/30"
+                    className="h-12 w-full rounded-lg border border-neutral-200 bg-white/80 text-center font-mono text-[22px] tracking-[0.5em] text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-[#f26e22] focus:bg-white focus:ring-2 focus:ring-[#f26e22]/20"
                   />
                   {step.devCode && (
-                    <p className="mt-2 rounded-md border border-white/12 bg-white/5 px-2.5 py-1.5 text-[11.5px] text-white/80">
+                    <p className="mt-2 rounded-md border border-[#f26e22]/20 bg-orange-50 px-2.5 py-1.5 text-[11.5px] text-slate-700">
                       Development only — no mail is sent. Your code is{" "}
-                      <span className="font-mono font-bold text-[#ffb27a]">
+                      <span className="font-mono font-bold text-[#d85811]">
                         {step.devCode}
                       </span>
                       .
@@ -401,7 +380,7 @@ export function LoginClient({
                       type="button"
                       onClick={onResend}
                       disabled={pending}
-                      className="text-[12.5px] font-medium text-[#ffb27a] hover:text-white disabled:opacity-50"
+                      className="text-[12.5px] font-medium text-[#d85811] hover:text-[#f26e22] disabled:opacity-50"
                     >
                       Send a new code
                     </button>
@@ -410,10 +389,10 @@ export function LoginClient({
                 </form>
               )}
 
-              <div className="mt-5 border-t border-white/10 pt-4 text-center">
-                <p className="text-[12.5px] text-white/75">
+              <div className="mt-5 border-t border-[#f26e22]/20 pt-4 text-center">
+                <p className="text-[12.5px] text-slate-600">
                   Need demo access?{" "}
-                  <span className="font-semibold text-white">
+                  <span className="font-semibold text-slate-900">
                     Enter Demo Mode
                   </span>
                 </p>
@@ -422,7 +401,7 @@ export function LoginClient({
                     type="button"
                     disabled={pending}
                     onClick={() => onDemo("IMGC")}
-                    className="rounded-lg border border-white/15 bg-white/6 px-3 py-2 text-[12.5px] font-semibold text-white transition hover:border-white/30 hover:bg-white/12 disabled:opacity-50"
+                    className="rounded-lg border border-neutral-200 bg-white/50 px-3 py-2 text-[12.5px] font-semibold text-slate-700 transition hover:border-neutral-300 hover:bg-white/80 disabled:opacity-50"
                   >
                     Demo as IMGC
                   </button>
@@ -430,7 +409,7 @@ export function LoginClient({
                     type="button"
                     disabled={pending}
                     onClick={() => onDemo("LENDER")}
-                    className="rounded-lg border border-white/15 bg-white/6 px-3 py-2 text-[12.5px] font-semibold text-white transition hover:border-white/30 hover:bg-white/12 disabled:opacity-50"
+                    className="rounded-lg border border-neutral-200 bg-white/50 px-3 py-2 text-[12.5px] font-semibold text-slate-700 transition hover:border-neutral-300 hover:bg-white/80 disabled:opacity-50"
                   >
                     Demo as Lender
                   </button>
@@ -438,7 +417,7 @@ export function LoginClient({
               </div>
             </div>
 
-            <p className="mt-4 text-center text-[12px] text-white/60">
+            <p className="mx-auto mt-4 w-fit rounded-full bg-white/80 px-3 py-1 text-center text-[12px] text-slate-700 shadow-sm backdrop-blur-sm">
               Protected workspace · access is granted by IMGC
             </p>
           </section>
@@ -456,7 +435,7 @@ function SubmitButton({
     <button
       type="submit"
       disabled={pending}
-      className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#f37819] text-[14px] font-semibold text-white transition hover:bg-[#d2670f] disabled:cursor-not-allowed disabled:opacity-60"
+      className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#f26e22] text-[14px] font-semibold text-white transition hover:bg-[#d85811] disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? "Please wait…" : label}
       {!pending && <ArrowRightIcon className="size-4" />}
@@ -470,15 +449,15 @@ function IdentityChip({
   onChange,
 }: Readonly<{ icon: React.ReactNode; text: string; onChange: () => void }>) {
   return (
-    <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-white/12 bg-white/5 px-3 py-2">
-      <span className="flex min-w-0 items-center gap-2 text-[12.5px] text-white/85">
-        <span className="text-white/65">{icon}</span>
+    <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white/60 px-3 py-2">
+      <span className="flex min-w-0 items-center gap-2 text-[12.5px] text-slate-800">
+        <span className="text-slate-500">{icon}</span>
         <span className="truncate">{text}</span>
       </span>
       <button
         type="button"
         onClick={onChange}
-        className="shrink-0 text-[12px] font-medium text-[#ffb27a] hover:text-white"
+        className="shrink-0 text-[12px] font-medium text-[#f26e22] hover:text-[#d85811]"
       >
         Change
       </button>

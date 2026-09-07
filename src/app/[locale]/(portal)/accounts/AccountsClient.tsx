@@ -32,6 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ROUTES } from "@/constants/route";
+import { DPD_BANDS, DPD_BAND_LABEL, dpdInBand, formatDpd, type DpdBand } from "@/lib/dpd";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
 import type { Role } from "@/server/mock/types";
@@ -61,7 +62,8 @@ type SortKey =
   | "borrowerName"
   | "loanAmount"
   | "outstandingAmount"
-  | "disbursementDate";
+  | "disbursementDate"
+  | "dpd";
 type SortDirection = "asc" | "desc" | null;
 
 const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
@@ -90,6 +92,7 @@ function downloadCsv(rows: AccountRow[], role: Role): void {
     "Principal",
     "Outstanding",
     "Disbursed",
+    "DPD",
     "Asset Class",
     "Bucket",
     "Claim Status",
@@ -103,6 +106,7 @@ function downloadCsv(rows: AccountRow[], role: Role): void {
       a.loanAmount,
       a.outstandingAmount,
       a.disbursementDate.slice(0, 10),
+      a.dpd ?? "",
       ASSET_CLASS_LABEL[assetClassOf(a)],
       a.bucket,
       a.claimStatus,
@@ -134,6 +138,10 @@ function bucketDisplay(v: (typeof BUCKETS)[number]): string {
   return v === "ALL" ? "All buckets" : v.toLowerCase();
 }
 
+function dpdBandDisplay(v: DpdBand): string {
+  return v === "ALL" ? "All DPD" : DPD_BAND_LABEL[v];
+}
+
 const SortIcon = ({
   column,
   sortKey,
@@ -159,6 +167,7 @@ const SortableTableHead = ({
   sortDirection,
   onToggle,
   className,
+  title,
 }: {
   column: SortKey;
   label: string;
@@ -166,9 +175,12 @@ const SortableTableHead = ({
   sortDirection: SortDirection;
   onToggle: (k: SortKey) => void;
   className?: string;
+  /** Native tooltip on the header — e.g. spelling out an abbreviation like "DPD". */
+  title?: string;
 }) => (
   <TableHead
     onClick={() => onToggle(column)}
+    title={title}
     className={cn(
       "h-8 cursor-pointer select-none px-1.5 text-[10.5px] transition-colors hover:bg-neutral-50",
       className
@@ -201,6 +213,7 @@ export function AccountsClient({
       "ALL"
   );
   const [product, setProduct] = useState<string>("ALL");
+  const [dpdBand, setDpdBand] = useState<DpdBand>("ALL");
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [page, setPage] = useState(1);
@@ -234,6 +247,7 @@ export function AccountsClient({
       if (status !== "ALL" && a.claimStatus !== status) return false;
       if (assetClass !== "ALL" && assetClassOf(a) !== assetClass) return false;
       if (product !== "ALL" && a.product !== product) return false;
+      if (!dpdInBand(a.dpd, dpdBand)) return false;
       if (!q) return true;
       return (
         a.loanNo.toLowerCase().includes(q) ||
@@ -267,6 +281,12 @@ export function AccountsClient({
             valA = a.disbursementDate;
             valB = b.disbursementDate;
             break;
+          case "dpd":
+            // Numeric, never string — a missing DPD sorts as the lowest value rather than
+            // breaking the comparison with `undefined`.
+            valA = a.dpd ?? -1;
+            valB = b.dpd ?? -1;
+            break;
         }
         if (typeof valA === "string" && typeof valB === "string") {
           valA = valA.toLowerCase();
@@ -285,6 +305,7 @@ export function AccountsClient({
     status,
     assetClass,
     product,
+    dpdBand,
     sortKey,
     sortDirection,
   ]);
@@ -328,6 +349,10 @@ export function AccountsClient({
   }, []);
   const handleBucketChange = useCallback((v: (typeof BUCKETS)[number]) => {
     setBucket(v);
+    setPage(1);
+  }, []);
+  const handleDpdBandChange = useCallback((v: DpdBand) => {
+    setDpdBand(v);
     setPage(1);
   }, []);
   const exportAction = useMemo(
@@ -387,6 +412,13 @@ export function AccountsClient({
           value={bucket}
           onChange={handleBucketChange}
         />
+        <FilterSelect
+          label="DPD"
+          options={DPD_BANDS}
+          display={dpdBandDisplay}
+          value={dpdBand}
+          onChange={handleDpdBandChange}
+        />
       </div>
 
       <div className="max-h-[60vh] overflow-auto">
@@ -399,6 +431,14 @@ export function AccountsClient({
               <TableHead className="h-8 px-1.5 text-[10.5px]">Purpose</TableHead>
               <SortableTableHead column="loanAmount" label="Principal" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               <SortableTableHead column="disbursementDate" label="Disbursed" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <SortableTableHead
+                column="dpd"
+                label="DPD"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                title="DPD = Days Past Due"
+              />
               <TableHead className="h-8 px-1.5 text-[10.5px]">Asset Class</TableHead>
               <TableHead className="h-8 px-1.5 text-[10.5px]">Bucket</TableHead>
               <TableHead className="h-8 px-1.5 text-[10.5px]">Claim</TableHead>
@@ -408,7 +448,7 @@ export function AccountsClient({
             {currentRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={role === "IMGC" ? 9 : 8}
+                  colSpan={role === "IMGC" ? 10 : 9}
                   className="py-12 text-center text-[13px] text-neutral-500"
                 >
                   No accounts match those filters.
@@ -442,6 +482,12 @@ export function AccountsClient({
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
                       {date(a.disbursementDate)}
+                    </TableCell>
+                    <TableCell
+                      title="DPD = Days Past Due"
+                      className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-700"
+                    >
+                      {formatDpd(a.dpd)}
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5">
                       <span

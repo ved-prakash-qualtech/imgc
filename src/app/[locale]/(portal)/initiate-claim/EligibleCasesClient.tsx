@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -38,7 +39,6 @@ type SortKey =
   | "claimNo"
   | "borrowerName"
   | "loanAmount"
-  | "applicationDate"
   | "lastUpdatedAt";
 type SortDirection = "asc" | "desc" | null;
 
@@ -56,7 +56,21 @@ const STATUS_OPTIONS = [
   "APPROVED",
   "REJECTED",
   "CLOSED",
+  // Composite buckets — not a real ClaimStatus, a grouping of several. Exists so the Claims
+  // Overview KPI tiles (whose buckets don't map 1:1 to a single status) can deep-link into a
+  // filter that actually matches what the tile counted.
+  "INITIATION",
+  "UNDER_PROGRESS",
 ] as const;
+
+/** In-flight — submitted but not yet decided one way or the other. Same set the Claims Overview
+ *  band uses to compute its own "Under Progress" tile (see initiate-claim/page.tsx). */
+const UNDER_PROGRESS_STATUSES = new Set<ClaimStatus>([
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "QUERY_RAISED",
+  "DOCUMENTS_RESUBMITTED",
+]);
 
 /** 4500000 becomes 45,00,000 — Indian grouping, no currency symbol (matches the reference). */
 const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
@@ -76,6 +90,8 @@ function dateOrDash(iso?: string): string {
 function statusLabel(v: (typeof STATUS_OPTIONS)[number]): string {
   if (v === "ALL") return "All statuses";
   if (v === "NOT_STARTED") return "Not started";
+  if (v === "INITIATION") return "Claim initiation";
+  if (v === "UNDER_PROGRESS") return "Under progress";
   return v
     .toLowerCase()
     .split("_")
@@ -108,7 +124,6 @@ function downloadCsv(rows: EligibleRow[]): void {
     "Applicant",
     "Purpose",
     "Amount",
-    "Login Date",
     "Status",
     "Bucket",
     "Last Updated",
@@ -120,7 +135,6 @@ function downloadCsv(rows: EligibleRow[]): void {
       a.borrowerName,
       a.product,
       a.loanAmount,
-      a.applicationDate.slice(0, 10),
       isNotStarted(a) ? "NOT_STARTED" : (a.claim as NonNullable<EligibleRow["claim"]>).status,
       a.claim?.bucket ?? "",
       a.claim?.lastUpdatedAt.slice(0, 10) ?? "",
@@ -164,17 +178,21 @@ const SortableTableHead = ({
   sortKey,
   sortDirection,
   onToggle,
+  title,
 }: {
   column: SortKey;
   label: string;
   sortKey: SortKey | null;
   sortDirection: SortDirection;
   onToggle: (k: SortKey) => void;
+  /** Native tooltip on the header — e.g. spelling out an abbreviation like "DPD". */
+  title?: string;
 }) => {
   const handleClick = useCallback(() => onToggle(column), [column, onToggle]);
   return (
     <TableHead
       onClick={handleClick}
+      title={title}
       className="h-8 cursor-pointer select-none px-1 text-[10.5px] transition-colors hover:bg-neutral-50"
     >
       <div className="flex items-center">
@@ -221,16 +239,41 @@ function FilterSelect<T extends string>({
   );
 }
 
+/** Which `?status=` values are real filter options — a Claims Overview tile links here with one
+ *  of these; anything else (or none) falls back to "ALL" rather than silently filtering wrong. */
+function statusFromParam(value: string | null): (typeof STATUS_OPTIONS)[number] {
+  return (STATUS_OPTIONS as readonly string[]).includes(value ?? "")
+    ? (value as (typeof STATUS_OPTIONS)[number])
+    : "ALL";
+}
+
 export function EligibleCasesClient({
   accounts,
 }: Readonly<{ accounts: EligibleRow[] }>) {
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<(typeof STATUS_OPTIONS)[number]>("ALL");
+  const [status, setStatus] = useState<(typeof STATUS_OPTIONS)[number]>(() =>
+    statusFromParam(searchParams.get("status"))
+  );
   const [product, setProduct] = useState("ALL");
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
+
+  // A Claims Overview tile navigates here client-side (same route, new `?status=`) — this
+  // component doesn't remount for that, so the lazy useState initializer above only ran once on
+  // first load. Re-sync during render when the param actually changes (React's own pattern for
+  // "adjust state when a prop changes" — https://react.dev/learn/you-might-not-need-an-effect —
+  // rather than setState-in-an-effect, which just adds an extra render), or a click updates the
+  // URL and the grid silently keeps showing the old filter.
+  const [prevStatusParam, setPrevStatusParam] = useState(searchParams.get("status"));
+  const statusParam = searchParams.get("status");
+  if (statusParam !== prevStatusParam) {
+    setPrevStatusParam(statusParam);
+    setStatus(statusFromParam(statusParam));
+    setPage(1);
+  }
 
   const products = useMemo(
     () =>
@@ -285,11 +328,22 @@ export function EligibleCasesClient({
     let result = accounts;
 
     if (status !== "ALL") {
-      result = result.filter((a) =>
-        status === "NOT_STARTED"
-          ? isNotStarted(a)
-          : !isNotStarted(a) && a.claim?.status === (status as ClaimStatus)
-      );
+      result = result.filter((a) => {
+        if (status === "NOT_STARTED") return isNotStarted(a);
+        // Same buckets the Claims Overview KPI tiles count — see initiate-claim/page.tsx.
+        if (status === "INITIATION") {
+          return isNotStarted(a) || a.claim?.status === "DRAFT";
+        }
+        if (status === "UNDER_PROGRESS") {
+          return (
+            !isNotStarted(a) &&
+            UNDER_PROGRESS_STATUSES.has(
+              (a.claim as NonNullable<EligibleRow["claim"]>).status
+            )
+          );
+        }
+        return !isNotStarted(a) && a.claim?.status === (status as ClaimStatus);
+      });
     }
     if (product !== "ALL") {
       result = result.filter((a) => a.product === product);
@@ -321,10 +375,6 @@ export function EligibleCasesClient({
           case "loanAmount":
             valA = a.loanAmount;
             valB = b.loanAmount;
-            break;
-          case "applicationDate":
-            valA = a.applicationDate;
-            valB = b.applicationDate;
             break;
           case "claimNo":
             valA = a.claim?.claimNo ?? "";
@@ -427,13 +477,6 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <SortableTableHead
-                column="applicationDate"
-                label="Login Date"
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-              />
               <TableHead className="h-8 px-1 text-[10.5px]">Status</TableHead>
               <TableHead className="h-8 px-1 text-[10.5px]">Bucket</TableHead>
               <SortableTableHead
@@ -450,7 +493,7 @@ export function EligibleCasesClient({
             {currentRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={10}
+                  colSpan={9}
                   className="py-12 text-center text-[13px] text-neutral-500"
                 >
                   No claims match your search.
@@ -477,9 +520,6 @@ export function EligibleCasesClient({
                     <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-success-700">
                       {inr.format(a.loanAmount)}
                     </span>
-                  </TableCell>
-                  <TableCell className="px-1 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
-                    {date(a.applicationDate)}
                   </TableCell>
                   <TableCell className="px-1 py-1.5">
                     {!isNotStarted(a) && a.claim ? (

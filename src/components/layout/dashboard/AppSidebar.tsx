@@ -6,6 +6,7 @@ import {
   ArchiveIcon,
   BellIcon,
   BuildingIcon,
+  CalendarClockIcon,
   ChevronDownIcon,
   ChevronsLeftIcon,
   ChevronsRightIcon,
@@ -41,6 +42,7 @@ import { cn } from "@/lib/utils/twMergeUtils";
 const ICONS = new Map<NavKey, typeof LayoutDashboardIcon>([
   ["dashboard", LayoutDashboardIcon],
   ["accounts", FolderOpenIcon],
+  ["dpd", CalendarClockIcon],
   ["initiate-claim", FilePlusIcon],
   ["audit-trail", ListTreeIcon],
   ["additional-documents", FileCheck2Icon],

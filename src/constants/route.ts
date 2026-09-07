@@ -9,6 +9,9 @@ export const ROUTES = {
   accounts: "/accounts",
   /** One account's claim workspace (Overview / Accounting / Documents / Audit). */
   account: (accountId: string) => `/accounts/${accountId}`,
+  /** All lender-eligible accounts by Days Past Due — not restricted to NPA, unlike the claim
+   *  grid. A second lens on the same accounts, not a second account/claim model. */
+  dpd: "/dpd",
 
   /* ── Lender specific screens ── */
   /** "Claim" in the sidebar — initiating a claim and tracking one are the same grid now, not
