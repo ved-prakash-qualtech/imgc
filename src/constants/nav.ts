@@ -11,6 +11,7 @@ import type { Role } from "@/server/mock/types";
 export type NavKey =
   | "dashboard"
   | "accounts"
+  | "dpd"
   | "additional-documents"
   | "notifications"
   | "initiate-claim"
@@ -52,6 +53,14 @@ const NOTIFICATIONS: NavItem = {
   href: ROUTES.notifications,
 };
 
+/** All lender-eligible accounts by Days Past Due — a second lens on the same accounts the claim
+ *  grid already shows, not restricted to NPA. */
+const DPD: NavItem = {
+  key: "dpd",
+  label: "DPD",
+  href: ROUTES.dpd,
+};
+
 /** Initiating a claim and tracking one used to be two tabs; one grid now does both, so there is
  *  only one nav entry for it. */
 const CLAIM: NavItem = {
@@ -86,6 +95,6 @@ const ADMINISTRATION: NavItem = {
  */
 export function navFor(role: Role): NavItem[] {
   return role === "IMGC"
-    ? [DASHBOARD, ACCOUNTS, NOTIFICATIONS, ADMINISTRATION]
-    : [DASHBOARD, CLAIM, AUDIT_TRAIL];
+    ? [DASHBOARD, ACCOUNTS, DPD, NOTIFICATIONS, ADMINISTRATION]
+    : [DASHBOARD, CLAIM, DPD, AUDIT_TRAIL];
 }

@@ -39,7 +39,6 @@ type SortKey =
   | "claimNo"
   | "borrowerName"
   | "loanAmount"
-  | "applicationDate"
   | "lastUpdatedAt";
 type SortDirection = "asc" | "desc" | null;
 
@@ -125,7 +124,6 @@ function downloadCsv(rows: EligibleRow[]): void {
     "Applicant",
     "Purpose",
     "Amount",
-    "Login Date",
     "Status",
     "Bucket",
     "Last Updated",
@@ -137,7 +135,6 @@ function downloadCsv(rows: EligibleRow[]): void {
       a.borrowerName,
       a.product,
       a.loanAmount,
-      a.applicationDate.slice(0, 10),
       isNotStarted(a) ? "NOT_STARTED" : (a.claim as NonNullable<EligibleRow["claim"]>).status,
       a.claim?.bucket ?? "",
       a.claim?.lastUpdatedAt.slice(0, 10) ?? "",
@@ -181,17 +178,21 @@ const SortableTableHead = ({
   sortKey,
   sortDirection,
   onToggle,
+  title,
 }: {
   column: SortKey;
   label: string;
   sortKey: SortKey | null;
   sortDirection: SortDirection;
   onToggle: (k: SortKey) => void;
+  /** Native tooltip on the header — e.g. spelling out an abbreviation like "DPD". */
+  title?: string;
 }) => {
   const handleClick = useCallback(() => onToggle(column), [column, onToggle]);
   return (
     <TableHead
       onClick={handleClick}
+      title={title}
       className="h-8 cursor-pointer select-none px-1 text-[10.5px] transition-colors hover:bg-neutral-50"
     >
       <div className="flex items-center">
@@ -375,10 +376,6 @@ export function EligibleCasesClient({
             valA = a.loanAmount;
             valB = b.loanAmount;
             break;
-          case "applicationDate":
-            valA = a.applicationDate;
-            valB = b.applicationDate;
-            break;
           case "claimNo":
             valA = a.claim?.claimNo ?? "";
             valB = b.claim?.claimNo ?? "";
@@ -480,13 +477,6 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <SortableTableHead
-                column="applicationDate"
-                label="Login Date"
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-              />
               <TableHead className="h-8 px-1 text-[10.5px]">Status</TableHead>
               <TableHead className="h-8 px-1 text-[10.5px]">Bucket</TableHead>
               <SortableTableHead
@@ -503,7 +493,7 @@ export function EligibleCasesClient({
             {currentRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={10}
+                  colSpan={9}
                   className="py-12 text-center text-[13px] text-neutral-500"
                 >
                   No claims match your search.
@@ -530,9 +520,6 @@ export function EligibleCasesClient({
                     <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-success-700">
                       {inr.format(a.loanAmount)}
                     </span>
-                  </TableCell>
-                  <TableCell className="px-1 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
-                    {date(a.applicationDate)}
                   </TableCell>
                   <TableCell className="px-1 py-1.5">
                     {!isNotStarted(a) && a.claim ? (

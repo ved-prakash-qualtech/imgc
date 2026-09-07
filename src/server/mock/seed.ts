@@ -43,6 +43,10 @@ const STANDARD_DOCUMENTS: ReadonlyArray<{ name: string; required: boolean }> = [
   { name: "Insurance Policy Copy", required: false },
 ];
 
+/** Cycled by account index (independent of `npa`/`writeOff`) so the seeded book has a realistic
+ *  spread of Days Past Due across every bucket, including non-NPA accounts with real DPD. */
+const DPD_CYCLE = [0, 10, 15, 30, 31, 45, 60, 75, 90, 120] as const;
+
 const PAS_TEMPLATE: ReadonlyArray<{ key: string; label: string }> = [
   { key: "sanctionedAmount", label: "Sanctioned amount" },
   { key: "outstandingPrincipal", label: "Outstanding principal" },
@@ -714,9 +718,15 @@ export function buildSeed(): MockDb {
     // no seeded claim ever shows "Latest Technical Report" as required.
     const underConstruction = c.id === "acc_100245" ? true : i % 2 === 1;
 
+    // DPD is a collections metric, not derived from `isNpa` — deliberately cycled independently
+    // of it so the mix includes accounts well past due that haven't been tagged NPA yet (and the
+    // reverse), the exact case the DPD screen exists to surface beyond the NPA-only claim grid.
+    const dpd = DPD_CYCLE[i % DPD_CYCLE.length];
+
     accounts.push({
       npa: isNpa,
       writeOff: isWriteOff,
+      dpd,
       id: c.id,
       loanNo: c.loanNo,
       borrowerName: c.borrowerName,
