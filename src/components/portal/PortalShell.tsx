@@ -17,7 +17,7 @@ export async function PortalShell({
   activeKey,
   title,
   children,
-}: Readonly<{ activeKey: NavKey; title: string; children: ReactNode }>) {
+}: Readonly<{ activeKey?: NavKey; title: string; children: ReactNode }>) {
   const session = await requireSession();
   const [org, unread, assignedOfficer] = await Promise.all([
     session.role === "LENDER" ? getLenderOrgById(session.lenderOrgId) : null,

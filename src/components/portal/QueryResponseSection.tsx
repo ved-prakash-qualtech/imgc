@@ -151,7 +151,7 @@ export function QueryResponseSection({
       title="Query Response"
       description="Communication between IMGC and the Lender regarding this claim."
     >
-      <div className="max-h-[500px] overflow-y-auto space-y-6 px-5 py-6">
+      <div className="max-h-[500px] overflow-y-auto space-y-3 px-4 py-4">
         {/* Sort ascending so the oldest message is at top and the latest is at the bottom */}
       {[...queries]
         .sort((a, b) => a.raisedAt.localeCompare(b.raisedAt))
@@ -176,23 +176,15 @@ export function QueryResponseSection({
                 )
               : [];
           return (
-            <div key={q.id} className="space-y-6">
+            <div key={q.id} className="space-y-3">
               {/* ── IMGC Query (Left) ── */}
               <div className="flex justify-start">
-                <div className="w-full max-w-2xl rounded-2xl rounded-tl-sm border border-neutral-200 bg-neutral-50 px-4 py-3 shadow-sm">
-                  <div className="mb-2 flex items-center justify-between gap-4">
-                    <span className="text-[13px] font-semibold text-brand-primary">
-                      IMGC
-                    </span>
-                    <span className="text-[11px] text-neutral-500">
-                      {when(q.raisedAt)}
-                    </span>
+                <div className="w-full max-w-2xl rounded-lg rounded-tl-sm border border-neutral-200 bg-neutral-50 px-3 py-2 shadow-sm">
+                  <div className="mb-1 flex flex-wrap items-baseline gap-1.5 text-[11.5px] text-neutral-500">
+                    <span className="font-semibold text-brand-primary">IMGC</span>
+                    {q.raisedByName && <span>&middot; {q.raisedByName}</span>}
+                    <span>&middot; {when(q.raisedAt)}</span>
                   </div>
-                  {q.raisedByName && (
-                    <span className="mb-2 block text-[11.5px] font-medium text-neutral-600">
-                      {q.raisedByName}
-                    </span>
-                  )}
                   <p className="whitespace-pre-wrap text-[13px] text-neutral-800">
                     {q.reason}
                   </p>
@@ -224,55 +216,48 @@ export function QueryResponseSection({
               {/* ── Lender Response (Right) ── */}
               {q.respondedAt && (
                 <div className="flex justify-end">
-                  <div className="w-full max-w-2xl rounded-2xl rounded-tr-sm border border-brand-primary/10 bg-brand-primary/5 px-4 py-3 shadow-sm">
-                    <div className="mb-2 flex items-center justify-between gap-4">
-                      <span className="text-[11px] text-neutral-500">
-                        {when(q.respondedAt)}
-                      </span>
-                      <span className="text-[13px] font-semibold text-brand-primary">
-                        Lender
-                      </span>
+                  <div className="w-full max-w-2xl rounded-lg rounded-tr-sm border border-brand-primary/10 bg-brand-primary/5 px-3 py-2 shadow-sm">
+                    <div className="mb-1 flex flex-wrap items-baseline justify-end gap-1.5 text-[11.5px] text-neutral-500">
+                      <span>{when(q.respondedAt)}</span>
+                      {q.respondedByName && <span>&middot; {q.respondedByName}</span>}
+                      <span className="font-semibold text-brand-primary">&middot; Lender</span>
                     </div>
-                    {q.respondedByName && (
-                      <span className="mb-2 block text-right text-[11.5px] font-medium text-neutral-600">
-                        {q.respondedByName}
-                      </span>
-                    )}
                     <p className="whitespace-pre-wrap text-[13px] text-neutral-800">
                       {q.responseRemarks || "No remarks provided."}
                     </p>
                     {respondedDocs.length > 0 && (
-                      <div className="mt-3">
-                        <span className="block text-right text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
-                          Attachments
-                        </span>
-                        <ul className="mt-1 flex flex-col items-end gap-1.5">
-                          {respondedDocs.map((d) => (
-                            <li
-                              key={d.id}
-                              className="flex items-center gap-2 rounded-md border border-brand-primary/10 bg-brand-light/30 px-2.5 py-1.5 shadow-sm"
-                            >
-                              <FileTextIcon className="size-3.5 text-brand-primary" />
-                              <span className="text-[12px] font-medium text-brand-dark">
-                                {d.name}
-                              </span>
-                              {d.file?.id ? (
+                      <div className="mt-2 flex flex-wrap justify-end gap-2">
+                        {respondedDocs.map((d) => (
+                          <div
+                            key={d.id}
+                            className="flex items-center gap-1.5 rounded-md border border-brand-primary/10 bg-brand-light/20 px-2 py-1 shadow-sm"
+                          >
+                            <FileTextIcon className="size-3.5 shrink-0 text-brand-primary" />
+                            <span className="truncate text-[11.5px] font-medium text-brand-dark max-w-[200px]">
+                              {d.name}
+                            </span>
+                            {d.file?.id ? (
+                              <>
+                                <span className="text-brand-primary/30">&middot;</span>
                                 <a
                                   href={`/api/portal/files/${d.file.id}`}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="ml-2 inline-flex h-6 items-center rounded border border-brand-primary/30 bg-white px-2.5 text-[11px] font-semibold text-brand-primary hover:bg-neutral-50"
+                                  className="text-[11px] font-semibold text-brand-primary hover:underline"
                                 >
                                   View document
                                 </a>
-                              ) : (
-                                <span className="ml-2 text-[11px] text-neutral-400">
-                                  No file uploaded
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-brand-primary/30">&middot;</span>
+                                <span className="text-[11px] text-neutral-400">
+                                  No file
                                 </span>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
+                              </>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -285,8 +270,8 @@ export function QueryResponseSection({
 
       {/* ── Open Query Composer ── */}
       {openQuery ? (
-        <div className="px-5 pb-6">
-          <div className="border-t border-neutral-100 pt-6">
+        <div className="px-4 pb-4">
+          <div className="border-t border-neutral-100 pt-4">
             {!isLender ? (
               imgcComposer ? (
                 imgcComposer
@@ -296,7 +281,7 @@ export function QueryResponseSection({
                 </p>
               )
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div>
                   <label
                     htmlFor="query-response"
@@ -358,8 +343,8 @@ export function QueryResponseSection({
         </div>
       ) : (
         !isLender && imgcComposer && (
-          <div className="px-5 pb-6">
-            <div className="border-t border-neutral-100 pt-6">
+          <div className="px-4 pb-4">
+            <div className="border-t border-neutral-100 pt-4">
               {imgcComposer}
             </div>
           </div>

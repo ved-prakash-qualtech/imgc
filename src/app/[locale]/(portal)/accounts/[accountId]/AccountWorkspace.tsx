@@ -167,9 +167,20 @@ function OverviewTab({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState("");
+  const [noteError, setNoteError] = useState("");
 
   const decide = useCallback(
     (status: "APPROVED" | "QUERIED") => {
+      const trimmedNote = note.trim();
+      if (!trimmedNote) {
+        setNoteError(
+          status === "APPROVED"
+            ? "Please enter a note before marking the case as approved."
+            : "Please enter a note before raising a query."
+        );
+        return;
+      }
+      
       startTransition(async () => {
         const result = await setClaimStatusAction(account.id, status, note);
         if (!result.ok) {
@@ -177,6 +188,7 @@ function OverviewTab({
           return;
         }
         setNote("");
+        setNoteError("");
         toast.success(`Claim marked ${status.toLowerCase()}.`);
         router.refresh();
       });
@@ -204,34 +216,48 @@ function OverviewTab({
 
       {role === "IMGC" && (() => {
         const imgcComposer = (
-          <div className="flex flex-wrap items-end gap-3 px-5 py-4">
-            <label className="min-w-[280px] flex-1">
-              <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                Note (optional)
-              </span>
-              <input
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="e.g. Valuation clarified with the lender on call"
-                className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-              />
-            </label>
-            <Button
-              size="sm"
-              variant="success"
-              onClick={() => decide("APPROVED")}
-              disabled={pending}
-            >
-              Mark approved
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => decide("QUERIED")}
-              disabled={pending}
-            >
-              Raise a query
-            </Button>
+          <div className="flex flex-col gap-2 px-5 py-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="min-w-[280px] flex-1">
+                <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
+                  Note <span className="text-red-500">*</span>
+                </span>
+                <input
+                  value={note}
+                  onChange={(e) => {
+                    setNote(e.target.value);
+                    if (noteError) setNoteError("");
+                  }}
+                  placeholder="e.g. Valuation clarified with the lender on call"
+                  className={`h-9 w-full rounded-lg border px-3 text-[13px] outline-none transition-colors ${
+                    noteError
+                      ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                      : "border-neutral-200 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                  }`}
+                />
+              </label>
+              <Button
+                size="sm"
+                variant="success"
+                onClick={() => decide("APPROVED")}
+                disabled={pending}
+              >
+                Mark approved
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => decide("QUERIED")}
+                disabled={pending}
+              >
+                Raise a query
+              </Button>
+            </div>
+            {noteError && (
+              <p className="text-[12.5px] font-medium text-red-500">
+                {noteError}
+              </p>
+            )}
           </div>
         );
 

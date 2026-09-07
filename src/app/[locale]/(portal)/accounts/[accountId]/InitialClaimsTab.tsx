@@ -6,6 +6,7 @@ import {
   BanIcon,
   CalendarClockIcon,
   CheckIcon,
+  ChevronDownIcon,
   EyeIcon,
   FileTextIcon,
   MessageSquareWarningIcon,
@@ -173,26 +174,17 @@ export function InitialClaimsTab({
         description={
           isLender
             ? "Upload each mandatory document. Submit becomes available once they are all in."
-            : "Accept or reject what the lender has uploaded, and add any further requirement."
-        }
-        actions={
-          role === "IMGC" ? (
-            <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>
-              <PlusIcon /> Add requirement
-            </Button>
-          ) : null
+            : "Accept or reject what the lender has uploaded."
         }
       >
-        {adding && role === "IMGC" && (
-          <AddRequirementForm
-            accountProduct={accountProduct}
-            onSubmit={onAddRequirement}
-            onCancel={() => setAdding(false)}
-          />
-        )}
 
         <ul className="divide-y divide-neutral-100">
-          {docs.map((doc) => (
+          {(isLender || !submitted
+            ? docs
+            : docs.filter(
+                (d) => d.status !== "PENDING_UPLOAD" || d.addedBy === "IMGC"
+              )
+          ).map((doc) => (
             <DocumentRowItem
               key={doc.id}
               doc={doc}
@@ -280,6 +272,7 @@ function DocumentRowItem({
   const [busy, startTransition] = useTransition();
   const [rejecting, setRejecting] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const isLender = role === "LENDER";
   const working = pending || busy;
@@ -390,57 +383,77 @@ function DocumentRowItem({
   const outstanding = doc.status === "PENDING_UPLOAD" || doc.status === "REJECTED";
 
   return (
-    <li className={cn("px-5 py-4", inactive && "bg-neutral-25 opacity-60")}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <FileTextIcon className="size-4 shrink-0 text-neutral-400" />
-            <span className="text-[13.5px] font-semibold text-neutral-950">
-              {doc.name}
+    <li className={cn("block", inactive && "bg-neutral-25 opacity-60")}>
+      {/* Accordion Header */}
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
+        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-none focus:ring-inset focus:ring-2 focus:ring-brand-primary/20"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <FileTextIcon className="size-4 shrink-0 text-neutral-400" />
+          <span className="text-[13.5px] font-semibold text-neutral-950">
+            {doc.name}
+          </span>
+          <span
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide",
+              doc.required
+                ? "bg-neutral-100 text-neutral-600"
+                : "bg-neutral-50 text-neutral-400"
+            )}
+          >
+            {doc.required ? "Mandatory" : "Optional"}
+          </span>
+          {doc.addedBy === "IMGC" && (
+            <span className="rounded bg-brand-light px-1.5 py-0.5 text-[10.5px] font-semibold text-brand-dark">
+              Added by IMGC
             </span>
+          )}
+          <StatusPill status={doc.status} />
+          {inactive && (
+            <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-600">
+              Withdrawn
+            </span>
+          )}
+          {due !== null && outstanding && !inactive && (
             <span
               className={cn(
-                "rounded px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide",
-                doc.required
-                  ? "bg-neutral-100 text-neutral-600"
-                  : "bg-neutral-50 text-neutral-400"
+                "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10.5px] font-semibold",
+                due < 0
+                  ? "bg-destructive/10 text-destructive"
+                  : due <= 3
+                    ? "bg-warning/15 text-warning"
+                    : "bg-neutral-100 text-neutral-600"
               )}
             >
-              {doc.required ? "Mandatory" : "Optional"}
+              <CalendarClockIcon className="size-3" />
+              {due < 0
+                ? `Overdue by ${Math.abs(due)}d`
+                : due === 0
+                  ? "Due today"
+                  : `Due in ${due}d`}
             </span>
-            {doc.addedBy === "IMGC" && (
-              <span className="rounded bg-brand-light px-1.5 py-0.5 text-[10.5px] font-semibold text-brand-dark">
-                Added by IMGC
-              </span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center pl-2">
+          <ChevronDownIcon
+            className={cn(
+              "size-4 text-neutral-400 transition-transform duration-200",
+              expanded && "rotate-180"
             )}
-            <StatusPill status={doc.status} />
-            {inactive && (
-              <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-600">
-                Withdrawn
-              </span>
-            )}
-            {due !== null && outstanding && !inactive && (
-              <span
-                className={cn(
-                  "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10.5px] font-semibold",
-                  due < 0
-                    ? "bg-destructive/10 text-destructive"
-                    : due <= 3
-                      ? "bg-warning/15 text-warning"
-                      : "bg-neutral-100 text-neutral-600"
-                )}
-              >
-                <CalendarClockIcon className="size-3" />
-                {due < 0
-                  ? `Overdue by ${Math.abs(due)}d`
-                  : due === 0
-                    ? "Due today"
-                    : `Due in ${due}d`}
-              </span>
-            )}
-          </div>
+          />
+        </div>
+      </button>
 
-          {(doc.category || doc.applicableProduct || doc.applicableCaseType) && (
+      {/* Accordion Content */}
+      {expanded && (
+        <div className="border-t border-neutral-100/50 bg-neutral-25/30 px-5 pb-4 pt-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+
+          {isLender && (doc.category || doc.applicableProduct || doc.applicableCaseType) && (
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-neutral-500">
               {doc.category && <span className="font-medium">{doc.category}</span>}
               {doc.applicableProduct && <span>· {doc.applicableProduct}</span>}
@@ -450,7 +463,14 @@ function DocumentRowItem({
           )}
 
           {doc.description && (
-            <p className="mt-1.5 rounded-md border border-brand-primary/15 bg-brand-light/50 px-2.5 py-1.5 text-[12px] leading-relaxed text-neutral-700">
+            <p
+              className={cn(
+                "mt-1.5 text-[12px] text-neutral-700",
+                role === "IMGC"
+                  ? ""
+                  : "rounded-md border border-brand-primary/15 bg-brand-light/50 px-2.5 py-1.5 leading-relaxed"
+              )}
+            >
               {doc.description}
             </p>
           )}
@@ -696,16 +716,20 @@ function DocumentRowItem({
         </form>
       )}
 
-      {/* Per-document remark */}
-      <div className="mt-3">
-        <input
-          value={draft}
-          onChange={(e) => onDraftChange(doc.id, e.target.value)}
-          placeholder="Add a remark against this document…"
-          aria-label={`Remark on ${doc.name}`}
-          className="h-9 w-full rounded-lg border border-neutral-200 bg-neutral-25 px-3 text-[12.5px] outline-none placeholder:text-neutral-400 focus:border-brand-primary focus:bg-white focus:ring-2 focus:ring-brand-primary/20"
-        />
-      </div>
+          {/* Per-document remark */}
+          {isLender && (
+            <div className="mt-3">
+              <input
+                value={draft}
+                onChange={(e) => onDraftChange(doc.id, e.target.value)}
+                placeholder="Add a remark against this document…"
+                aria-label={`Remark on ${doc.name}`}
+                className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-[12.5px] outline-none placeholder:text-neutral-400 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {doc.file && (
         <DocumentPreviewDialog

@@ -3,7 +3,6 @@ import { MailIcon } from "lucide-react";
 import { Section } from "@/components/portal/CommandBand";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { requireSession } from "@/lib/auth/appSession";
-import { redirect } from "next/navigation";
 import {
   listNotifications,
   markNotificationsRead,
@@ -22,18 +21,12 @@ function tabSlugForEvent(event: string): string {
 export default async function NotificationsPage() {
   const session = await requireSession();
 
-  // Lenders no longer have the Notifications item in their nav.
-  // Guard direct URL access so they are not left on a nav-less page.
-  if (session.role === "LENDER") {
-    redirect(ROUTES.dashboard);
-  }
-
   const notifications = await listNotifications(session);
   // Opening the list is what marks it read — the badge clears for this role only.
   await markNotificationsRead(session);
 
   return (
-    <PortalShell activeKey="notifications" title="Notifications">
+    <PortalShell title="Notifications">
       <div className="space-y-4">
         <Section
           title={`${notifications.length} message${notifications.length === 1 ? "" : "s"}`}

@@ -102,11 +102,11 @@ export default async function ClaimDetailsPage({
           <a href="#query" className={SECTION_LINK_CLASS}>
             Query Response
           </a>
-          <a href="#history" className={SECTION_LINK_CLASS}>
-            History
-          </a>
           <a href="#documents" className={SECTION_LINK_CLASS}>
             Documents
+          </a>
+          <a href="#history" className={SECTION_LINK_CLASS}>
+            History
           </a>
         </nav>
 
@@ -156,29 +156,16 @@ export default async function ClaimDetailsPage({
           />
         </div>
 
-        {/* ── 4. Claim History — every status change and past query, merged into
-             one chronological record so nothing that happened to this claim needs
-             a second panel to find it. ── */}
-        <Panel
-          id="history"
-          className="scroll-mt-14"
-          title="Claim History"
-          description="Every status change and query on this claim, in order."
-        >
-          <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
-        </Panel>
-
         {/* ── Documents ────────────────────────────────────────── */}
         <Panel id="documents" className="scroll-mt-14" title="Documents">
-          <div className="overflow-x-auto">
+          <div className="custom-scrollbar max-h-[220px] overflow-y-auto overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="h-8 px-1.5 text-[10.5px]">Document</TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px]">Required</TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px]">Version</TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px]">Status</TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px]">Remarks</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">Document</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">Required</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">Version</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -201,16 +188,23 @@ export default async function ClaimDetailsPage({
                     <TableCell className="px-1.5 py-1.5">
                       <StatusPill status={d.status} className="px-1.5 py-0.5 text-[10.5px]" />
                     </TableCell>
-                    <TableCell className="max-w-[260px] px-1.5 py-1.5">
-                      <span className="line-clamp-2 text-[11.5px] text-neutral-600">
-                        {d.latestRemark || "—"}
-                      </span>
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
+        </Panel>
+
+        {/* ── 4. Claim History — every status change and past query, merged into
+             one chronological record so nothing that happened to this claim needs
+             a second panel to find it. ── */}
+        <Panel
+          id="history"
+          className="scroll-mt-14"
+          title="Claim History"
+          description="Every status change and query on this claim, in order."
+        >
+          <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
         </Panel>
       </div>
     </PortalShell>

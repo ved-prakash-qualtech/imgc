@@ -90,14 +90,14 @@ export function ClaimHistory({
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="custom-scrollbar max-h-[220px] overflow-y-auto overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="h-8 px-1.5 text-[10.5px]">Date &amp; Time</TableHead>
-            <TableHead className="h-8 px-1.5 text-[10.5px]">Activity</TableHead>
-            <TableHead className="h-8 px-1.5 text-[10.5px]">Performed By</TableHead>
-            <TableHead className="h-8 px-1.5 text-[10.5px]">Remarks</TableHead>
+            <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">Date &amp; Time</TableHead>
+            <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">Activity</TableHead>
+            <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">Performed By</TableHead>
+            <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">Remarks</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

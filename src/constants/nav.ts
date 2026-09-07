@@ -46,12 +46,6 @@ const ACCOUNTS: NavItem = {
   href: ROUTES.accounts,
 };
 
-const NOTIFICATIONS: NavItem = {
-  key: "notifications",
-  label: "Notifications",
-  href: ROUTES.notifications,
-};
-
 /** Initiating a claim and tracking one used to be two tabs; one grid now does both, so there is
  *  only one nav entry for it. */
 const CLAIM: NavItem = {
@@ -86,6 +80,6 @@ const ADMINISTRATION: NavItem = {
  */
 export function navFor(role: Role): NavItem[] {
   return role === "IMGC"
-    ? [DASHBOARD, ACCOUNTS, NOTIFICATIONS, ADMINISTRATION]
+    ? [DASHBOARD, ACCOUNTS, ADMINISTRATION]
     : [DASHBOARD, CLAIM, AUDIT_TRAIL];
 }

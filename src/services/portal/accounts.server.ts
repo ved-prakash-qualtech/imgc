@@ -108,6 +108,9 @@ export async function setClaimStatus(
   if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
 
   const trimmedNote = note.trim();
+  if (!trimmedNote) {
+    return { ok: false, error: "Note is required before you can proceed." };
+  }
 
   const outcome = await writeDb((db) => {
     const account = db.accounts.find((a) => a.id === accountId);

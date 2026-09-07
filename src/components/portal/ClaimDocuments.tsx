@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { saveDocumentRemarkAction } from "@/app/[locale]/(portal)/initiate-claim/actions";
+
 import { AddLenderDocumentDialog } from "@/components/portal/AddLenderDocumentDialog";
 import { Panel } from "@/components/portal/Panel";
 import { UploadDialog } from "@/components/portal/UploadDialog";
@@ -138,40 +138,37 @@ export function ClaimDocuments({
         </ol>
       </Panel>
 
-      {/* ── Additional documents — not shown nested inside Query Response: adding an
-          unrelated new document isn't part of resolving the query at hand. ── */}
-      {!bare && (
-        <Panel
-          title="Additional documents"
-          description="Anything beyond the required list. User-defined, added one at a time — no limit."
-          actions={
-            !locked ? (
-              <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
-            ) : null
-          }
-        >
-          {additional.length === 0 ? (
-            <p className="px-5 py-8 text-center text-[13px] text-neutral-500">
-              No additional documents added.
-            </p>
-          ) : (
-            <ol className="divide-y divide-neutral-100">
-              {additional.map((doc) => (
-                <DocAccordionItem
-                  key={doc.id}
-                  doc={doc}
-                  accountId={accountId}
-                  claimId={claimId}
-                  locked={locked}
-                  open={openId === doc.id}
-                  onToggle={toggle}
-                  onUpload={setUploadTarget}
-                />
-              ))}
-            </ol>
-          )}
-        </Panel>
-      )}
+      <Panel
+        title="Additional documents"
+        description="Anything beyond the required list. User-defined, added one at a time — no limit."
+        className={bare ? "mt-6 border-neutral-200 shadow-none" : undefined}
+        actions={
+          !locked ? (
+            <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
+          ) : null
+        }
+      >
+        {additional.length === 0 ? (
+          <p className="px-5 py-8 text-center text-[13px] text-neutral-500">
+            No additional documents added.
+          </p>
+        ) : (
+          <ol className="divide-y divide-neutral-100">
+            {additional.map((doc) => (
+              <DocAccordionItem
+                key={doc.id}
+                doc={doc}
+                accountId={accountId}
+                claimId={claimId}
+                locked={locked}
+                open={openId === doc.id}
+                onToggle={toggle}
+                onUpload={setUploadTarget}
+              />
+            ))}
+          </ol>
+        )}
+      </Panel>
 
       <UploadDialog
         row={uploadTarget?.row ?? null}
@@ -206,31 +203,9 @@ function DocAccordionItem({
   }) => void;
 }>) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [remark, setRemark] = useState(doc.latestRemark);
-  const [remarkDirty, setRemarkDirty] = useState(false);
-
   const hasFiles = doc.files.length > 0;
   const conditionalNotRequired = doc.conditional && !doc.required;
   const bodyId = `docbody-${doc.id}`;
-
-  const onSaveRemark = useCallback(() => {
-    startTransition(async () => {
-      const result = await saveDocumentRemarkAction(
-        accountId,
-        claimId,
-        doc.id,
-        remark
-      );
-      if (!result.ok) {
-        toast.error(result.error ?? "That remark could not be saved.");
-        return;
-      }
-      setRemarkDirty(false);
-      toast.success("Remarks saved.");
-      router.refresh();
-    });
-  }, [accountId, claimId, doc.id, remark, router]);
 
   const action =
     !locked && doc.status !== "APPROVED"
@@ -308,7 +283,7 @@ function DocAccordionItem({
         className={cn("px-4 pb-2.5 pl-10", !open && "hidden")}
       >
         {doc.description && (
-          <p className="text-[12px] text-neutral-500">{doc.description}</p>
+          <p className="truncate text-[12px] text-neutral-500">{doc.description}</p>
         )}
         {doc.conditional && doc.conditionReason && (
           <p className="mt-0.5 text-[11.5px] italic text-neutral-500">
@@ -318,22 +293,42 @@ function DocAccordionItem({
         )}
 
         {hasFiles ? (
-          <ul className="mt-1.5 space-y-0.5">
-            {doc.files.map((f) => (
-              <li
-                key={f.id}
-                className="flex items-center gap-2 text-[12.5px] text-neutral-700"
-              >
-                <CheckCircle2Icon className="size-3.5 shrink-0 text-success-600" />
-                <span className="truncate font-medium">{f.originalName}</span>
-                <span className="shrink-0 text-[11px] text-neutral-400">
-                  v{f.version}
-                </span>
-              </li>
-            ))}
-            <li className="text-[11.5px] text-neutral-400">
-              {doc.files.length} file{doc.files.length === 1 ? "" : "s"} uploaded
-            </li>
+          <ul className="mt-2 space-y-2">
+            {doc.files.map((f) => {
+              const uploadedAt = new Date(f.uploadedAt).toLocaleString("en-IN", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+              return (
+                <li
+                  key={f.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-neutral-200/60 bg-white px-3 py-2 shadow-sm"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                    <FileIcon className="size-4 shrink-0 text-brand-primary" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[12.5px] font-medium text-neutral-900">
+                        {f.originalName}
+                      </p>
+                      <p className="truncate text-[11px] text-neutral-500">
+                        {(f.size / 1024).toFixed(0)} KB · {f.uploadedByName}, {uploadedAt}
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href={`/api/portal/files/${f.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 inline-flex h-7 items-center justify-center rounded-md border border-neutral-200 bg-white px-3 text-[11.5px] font-medium text-brand-dark transition-colors hover:bg-neutral-50 hover:text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+                  >
+                    View Document
+                  </a>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p className="mt-1.5 flex items-center gap-1.5 text-[12.5px] text-neutral-400">
@@ -354,34 +349,7 @@ function DocAccordionItem({
           </p>
         )}
 
-        {!locked && (
-          <div className="mt-2">
-            <span className="mb-1 block text-[11.5px] font-medium text-neutral-600">
-              Remarks
-            </span>
-            <div className="flex flex-wrap items-start gap-2">
-              <textarea
-                aria-label={`Remarks on ${doc.name}`}
-                value={remark}
-                onChange={(e) => {
-                  setRemark(e.target.value);
-                  setRemarkDirty(true);
-                }}
-                rows={2}
-                placeholder="Notes against this document."
-                className="min-w-[240px] flex-1 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-[12.5px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-              />
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={onSaveRemark}
-                disabled={pending || !remarkDirty}
-              >
-                Save Remarks
-              </Button>
-            </div>
-          </div>
-        )}
+
       </div>
     </li>
   );
