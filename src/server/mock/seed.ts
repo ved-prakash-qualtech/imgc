@@ -36,12 +36,7 @@ const ago = (days: number): string =>
 const ahead = (days: number): string =>
   new Date(Date.parse(NOW) + days * 86_400_000).toISOString();
 
-const STANDARD_DOCUMENTS: ReadonlyArray<{ name: string; required: boolean }> = [
-  { name: "Claim Intimation Form", required: true },
-  { name: "Loan Account Statement", required: true },
-  { name: "Legal / Recall Notice", required: true },
-  { name: "Insurance Policy Copy", required: false },
-];
+// STANDARD_DOCUMENTS removed
 
 /** Cycled by account index (independent of `npa`/`writeOff`) so the seeded book has a realistic
  *  spread of Days Past Due across every bucket, including non-NPA accounts with real DPD. */
@@ -782,20 +777,7 @@ export function buildSeed(): MockDb {
       });
     });
 
-    // The standard checklist every case carries.
-    STANDARD_DOCUMENTS.forEach((d, di) => {
-      claimDocuments.push({
-        id: `doc_${c.id}_std${di}`,
-        accountId: c.id,
-        name: d.name,
-        required: d.required,
-        addedBy: "SYSTEM",
-        status: "PENDING_UPLOAD",
-        version: 0,
-        active: true,
-        createdAt: ago(c.appDaysAgo),
-      });
-    });
+    // Legacy STANDARD_DOCUMENTS removed to fix IMGC checklist showing unrelated account-level documents.
 
     // The IMGC-authored additional documents.
     c.additional.forEach((a, ai) => {

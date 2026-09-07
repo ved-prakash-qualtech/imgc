@@ -1,7 +1,7 @@
 /* eslint-disable react-perf/jsx-no-new-function-as-prop, react-perf/jsx-no-jsx-as-prop */
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
@@ -72,6 +72,12 @@ export function AccountWorkspace({
     tabFromSlug(searchParams.get("tab"))
   );
 
+  // The canonical document checklist for the active claim.
+  const claimDocs = useMemo(() => {
+    if (!claim) return [];
+    return docs.filter((d) => d.claimId === claim.id);
+  }, [docs, claim]);
+
   return (
     <div>
       <div
@@ -98,13 +104,13 @@ export function AccountWorkspace({
               <span
                 className={cn(
                   "ml-1.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold",
-                  docs.filter((d) => d.required && d.status === "PENDING_UPLOAD").length > 0
+                  claimDocs.filter((d) => d.required && d.status === "PENDING_UPLOAD").length > 0
                     ? "bg-warning/15 text-warning"
                     : "bg-success/15 text-success-700"
                 )}
               >
-                {docs.filter((d) => d.status === "UNDER_REVIEW" || d.status === "APPROVED").length}
-                /{docs.length}
+                {claimDocs.filter((d) => d.status === "UNDER_REVIEW" || d.status === "APPROVED").length}
+                /{claimDocs.length}
               </span>
             )}
           </button>
@@ -126,7 +132,7 @@ export function AccountWorkspace({
           accountId={account.id}
           accountProduct={account.product}
           role={role}
-          docs={docs}
+          docs={claimDocs}
           claimStatus={account.claimStatus}
           canSubmit={canSubmit}
           retentionDays={retentionDays}
