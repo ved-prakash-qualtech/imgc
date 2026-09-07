@@ -1,4 +1,4 @@
-/* eslint-disable security/detect-non-literal-fs-filename, use-client/browser-api */
+/* eslint-disable security/detect-non-literal-fs-filename, use-client/browser-api, security/detect-object-injection */
 import "server-only";
 
 import { promises as fs } from "node:fs";
@@ -218,7 +218,14 @@ export function summariseClaimOverview(
     else if (status === "CLOSED") paid += 1;
   }
 
-  return { total: rows.length, initiation, underProgress, approved, rejected, paid };
+  return {
+    total: rows.length,
+    initiation,
+    underProgress,
+    approved,
+    rejected,
+    paid,
+  };
 }
 
 /* ── helpers ───────────────────────────────────────────────────────── */
@@ -394,6 +401,12 @@ export async function syncQueryForDocumentDecision(
  * Conditional documents are always materialised, but `required` reflects whether the rule held
  * against the loan data — so a not-applicable conditional document sits in the list as optional
  * and does not block submission.
+ *
+ * For INITIAL claims, the first two documents (Property Documents and Legal & Collection Feedback)
+ * are pre-seeded as already available — simulating documents that the customer supplied at loan
+ * sourcing before claim initiation. Both receive an UNDER_REVIEW DocumentFile record pointing at
+ * a real demo PDF in public/demo/, so View Document and Replace work through the same existing
+ * /api/portal/files/[fileId] route as any normally-uploaded file.
  */
 function materialiseChecklist(
   fresh: MockDb,
@@ -403,10 +416,65 @@ function materialiseChecklist(
 ): void {
   const account = fresh.accounts.find((a) => a.id === accountId);
   const loan = (account ?? {}) as unknown as Record<string, unknown>;
+
+  /** Stable demo PDF paths — resolved at runtime so the path is valid wherever cwd lands. */
+  const DEMO_FILES: Record<
+    number,
+    { name: string; file: string; size: number }
+  > = {
+    0: {
+      name: "property-documents.pdf",
+      file: path.join(
+        process.cwd(),
+        "public",
+        "demo",
+        "property-documents.pdf"
+      ),
+      size: 214_990,
+    },
+    1: {
+      name: "legal-collection-feedback.pdf",
+      file: path.join(
+        process.cwd(),
+        "public",
+        "demo",
+        "legal-collection-feedback.pdf"
+      ),
+      size: 184_320,
+    },
+  };
+
   claimConfig(claimType).documents.forEach((spec, i) => {
     const applies = docConditionMet(spec.condition, loan);
+    const docId = `${claimId}_doc${i}`;
+
+    // For INITIAL claims, the first two documents are pre-existing: they were submitted by the
+    // customer during loan sourcing. We seed them as UNDER_REVIEW with a real DocumentFile so
+    // the existing ClaimDocuments UI naturally shows View / Replace, and summariseDocs() counts
+    // them as satisfied without any change to validation logic.
+    const demoEntry = claimType === "INITIAL" ? DEMO_FILES[i] : undefined;
+    const fileId = demoEntry ? `${docId}_f1` : undefined;
+
+    if (demoEntry && fileId) {
+      fresh.documentFiles.push({
+        id: fileId,
+        documentId: docId,
+        accountId,
+        originalName: demoEntry.name,
+        storedPath: demoEntry.file,
+        size: demoEntry.size,
+        mime: "application/pdf",
+        // Uploaded by "system" to represent a customer-sourced document, not the current lender.
+        uploadedBy: "system",
+        uploadedByName: "Customer (Pre-Loaded)",
+        // Dated 7 days before claim creation to signal pre-existence.
+        uploadedAt: new Date(Date.now() - 7 * 86_400_000).toISOString(),
+        version: 1,
+      });
+    }
+
     fresh.claimDocuments.push({
-      id: `${claimId}_doc${i}`,
+      id: docId,
       accountId,
       claimId,
       slug: spec.slug,
@@ -420,8 +488,12 @@ function materialiseChecklist(
         ? conditionReason(spec.condition)
         : undefined,
       addedBy: "SYSTEM",
-      status: "PENDING_UPLOAD",
-      version: 0,
+      // Pre-seeded docs land in UNDER_REVIEW (uploaded, awaiting IMGC approval) — the same state
+      // a normal upload produces (see uploadDocument()), so validation and UI treat them
+      // identically to a document the lender uploaded themselves.
+      status: demoEntry ? "UNDER_REVIEW" : "PENDING_UPLOAD",
+      version: demoEntry ? 1 : 0,
+      currentFileId: fileId,
       active: true,
       createdAt: nowIso(),
     });
@@ -654,44 +726,57 @@ export async function submitClaim(
     return { ok: false, error: `Still outstanding — ${parts.join("; ")}.` };
   }
 
-  const { claimNo, bucketChangedFrom, accountId, account } = await writeDb((db) => {
-    const claim = db.claims.find((c) => c.id === claimId);
-    if (!claim) return { claimNo: "", bucketChangedFrom: null, accountId: "", account: null };
-    // Answering a query resubmits; a first submission submits. Both land with IMGC.
-    const resubmitting = claim.status === "QUERY_RAISED";
-    advance(
-      db,
-      claim,
-      resubmitting ? "DOCUMENTS_RESUBMITTED" : "SUBMITTED",
-      session
-    );
-    if (!claim.submittedAt) claim.submittedAt = nowIso();
-    claim.bucket = "IMGC";
+  const { claimNo, bucketChangedFrom, accountId, account } = await writeDb(
+    (db) => {
+      const claim = db.claims.find((c) => c.id === claimId);
+      if (!claim)
+        return {
+          claimNo: "",
+          bucketChangedFrom: null,
+          accountId: "",
+          account: null,
+        };
+      // Answering a query resubmits; a first submission submits. Both land with IMGC.
+      const resubmitting = claim.status === "QUERY_RAISED";
+      advance(
+        db,
+        claim,
+        resubmitting ? "DOCUMENTS_RESUBMITTED" : "SUBMITTED",
+        session
+      );
+      if (!claim.submittedAt) claim.submittedAt = nowIso();
+      claim.bucket = "IMGC";
 
-    if (resubmitting) {
-      const open = db.claimQueries
-        .filter((q) => q.claimId === claimId && !q.respondedAt)
-        .sort((a, b) => b.raisedAt.localeCompare(a.raisedAt))[0];
-      if (open) {
-        open.respondedAt = nowIso();
-        open.respondedById = session.userId;
-        open.respondedByName = session.name;
-        open.responseRemarks =
-          fields.__queryResponse ?? "Documents resubmitted.";
+      if (resubmitting) {
+        const open = db.claimQueries
+          .filter((q) => q.claimId === claimId && !q.respondedAt)
+          .sort((a, b) => b.raisedAt.localeCompare(a.raisedAt))[0];
+        if (open) {
+          open.respondedAt = nowIso();
+          open.respondedById = session.userId;
+          open.respondedByName = session.name;
+          open.responseRemarks =
+            fields.__queryResponse ?? "Documents resubmitted.";
+        }
+        // Rule: a resubmission goes straight back into review.
+        advance(db, claim, "UNDER_REVIEW", session, "Resubmission received");
       }
-      // Rule: a resubmission goes straight back into review.
-      advance(db, claim, "UNDER_REVIEW", session, "Resubmission received");
+
+      let bucketChangedFrom = null;
+      const account = db.accounts.find((a) => a.id === claim.accountId);
+      if (account && account.bucket !== "IMGC") {
+        bucketChangedFrom = account.bucket;
+        account.bucket = "IMGC";
+      }
+
+      return {
+        claimNo: claim.claimNo,
+        bucketChangedFrom,
+        accountId: claim.accountId,
+        account: account ? { ...account } : null,
+      };
     }
-    
-    let bucketChangedFrom = null;
-    const account = db.accounts.find((a) => a.id === claim.accountId);
-    if (account && account.bucket !== "IMGC") {
-      bucketChangedFrom = account.bucket;
-      account.bucket = "IMGC";
-    }
-    
-    return { claimNo: claim.claimNo, bucketChangedFrom, accountId: claim.accountId, account: account ? { ...account } : null };
-  });
+  );
 
   await recordEvent({
     accountId: guard.accountId!,
@@ -811,7 +896,7 @@ export async function raiseQuery(
 
     advance(db, claim, "QUERY_RAISED", session, input.reason.trim());
     claim.bucket = "LENDER";
-    
+
     let bucketChangedFrom = null;
     const account = db.accounts.find((a) => a.id === claim.accountId);
     if (account && account.bucket !== "LENDER") {
@@ -846,7 +931,12 @@ export async function raiseQuery(
       meta: { from: outcome.bucketChangedFrom, to: "LENDER" },
     });
     if (outcome.account) {
-      await notifyBucketShift(outcome.account, outcome.bucketChangedFrom, "LENDER", session);
+      await notifyBucketShift(
+        outcome.account,
+        outcome.bucketChangedFrom,
+        "LENDER",
+        session
+      );
     }
   }
 

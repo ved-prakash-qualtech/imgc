@@ -1,3 +1,4 @@
+/* eslint-disable react-perf/jsx-no-new-function-as-prop, react-perf/jsx-no-jsx-as-prop */
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
@@ -35,12 +36,35 @@ import type { EligibleRow } from "@/app/[locale]/(portal)/initiate-claim/page";
 import type { ClaimStatus } from "@/server/mock/types";
 
 type SortKey =
-  | "loanNo"
-  | "claimNo"
-  | "borrowerName"
-  | "loanAmount"
-  | "lastUpdatedAt";
+  "loanNo" | "claimNo" | "borrowerName" | "loanAmount" | "lastUpdatedAt";
 type SortDirection = "asc" | "desc" | null;
+
+/** Parse the ?sort= param. Returns null state if the value is not a known sort.
+ *  Format: <key>_<dir> where dir is "asc" or "desc". Keys may also contain "_"
+ *  (e.g. lastUpdatedAt), so we split from the right: the last segment is the direction. */
+function sortFromParam(value: string | null): {
+  key: SortKey | null;
+  dir: SortDirection;
+} {
+  if (!value) return { key: null, dir: null };
+  const lastUnderscore = value.lastIndexOf("_");
+  if (lastUnderscore === -1) return { key: null, dir: null };
+  const rawKey = value.slice(0, lastUnderscore);
+  const rawDir = value.slice(lastUnderscore + 1);
+  const validKeys: SortKey[] = [
+    "loanNo",
+    "claimNo",
+    "borrowerName",
+    "loanAmount",
+    "lastUpdatedAt",
+  ];
+  const key = validKeys.includes(rawKey as SortKey)
+    ? (rawKey as SortKey)
+    : null;
+  const dir: SortDirection =
+    rawDir === "asc" ? "asc" : rawDir === "desc" ? "desc" : null;
+  return key && dir ? { key, dir } : { key: null, dir: null };
+}
 
 /** The status filter's own values — "not started" isn't a real `ClaimStatus`, it's the absence
  *  of a claim, so it needs a value of its own alongside the real ones. Covers the full status
@@ -135,7 +159,9 @@ function downloadCsv(rows: EligibleRow[]): void {
       a.borrowerName,
       a.product,
       a.loanAmount,
-      isNotStarted(a) ? "NOT_STARTED" : (a.claim as NonNullable<EligibleRow["claim"]>).status,
+      isNotStarted(a)
+        ? "NOT_STARTED"
+        : (a.claim as NonNullable<EligibleRow["claim"]>).status,
       a.claim?.bucket ?? "",
       a.claim?.lastUpdatedAt.slice(0, 10) ?? "",
     ]
@@ -164,7 +190,9 @@ const SortIcon = ({
   sortDirection: SortDirection;
 }) => {
   if (sortKey !== column)
-    return <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />;
+    return (
+      <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />
+    );
   return sortDirection === "asc" ? (
     <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
   ) : (
@@ -241,7 +269,9 @@ function FilterSelect<T extends string>({
 
 /** Which `?status=` values are real filter options — a Claims Overview tile links here with one
  *  of these; anything else (or none) falls back to "ALL" rather than silently filtering wrong. */
-function statusFromParam(value: string | null): (typeof STATUS_OPTIONS)[number] {
+function statusFromParam(
+  value: string | null
+): (typeof STATUS_OPTIONS)[number] {
   return (STATUS_OPTIONS as readonly string[]).includes(value ?? "")
     ? (value as (typeof STATUS_OPTIONS)[number])
     : "ALL";
@@ -256,8 +286,14 @@ export function EligibleCasesClient({
     statusFromParam(searchParams.get("status"))
   );
   const [product, setProduct] = useState("ALL");
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+
+  // Initialise sort from the URL param so that returning from claim submission
+  // (with ?sort=lastUpdatedAt_desc) immediately shows the newest claim at row 1.
+  const initialSort = sortFromParam(searchParams.get("sort"));
+  const [sortKey, setSortKey] = useState<SortKey | null>(initialSort.key);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(
+    initialSort.dir
+  );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
@@ -267,11 +303,24 @@ export function EligibleCasesClient({
   // "adjust state when a prop changes" — https://react.dev/learn/you-might-not-need-an-effect —
   // rather than setState-in-an-effect, which just adds an extra render), or a click updates the
   // URL and the grid silently keeps showing the old filter.
-  const [prevStatusParam, setPrevStatusParam] = useState(searchParams.get("status"));
+  const [prevStatusParam, setPrevStatusParam] = useState(
+    searchParams.get("status")
+  );
   const statusParam = searchParams.get("status");
   if (statusParam !== prevStatusParam) {
     setPrevStatusParam(statusParam);
     setStatus(statusFromParam(statusParam));
+    setPage(1);
+  }
+
+  // Similarly re-sync the sort when ?sort= changes (e.g. navigating back after a submit).
+  const [prevSortParam, setPrevSortParam] = useState(searchParams.get("sort"));
+  const sortParam = searchParams.get("sort");
+  if (sortParam !== prevSortParam) {
+    setPrevSortParam(sortParam);
+    const { key, dir } = sortFromParam(sortParam);
+    setSortKey(key);
+    setSortDirection(dir);
     setPage(1);
   }
 
@@ -307,10 +356,13 @@ export function EligibleCasesClient({
     []
   );
 
-  const handleStatusChange = useCallback((v: (typeof STATUS_OPTIONS)[number]) => {
-    setStatus(v);
-    setPage(1);
-  }, []);
+  const handleStatusChange = useCallback(
+    (v: (typeof STATUS_OPTIONS)[number]) => {
+      setStatus(v);
+      setPage(1);
+    },
+    []
+  );
 
   const handleProductChange = useCallback((v: string) => {
     setProduct(v);
@@ -486,7 +538,9 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <TableHead className="h-8 px-1 text-right text-[10.5px]">Actions</TableHead>
+              <TableHead className="h-8 px-1 text-right text-[10.5px]">
+                Actions
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
