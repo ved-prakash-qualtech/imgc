@@ -27,10 +27,13 @@ export default async function AccountsPage() {
   return (
     <PortalShell activeKey="accounts" title="Accounts">
       <div className="space-y-4">
-        {isLender && (
+        {/* `/accounts` is IMGC-only — a lender is 403'd here (their own accounts live on the
+            Claim page instead) — so this band only ever has an IMGC audience. It was gated
+            `isLender &&` before, which meant it could never actually render for anyone. */}
+        {!isLender && (
           <CommandBand
             title="Accounts"
-            subtitle="Accounts your organisation can act on — scope follows the domain of your sign-in address"
+            subtitle="Every account across every lender in the portfolio"
             stats={[
               {
                 icon: <FolderOpenIcon className="size-4" />,

@@ -619,15 +619,15 @@ export function buildSeed(): MockDb {
   const lenderOrgs: LenderOrg[] = [
     {
       id: "org_acme",
-      name: "Acme Bank",
-      emailDomain: "acme-bank.com",
-      contactEmails: ["claims.desk@acme-bank.com", "ops.lead@acme-bank.com"],
+      name: "HDFC Bank",
+      emailDomain: "hdfcbank.com",
+      contactEmails: ["claims.desk@hdfcbank.com", "ops.lead@hdfcbank.com"],
     },
     {
       id: "org_northgate",
-      name: "Northgate HFC",
-      emailDomain: "northgate-hfc.com",
-      contactEmails: ["recovery@northgate-hfc.com"],
+      name: "ICICI Bank",
+      emailDomain: "icicibank.com",
+      contactEmails: ["recovery@icicibank.com"],
     },
   ];
 
@@ -668,7 +668,7 @@ export function buildSeed(): MockDb {
       id: "usr_len1",
       role: "LENDER",
       name: "Arjun Mehta",
-      email: "arjun@acme-bank.com",
+      email: "arjun@hdfcbank.com",
       lenderOrgId: "org_acme",
       createdAt: NOW,
       createdBy: "usr_emp1",
@@ -677,7 +677,7 @@ export function buildSeed(): MockDb {
       id: "usr_len2",
       role: "LENDER",
       name: "Priya Rao",
-      email: "priya@acme-bank.com",
+      email: "priya@hdfcbank.com",
       lenderOrgId: "org_acme",
       createdAt: NOW,
       createdBy: "usr_emp1",
@@ -686,7 +686,7 @@ export function buildSeed(): MockDb {
       id: "usr_len3",
       role: "LENDER",
       name: "Sameer Kulkarni",
-      email: "sameer@northgate-hfc.com",
+      email: "rahul@icicibank.com",
       lenderOrgId: "org_northgate",
       createdAt: NOW,
       createdBy: "usr_emp2",
@@ -1050,7 +1050,7 @@ const SAMPLE_FIELDS: Record<string, string> = {
   contactPerson: "Arjun Mehta",
   contactDesignation: "Manager - Recovery",
   contactPhone: "9820098200",
-  contactEmail: "arjun@acme-bank.com",
+  contactEmail: "arjun@hdfcbank.com",
   // Additional
   remarks: "Borrower unreachable since the second recall notice.",
   // Subsequent (final loss)

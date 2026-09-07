@@ -26,11 +26,13 @@ type Step =
   | { kind: "OTP"; email: string; devCode?: string };
 
 const FEATURE_PILLS = [
-  "Document Checklist",
-  "PAS Accounting Sync",
-  "Full Audit Trail",
-  "Lender / IMGC Buckets",
-  "Reinstatement Workflow",
+  "Expands Product Offering",
+  "Improves Risk Management",
+  "Improves Cash Flow",
+  "Provides Capital Relief",
+  "Delivers Better Return on Equity",
+  "Facilitates Securitization Transactions",
+  "Co-lending",
 ];
 
 const VALUE_ROWS = [
@@ -192,20 +194,28 @@ export function LoginClient({
         {/* ── Masthead ─────────────────────────────────────────────── */}
         <header className="imgc-rise flex items-start gap-4">
           <div className="flex items-center gap-3">
-            <Image
-              src="/assets/icons/logo.png"
-              alt="IMGC — Defining Tomorrow"
-              width={48}
-              height={48}
-              className="size-11"
-            />
+            {/* logo.png's own baked-in "IMGC / Defining Tomorrow" text was illegible at the
+                previous 44px — the file is square (80×80), so sizing it up while keeping
+                width===height (no stretching) is what actually fixes it, not swapping assets.
+                A white card behind it (same idea as the sidebar's logo mount) is what actually
+                gives it contrast against the warm cream/orange backdrop — the logo's own colors
+                (orange mark, grey wordmark) read faintly straight on top of that gradient. */}
+            <div className="grid size-20 shrink-0 place-items-center rounded-2xl bg-white p-2 shadow-sm">
+              <Image
+                src="/assets/icons/logo.png"
+                alt="IMGC"
+                width={80}
+                height={80}
+                className="h-auto w-auto max-h-full max-w-full object-contain"
+              />
+            </div>
             <span className="leading-tight">
               <span className="block font-outfit text-[17px] font-bold tracking-tight text-slate-900">
                 IMGC Lender Portal
               </span>
-              <span className="block text-[12px] text-slate-700">
+              {/* <span className="block text-[12px] text-slate-700">
                 Initial Claims Platform
-              </span>
+              </span> */}
             </span>
           </div>
         </header>
@@ -215,7 +225,7 @@ export function LoginClient({
           {/* Left: the proposition */}
           <section className="imgc-rise min-w-0 flex-1">
             <h1 className="font-outfit max-w-[620px] text-[34px] font-bold leading-[1.12] tracking-tight text-slate-900 sm:text-[44px]">
-              One claims workspace{" "}
+              One workspace{" "}
               <span className="text-[#d85811]">for every lender.</span>
             </h1>
             <p className="mt-4 max-w-[540px] text-[15px] leading-relaxed text-slate-800">
@@ -401,7 +411,7 @@ export function LoginClient({
                     type="button"
                     disabled={pending}
                     onClick={() => onDemo("IMGC")}
-                    className="rounded-lg border border-neutral-200 bg-white/50 px-3 py-2 text-[12.5px] font-semibold text-slate-700 transition hover:border-neutral-300 hover:bg-white/80 disabled:opacity-50"
+                    className="cursor-pointer rounded-lg border border-neutral-200 bg-white/50 px-3 py-2 text-[12.5px] font-semibold text-slate-700 transition hover:border-[#f26e22]/50 hover:bg-white hover:text-[#f26e22] hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Demo as IMGC
                   </button>
@@ -409,7 +419,7 @@ export function LoginClient({
                     type="button"
                     disabled={pending}
                     onClick={() => onDemo("LENDER")}
-                    className="rounded-lg border border-neutral-200 bg-white/50 px-3 py-2 text-[12.5px] font-semibold text-slate-700 transition hover:border-neutral-300 hover:bg-white/80 disabled:opacity-50"
+                    className="cursor-pointer rounded-lg border border-neutral-200 bg-white/50 px-3 py-2 text-[12.5px] font-semibold text-slate-700 transition hover:border-[#f26e22]/50 hover:bg-white hover:text-[#f26e22] hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Demo as Lender
                   </button>
