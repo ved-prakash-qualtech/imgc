@@ -11,7 +11,14 @@ import { getClaimForAccount, syncClaimForAccountDecision } from "@/services/port
 import { listDocuments, summariseDocs } from "@/services/portal/claims.server";
 import { listClaimDocuments } from "@/services/portal/requirements.server";
 import type { AppSession } from "@/lib/auth/appSession";
-import type { Account, Bucket, ClaimStatus, LenderOrg } from "@/server/mock/types";
+import type {
+  Account,
+  Bucket,
+  Claim,
+  ClaimQuery,
+  ClaimStatus,
+  LenderOrg,
+} from "@/server/mock/types";
 
 export interface AccountRow extends Account {
   lenderOrgName: string;
@@ -26,43 +33,67 @@ function inScope(session: AppSession, account: Account): boolean {
   return account.lenderOrgId === session.lenderOrgId;
 }
 
-const LOAN_STATUSES = [
-  "New",
-  "Underwriting",
-  "Pre Offer",
-  "Queried",
-  "Rejected",
-  "Expired",
-  "Approved",
-  "Invoiced",
-];
+/**
+ * The same eight claim stages the Dashboard's "In progress claim cases" band classifies accounts
+ * into (see `buildDashboardSummary`'s `progressTiles` in dashboard.server.ts) — kept as one
+ * mutually-exclusive label per account here so this list's own status filter can select one, and
+ * so a KPI tile's link (`?loanStatus=<label>`) lands on the same rows the tile counted.
+ *
+ * `DOCUMENTS_RESUBMITTED` folds into "Queried" (still mid query-loop) and `CLOSED` folds into
+ * "Approved" (closest terminal-success bucket — same stand-in `ClaimOverviewBand` uses for "Claim
+ * Paid"). "Expired" takes priority over "Queried" for the same claim, since a query overdue past
+ * its due date is a more specific, more urgent state than "queried" alone.
+ */
+function classifyLoanStatus(
+  account: Account,
+  claim: Claim | undefined,
+  queries: ClaimQuery[]
+): string {
+  if (!claim || !claim.draftSaved) return "New";
+
+  const now = Date.now();
+  const isOverdue = queries.some(
+    (q) =>
+      q.claimId === claim.id &&
+      !q.respondedAt &&
+      q.dueDate &&
+      Date.parse(q.dueDate) < now
+  );
+  if (isOverdue) return "Expired";
+
+  switch (claim.status) {
+    case "DRAFT":
+      return "Underwriting";
+    case "SUBMITTED":
+      return "Pre Offer";
+    case "UNDER_REVIEW":
+      return "Invoiced";
+    case "QUERY_RAISED":
+    case "DOCUMENTS_RESUBMITTED":
+      return "Queried";
+    case "REJECTED":
+      return "Rejected";
+    case "APPROVED":
+    case "CLOSED":
+      return "Approved";
+    default:
+      return "New";
+  }
+}
 
 function decorate(
   account: Account,
   orgs: LenderOrg[],
   docs: { accountId: string; required: boolean; status: string; active?: boolean }[],
-  claims: { accountId: string }[]
+  claims: Claim[],
+  queries: ClaimQuery[]
 ): AccountRow {
   const own = docs.filter((d) => d.accountId === account.id);
-  const hasClaim = claims.some((c) => c.accountId === account.id);
-  
-  let hash = 0;
-  for (let i = 0; i < account.loanNo.length; i++) {
-    hash = (hash * 31 + account.loanNo.charCodeAt(i)) | 0;
-  }
-
-  let dpd = account.dpd;
-  if ((account.npa || hasClaim) && (dpd === undefined || dpd <= 90)) {
-    dpd = 91 + (Math.abs(hash) % 30);
-  }
-
-  const loanStatus = LOAN_STATUSES[Math.abs(hash) % LOAN_STATUSES.length]!;
+  const claim = claims.find((c) => c.accountId === account.id);
 
   return {
     ...account,
-    dpd,
-    npa: dpd !== undefined ? dpd > 90 : account.npa,
-    loanStatus,
+    loanStatus: classifyLoanStatus(account, claim, queries),
     lenderOrgName: orgs.find((o) => o.id === account.lenderOrgId)?.name ?? "—",
     requiredDocs: own.filter((d) => d.required && d.active !== false).length,
     pendingDocs: own.filter((d) => d.required && d.active !== false && d.status !== "UNDER_REVIEW" && d.status !== "APPROVED").length,
@@ -73,7 +104,7 @@ export async function listAccounts(session: AppSession): Promise<AccountRow[]> {
   const db = await readDb();
   return db.accounts
     .filter((a) => inScope(session, a))
-    .map((a) => decorate(a, db.lenderOrgs, db.claimDocuments, db.claims))
+    .map((a) => decorate(a, db.lenderOrgs, db.claimDocuments, db.claims, db.claimQueries))
     .sort((a, b) => a.loanNo.localeCompare(b.loanNo));
 }
 
@@ -84,7 +115,7 @@ export async function getAccount(
   const db = await readDb();
   const a = db.accounts.find((x) => x.id === accountId);
   if (!a || !inScope(session, a)) return null;
-  return decorate(a, db.lenderOrgs, db.claimDocuments, db.claims);
+  return decorate(a, db.lenderOrgs, db.claimDocuments, db.claims, db.claimQueries);
 }
 
 export async function listAccessibleAccountIds(session: AppSession): Promise<string[]> {

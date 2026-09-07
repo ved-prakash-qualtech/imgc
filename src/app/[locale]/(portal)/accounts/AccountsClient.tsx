@@ -211,7 +211,9 @@ export function AccountsClient({
   const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>(
     (searchParams.get("bucket") as (typeof BUCKETS)[number] | null) ?? "ALL"
   );
-  const [status, setStatus] = useState<(typeof STATUSES)[number]>("ALL");
+  const [status, setStatus] = useState<(typeof STATUSES)[number]>(
+    (searchParams.get("status") as (typeof STATUSES)[number] | null) ?? "ALL"
+  );
   const [assetClass, setAssetClass] = useState<(typeof ASSET_CLASSES)[number]>(
     (searchParams.get("assetClass") as (typeof ASSET_CLASSES)[number] | null) ??
       "ALL"

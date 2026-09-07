@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -215,10 +216,18 @@ const LOAN_STATUSES = [
 ] as const;
 
 export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [dpdBand, setDpdBand] = useState<DpdBand>("ALL");
   const [npaFilter, setNpaFilter] = useState<"ALL" | "YES" | "NO">("ALL");
-  const [loanStatusFilter, setLoanStatusFilter] = useState<typeof LOAN_STATUSES[number] | "ALL">("ALL");
+  const [loanStatusFilter, setLoanStatusFilter] = useState<
+    (typeof LOAN_STATUSES)[number] | "ALL"
+  >(() => {
+    const param = searchParams.get("loanStatus");
+    return (LOAN_STATUSES as readonly string[]).includes(param ?? "")
+      ? (param as (typeof LOAN_STATUSES)[number])
+      : "ALL";
+  });
   const [product, setProduct] = useState("ALL");
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);

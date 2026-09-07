@@ -376,93 +376,111 @@ export async function buildDashboardSummary(
   // `claim.status` are allowed to diverge (Account.claimStatus predates the Claim entity, see
   // its own doc comment) — so this reads the one place `?status=` filtering agrees with.
   const claimByAccountId = new Map(claims.map((c) => [c.accountId, c]));
-  // Lender: same eligibility rule the Claim page's own grid applies (`a.npa ||
-  // byAccount.has(a.id)` in initiate-claim/page.tsx) — a write-off-only account with no claim yet
-  // can't start a fresh one from that grid, so it must not count as "New" here either. IMGC's own
-  // `/accounts` has no such gate (every account in the portfolio is listed), so nothing is
-  // excluded there.
+  // Both roles now land on a grid with no NPA eligibility gate for "New" — the Lender's own
+  // `/dpd` (labelled "Accounts" in their sidebar) deliberately lists every account, write-off-only
+  // included, same as IMGC's `/accounts` — so this counts every no-claim account, matching
+  // `classifyLoanStatus`'s own "New" rule in accounts.server.ts exactly.
   const notStartedCount = accounts.filter((a) => {
     const c = claimByAccountId.get(a.id);
-    if (!c) return isLender ? a.npa : true;
-    return !c.hasProgress;
+    return c ? !c.hasProgress : true;
   }).length;
+  // Claims with an open query already past its own due date — pulled out once so "Queried" and
+  // "Expired" stay mutually exclusive (same rule `classifyLoanStatus` in accounts.server.ts uses
+  // to label each account's `loanStatus`): a claim counts as "Expired" instead of "Queried", not
+  // both, so the two tiles' counts always add up to the same accounts `/dpd`'s own filter shows.
+  const nowMs = Date.now();
+  const overdueClaimIds = new Set(
+    db.claimQueries
+      .filter((q) => !q.respondedAt && q.dueDate && Date.parse(q.dueDate) < nowMs)
+      .map((q) => q.claimId)
+  );
   const claimStatusCount = (status: Claim["status"]) =>
-    claims.filter((c) => c.hasProgress && c.status === status).length;
+    claims.filter(
+      (c) => c.hasProgress && c.status === status && !overdueClaimIds.has(c.id)
+    ).length;
 
   // Computed once, up here, so both the funnel band and the pipeline-health KPIs (further below)
   // read the same "overdue queries" number instead of two copies quietly drifting apart. No
   // longer lender-only — IMGC's own funnel band (portfolio-wide, same accounts/claims already
   // scoped above) needs it too.
   const claimPipeline = buildClaimPipelineKpis(claims, db.claimQueries);
+  const expiredCount = claims.filter(
+    (c) => c.hasProgress && overdueClaimIds.has(c.id)
+  ).length;
 
   // The claim-stage funnel band shown on the Dashboard — same shape and same source data for
   // both roles (the accounts/claims above are already scoped: a lender's own book, or, for IMGC,
   // every lender's). Only the drill-down destination differs, because the two roles land on
-  // different grids: the Claim page (`/initiate-claim`) filters by `claim.status` and is
-  // lender-only; IMGC's own `/accounts` filters by the older `account.claimStatus` field and only
-  // offers four of the real statuses (DRAFT/SUBMITTED/APPROVED/QUERIED) — a tile with no matching
-  // filter there links to the unfiltered grid rather than a value/href mismatch.
+  // different grids:
+  //  - Lender → `/dpd` (labelled "Accounts" in their sidebar — see nav.ts), filtered by the exact
+  //    same `loanStatus` classification `accounts.server.ts` computes for every account, so a
+  //    tile's count and what its link shows always agree.
+  //  - IMGC → their own `/accounts`, filtered by the older `account.claimStatus` field, which
+  //    only offers four of the real statuses (DRAFT/SUBMITTED/APPROVED/QUERIED) — a tile with no
+  //    matching filter there links to the unfiltered grid rather than a value/href mismatch.
+  const lenderHref = (loanStatus: string) => `/dpd?loanStatus=${encodeURIComponent(loanStatus)}`;
+
   const progressTiles: Tile[] = [
     {
       key: "new",
       label: "New",
       value: notStartedCount,
       tone: "neutral",
-      href: isLender ? "/initiate-claim?status=NOT_STARTED" : "/accounts",
+      href: isLender ? lenderHref("New") : "/accounts",
     },
     {
       key: "collecting",
       label: "Underwriting",
       value: claimStatusCount("DRAFT"),
       tone: "info",
-      href: isLender ? "/initiate-claim?status=DRAFT" : "/accounts?status=DRAFT",
+      href: isLender ? lenderHref("Underwriting") : "/accounts?status=DRAFT",
     },
     {
       key: "ready",
       label: "Pre Offer",
       value: claimStatusCount("SUBMITTED"),
       tone: "teal",
-      href: isLender ? "/initiate-claim?status=SUBMITTED" : "/accounts?status=SUBMITTED",
+      href: isLender ? lenderHref("Pre Offer") : "/accounts?status=SUBMITTED",
     },
     {
       key: "submitted",
       label: "Invoiced",
       value: claimStatusCount("UNDER_REVIEW"),
       tone: "violet",
-      href: isLender ? "/initiate-claim?status=UNDER_REVIEW" : "/accounts",
+      href: isLender ? lenderHref("Invoiced") : "/accounts",
     },
     {
       key: "queried",
       label: "Queried",
       value: claimStatusCount("QUERY_RAISED"),
       tone: "warning",
-      href: isLender
-        ? "/track-query-response?status=QUERY_RAISED"
-        : "/accounts?status=QUERIED",
+      href: isLender ? lenderHref("Queried") : "/accounts?status=QUERIED",
     },
     {
       key: "approved",
       label: "Approved",
       value: claimStatusCount("APPROVED"),
       tone: "success",
-      href: isLender ? "/track-query-response?status=APPROVED" : "/accounts?status=APPROVED",
+      href: isLender ? lenderHref("Approved") : "/accounts?status=APPROVED",
     },
     {
       key: "rejected",
       label: "Rejected",
       value: claimStatusCount("REJECTED"),
       tone: "danger",
-      href: isLender ? "/track-query-response?status=REJECTED" : "/admin/retention",
+      href: isLender ? lenderHref("Rejected") : "/admin/retention",
     },
     // Not a claim.status — a query already raised (`Queried`, above) that has gone past its own
     // due date unanswered. Same figure `buildClaimPipelineKpis` already computes for the
     // pipeline-health KPIs, just surfaced here too instead of a second copy of the same rule.
+    // `classifyLoanStatus` in accounts.server.ts gives "Expired" priority over "Queried" for the
+    // same claim, so this tile's count and the "Expired" rows on `/dpd` agree exactly.
     {
       key: "expired",
       label: "Expired",
-      value: claimPipeline.overdueQueries,
+      value: expiredCount,
       tone: "danger",
-      href: isLender ? "/initiate-claim?status=QUERY_RAISED" : "/accounts?status=QUERIED",
+      href: isLender ? lenderHref("Expired") : "/accounts?status=QUERIED",
     },
   ];
 
