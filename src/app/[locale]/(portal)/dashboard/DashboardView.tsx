@@ -2,23 +2,26 @@ import Link from "next/link";
 import {
   AlertTriangleIcon,
   ArrowRightIcon,
-  CalendarClockIcon,
   CheckCircle2Icon,
+  ClipboardListIcon,
   ClockIcon,
+  FilePlus2Icon,
   MessageSquareWarningIcon,
-  PercentIcon,
+  SendIcon,
   TrendingUpIcon,
   UploadCloudIcon,
+  XCircleIcon,
 } from "lucide-react";
 
 import { CommandBand, Section } from "@/components/portal/CommandBand";
 import { Donut } from "@/components/portal/Donut";
 import { Panel } from "@/components/portal/Panel";
-import { PortfolioCommandCenter } from "@/components/portal/PortfolioCommandCenter";
+import { PortfolioCommandCenter, Sparkline } from "@/components/portal/PortfolioCommandCenter";
 import { ROUTES } from "@/constants/route";
 import { cn } from "@/lib/utils/twMergeUtils";
 
 import type { DashboardSummary } from "@/services/portal/dashboard.server";
+import type { Tile } from "@/services/portal/dashboard.server";
 import type { Role } from "@/server/mock/types";
 
 /* ── tokens for the soft-tint tiles ────────────────────────────────── */
@@ -78,65 +81,27 @@ export function DashboardView({ role, summary }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* ── Command centre ───────────────────────────────────────── */}
-      {!isLender && summary.portfolio && (
-        <PortfolioCommandCenter summary={summary.portfolio} />
-      )}
-
-      {/* ── Claims performance ───────────────────────────────────── */}
-      {isLender && summary.claimPipeline && (
-        <CommandBand
-          title="Claims Performance"
-          subtitle="Approval rate, turnaround time and activity at a glance"
-          stats={[]}
-        >
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <PipelineKpiCard
-              icon={<PercentIcon className="size-4" />}
-              label="Approval Rate"
-              value={
-                summary.claimPipeline.approvalRatePct === null
-                  ? "—"
-                  : `${summary.claimPipeline.approvalRatePct}%`
-              }
-              tone="success"
-            />
-            <PipelineKpiCard
-              icon={<ClockIcon className="size-4" />}
-              label="Avg. Turnaround"
-              value={
-                summary.claimPipeline.avgTurnaroundDays === null
-                  ? "—"
-                  : `${summary.claimPipeline.avgTurnaroundDays}d`
-              }
-              tone="info"
-            />
-            <PipelineKpiCard
-              icon={<CalendarClockIcon className="size-4" />}
-              label="Claims This Month"
-              value={String(summary.claimPipeline.claimsThisMonth)}
-              tone="violet"
-              href={ROUTES.initiateClaim}
-            />
-            <PipelineKpiCard
-              icon={<AlertTriangleIcon className="size-4" />}
-              label="Overdue Queries"
-              value={String(summary.claimPipeline.overdueQueries)}
-              tone={summary.claimPipeline.overdueQueries > 0 ? "danger" : "success"}
-              href={ROUTES.trackQueryResponse}
-            />
-          </div>
-        </CommandBand>
-      )}
+      {/* ── In progress claim cases — same band, both roles: a lender's own book, every
+          lender's for IMGC ─────────────────────────────────────────────────────────── */}
+      <CommandBand
+        title={isLender ? "In progress claim cases" : "In progress claim cases — every lender"}
+        subtitle="Where every account currently stands"
+        stats={[]}
+      >
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
+          {summary.progressTiles.map((tile) => (
+            <ProgressTileCard key={tile.key} tile={tile} />
+          ))}
+        </div>
+      </CommandBand>
 
       {/* ── Portfolio overview ───────────────────────────────────── */}
-      {isLender && (
-        <Section
-          title="Portfolio overview"
-          subtitle="Claim and document counts against their totals"
-        >
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {summary.rings.map((ring) => {
+      <Section
+        title="Portfolio overview"
+        subtitle="Claim and document counts against their totals"
+      >
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {summary.rings.map((ring) => {
               const tone = RING_TONE[ring.key];
               const style = tone ? RING_TONE_STYLE[tone] : undefined;
               const pct = Math.round((ring.value / (ring.total || 1)) * 100);
@@ -195,138 +160,160 @@ export function DashboardView({ role, summary }: Props) {
               );
             })}
           </div>
-        </Section>
-      )}
+      </Section>
 
       {/* ── Actionable items ─────────────────────────────────────── */}
-      {isLender && (
-        <Section
-          title="Actionable items"
-          subtitle="What is waiting on you right now"
-        >
-          <div className="grid gap-3 lg:grid-cols-3">
-            <ActionCard
-              icon={renderUploadCloudIcon()}
-              title="Pending document upload"
-              value={summary.pendingUploadAccounts}
-              unit="accounts pending"
-              href={ROUTES.initiateClaim}
-              tone="warning"
-            />
-            <ActionCard
-              icon={renderMessageWarningIcon()}
-              title="Queries awaiting response"
-              value={summary.queriedCount}
-              unit="claims queried by IMGC"
-              href={ROUTES.trackQueryResponse}
-              tone="info"
-            />
-            <ActionCard
-              icon={renderClockIcon()}
-              title="Rejected documents"
-              value={summary.rejectedDocCount}
-              unit="held in the retention window"
-              href={`${ROUTES.trackQueryResponse}?status=REJECTED`}
-              tone="danger"
-            />
-          </div>
-        </Section>
-      )}
+      <Section
+        title="Actionable items"
+        subtitle="What is waiting on you right now"
+      >
+        <div className="grid gap-3 lg:grid-cols-3">
+          <ActionCard
+            icon={renderUploadCloudIcon()}
+            title="Pending document upload"
+            value={summary.pendingUploadAccounts}
+            unit={isLender ? "accounts pending" : "accounts pending, every lender"}
+            href={isLender ? ROUTES.initiateClaim : ROUTES.accounts}
+            tone="warning"
+          />
+          <ActionCard
+            icon={renderMessageWarningIcon()}
+            title="Queries awaiting response"
+            value={summary.queriedCount}
+            unit={isLender ? "claims queried by IMGC" : "claims currently queried"}
+            href={isLender ? ROUTES.trackQueryResponse : `${ROUTES.accounts}?status=QUERIED`}
+            tone="info"
+          />
+          <ActionCard
+            icon={renderClockIcon()}
+            title="Rejected documents"
+            value={summary.rejectedDocCount}
+            unit="held in the retention window"
+            href={
+              isLender
+                ? `${ROUTES.trackQueryResponse}?status=REJECTED`
+                : ROUTES.adminRetention
+            }
+            tone="danger"
+          />
+        </div>
+      </Section>
 
       {/* ── Aging ────────────────────────────────────────────────── */}
-      {isLender && (
-        <Section
-          title="Aging overview — open cases"
-          subtitle="Days since anything last happened on the account"
-        >
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {summary.aging.map((band) => (
-              <div
-                key={band.label}
-                className="rounded-xl border border-neutral-100 bg-white px-4 py-3.5 shadow-sm"
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-[12.5px] text-neutral-500">{band.label}</p>
-                  <p
-                    className={cn(
-                      "font-outfit text-[24px] font-bold leading-none",
-                      band.tone === "danger" && "text-destructive",
-                      band.tone === "warning" && "text-warning",
-                      band.tone === "brand" && "text-brand-primary",
-                      band.tone === "info" && "text-info"
-                    )}
-                  >
-                    {band.count}
-                  </p>
+      <Section
+        title="Aging overview — open cases"
+        subtitle="Days since anything last happened on the account"
+      >
+        <Panel size="compact" className="p-5">
+            {/* One bar for the whole open pipeline — where four near-identical cards used to make
+                an empty band (0%) look like broken UI, a single stacked bar reads "everything's
+                piled up in one place" at a glance, which is the actual finding here. */}
+            <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-neutral-100">
+              {summary.aging.map(
+                (band) =>
+                  band.share > 0 && (
+                    <div
+                      key={band.label}
+                      className={cn("h-full first:rounded-l-full last:rounded-r-full", BAR_TONE[band.tone])}
+                      style={{ width: `${band.share}%` }}
+                      title={`${band.label}: ${band.count} (${band.share}%)`}
+                    />
+                  )
+              )}
+            </div>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {summary.aging.map((band) => (
+                <div
+                  key={band.label}
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-lg px-3 py-2.5 transition-opacity",
+                    band.count === 0 ? "opacity-45" : "bg-neutral-25"
+                  )}
+                >
+                  <span className={cn("size-2.5 shrink-0 rounded-full", BAR_TONE[band.tone])} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[12px] text-neutral-500">{band.label}</p>
+                    <p
+                      className={cn(
+                        "font-outfit text-[19px] font-bold leading-none",
+                        band.tone === "danger" && "text-destructive",
+                        band.tone === "warning" && "text-warning",
+                        band.tone === "brand" && "text-brand-primary",
+                        band.tone === "info" && "text-info"
+                      )}
+                    >
+                      {band.count}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[11px] text-neutral-400">{band.share}%</span>
                 </div>
-                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
-                  <div
-                    className={cn("h-full rounded-full", BAR_TONE[band.tone])}
-                    style={{ width: `${band.share}%` }}
-                  />
-                </div>
-                <p className="mt-1.5 text-[11.5px] text-neutral-400">
-                  {band.share}% of open cases
-                </p>
-              </div>
-            ))}
-          </div>
-        </Section>
+              ))}
+            </div>
+          </Panel>
+      </Section>
+
+      {/* ── Portfolio-wide charts — IMGC only; a lender has one lender's worth of collections
+          and status breakdown to show, which the sections above already cover ─────────────── */}
+      {!isLender && summary.portfolio && (
+        <PortfolioCommandCenter summary={summary.portfolio} showStats={false} />
       )}
+
     </div>
   );
 }
 
 /* ── building blocks ───────────────────────────────────────────────── */
 
-/** Same dark-tile language as the Claim page's own "Claims Overview" band — matched for visual
- *  consistency only; the KPIs themselves are deliberately different (see the Section subtitle). */
-const PIPELINE_TONE = {
-  success: { bg: "bg-success/10 border-success/25", icon: "bg-success text-white" },
-  info: { bg: "bg-info/10 border-info/20", icon: "bg-info text-white" },
-  violet: { bg: "bg-brand-primary/10 border-brand-primary/25", icon: "bg-brand-primary text-white" },
-  danger: { bg: "bg-destructive/10 border-destructive/25", icon: "bg-destructive text-white" },
-} as const;
+/** One icon + spark color per claim stage — same seven stages `progressTiles` classifies
+ *  accounts into, just what each tile looks like. */
+const PROGRESS_TILE_ICON: Record<string, React.ReactNode> = {
+  new: <FilePlus2Icon className="size-4" />,
+  collecting: <ClipboardListIcon className="size-4" />,
+  ready: <CheckCircle2Icon className="size-4" />,
+  submitted: <SendIcon className="size-4" />,
+  queried: <MessageSquareWarningIcon className="size-4" />,
+  approved: <CheckCircle2Icon className="size-4" />,
+  rejected: <XCircleIcon className="size-4" />,
+  expired: <AlertTriangleIcon className="size-4" />,
+};
 
-function PipelineKpiCard({
-  icon,
-  label,
-  value,
-  tone,
-  href,
-}: Readonly<{
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  tone: keyof typeof PIPELINE_TONE;
-  href?: string;
-}>) {
-  const t = PIPELINE_TONE[tone];
+const PROGRESS_TILE_TONE: Record<
+  Tile["tone"],
+  { bg: string; icon: string; spark: string }
+> = {
+  neutral: { bg: "bg-white/8 border-white/15", icon: "bg-white/15 text-white/80", spark: "#e5e7eb" },
+  info: { bg: "bg-info/10 border-info/20", icon: "bg-info text-white", spark: "#3b82f6" },
+  teal: { bg: "bg-success/10 border-success/20", icon: "bg-success text-white", spark: "#14b8a6" },
+  violet: { bg: "bg-brand-primary/10 border-brand-primary/25", icon: "bg-brand-primary text-white", spark: "#a78bfa" },
+  warning: { bg: "bg-warning/10 border-warning/25", icon: "bg-warning text-white", spark: "#f59e0b" },
+  success: { bg: "bg-success/10 border-success/25", icon: "bg-success text-white", spark: "#22c55e" },
+  danger: { bg: "bg-destructive/10 border-destructive/25", icon: "bg-destructive text-white", spark: "#ef4444" },
+};
+
+function ProgressTileCard({ tile }: Readonly<{ tile: Tile }>) {
+  const t = PROGRESS_TILE_TONE[tile.tone];
   const inner = (
     <>
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-outfit text-[26px] font-bold leading-none text-white">
-          {value}
-        </span>
-        <span
-          className={cn(
-            "grid size-8 shrink-0 place-items-center rounded-lg",
-            t.icon
-          )}
-        >
-          {icon}
-        </span>
+      <div className="flex items-center justify-between gap-1.5">
+        <p className="truncate text-[11px] font-medium text-white/75">{tile.label}</p>
+        {PROGRESS_TILE_ICON[tile.key] && (
+          <span className={cn("grid size-6 shrink-0 place-items-center rounded-md", t.icon)}>
+            {PROGRESS_TILE_ICON[tile.key]}
+          </span>
+        )}
       </div>
-      <p className="mt-2 truncate text-[12.5px] font-medium text-white/85">{label}</p>
+      <p className="font-outfit text-[20px] font-bold leading-none text-white">{tile.value}</p>
+      <Sparkline seed={tile.key} color={t.spark} />
     </>
   );
   const className = cn(
-    "rounded-xl border bg-white/8 backdrop-blur-sm px-4 py-3.5",
+    "flex flex-col gap-1 rounded-xl border bg-white/8 backdrop-blur-sm px-3 py-2.5",
     t.bg,
-    href && "transition-colors hover:bg-white/12 cursor-pointer"
+    tile.href && "transition-colors hover:bg-white/12 cursor-pointer"
   );
-  return href ? (
-    <Link href={href} className={className}>
+  return tile.href ? (
+    <Link href={tile.href} className={className}>
       {inner}
     </Link>
   ) : (
@@ -337,9 +324,33 @@ function PipelineKpiCard({
 /** Same tone language as the portfolio rings: how urgent an actionable item is, not just what
  *  it's about — an upload backlog reads differently from a rejected document past retention. */
 const ACTION_TONE = {
-  warning: { chip: "bg-warning/10 text-warning", accent: "bg-warning", value: "text-neutral-950" },
-  info: { chip: "bg-info/10 text-info", accent: "bg-info", value: "text-neutral-950" },
-  danger: { chip: "bg-destructive/10 text-destructive", accent: "bg-destructive", value: "text-destructive" },
+  warning: {
+    chip: "bg-warning/10 text-warning",
+    accent: "bg-warning",
+    value: "text-neutral-950",
+    badge: "bg-warning/10 text-warning",
+    button: "bg-warning text-white hover:bg-warning/85",
+  },
+  info: {
+    chip: "bg-info/10 text-info",
+    accent: "bg-info",
+    value: "text-neutral-950",
+    badge: "bg-info/10 text-info",
+    button: "bg-info text-white hover:bg-info/85",
+  },
+  danger: {
+    chip: "bg-destructive/10 text-destructive",
+    accent: "bg-destructive",
+    value: "text-destructive",
+    badge: "bg-destructive/10 text-destructive",
+    button: "bg-destructive text-white hover:bg-destructive/85",
+  },
+} as const;
+
+const ACTION_URGENCY_LABEL = {
+  warning: "Needs upload",
+  info: "Awaiting reply",
+  danger: "Action needed",
 } as const;
 
 function ActionCard({
@@ -361,11 +372,23 @@ function ActionCard({
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-xl border border-neutral-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
       <span className={cn("absolute inset-x-0 top-0 h-1", t.accent)} />
-      <div className="mb-3 flex items-center gap-2">
-        <span className={cn("grid size-8 place-items-center rounded-lg", t.chip)}>
-          {icon}
-        </span>
-        <p className="text-[13.5px] font-semibold text-neutral-950">{title}</p>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className={cn("grid size-8 place-items-center rounded-lg", t.chip)}>
+            {icon}
+          </span>
+          <p className="text-[13.5px] font-semibold text-neutral-950">{title}</p>
+        </div>
+        {value > 0 && (
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold",
+              t.badge
+            )}
+          >
+            {ACTION_URGENCY_LABEL[tone]}
+          </span>
+        )}
       </div>
       <p className={cn("font-outfit text-[32px] font-bold leading-none", t.value)}>
         {value}
@@ -373,7 +396,10 @@ function ActionCard({
       <p className="mt-1.5 text-[12.5px] text-neutral-500">{unit}</p>
       <Link
         href={href}
-        className="mt-4 inline-flex h-9 w-fit items-center gap-1.5 rounded-lg bg-brand-primary px-3.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-brand-dark"
+        className={cn(
+          "mt-4 inline-flex h-9 w-fit items-center gap-1.5 rounded-lg px-3.5 text-[12.5px] font-semibold transition-colors",
+          t.button
+        )}
       >
         View details <ArrowRightIcon className="size-3.5" />
       </Link>

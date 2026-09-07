@@ -145,7 +145,7 @@ export async function demoLoginAction(role: Role): Promise<{ error: string } | n
     redirect(ROUTES.dashboard);
   }
 
-  const lender = await findByEmail("arjun@acme-bank.com");
+  const lender = await findByEmail("arjun@hdfcbank.com");
   if (!lender) return { error: "Demo data is not seeded." };
   const org = await getLenderOrgById(lender.lenderOrgId);
   await createSession({

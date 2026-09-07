@@ -81,6 +81,9 @@ export interface LenderOrg {
   emailDomain: string;
   /** Stakeholder mailboxes notified on bucket shifts and claim events. */
   contactEmails: string[];
+  /** Path under `/public` to this lender's own mark, shown in their sidebar. Optional — a lender
+   *  with none falls back to a generated initials badge (see `AppSidebar`) rather than IMGC's. */
+  logoUrl?: string;
 }
 
 export interface User {

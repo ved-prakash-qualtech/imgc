@@ -94,6 +94,9 @@ export interface DashboardSummary {
   readyToSubmit: number;
   oldestPendingDays: number;
   rings: Ring[];
+  /** The claim-stage funnel band shown at the top of the Dashboard for both roles (see
+   *  `DashboardView`) — a lender's own book, or every lender's for IMGC. */
+  progressTiles: Tile[];
   aging: AgingBand[];
   lastActivityAt: string | null;
   /**
@@ -107,11 +110,11 @@ export interface DashboardSummary {
     approved: number;
   };
   /**
-   * Lender only — deliberately NOT the same breakdown as the Claim page's own "Claims Overview"
-   * band (that would just restate the same six numbers). This is the pipeline-health view: how
-   * claims are actually performing, not how many sit in each status.
+   * Deliberately NOT the same breakdown as the Claim page's own "Claims Overview" band (that
+   * would just restate the same six numbers). This is the pipeline-health view: how claims are
+   * actually performing, not how many sit in each status.
    */
-  claimPipeline?: ClaimPipelineKpis;
+  claimPipeline: ClaimPipelineKpis;
   /** IMGC only — the portfolio-wide command center at the top of the dashboard. */
   portfolio?: PortfolioSummary;
 }
@@ -366,6 +369,103 @@ export async function buildDashboardSummary(
 
   const isLender = session.role === "LENDER";
 
+  // Seven claim stages, sourced from the Claim entity itself — the same field
+  // (`claim.status`/`hasProgress`) the Claim page's own `?status=` filter reads (see
+  // `statusFromParam`/`isNotStarted` in EligibleCasesClient). Built from `account.claimStatus`
+  // before, a tile's count and what its link actually showed could disagree — that field and
+  // `claim.status` are allowed to diverge (Account.claimStatus predates the Claim entity, see
+  // its own doc comment) — so this reads the one place `?status=` filtering agrees with.
+  const claimByAccountId = new Map(claims.map((c) => [c.accountId, c]));
+  // Lender: same eligibility rule the Claim page's own grid applies (`a.npa ||
+  // byAccount.has(a.id)` in initiate-claim/page.tsx) — a write-off-only account with no claim yet
+  // can't start a fresh one from that grid, so it must not count as "New" here either. IMGC's own
+  // `/accounts` has no such gate (every account in the portfolio is listed), so nothing is
+  // excluded there.
+  const notStartedCount = accounts.filter((a) => {
+    const c = claimByAccountId.get(a.id);
+    if (!c) return isLender ? a.npa : true;
+    return !c.hasProgress;
+  }).length;
+  const claimStatusCount = (status: Claim["status"]) =>
+    claims.filter((c) => c.hasProgress && c.status === status).length;
+
+  // Computed once, up here, so both the funnel band and the pipeline-health KPIs (further below)
+  // read the same "overdue queries" number instead of two copies quietly drifting apart. No
+  // longer lender-only — IMGC's own funnel band (portfolio-wide, same accounts/claims already
+  // scoped above) needs it too.
+  const claimPipeline = buildClaimPipelineKpis(claims, db.claimQueries);
+
+  // The claim-stage funnel band shown on the Dashboard — same shape and same source data for
+  // both roles (the accounts/claims above are already scoped: a lender's own book, or, for IMGC,
+  // every lender's). Only the drill-down destination differs, because the two roles land on
+  // different grids: the Claim page (`/initiate-claim`) filters by `claim.status` and is
+  // lender-only; IMGC's own `/accounts` filters by the older `account.claimStatus` field and only
+  // offers four of the real statuses (DRAFT/SUBMITTED/APPROVED/QUERIED) — a tile with no matching
+  // filter there links to the unfiltered grid rather than a value/href mismatch.
+  const progressTiles: Tile[] = [
+    {
+      key: "new",
+      label: "New",
+      value: notStartedCount,
+      tone: "neutral",
+      href: isLender ? "/initiate-claim?status=NOT_STARTED" : "/accounts",
+    },
+    {
+      key: "collecting",
+      label: "Underwriting",
+      value: claimStatusCount("DRAFT"),
+      tone: "info",
+      href: isLender ? "/initiate-claim?status=DRAFT" : "/accounts?status=DRAFT",
+    },
+    {
+      key: "ready",
+      label: "Pre Offer",
+      value: claimStatusCount("SUBMITTED"),
+      tone: "teal",
+      href: isLender ? "/initiate-claim?status=SUBMITTED" : "/accounts?status=SUBMITTED",
+    },
+    {
+      key: "submitted",
+      label: "Invoiced",
+      value: claimStatusCount("UNDER_REVIEW"),
+      tone: "violet",
+      href: isLender ? "/initiate-claim?status=UNDER_REVIEW" : "/accounts",
+    },
+    {
+      key: "queried",
+      label: "Queried",
+      value: claimStatusCount("QUERY_RAISED"),
+      tone: "warning",
+      href: isLender
+        ? "/track-query-response?status=QUERY_RAISED"
+        : "/accounts?status=QUERIED",
+    },
+    {
+      key: "approved",
+      label: "Approved",
+      value: claimStatusCount("APPROVED"),
+      tone: "success",
+      href: isLender ? "/track-query-response?status=APPROVED" : "/accounts?status=APPROVED",
+    },
+    {
+      key: "rejected",
+      label: "Rejected",
+      value: claimStatusCount("REJECTED"),
+      tone: "danger",
+      href: isLender ? "/track-query-response?status=REJECTED" : "/admin/retention",
+    },
+    // Not a claim.status — a query already raised (`Queried`, above) that has gone past its own
+    // due date unanswered. Same figure `buildClaimPipelineKpis` already computes for the
+    // pipeline-health KPIs, just surfaced here too instead of a second copy of the same rule.
+    {
+      key: "expired",
+      label: "Expired",
+      value: claimPipeline.overdueQueries,
+      tone: "danger",
+      href: isLender ? "/initiate-claim?status=QUERY_RAISED" : "/accounts?status=QUERIED",
+    },
+  ];
+
   const rings: Ring[] = [
     {
       key: "accounts",
@@ -442,6 +542,7 @@ export async function buildDashboardSummary(
     readyToSubmit,
     oldestPendingDays: ages.length ? Math.max(...ages) : 0,
     rings,
+    progressTiles,
     aging,
     lastActivityAt: events[0]?.at ?? null,
     additional: (() => {
@@ -462,8 +563,6 @@ export async function buildDashboardSummary(
       session.role === "IMGC"
         ? buildPortfolioSummary(accounts, lastTouch)
         : undefined,
-    claimPipeline: isLender
-      ? buildClaimPipelineKpis(claims, db.claimQueries)
-      : undefined,
+    claimPipeline,
   };
 }

@@ -312,30 +312,33 @@ function SidebarContents({
 }: SidebarContentsProps) {
   return (
     <>
-      {/* Header — logo mark on a white card, so it reads against the dark rail */}
+      {/* Header — logo mark on a white card, so it reads against the dark rail. Collapsed shows
+          just the icon mark; expanded shows the full lockup (icon + wordmark baked into one
+          image) instead of re-typesetting "IMGC / Defining Tomorrow" next to it. */}
       <div className={cn("px-4 pt-4 pb-3", collapsed && "px-2")}>
         <div
           className={cn(
-            "flex items-center gap-2.5 rounded-2xl bg-white/95 py-2.5 shadow-sm",
-            collapsed ? "justify-center px-0" : "px-3"
+            "flex items-center justify-center rounded-2xl bg-white py-2.5 shadow-sm",
+            collapsed ? "px-0" : "px-3"
           )}
         >
-          <Image
-            src="/assets/icons/imgc-mark.svg"
-            alt=""
-            width={26}
-            height={26}
-            aria-hidden
-          />
-          {!collapsed && (
-            <span className="flex flex-col leading-none">
-              <span className="text-[15px] font-semibold tracking-wide text-neutral-950">
-                IMGC
-              </span>
-              <span className="text-[9px] font-medium uppercase tracking-[0.18em] text-neutral-500">
-                Defining Tomorrow
-              </span>
-            </span>
+          {collapsed ? (
+            <Image
+              src="/assets/icons/imgc-mark.svg"
+              alt=""
+              width={26}
+              height={26}
+              aria-hidden
+            />
+          ) : (
+            <Image
+              src="/assets/icons/logo.png"
+              alt="IMGC — Defining Tomorrow"
+              width={120}
+              height={120}
+              className="h-9 w-auto"
+              priority
+            />
           )}
         </div>
       </div>

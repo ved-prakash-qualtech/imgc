@@ -180,25 +180,17 @@ export function QueryResponseSection({
               {/* ── IMGC Query (Left) ── */}
               <div className="flex justify-start">
                 <div className="w-full max-w-2xl rounded-lg rounded-tl-sm border border-neutral-200 bg-neutral-50 px-3 py-2 shadow-sm">
-                  <div className="mb-1 flex flex-wrap items-baseline gap-1.5 text-[11.5px] text-neutral-500">
-                    <span className="font-semibold text-brand-primary">IMGC</span>
-                    {q.raisedByName && <span>&middot; {q.raisedByName}</span>}
-                    <span>&middot; {when(q.raisedAt)}</span>
-                  </div>
-                  <p className="whitespace-pre-wrap text-[13px] text-neutral-800">
-                    {q.reason}
-                  </p>
-                  {q.remarks && (
-                    <p className="mt-2 whitespace-pre-wrap text-[12.5px] text-neutral-600">
-                      {q.remarks}
-                    </p>
-                  )}
-                  {q.requestedDocuments.length > 0 && (
-                    <div className="mt-3">
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
-                        Requested Documents
-                      </span>
-                      <ul className="mt-1 flex flex-wrap gap-1.5">
+                  <div className="mb-1 flex flex-wrap items-start justify-between gap-2">
+                    <div className="flex flex-wrap items-baseline gap-1.5 text-[11.5px] text-neutral-500">
+                      <span className="font-semibold text-brand-primary">IMGC</span>
+                      {q.raisedByName && <span>&middot; {q.raisedByName}</span>}
+                      <span>&middot; {when(q.raisedAt)}</span>
+                    </div>
+                    {/* Moved up next to the header instead of its own labelled section below —
+                        one or two short document names don't need a full row of vertical space
+                        to themselves. */}
+                    {q.requestedDocuments.length > 0 && (
+                      <ul className="flex shrink-0 flex-wrap justify-end gap-1.5">
                         {q.requestedDocuments.map((name) => (
                           <li
                             key={name}
@@ -208,8 +200,11 @@ export function QueryResponseSection({
                           </li>
                         ))}
                       </ul>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                  <p className="whitespace-pre-wrap text-[12px] font-semibold text-neutral-800">
+                    {q.reason}
+                  </p>
                 </div>
               </div>
 
@@ -222,7 +217,7 @@ export function QueryResponseSection({
                       {q.respondedByName && <span>&middot; {q.respondedByName}</span>}
                       <span className="font-semibold text-brand-primary">&middot; Lender</span>
                     </div>
-                    <p className="whitespace-pre-wrap text-[13px] text-neutral-800">
+                    <p className="whitespace-pre-wrap text-[12px] font-semibold text-neutral-800">
                       {q.responseRemarks || "No remarks provided."}
                     </p>
                     {respondedDocs.length > 0 && (

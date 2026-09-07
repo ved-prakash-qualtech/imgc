@@ -199,7 +199,7 @@ export function UsersClient({
               </span>
               <input
                 name="orgName"
-                placeholder="Acme Bank"
+                placeholder="HDFC Bank"
                 className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
               />
             </label>

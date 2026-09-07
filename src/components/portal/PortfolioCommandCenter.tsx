@@ -57,7 +57,9 @@ function nextSeed(h: number): number {
   return (h * 1103515245 + 12345) >>> 0;
 }
 
-function Sparkline({ seed, color }: Readonly<{ seed: string; color: string }>) {
+/** Exported so other KPI bands using this same dark-tile-with-squiggle language (the Lender
+ *  dashboard's claim-stage band) don't hand-roll a second copy. */
+export function Sparkline({ seed, color }: Readonly<{ seed: string; color: string }>) {
   const initial = [...seed].reduce(
     (h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0,
     0
@@ -148,7 +150,14 @@ function KpiCard({
 
 export function PortfolioCommandCenter({
   summary,
-}: Readonly<{ summary: PortfolioSummary }>) {
+  showStats = true,
+}: Readonly<{
+  summary: PortfolioSummary;
+  /** The Dashboard now has its own top KPI band (the claim-stage funnel, shared with the Lender
+   *  view) — set false there so this doesn't render a second, redundant dark band above it. Still
+   *  defaults true for any other page that wants the original all-in-one command center. */
+  showStats?: boolean;
+}>) {
   const stats: Array<{
     icon: React.ReactNode;
     label: string;
@@ -199,18 +208,20 @@ export function PortfolioCommandCenter({
 
   return (
     <div className="space-y-4">
-      <CommandBand
-        title="Loan Portfolio Command Center"
-        subtitle="Portfolio health and collections at a glance"
-        stats={[]}
-        action={<RefreshButton />}
-      >
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-          {stats.map((stat) => (
-            <KpiCard key={stat.label} {...stat} />
-          ))}
-        </div>
-      </CommandBand>
+      {showStats && (
+        <CommandBand
+          title="Loan Portfolio Command Center"
+          subtitle="Portfolio health and collections at a glance"
+          stats={[]}
+          action={<RefreshButton />}
+        >
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            {stats.map((stat) => (
+              <KpiCard key={stat.label} {...stat} />
+            ))}
+          </div>
+        </CommandBand>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-3">
         <CollectionsTrendCard trend={summary.collectionsTrend} />
