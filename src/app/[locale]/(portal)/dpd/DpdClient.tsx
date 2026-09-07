@@ -203,15 +203,27 @@ function SummaryCard({
   );
 }
 
+const LOAN_STATUSES = [
+  "New",
+  "Underwriting",
+  "Pre Offer",
+  "Queried",
+  "Rejected",
+  "Expired",
+  "Approved",
+  "Invoiced",
+] as const;
+
 export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
   const [query, setQuery] = useState("");
   const [dpdBand, setDpdBand] = useState<DpdBand>("ALL");
-  const [status, setStatus] = useState<(typeof STATUS_OPTIONS)[number]>("ALL");
+  const [npaFilter, setNpaFilter] = useState<"ALL" | "YES" | "NO">("ALL");
+  const [loanStatusFilter, setLoanStatusFilter] = useState<typeof LOAN_STATUSES[number] | "ALL">("ALL");
   const [product, setProduct] = useState("ALL");
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(6);
 
   const products = useMemo(
     () => Array.from(new Set(accounts.map((a) => a.product))).sort(),
@@ -260,12 +272,11 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
     if (dpdBand !== "ALL") {
       result = result.filter((a) => dpdInBand(a.dpd, dpdBand));
     }
-    if (status !== "ALL") {
-      result = result.filter((a) =>
-        status === "NOT_STARTED"
-          ? isNotStarted(a)
-          : !isNotStarted(a) && a.claim?.status === status
-      );
+    if (npaFilter !== "ALL") {
+      result = result.filter((a) => (npaFilter === "YES" ? a.npa : !a.npa));
+    }
+    if (loanStatusFilter !== "ALL") {
+      result = result.filter((a) => a.loanStatus === loanStatusFilter);
     }
     if (product !== "ALL") {
       result = result.filter((a) => a.product === product);
@@ -317,7 +328,7 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
       });
     }
     return result;
-  }, [accounts, query, dpdBand, status, product, sortKey, sortDirection]);
+  }, [accounts, query, dpdBand, npaFilter, loanStatusFilter, product, sortKey, sortDirection]);
 
   const pageCount = Math.ceil(rows.length / pageSize) || 1;
   const currentPage = Math.min(page, pageCount);
@@ -334,8 +345,12 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
     setDpdBand(v);
     setPage(1);
   }, []);
-  const handleStatusChange = useCallback((v: (typeof STATUS_OPTIONS)[number]) => {
-    setStatus(v);
+  const handleNpaFilterChange = useCallback((v: "ALL" | "YES" | "NO") => {
+    setNpaFilter(v);
+    setPage(1);
+  }, []);
+  const handleLoanStatusChange = useCallback((v: typeof LOAN_STATUSES[number] | "ALL") => {
+    setLoanStatusFilter(v);
     setPage(1);
   }, []);
   const handleProductChange = useCallback((v: string) => {
@@ -350,7 +365,8 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
     // Filters only — never touches claim/loan/NPA/DPD data itself.
     setQuery("");
     setDpdBand("ALL");
-    setStatus("ALL");
+    setNpaFilter("ALL");
+    setLoanStatusFilter("ALL");
     setProduct("ALL");
     setSortKey(null);
     setSortDirection(null);
@@ -361,8 +377,7 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
   return (
     <div className="space-y-4">
       {/* ── Summary cards ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <SummaryCard label="Total DPD Accounts" value={summary.total} tone="neutral" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard label="1–30 DPD" value={summary.d1to30} tone="info" />
         <SummaryCard label="31–60 DPD" value={summary.d31to60} tone="warning" />
         <SummaryCard label="61–90 DPD" value={summary.d61to90} tone="warning" />
@@ -371,7 +386,7 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
 
       <Panel
         title={`${rows.length} account${rows.length === 1 ? "" : "s"}`}
-        description="View and manage loans based on Days Past Due"
+        description="View and manage all the loans"
         actions={
           <Button variant="outline" size="sm" onClick={handleExport}>
             <DownloadIcon /> Export CSV
@@ -397,11 +412,18 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
             display={dpdBandDisplay}
           />
           <FilterSelect
-            label="Claim status"
-            options={STATUS_OPTIONS}
-            value={status}
-            onChange={handleStatusChange}
-            display={statusLabel}
+            label="NPA"
+            options={["ALL", "YES", "NO"] as const}
+            value={npaFilter}
+            onChange={handleNpaFilterChange}
+            display={(v) => (v === "ALL" ? "NPA" : v === "YES" ? "Yes" : "No")}
+          />
+          <FilterSelect
+            label="Loan Status"
+            options={["ALL", ...LOAN_STATUSES] as const}
+            value={loanStatusFilter}
+            onChange={handleLoanStatusChange}
+            display={(v) => (v === "ALL" ? "Loan Status" : v)}
           />
           <FilterSelect
             label="Product"
@@ -426,15 +448,15 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
                 <SortableTableHead column="outstandingAmount" label="Outstanding" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                 <SortableTableHead column="dpd" label="DPD" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} title="DPD = Days Past Due" />
                 <TableHead className="h-8 px-1.5 text-[10.5px]">NPA</TableHead>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Claim Status</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Loan Status</TableHead>
                 <TableHead className="h-8 px-1.5 text-[10.5px]">Last Updated</TableHead>
-                <TableHead className="h-8 px-1.5 text-right text-[10.5px]">Action</TableHead>
+
               </TableRow>
             </TableHeader>
             <TableBody>
               {currentRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="py-14 text-center">
+                  <TableCell colSpan={9} className="py-14 text-center">
                     <CalendarClockIcon className="mx-auto mb-2 size-6 text-neutral-300" />
                     <p className="text-[13px] font-medium text-neutral-700">No accounts found</p>
                     <p className="mt-0.5 text-[12.5px] text-neutral-500">
@@ -478,27 +500,11 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
                         {a.npa ? "Yes" : "No"}
                       </span>
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5">
-                      {!isNotStarted(a) && a.claim ? (
-                        <StatusPill status={a.claim.status} className="px-1.5 py-0.5 text-[10.5px]" />
-                      ) : (
-                        <StatusPill status="Not started" className="bg-neutral-100 px-1.5 py-0.5 text-[10.5px] text-neutral-500" />
-                      )}
+                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-700">
+                      {a.loanStatus}
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
                       {date(a.claim?.lastUpdatedAt)}
-                    </TableCell>
-                    <TableCell className="px-1.5 py-1.5">
-                      {/* Same action mapping and component the Claim grid uses — Initiate Claim
-                          is navigation only, never a state change, exactly as there. */}
-                      <ClaimRowActions
-                        accountId={a.id}
-                        claimId={a.claim?.id}
-                        claimNo={a.claim?.claimNo}
-                        action={a.claimAction}
-                        reason={a.claimReason}
-                        hasProgress={a.claim?.hasProgress}
-                      />
                     </TableCell>
                   </TableRow>
                 ))
@@ -516,6 +522,7 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="6">6</SelectItem>
                   <SelectItem value="10">10</SelectItem>
                   <SelectItem value="20">20</SelectItem>
                   <SelectItem value="50">50</SelectItem>

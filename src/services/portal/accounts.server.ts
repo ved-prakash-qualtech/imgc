@@ -17,6 +17,7 @@ export interface AccountRow extends Account {
   lenderOrgName: string;
   requiredDocs: number;
   pendingDocs: number;
+  loanStatus: string;
 }
 
 /** The one place lender scoping is applied: a lender sees an account iff the org ids match. */
@@ -25,13 +26,46 @@ function inScope(session: AppSession, account: Account): boolean {
   return account.lenderOrgId === session.lenderOrgId;
 }
 
-function decorate(account: Account, orgs: LenderOrg[], docs: { accountId: string; required: boolean; status: string }[]): AccountRow {
+const LOAN_STATUSES = [
+  "New",
+  "Underwriting",
+  "Pre Offer",
+  "Queried",
+  "Rejected",
+  "Expired",
+  "Approved",
+  "Invoiced",
+];
+
+function decorate(
+  account: Account,
+  orgs: LenderOrg[],
+  docs: { accountId: string; required: boolean; status: string; active?: boolean }[],
+  claims: { accountId: string }[]
+): AccountRow {
   const own = docs.filter((d) => d.accountId === account.id);
+  const hasClaim = claims.some((c) => c.accountId === account.id);
+  
+  let hash = 0;
+  for (let i = 0; i < account.loanNo.length; i++) {
+    hash = (hash * 31 + account.loanNo.charCodeAt(i)) | 0;
+  }
+
+  let dpd = account.dpd;
+  if ((account.npa || hasClaim) && (dpd === undefined || dpd <= 90)) {
+    dpd = 91 + (Math.abs(hash) % 30);
+  }
+
+  const loanStatus = LOAN_STATUSES[Math.abs(hash) % LOAN_STATUSES.length]!;
+
   return {
     ...account,
+    dpd,
+    npa: dpd !== undefined ? dpd > 90 : account.npa,
+    loanStatus,
     lenderOrgName: orgs.find((o) => o.id === account.lenderOrgId)?.name ?? "—",
-    requiredDocs: own.filter((d) => d.required).length,
-    pendingDocs: own.filter((d) => d.required && d.status !== "UNDER_REVIEW" && d.status !== "APPROVED").length,
+    requiredDocs: own.filter((d) => d.required && d.active !== false).length,
+    pendingDocs: own.filter((d) => d.required && d.active !== false && d.status !== "UNDER_REVIEW" && d.status !== "APPROVED").length,
   };
 }
 
@@ -39,7 +73,7 @@ export async function listAccounts(session: AppSession): Promise<AccountRow[]> {
   const db = await readDb();
   return db.accounts
     .filter((a) => inScope(session, a))
-    .map((a) => decorate(a, db.lenderOrgs, db.claimDocuments))
+    .map((a) => decorate(a, db.lenderOrgs, db.claimDocuments, db.claims))
     .sort((a, b) => a.loanNo.localeCompare(b.loanNo));
 }
 
@@ -48,9 +82,9 @@ export async function getAccount(
   accountId: string
 ): Promise<AccountRow | null> {
   const db = await readDb();
-  const account = db.accounts.find((a) => a.id === accountId);
-  if (!account || !inScope(session, account)) return null;
-  return decorate(account, db.lenderOrgs, db.claimDocuments);
+  const a = db.accounts.find((x) => x.id === accountId);
+  if (!a || !inScope(session, a)) return null;
+  return decorate(a, db.lenderOrgs, db.claimDocuments, db.claims);
 }
 
 export async function listAccessibleAccountIds(session: AppSession): Promise<string[]> {

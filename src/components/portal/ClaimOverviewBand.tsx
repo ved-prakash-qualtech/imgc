@@ -35,12 +35,11 @@ const TILES: ReadonlyArray<{
   icon: React.ReactNode;
   tone: Tone;
 }> = [
-  { key: "total", label: "Total Claims", icon: <LayersIcon className="size-4" />, tone: "blue" },
-  { key: "initiation", label: "Claim Initiation", icon: <FilePlus2Icon className="size-4" />, tone: "rose" },
+  { key: "total", label: "Total NPA Accounts", icon: <LayersIcon className="size-4" />, tone: "blue" },
+  { key: "initiation", label: "Claim to be Initiated", icon: <FilePlus2Icon className="size-4" />, tone: "rose" },
   { key: "underProgress", label: "Under Progress", icon: <ClipboardListIcon className="size-4" />, tone: "amber" },
   { key: "approved", label: "Claim Approved", icon: <CheckCircle2Icon className="size-4" />, tone: "violet" },
   { key: "rejected", label: "Claim Rejected", icon: <XCircleIcon className="size-4" />, tone: "gold" },
-  { key: "paid", label: "Claim Paid", icon: <TrendingUpIcon className="size-4" />, tone: "green" },
 ];
 
 export function ClaimOverviewBand({
@@ -58,7 +57,7 @@ export function ClaimOverviewBand({
 }>) {
   return (
     <CommandBand title={title} subtitle={subtitle} stats={[]}>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {TILES.map((tile) => {
           const tone = TONE[tile.tone];
           const href = hrefs?.[tile.key];

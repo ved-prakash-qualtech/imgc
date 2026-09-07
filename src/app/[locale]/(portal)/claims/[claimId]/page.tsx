@@ -1,4 +1,5 @@
 /* eslint-disable react-perf/jsx-no-new-array-as-prop, react-perf/jsx-no-jsx-as-prop */
+import { EyeIcon } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { ClaimHistory } from "@/components/portal/ClaimHistory";
@@ -166,6 +167,7 @@ export default async function ClaimDetailsPage({
                   <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">Required</TableHead>
                   <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">Version</TableHead>
                   <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">Status</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -187,6 +189,20 @@ export default async function ClaimDetailsPage({
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5">
                       <StatusPill status={d.status} className="px-1.5 py-0.5 text-[10.5px]" />
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-right">
+                      {(d.file || d.files?.[0]) ? (
+                        <a
+                          href={`/api/portal/files/${(d.file || (d.files && d.files[0]))?.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                        >
+                          <EyeIcon className="size-3" /> View
+                        </a>
+                      ) : (
+                        <span className="text-[11px] text-neutral-400">—</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
