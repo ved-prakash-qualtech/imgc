@@ -1,10 +1,14 @@
 "use server";
 
+import { cookies } from "next/headers";
+
+import { DASHBOARD_LENDER_COOKIE } from "@/app/[locale]/(portal)/dashboard/lenderPreference";
 import { requireSession } from "@/lib/auth/appSession";
 import {
   buildDashboardSummary,
   type DashboardSummary,
 } from "@/services/portal/dashboard.server";
+
 
 /**
  * Re-runs the Dashboard's own summary for one lender (or every lender again), so the "In progress
@@ -22,6 +26,19 @@ export async function getDashboardSummaryForLender(
   const session = await requireSession();
   if (session.role !== "IMGC") {
     return buildDashboardSummary(session);
+  }
+  const jar = await cookies();
+  if (lenderOrgId) {
+    jar.set(DASHBOARD_LENDER_COOKIE, lenderOrgId, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+  } else {
+    // "Every Lender" is the absence of a filter, so it is the absence of the cookie too.
+    jar.delete(DASHBOARD_LENDER_COOKIE);
   }
   return buildDashboardSummary(session, { lenderOrgId });
 }

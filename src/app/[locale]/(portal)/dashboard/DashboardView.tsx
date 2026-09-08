@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ActivityIcon,
   AlertTriangleIcon,
+  BuildingIcon,
   CheckCircle2Icon,
   ChevronDownIcon,
   ClipboardListIcon,
@@ -22,7 +23,7 @@ import { getDashboardSummaryForLender } from "@/app/[locale]/(portal)/dashboard/
 import { CommandBand, Section } from "@/components/portal/CommandBand";
 import { Donut } from "@/components/portal/Donut";
 import { Panel } from "@/components/portal/Panel";
-import { Sparkline, StatusBreakdownCard } from "@/components/portal/PortfolioCommandCenter";
+import { Sparkline } from "@/components/portal/PortfolioCommandCenter";
 import { cn } from "@/lib/utils/twMergeUtils";
 import {
   Table,
@@ -108,20 +109,32 @@ type Props = Readonly<{
   /** IMGC only — the master list the hero banner's lender dropdown is populated from. Empty for a
    *  lender session, which has no "every lender" aggregate to narrow in the first place. */
   lenderOrgs: readonly LenderOrg[];
+  /** IMGC only — the lender this render was already scoped to, restored from the cookie the
+   *  hero banner's dropdown writes. `null` means the "Every Lender" aggregate. */
+  initialLenderId?: string | null;
 }>;
 
 /** "Every Lender" in the dropdown maps to `null` (no filter) when calling the server action —
  *  a real lender org id is never this value, so it's safe as the sentinel. */
 const EVERY_LENDER = "ALL";
 
-export function DashboardView({ role, summary: initialSummary, lenderOrgs }: Props) {
+export function DashboardView({
+  role,
+  summary: initialSummary,
+  lenderOrgs,
+  initialLenderId = null,
+}: Props) {
   const isLender = role === "LENDER";
   const router = useRouter();
 
   // The hero banner's own lender filter — IMGC only. `summary` starts as whatever the server
   // rendered and is swapped out in place on selection, so switching lenders updates the whole
   // page (this band, Portfolio overview, Aging overview) without a navigation or full reload.
-  const [selectedLenderId, setSelectedLenderId] = useState<string>(EVERY_LENDER);
+  // Seeded from the server render, which already applied the remembered lender — so the
+  // dropdown and the numbers agree on first paint, with no flash of the aggregate view.
+  const [selectedLenderId, setSelectedLenderId] = useState<string>(
+    initialLenderId ?? EVERY_LENDER
+  );
   const [summary, setSummary] = useState<DashboardSummary>(initialSummary);
   const [isPending, startTransition] = useTransition();
 
@@ -141,7 +154,7 @@ export function DashboardView({ role, summary: initialSummary, lenderOrgs }: Pro
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* ── In progress claim cases — same band, both roles: a lender's own book, every
           lender's for IMGC ─────────────────────────────────────────────────────────── */}
       <CommandBand
@@ -179,10 +192,11 @@ export function DashboardView({ role, summary: initialSummary, lenderOrgs }: Pro
       <section>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {summary.rings
-            .filter((ring) =>
-              isLender
-                ? !["submitted", "queried", "rejected-docs"].includes(ring.key)
-                : true
+            // "Active Loans", "Queries Awaiting Response" and "Rejected Documents" are no longer
+            // shown on either dashboard — the same numbers stay reachable from the claim-stage
+            // funnel band above and from the Claims / Document Retention screens themselves.
+            .filter(
+              (ring) => !["submitted", "queried", "rejected-docs"].includes(ring.key)
             )
             .map((ring) => {
               const tone = RING_TONE[ring.key];
@@ -213,19 +227,19 @@ export function DashboardView({ role, summary: initialSummary, lenderOrgs }: Pro
                       "hover:-translate-y-1 hover:shadow-xl"
                   )}
                 >
-                  <div className="flex flex-1 items-center justify-center">
+                  <div className="flex flex-1 items-center justify-center py-1">
                     <div className="relative grid place-items-center">
                       <Donut
                         value={ring.value}
                         total={ring.total}
-                        size={60}
-                        stroke={10}
+                        size={52}
+                        stroke={8}
                         tone={tone ?? "brand"}
                       />
                       <div className="pointer-events-none absolute inset-0 grid place-items-center">
                         <p
                           className={cn(
-                            "font-outfit text-[16px] font-bold leading-none",
+                            "font-outfit text-[15px] font-bold leading-none",
                             style?.value ?? "text-neutral-950"
                           )}
                         >
@@ -234,7 +248,7 @@ export function DashboardView({ role, summary: initialSummary, lenderOrgs }: Pro
                       </div>
                     </div>
                   </div>
-                  <p className="text-center text-[11.5px] font-medium text-neutral-400">{pct}% of book</p>
+                  <p className="pb-1.5 text-center text-[11px] font-medium text-neutral-400">{pct}% of book</p>
                 </Panel>
               );
               return ring.href ? (
@@ -245,14 +259,54 @@ export function DashboardView({ role, summary: initialSummary, lenderOrgs }: Pro
                 <div key={ring.key}>{card}</div>
               );
             })}
-            {!isLender && summary.portfolio && (
-              <StatusBreakdownCard
-                breakdown={summary.portfolio.statusBreakdown}
-                npaLoans={summary.portfolio.npaLoans}
-                loansOnBook={summary.portfolio.loansOnBook}
-              />
+
+            {/* ── Cases by lender (IMGC only) ─────────────────────────────────────
+                Sits right after the rings, and reads the same lender-scoped summary they do —
+                pick a lender in the hero banner and this narrows to that lender alone. */}
+            {!isLender && summary.lenderCaseCounts && (
+              <Panel
+                size="compact"
+                title="Cases by Lender"
+                description={`${summary.lenderCaseCounts.reduce((sum, l) => sum + l.cases, 0)} claim cases across ${summary.lenderCaseCounts.length} lender${summary.lenderCaseCounts.length === 1 ? "" : "s"}`}
+                actions={
+                  <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-brand-light text-brand-primary shadow-sm">
+                    <BuildingIcon className="size-4" />
+                  </span>
+                }
+                className="flex h-full flex-col overflow-hidden border-t-4 border-t-brand-primary bg-gradient-to-br from-brand-light/50 via-white to-white shadow-md transition-all duration-200"
+              >
+                {summary.lenderCaseCounts.length > 0 ? (
+                  <ul className="max-h-[96px] flex-1 divide-y divide-neutral-100 overflow-y-auto px-3">
+                    {summary.lenderCaseCounts.map((l) => (
+                      <li key={l.lenderOrgId} className="flex items-center gap-1.5 py-[2px]">
+                        <span className="min-w-0 flex-1 truncate text-[10.5px] leading-none text-neutral-700">
+                          {l.lenderName}
+                        </span>
+                        <span className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-neutral-100">
+                          <span
+                            className="block h-full rounded-full bg-brand-primary"
+                            style={{
+                              width: `${Math.round((l.cases / (l.accounts || 1)) * 100)}%`,
+                            }}
+                          />
+                        </span>
+                        <span className="shrink-0 text-right font-outfit text-[11px] font-bold leading-none tabular-nums text-neutral-950">
+                          {l.cases}
+                        </span>
+                        <span className="w-7 shrink-0 text-right text-[10px] leading-none tabular-nums text-neutral-400">
+                          /{l.accounts}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="flex flex-1 items-center justify-center py-5 text-[13px] text-neutral-500">
+                    No cases yet
+                  </div>
+                )}
+              </Panel>
             )}
-            
+
             {/* ── Priority Accounts (Lender only) ────────────────────────────────── */}
             {isLender && summary.priorityAccounts && (
               <Panel

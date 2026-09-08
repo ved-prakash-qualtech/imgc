@@ -82,6 +82,17 @@ export interface ClaimPipelineKpis {
   overdueQueries: number;
 }
 
+/** One row of the IMGC-only "Cases by Lender" widget. */
+export interface LenderCaseCount {
+  lenderOrgId: string;
+  lenderName: string;
+  /** Accounts with a claim actually raised on them (`hasProgress`) — the workflow sense of a
+   *  "case", not merely an account that exists. */
+  cases: number;
+  /** That lender's whole book in scope, so the widget can show cases against their total. */
+  accounts: number;
+}
+
 export interface PriorityAccount {
   id: string;
   loanNo: string;
@@ -127,6 +138,9 @@ export interface DashboardSummary {
   portfolio?: PortfolioSummary;
   /** Lender only — top 5 high-value accounts requiring priority attention */
   priorityAccounts?: PriorityAccount[];
+  /** IMGC only — claim cases broken down by lender, biggest first. Undefined for a lender
+   *  session, whose whole dashboard is already one lender. */
+  lenderCaseCounts?: LenderCaseCount[];
 }
 
 function daysSince(iso: string): number {
@@ -681,6 +695,30 @@ export async function buildDashboardSummary(
     // function produces the right numbers either way.
     portfolio: buildPortfolioSummary(accounts, lastTouch),
     claimPipeline,
+    // Cases (accounts carrying a claim that has actually been started) per lender, over the
+    // same scoped `accounts` every other figure here reads — so the hero banner's lender
+    // dropdown narrows this widget right along with the rest of the page.
+    lenderCaseCounts:
+      session.role === "IMGC"
+        ? (() => {
+            const byOrg = new Map<string, { cases: number; accounts: number }>();
+            for (const a of accounts) {
+              const row = byOrg.get(a.lenderOrgId) ?? { cases: 0, accounts: 0 };
+              row.accounts += 1;
+              if (claimByAccountId.get(a.id)?.hasProgress) row.cases += 1;
+              byOrg.set(a.lenderOrgId, row);
+            }
+            return Array.from(byOrg, ([lenderOrgId, row]) => ({
+              lenderOrgId,
+              lenderName:
+                db.lenderOrgs.find((o) => o.id === lenderOrgId)?.name ?? "—",
+              cases: row.cases,
+              accounts: row.accounts,
+            })).sort(
+              (x, y) => y.cases - x.cases || x.lenderName.localeCompare(y.lenderName)
+            );
+          })()
+        : undefined,
     priorityAccounts:
       session.role === "LENDER"
         ? accounts
