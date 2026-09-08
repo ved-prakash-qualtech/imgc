@@ -398,6 +398,11 @@ export async function buildDashboardSummary(
     claims.filter(
       (c) => c.hasProgress && c.status === status && !overdueClaimIds.has(c.id)
     ).length;
+  // "Queried" folds in DOCUMENTS_RESUBMITTED too — same fold `classifyLoanStatus` in
+  // accounts.server.ts applies (still mid query-loop) — so this tile's count doesn't undercount
+  // against what `/dpd?loanStatus=Queried` actually lists.
+  const queriedCount =
+    claimStatusCount("QUERY_RAISED") + claimStatusCount("DOCUMENTS_RESUBMITTED");
 
   // Computed once, up here, so both the funnel band and the pipeline-health KPIs (further below)
   // read the same "overdue queries" number instead of two copies quietly drifting apart. No
@@ -410,15 +415,11 @@ export async function buildDashboardSummary(
 
   // The claim-stage funnel band shown on the Dashboard — same shape and same source data for
   // both roles (the accounts/claims above are already scoped: a lender's own book, or, for IMGC,
-  // every lender's). Only the drill-down destination differs, because the two roles land on
-  // different grids:
-  //  - Lender → `/dpd` (labelled "Accounts" in their sidebar — see nav.ts), filtered by the exact
-  //    same `loanStatus` classification `accounts.server.ts` computes for every account, so a
-  //    tile's count and what its link shows always agree.
-  //  - IMGC → their own `/accounts`, filtered by the older `account.claimStatus` field, which
-  //    only offers four of the real statuses (DRAFT/SUBMITTED/APPROVED/QUERIED) — a tile with no
-  //    matching filter there links to the unfiltered grid rather than a value/href mismatch.
-  const lenderHref = (loanStatus: string) => `/dpd?loanStatus=${encodeURIComponent(loanStatus)}`;
+  // every lender's). Both roles land on the same `/dpd` grid too (labelled "Accounts" for a
+  // lender, "All Loans" for IMGC — see nav.ts) filtered by the exact same `loanStatus`
+  // classification `accounts.server.ts` computes for every account, so a tile's count and what
+  // its link shows always agree, for either role.
+  const funnelHref = (loanStatus: string) => `/dpd?loanStatus=${encodeURIComponent(loanStatus)}`;
 
   const progressTiles: Tile[] = [
     {
@@ -426,49 +427,49 @@ export async function buildDashboardSummary(
       label: "New",
       value: notStartedCount,
       tone: "neutral",
-      href: isLender ? lenderHref("New") : "/accounts",
+      href: funnelHref("New"),
     },
     {
       key: "collecting",
       label: "Underwriting",
       value: claimStatusCount("DRAFT"),
       tone: "info",
-      href: isLender ? lenderHref("Underwriting") : "/accounts?status=DRAFT",
+      href: funnelHref("Underwriting"),
     },
     {
       key: "ready",
       label: "Pre Offer",
       value: claimStatusCount("SUBMITTED"),
       tone: "teal",
-      href: isLender ? lenderHref("Pre Offer") : "/accounts?status=SUBMITTED",
+      href: funnelHref("Pre Offer"),
     },
     {
       key: "submitted",
       label: "Invoiced",
       value: claimStatusCount("UNDER_REVIEW"),
       tone: "violet",
-      href: isLender ? lenderHref("Invoiced") : "/accounts",
+      href: funnelHref("Invoiced"),
     },
     {
       key: "queried",
       label: "Queried",
-      value: claimStatusCount("QUERY_RAISED"),
+      value: queriedCount,
       tone: "warning",
-      href: isLender ? lenderHref("Queried") : "/accounts?status=QUERIED",
+      href: funnelHref("Queried"),
     },
     {
       key: "approved",
       label: "Approved",
       value: claimStatusCount("APPROVED"),
       tone: "success",
-      href: isLender ? lenderHref("Approved") : "/accounts?status=APPROVED",
+      href: funnelHref("Approved"),
     },
     {
       key: "rejected",
       label: "Rejected",
       value: claimStatusCount("REJECTED"),
       tone: "danger",
-      href: isLender ? lenderHref("Rejected") : "/admin/retention",
+      href: funnelHref("Rejected"),
     },
     // Not a claim.status — a query already raised (`Queried`, above) that has gone past its own
     // due date unanswered. Same figure `buildClaimPipelineKpis` already computes for the
@@ -480,7 +481,7 @@ export async function buildDashboardSummary(
       label: "Expired",
       value: expiredCount,
       tone: "danger",
-      href: isLender ? lenderHref("Expired") : "/accounts?status=QUERIED",
+      href: funnelHref("Expired"),
     },
   ];
 

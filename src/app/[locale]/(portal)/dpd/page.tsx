@@ -33,7 +33,7 @@ export default async function DpdPage() {
   });
 
   return (
-    <PortalShell activeKey="dpd" title={session.role === "IMGC" ? "All Loans" : "Accounts"}>
+    <PortalShell activeKey="dpd" title="All Loans">
       <div className="space-y-4">
         <DpdClient accounts={rows} />
       </div>

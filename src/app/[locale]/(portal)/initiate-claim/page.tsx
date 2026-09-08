@@ -42,13 +42,15 @@ export default async function InitiateClaimPage() {
 
   const byAccount = new Map(claims.map((c) => [c.accountId, c]));
 
-  // A row exists here for every NPA account (new claims can only be raised on those) plus every
-  // account that already carries a claim, NPA or not — a write-off-only account can't start a
-  // fresh claim from this grid, but a claim already raised on one still needs to be tracked here,
-  // since this is now the only place claims are tracked. Eligibility and the resulting action are
-  // decided once here, in the service — no component re-derives it.
+  // Strictly DPD > 90 — not `a.npa`. The two happen to agree in this dataset (NPA is seeded as
+  // DPD > 90), but the Claims tab's own eligibility rule is DPD-based, not NPA-based: an account
+  // could in principle be flagged NPA for a reason other than DPD, and this tab must not show it
+  // on that basis alone. `>` is deliberate — exactly 90 does not qualify, only 91+. A write-off
+  // account's own claim (if it has one) is still tracked, just from the Accounts screen (`/dpd`),
+  // which lists every account regardless of DPD; it no longer also appears here. Eligibility and
+  // the resulting action are decided once here, in the service — no component re-derives it.
   const rows: EligibleRow[] = accounts
-    .filter((a) => a.npa || byAccount.has(a.id))
+    .filter((a) => (a.dpd ?? 0) > 90)
     .map((a) => {
       const claim = byAccount.get(a.id) ?? null;
       const state = getClaimAction(a, claim);

@@ -259,21 +259,25 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
     return { total, d1to30, d31to60, d61to90, d90plus };
   }, [accounts]);
 
-  const toggleSort = useCallback((key: SortKey) => {
-    setSortKey((prevKey) => {
-      setSortDirection((prevDir) => {
-        if (prevKey === key) {
-          if (prevDir === "asc") return "desc";
-          if (prevDir === "desc") {
-            setSortKey(null);
-            return null;
-          }
-        }
-        return "asc";
-      });
-      return key;
-    });
-  }, []);
+  // See EligibleCasesClient.tsx's `toggleSort` for why this reads `sortKey`/`sortDirection` from
+  // the render closure instead of nesting one setState call inside the other's updater — that
+  // pattern skipped "descending" entirely under React 18's double-invocation of updaters.
+  const toggleSort = useCallback(
+    (key: SortKey) => {
+      if (sortKey !== key) {
+        setSortKey(key);
+        setSortDirection("asc");
+        return;
+      }
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+        return;
+      }
+      setSortKey(null);
+      setSortDirection(null);
+    },
+    [sortKey, sortDirection]
+  );
 
   const rows = useMemo(() => {
     let result = accounts;

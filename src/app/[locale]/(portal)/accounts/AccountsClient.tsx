@@ -230,21 +230,25 @@ export function AccountsClient({
     [accounts]
   );
 
-  const toggleSort = useCallback((key: SortKey) => {
-    setSortKey((prevKey) => {
-      setSortDirection((prevDir) => {
-        if (prevKey === key) {
-          if (prevDir === "asc") return "desc";
-          if (prevDir === "desc") {
-            setSortKey(null);
-            return null;
-          }
-        }
-        return "asc";
-      });
-      return key;
-    });
-  }, []);
+  // See EligibleCasesClient.tsx's `toggleSort` for why this reads `sortKey`/`sortDirection` from
+  // the render closure instead of nesting one setState call inside the other's updater — that
+  // pattern skipped "descending" entirely under React 18's double-invocation of updaters.
+  const toggleSort = useCallback(
+    (key: SortKey) => {
+      if (sortKey !== key) {
+        setSortKey(key);
+        setSortDirection("asc");
+        return;
+      }
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+        return;
+      }
+      setSortKey(null);
+      setSortDirection(null);
+    },
+    [sortKey, sortDirection]
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

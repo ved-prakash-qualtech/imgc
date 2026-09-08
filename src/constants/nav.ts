@@ -43,7 +43,7 @@ const DASHBOARD: NavItem = {
 
 const ACCOUNTS: NavItem = {
   key: "accounts",
-  label: "Accounts",
+  label: "Claims",
   href: ROUTES.accounts,
 };
 
@@ -51,7 +51,7 @@ const ACCOUNTS: NavItem = {
  *  grid already shows, not restricted to NPA. */
 const DPD: NavItem = {
   key: "dpd",
-  label: "Accounts",
+  label: "All Loans",
   href: ROUTES.dpd,
 };
 

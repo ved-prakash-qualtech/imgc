@@ -6,17 +6,17 @@ import {
 } from "@/config/claimConfig";
 import type {
   Account,
+  Claim,
   ClaimDocument,
+  ClaimQuery,
   ClaimStatus,
+  ClaimTypeKey,
   DocStatus,
   DocumentFile,
   LenderOrg,
-  Claim,
-  ClaimQuery,
-  ClaimTypeKey,
   MockDb,
   PasValue,
-  Priority,
+  Remark,
   User,
 } from "@/server/mock/types";
 
@@ -24,23 +24,31 @@ import type {
  * Deterministic seed for `.data/imgc-db.json`. Written once, on first read. Delete `.data/` to
  * start over.
  *
- * The cases and the document matrix below are the demo the BRD describes, so every status a rule
- * can produce is on screen from the first load rather than having to be manufactured by clicking.
+ * Generated programmatically (not hand-typed per record) so the demo dataset can be large —
+ * 10 lenders, 300 accounts, ~150 claims, 500+ documents, 50+ queries, 500+ audit events — while
+ * staying deterministic (index-based, no `Math.random`) and internally consistent: every claim's
+ * status history is a real walk through `ClaimStatus`, every document comes from the claim type's
+ * own configured checklist (`claimConfig`), and every NPA/DPD/claim/document/query combination is
+ * one the existing services (`accounts.server.ts`, `claimFlow.server.ts`, `dashboard.server.ts`)
+ * already know how to classify — nothing here introduces a new business rule or a second copy of
+ * an existing one.
  */
 
 export const DEMO_IMGC_PASSWORD = "imgc@123";
 
-const NOW = "2026-09-04T09:00:00.000Z";
+const NOW = "2026-09-08T09:00:00.000Z";
 const ago = (days: number): string =>
   new Date(Date.parse(NOW) - days * 86_400_000).toISOString();
 const ahead = (days: number): string =>
   new Date(Date.parse(NOW) + days * 86_400_000).toISOString();
 
-// STANDARD_DOCUMENTS removed
-
-/** Cycled by account index (independent of `npa`/`writeOff`) so the seeded book has a realistic
- *  spread of Days Past Due across every bucket, including non-NPA accounts with real DPD. */
-const DPD_CYCLE = [0, 10, 15, 30, 31, 45, 60, 75, 90, 120] as const;
+function inr(n: number): string {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
 
 const PAS_TEMPLATE: ReadonlyArray<{ key: string; label: string }> = [
   { key: "sanctionedAmount", label: "Sanctioned amount" },
@@ -51,723 +59,364 @@ const PAS_TEMPLATE: ReadonlyArray<{ key: string; label: string }> = [
   { key: "claimAmount", label: "Claim amount lodged" },
 ];
 
-function inr(n: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(n);
-}
-
-/** One row of the additional-documents matrix from the BRD. */
-type Additional = Readonly<{
-  name: string;
-  category: string;
-  required: boolean;
-  status: DocStatus;
-  priority?: Priority;
-  description?: string;
-  dueInDays?: number;
-  /** Present when the status implies a file exists. */
-  file?: { name: string; version: number; number?: string; remarks?: string };
-  /** Present for REJECTED / REUPLOAD_REQUIRED / APPROVED. */
-  review?: {
-    decision: "APPROVED" | "REJECTED" | "REUPLOAD_REQUESTED";
-    remarks: string;
-  };
-  /** An older version kept in history, for the version-history demo. */
-  previous?: { name: string; version: number; supersededReason: string };
-}>;
-
-const CASES: ReadonlyArray<{
+/* ── lenders ──────────────────────────────────────────────────────────
+ * The first two (`org_acme` / `org_northgate`) are kept exactly as before — their ids, domains
+ * and first lender user (`arjun@hdfcbank.com`) are what "Demo as Lender" and the real OTP sign-in
+ * flow already point at (see `login/actions.ts`). Breaking those would break sign-in, not just
+ * the data. Eight more lenders are added alongside them. */
+const LENDER_DEFS: ReadonlyArray<{
   id: string;
-  loanNo: string;
-  borrowerName: string;
-  orgId: string;
-  product: string;
-  region: string;
-  branch: string;
-  assigned: [string, string];
-  appDaysAgo: number;
-  claimStatus: ClaimStatus;
-  bucket: "IMGC" | "LENDER";
-  additional: readonly Additional[];
-  /** Overrides the index-based npa/write-off split below — used for demo padding, where every
-   *  added row needs to land in the NPA-only "Initiate Claim" grid regardless of its position. */
-  forceNpa?: boolean;
-  forceWriteOff?: boolean;
+  name: string;
+  domain: string;
+  contacts: string[];
 }> = [
-  {
-    id: "acc_100245",
-    loanNo: "3002060000000",
-    borrowerName: "Rajesh Sharma",
-    orgId: "org_acme",
-    product: "Home Loan",
-    region: "West",
-    branch: "Andheri East",
-    assigned: ["usr_emp1", "Meera Nair"],
-    appDaysAgo: 21,
-    claimStatus: "SUBMITTED",
-    bucket: "IMGC",
-    additional: [
-      {
-        name: "NOC",
-        category: "Property Document",
-        required: true,
-        status: "PENDING_UPLOAD",
-        priority: "HIGH",
-        dueInDays: 5,
-        description:
-          "Please upload the latest NOC issued by the concerned authority.",
-      },
-      {
-        name: "Bank Statement",
-        category: "Financial Document",
-        required: true,
-        status: "UNDER_REVIEW",
-        dueInDays: 7,
-        description: "Last 12 months, all operative accounts, bank-stamped.",
-        file: {
-          name: "Bank_Statement_April_2026.pdf",
-          version: 1,
-          number: "ACME/STMT/2026/0412",
-          remarks: "Statement for the primary operative account.",
-        },
-      },
-      {
-        name: "Property Tax Receipt",
-        category: "Property Document",
-        required: true,
-        status: "APPROVED",
-        description: "Latest municipal tax receipt showing no arrears.",
-        file: {
-          name: "Property_Tax_Receipt.pdf",
-          version: 1,
-          number: "MCGM/2026/88213",
-        },
-        review: {
-          decision: "APPROVED",
-          remarks: "Verified against the municipal portal.",
-        },
-      },
-      {
-        name: "Possession Letter",
-        category: "Legal Document",
-        required: false,
-        status: "NOT_REQUESTED",
-        description: "Builder or authority possession letter, original scan.",
-      },
-    ],
-  },
-  {
-    id: "acc_100246",
-    loanNo: "3002060000001",
-    borrowerName: "Kavya Iyer",
-    orgId: "org_acme",
-    product: "LAP",
-    region: "South",
-    branch: "Koramangala",
-    assigned: ["usr_emp2", "Rohit Sharma"],
-    appDaysAgo: 17,
-    claimStatus: "QUERIED",
-    bucket: "IMGC",
-    additional: [
-      {
-        name: "NOC",
-        category: "Property Document",
-        required: true,
-        status: "APPROVED",
-        file: { name: "Kavya_Iyer_NOC.pdf", version: 1 },
-        review: {
-          decision: "APPROVED",
-          remarks: "NOC current and correctly stamped.",
-        },
-      },
-      {
-        name: "Additional KYC",
-        category: "KYC Document",
-        required: true,
-        status: "REUPLOAD_REQUIRED",
-        priority: "URGENT",
-        dueInDays: 2,
-        description:
-          "Any one additional officially valid document for the borrower.",
-        file: { name: "Kavya_Iyer_KYC_v1.pdf", version: 1 },
-        review: {
-          decision: "REUPLOAD_REQUESTED",
-          remarks:
-            "The uploaded document is unclear. Please upload a readable copy.",
-        },
-      },
-      {
-        name: "Property Tax Receipt",
-        category: "Property Document",
-        required: false,
-        status: "PENDING_UPLOAD",
-        dueInDays: 12,
-      },
-    ],
-  },
-  {
-    id: "acc_100247",
-    loanNo: "3002060000002",
-    borrowerName: "Imran Sheikh",
-    orgId: "org_northgate",
-    product: "Home Loan",
-    region: "North",
-    branch: "Rohini",
-    assigned: ["usr_emp1", "Meera Nair"],
-    appDaysAgo: 12,
-    claimStatus: "QUERIED",
-    bucket: "LENDER",
-    additional: [
-      {
-        name: "NOC",
-        category: "Property Document",
-        required: true,
-        status: "REJECTED",
-        priority: "HIGH",
-        dueInDays: -2,
-        description:
-          "Society NOC on letterhead, signed within the last 90 days.",
-        file: { name: "Imran_Sheikh_NOC_v2.pdf", version: 2 },
-        review: {
-          decision: "REJECTED",
-          remarks: "Uploaded NOC is outdated. Please provide the latest NOC.",
-        },
-        previous: {
-          name: "Imran_Sheikh_NOC_v1.pdf",
-          version: 1,
-          supersededReason: "Document was unclear.",
-        },
-      },
-      {
-        name: "Bank Statement",
-        category: "Financial Document",
-        required: true,
-        status: "APPROVED",
-        file: { name: "Imran_Bank_Statement.pdf", version: 1 },
-        review: { decision: "APPROVED", remarks: "Verified." },
-      },
-    ],
-  },
-  {
-    id: "acc_100248",
-    loanNo: "3002060000003",
-    borrowerName: "Deepa Menon",
-    orgId: "org_acme",
-    product: "Home Loan",
-    region: "West",
-    branch: "Thane",
-    assigned: ["usr_emp3", "Anita Desai"],
-    appDaysAgo: 8,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [
-      {
-        name: "Possession Letter",
-        category: "Legal Document",
-        required: true,
-        status: "PENDING_UPLOAD",
-        dueInDays: 9,
-        description: "Builder possession letter, original scan.",
-      },
-    ],
-  },
-  {
-    id: "acc_100249",
-    loanNo: "3002060000004",
-    borrowerName: "Sneha Pillai",
-    orgId: "org_northgate",
-    product: "Home Loan",
-    region: "South",
-    branch: "T Nagar",
-    assigned: ["usr_emp2", "Rohit Sharma"],
-    appDaysAgo: 4,
-    claimStatus: "SUBMITTED",
-    bucket: "IMGC",
-    additional: [
-      {
-        name: "NOC",
-        category: "Property Document",
-        required: true,
-        status: "APPROVED",
-        file: { name: "Sneha_Pillai_NOC.pdf", version: 1 },
-        review: { decision: "APPROVED", remarks: "In order." },
-      },
-      {
-        name: "Bank Statement",
-        category: "Financial Document",
-        required: true,
-        status: "UNDER_REVIEW",
-        file: { name: "Sneha_Bank_Statement.pdf", version: 1 },
-      },
-    ],
-  },
-  {
-    id: "acc_100250",
-    loanNo: "3002060000005",
-    borrowerName: "Vikram Singh",
-    orgId: "org_acme",
-    product: "LAP",
-    region: "North",
-    branch: "Karol Bagh",
-    assigned: ["usr_emp3", "Anita Desai"],
-    appDaysAgo: 34,
-    claimStatus: "APPROVED",
-    bucket: "IMGC",
-    additional: [
-      {
-        name: "Settlement Agreement",
-        category: "Legal Document",
-        required: true,
-        status: "APPROVED",
-        file: { name: "Vikram_Singh_Settlement.pdf", version: 1 },
-        review: { decision: "APPROVED", remarks: "Executed copy verified." },
-      },
-    ],
-  },
-  {
-    id: "acc_100251",
-    loanNo: "3002060000006",
-    borrowerName: "Fatima Khan",
-    orgId: "org_northgate",
-    product: "Home Loan",
-    region: "West",
-    branch: "Bandra",
-    assigned: ["usr_emp2", "Rohit Sharma"],
-    appDaysAgo: 28,
-    claimStatus: "QUERIED",
-    bucket: "IMGC",
-    additional: [
-      {
-        name: "Property Valuation Report",
-        category: "Property Document",
-        required: true,
-        status: "REJECTED",
-        file: { name: "Fatima_Khan_Valuation.pdf", version: 1 },
-        review: {
-          decision: "REJECTED",
-          remarks: "Valuation predates the default by more than 12 months.",
-        },
-      },
-    ],
-  },
-  {
-    id: "acc_100252",
-    loanNo: "3002060000007",
-    borrowerName: "Nikhil Joshi",
-    orgId: "org_acme",
-    product: "Home Loan",
-    region: "West",
-    branch: "Powai",
-    assigned: ["usr_emp1", "Meera Nair"],
-    appDaysAgo: 6,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-  },
-  {
-    id: "acc_100253",
-    loanNo: "3002060000008",
-    borrowerName: "Ananya Bose",
-    orgId: "org_northgate",
-    product: "LAP",
-    region: "East",
-    branch: "Salt Lake",
-    assigned: ["usr_emp2", "Rohit Sharma"],
-    appDaysAgo: 3,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-  },
-  {
-    id: "acc_100254",
-    loanNo: "3002060000009",
-    borrowerName: "Rohan Kapoor",
-    orgId: "org_acme",
-    product: "Home Loan",
-    region: "West",
-    branch: "Goregaon",
-    assigned: ["usr_emp1", "Meera Nair"],
-    appDaysAgo: 4,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-  },
-  // Demo padding — extra Acme NPA accounts so the lender's "Initiate Claim" grid shows a
-  // realistic double-digit row count. Appended rather than interleaved so every SCENARIOS
-  // `accountIndex` above keeps pointing at the same account.
-  {
-    id: "acc_100255",
-    loanNo: "3002060000010",
-    borrowerName: "Priyanka Reddy",
-    orgId: "org_acme",
-    product: "Home Loan",
-    region: "South",
-    branch: "Hitech City",
-    assigned: ["usr_emp2", "Rohit Sharma"],
-    appDaysAgo: 15,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-    forceNpa: true,
-    forceWriteOff: false,
-  },
-  {
-    id: "acc_100256",
-    loanNo: "3002060000011",
-    borrowerName: "Arvind Kumar",
-    orgId: "org_acme",
-    product: "LAP",
-    region: "North",
-    branch: "Dwarka",
-    assigned: ["usr_emp3", "Anita Desai"],
-    appDaysAgo: 22,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-    forceNpa: true,
-    forceWriteOff: false,
-  },
-  {
-    id: "acc_100257",
-    loanNo: "3002060000012",
-    borrowerName: "Neha Kapadia",
-    orgId: "org_acme",
-    product: "Home Loan",
-    region: "West",
-    branch: "Malad",
-    assigned: ["usr_emp1", "Meera Nair"],
-    appDaysAgo: 9,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-    forceNpa: true,
-    forceWriteOff: false,
-  },
-  {
-    id: "acc_100258",
-    loanNo: "3002060000013",
-    borrowerName: "Suresh Nair",
-    orgId: "org_acme",
-    product: "Home Loan",
-    region: "South",
-    branch: "Velachery",
-    assigned: ["usr_emp2", "Rohit Sharma"],
-    appDaysAgo: 30,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-    forceNpa: true,
-    forceWriteOff: false,
-  },
-  {
-    id: "acc_100259",
-    loanNo: "3002060000014",
-    borrowerName: "Divya Krishnan",
-    orgId: "org_acme",
-    product: "Home Loan",
-    region: "East",
-    branch: "Salt Lake",
-    assigned: ["usr_emp3", "Anita Desai"],
-    appDaysAgo: 6,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-    forceNpa: true,
-    forceWriteOff: false,
-  },
-  {
-    id: "acc_100260",
-    loanNo: "3002060000015",
-    borrowerName: "Manoj Tiwari",
-    orgId: "org_acme",
-    product: "LAP",
-    region: "North",
-    branch: "Lajpat Nagar",
-    assigned: ["usr_emp1", "Meera Nair"],
-    appDaysAgo: 18,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-    forceNpa: true,
-    forceWriteOff: false,
-  },
-  // Demo padding — extra Northgate NPA accounts, same reasoning as the Acme block above, so
-  // that lender's "Initiate Claim" grid also shows a realistic double-digit row count.
-  {
-    id: "acc_100261",
-    loanNo: "3002060000016",
-    borrowerName: "Ritu Chawla",
-    orgId: "org_northgate",
-    product: "Home Loan",
-    region: "North",
-    branch: "Pitampura",
-    assigned: ["usr_emp3", "Anita Desai"],
-    appDaysAgo: 13,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-    forceNpa: true,
-    forceWriteOff: false,
-  },
-  {
-    id: "acc_100262",
-    loanNo: "3002060000017",
-    borrowerName: "Karthik Subramaniam",
-    orgId: "org_northgate",
-    product: "LAP",
-    region: "South",
-    branch: "Adyar",
-    assigned: ["usr_emp1", "Meera Nair"],
-    appDaysAgo: 26,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-    forceNpa: true,
-    forceWriteOff: false,
-  },
-  {
-    id: "acc_100263",
-    loanNo: "3002060000018",
-    borrowerName: "Pooja Agarwal",
-    orgId: "org_northgate",
-    product: "Home Loan",
-    region: "East",
-    branch: "New Town",
-    assigned: ["usr_emp2", "Rohit Sharma"],
-    appDaysAgo: 7,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-    forceNpa: true,
-    forceWriteOff: false,
-  },
-  {
-    id: "acc_100264",
-    loanNo: "3002060000019",
-    borrowerName: "Vivek Malhotra",
-    orgId: "org_northgate",
-    product: "Home Loan",
-    region: "West",
-    branch: "Vashi",
-    assigned: ["usr_emp3", "Anita Desai"],
-    appDaysAgo: 19,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-    forceNpa: true,
-    forceWriteOff: false,
-  },
-  {
-    id: "acc_100265",
-    loanNo: "3002060000020",
-    borrowerName: "Shreya Bhatt",
-    orgId: "org_northgate",
-    product: "Home Loan",
-    region: "West",
-    branch: "Vadodara",
-    assigned: ["usr_emp1", "Meera Nair"],
-    appDaysAgo: 24,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-    forceNpa: true,
-    forceWriteOff: false,
-  },
-  {
-    id: "acc_100266",
-    loanNo: "3002060000021",
-    borrowerName: "Abhishek Ranjan",
-    orgId: "org_northgate",
-    product: "LAP",
-    region: "North",
-    branch: "Indirapuram",
-    assigned: ["usr_emp2", "Rohit Sharma"],
-    appDaysAgo: 11,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-    forceNpa: true,
-    forceWriteOff: false,
-  },
-  {
-    id: "acc_100267",
-    loanNo: "3002060000022",
-    borrowerName: "Lakshmi Narayanan",
-    orgId: "org_northgate",
-    product: "Home Loan",
-    region: "South",
-    branch: "Anna Nagar",
-    assigned: ["usr_emp3", "Anita Desai"],
-    appDaysAgo: 29,
-    claimStatus: "DRAFT",
-    bucket: "LENDER",
-    additional: [],
-    forceNpa: true,
-    forceWriteOff: false,
-  },
+  { id: "org_acme", name: "HDFC Bank", domain: "hdfcbank.com", contacts: ["claims.desk@hdfcbank.com", "ops.lead@hdfcbank.com"] },
+  { id: "org_northgate", name: "ICICI Bank", domain: "icicibank.com", contacts: ["recovery@icicibank.com"] },
+  { id: "org_abc", name: "ABC Housing Finance", domain: "abchousing.demo", contacts: ["claims@abchousing.demo"] },
+  { id: "org_xyz", name: "XYZ Home Loans", domain: "xyzloans.demo", contacts: ["claims@xyzloans.demo"] },
+  { id: "org_pqr", name: "PQR Finance", domain: "pqrfinance.demo", contacts: ["claims@pqrfinance.demo"] },
+  { id: "org_sunrise", name: "Sunrise Housing Finance", domain: "sunrisehf.demo", contacts: ["claims@sunrisehf.demo"] },
+  { id: "org_national", name: "National Housing Finance", domain: "nationalhf.demo", contacts: ["claims@nationalhf.demo"] },
+  { id: "org_prime", name: "Prime Home Finance", domain: "primehf.demo", contacts: ["claims@primehf.demo"] },
+  { id: "org_metro", name: "Metro Housing Finance", domain: "metrohf.demo", contacts: ["claims@metrohf.demo"] },
+  { id: "org_secure", name: "Secure Housing Finance", domain: "securehf.demo", contacts: ["claims@securehf.demo"] },
 ];
 
-export function buildSeed(): MockDb {
-  const lenderOrgs: LenderOrg[] = [
-    {
-      id: "org_acme",
-      name: "HDFC Bank",
-      emailDomain: "hdfcbank.com",
-      contactEmails: ["claims.desk@hdfcbank.com", "ops.lead@hdfcbank.com"],
-    },
-    {
-      id: "org_northgate",
-      name: "ICICI Bank",
-      emailDomain: "icicibank.com",
-      contactEmails: ["recovery@icicibank.com"],
-    },
+/* ── name / place pools — deterministic index-based selection only ──── */
+const FIRST_NAMES = [
+  "Rajesh", "Kavya", "Imran", "Deepa", "Sneha", "Vikram", "Nikhil", "Ananya",
+  "Rohan", "Priyanka", "Arvind", "Neha", "Suresh", "Divya", "Manoj", "Ritu",
+  "Karthik", "Pooja", "Vivek", "Shreya", "Abhishek", "Lakshmi", "Fatima",
+  "Aditya", "Meenal", "Sameer", "Ishaan", "Kavita", "Rahul", "Anjali",
+  "Varun", "Swati", "Gaurav", "Nandini", "Siddharth", "Ritika", "Harish",
+  "Bhavna", "Manish", "Tanvi",
+] as const;
+const LAST_NAMES = [
+  "Sharma", "Iyer", "Sheikh", "Menon", "Pillai", "Singh", "Joshi", "Bose",
+  "Kapoor", "Reddy", "Kumar", "Kapadia", "Nair", "Krishnan", "Tiwari",
+  "Chawla", "Subramaniam", "Agarwal", "Malhotra", "Bhatt", "Ranjan",
+  "Narayanan", "Khan", "Verma", "Gupta", "Kulkarni", "Desai", "Rao",
+  "Chatterjee", "Bhagat",
+] as const;
+const REGIONS = ["North", "South", "East", "West", "Central"] as const;
+const BRANCHES = [
+  "Andheri East", "Koramangala", "Rohini", "Salt Lake", "Banjara Hills",
+  "Indiranagar", "Powai", "Malad", "Thane", "Navi Mumbai", "Gurgaon",
+  "Noida", "Pune Camp", "Baner", "Whitefield",
+] as const;
+const PRODUCTS = ["Home Loan", "LAP"] as const;
+
+/**
+ * Decorrelates a per-account index from the lender assignment (`i % LENDER_DEFS.length`) before
+ * it's used to pick anything from a pool.
+ *
+ * `i` increases in steps of `LENDER_DEFS.length` (10) *within* one lender's own accounts (i, i+10,
+ * i+20, ...) — multiplying `i` by any constant, however "coprime-looking", cannot fix that: for
+ * any multiplier `c`, `gcd(c * 10, M) === gcd(10, M)` whenever `gcd(c, M) === 1`, so a pool length
+ * that shares a factor with 10 (30, 40, ...) still only ever sees a handful of residues. (An
+ * earlier version of this function used `i * 17 + 11` and looked plausible for exactly this
+ * reason — it passed a casual read, not a check of the actual per-lender output.)
+ *
+ * The fix is additive, not multiplicative: `Math.floor(i / LENDER_DEFS.length)` is this lender's
+ * own account's position (0, 1, 2, ...) and increases by exactly 1 between consecutive accounts
+ * of the *same* lender, so it alone already covers every residue of any modulus across a lender's
+ * 30 accounts. A small per-lender offset (`lenderIndex * 7`) then keeps different lenders from
+ * all drawing the identical name/DPD/etc. for their Nth account.
+ */
+function decorrelate(i: number): number {
+  const lenderIndex = i % LENDER_DEFS.length;
+  const positionWithinLender = Math.floor(i / LENDER_DEFS.length);
+  return positionWithinLender + lenderIndex * 7;
+}
+
+function borrowerName(i: number): string {
+  const k = decorrelate(i);
+  return `${FIRST_NAMES[k % FIRST_NAMES.length]} ${LAST_NAMES[(k * 7) % LAST_NAMES.length]}`;
+}
+
+/* ── DPD distribution ─────────────────────────────────────────────────
+ * A 30-entry pattern tiled across 300 accounts (10x) gives an exact, easy-to-audit split:
+ * 40 at 0 DPD, 60 in 1–30, 50 in 31–60, 40 in 61–90, 110 at 90+ — every band comfortably clears
+ * the coverage targets, and NPA (`dpd > 90`) vs non-NPA follows the same rule the rest of the
+ * app already uses (see `accounts.server.ts`'s `classifyLoanStatus` and the Claim page's
+ * NPA-only eligibility filter). */
+// 89, 90 and 91 are deliberately all present (not just "some value near 90") — the Claims tab's
+// eligibility rule is `dpd > 90`, and this is the exact boundary a regression test has to be able
+// to check: 89 and 90 must never show there, 91 must always show there, regardless of NPA.
+const DPD_PATTERN: readonly number[] = [
+  0, 0, 0, 0,
+  5, 10, 15, 20, 25, 30,
+  35, 40, 45, 50, 55,
+  65, 70, 89, 90,
+  91, 110, 125, 140, 155, 170, 185, 200, 220, 245, 270,
+];
+
+const ADDITIONAL_DOC_POOL: ReadonlyArray<{
+  name: string;
+  category: string;
+  description: string;
+}> = [
+  { name: "NOC", category: "Property Document", description: "Latest NOC issued by the concerned authority." },
+  { name: "Sanction Letter", category: "Legal Document", description: "Original bank-issued sanction letter." },
+  { name: "Possession Letter", category: "Legal Document", description: "Builder or authority possession letter, original scan." },
+  { name: "Updated Property Document", category: "Property Document", description: "Latest property document reflecting current ownership." },
+  { name: "Customer Declaration", category: "KYC Document", description: "Signed declaration from the borrower." },
+];
+
+const REJECTION_REASONS = [
+  "Please upload a clearer copy containing all pages.",
+  "Document is outdated — please provide the latest version.",
+  "Incorrect document uploaded for this requirement.",
+  "Document has expired; please re-upload a current one.",
+  "Uploaded file does not match the loan details on record.",
+] as const;
+
+const QUERY_REASONS: ReadonlyArray<{ reason: string; remarks: string }> = [
+  { reason: "Please upload the NOC document.", remarks: "The recall notice references an NOC that was not attached." },
+  { reason: "The uploaded statement is illegible.", remarks: "Please provide a bank-stamped copy at 300dpi." },
+  { reason: "Please confirm the current outstanding balance.", remarks: "The figure on the statement does not tally with PAS." },
+  { reason: "Please provide the updated legal opinion.", remarks: "The one on file predates the last recall notice." },
+  { reason: "Please clarify the property valuation date.", remarks: "The technical report is more than 12 months old." },
+];
+
+const DECISION_REMARKS: Record<"APPROVED" | "REJECTED" | "CLOSED", readonly string[]> = {
+  APPROVED: [
+    "Settlement verified. Claim payable in full.",
+    "Documents in order. Recommended for payout.",
+    "Recovery shortfall confirmed against PAS records.",
+  ],
+  REJECTED: [
+    "Account was not in the guarantee cover period at the date of default.",
+    "Recovery does not meet the policy threshold for this claim type.",
+    "Claim amount exceeds the sum insured for this account.",
+  ],
+  CLOSED: [
+    "Settlement completed and claim closed in full.",
+    "Claim paid and account closed on the guarantee cover.",
+  ],
+};
+
+/* ── users ────────────────────────────────────────────────────────────
+ * IMGC staff and the first HDFC lender user are unchanged from before (see the comment on
+ * `LENDER_DEFS`). Two lender users are generated per lender org after that. */
+function buildUsers(passwordHash: string): User[] {
+  const users: User[] = [
+    { id: "usr_emp1", role: "IMGC", name: "Meera Nair", email: "meera.nair@imgc.in", employeeId: "EMP-0001", phone: "+91 98201 44092", passwordHash, createdAt: NOW },
+    { id: "usr_emp2", role: "IMGC", name: "Rohit Sharma", email: "rohit.sharma@imgc.in", employeeId: "EMP-0002", phone: "+91 98201 44093", passwordHash, createdAt: NOW },
+    { id: "usr_emp3", role: "IMGC", name: "Anita Desai", email: "anita.desai@imgc.in", employeeId: "EMP-0003", phone: "+91 98201 44094", passwordHash, createdAt: NOW },
+    { id: "usr_len1", role: "LENDER", name: "Arjun Mehta", email: "arjun@hdfcbank.com", lenderOrgId: "org_acme", createdAt: NOW, createdBy: "usr_emp1" },
+    { id: "usr_len2", role: "LENDER", name: "Priya Rao", email: "priya@hdfcbank.com", lenderOrgId: "org_acme", createdAt: NOW, createdBy: "usr_emp1" },
   ];
+
+  // Two users for every lender after HDFC (which already has its pair above).
+  let seq = 3;
+  LENDER_DEFS.slice(1).forEach((lender, li) => {
+    for (let u = 0; u < 2; u += 1) {
+      const nameIdx = (li * 2 + u) % FIRST_NAMES.length;
+      const name = `${FIRST_NAMES[nameIdx]} ${LAST_NAMES[(nameIdx * 5) % LAST_NAMES.length]}`;
+      const email = `${FIRST_NAMES[nameIdx]!.toLowerCase()}${u === 0 ? "" : u}@${lender.domain}`;
+      users.push({
+        id: `usr_len${seq}`,
+        role: "LENDER",
+        name,
+        email,
+        lenderOrgId: lender.id,
+        createdAt: NOW,
+        createdBy: "usr_emp1",
+      });
+      seq += 1;
+    }
+  });
+
+  return users;
+}
+
+/* ── one account (loan) record ───────────────────────────────────────── */
+function buildAccount(
+  i: number,
+  lender: (typeof LENDER_DEFS)[number],
+  assigned: readonly [string, string]
+): Account {
+  const k = decorrelate(i);
+  const dpd = DPD_PATTERN[k % DPD_PATTERN.length]!;
+  const isNpa = dpd > 90;
+  // Roughly a seventh of the non-NPA book is write-off-only — overdue collections activity that
+  // hasn't (and, for write-off, structurally won't) cross into NPA. The rest are standard.
+  const isWriteOff = !isNpa && k % 7 === 0;
+
+  const underConstruction = k % 2 === 1;
+  const sanctioned = 1_800_000 + (k % 40) * 350_000;
+  const outstanding = Math.round(sanctioned * (0.55 + (k % 5) * 0.08));
+  const appDaysAgo = 200 + (k % 24) * 30; // spreads application dates across ~2024–2026
+  const loanNo = String(3_002_060_000_000 + i);
+
+  return {
+    id: `acc_${1000 + i}`,
+    loanNo,
+    borrowerName: borrowerName(i),
+    lenderOrgId: lender.id,
+    product: PRODUCTS[k % PRODUCTS.length]!,
+    region: REGIONS[k % REGIONS.length]!,
+    branch: BRANCHES[k % BRANCHES.length]!,
+    assignedUserId: assigned[0],
+    assignedUserName: assigned[1],
+    applicationDate: ago(appDaysAgo),
+    loanAmount: sanctioned,
+    outstandingAmount: outstanding,
+    sanctionDate: ago(appDaysAgo + 1400).slice(0, 10),
+    disbursementDate: ago(appDaysAgo + 1387).slice(0, 10),
+    tenureMonths: 180 + (k % 4) * 60,
+    propertyType: k % 3 === 2 ? "Commercial" : "Residential",
+    propertyStatus: underConstruction ? "Under Construction" : "Ready to Move",
+    propertyStatusAtDisbursal: underConstruction ? "UNDER_CONSTRUCTION" : "READY_TO_MOVE",
+    bucket: k % 2 === 0 ? "IMGC" : "LENDER",
+    stage: k % 2 === 0 ? "Under IMGC review" : "Document collection",
+    claimStatus: "DRAFT",
+    npa: isNpa,
+    writeOff: isWriteOff,
+    dpd,
+    pushRecipients: [],
+    createdAt: ago(appDaysAgo),
+  };
+}
+
+/* ── claim-status assignment ─────────────────────────────────────────── */
+// Every third account gets a claim (~1/3 of 300 ≈ 100–150 depending on total) — "not every loan
+// needs a claim" is the point (see the Claim page's own eligibility filter): some are still
+// completely untouched, which is its own real, demonstrable state ("Initiate Claim").
+// Length 13 is deliberate — coprime with the `i % 3 !== 2` claim-eligibility check below, so
+// every pattern slot (every status, including REJECTED) eventually lands on an included index.
+// A pattern length sharing a factor with that modulus (e.g. 15) can silently exclude a status
+// from ever being assigned at all.
+const CLAIM_STATUS_PATTERN: readonly ClaimStatus[] = [
+  "SUBMITTED", "DRAFT", "UNDER_REVIEW", "QUERY_RAISED", "REJECTED",
+  "APPROVED", "DOCUMENTS_RESUBMITTED", "DRAFT", "SUBMITTED", "UNDER_REVIEW",
+  "CLOSED", "QUERY_RAISED", "SUBMITTED",
+];
+
+/** Steps walked before reaching this status — a real, chronological path, never an impossible
+ *  jump (e.g. never "NOT_STARTED → APPROVED" with no submission in between). */
+const HISTORY_BEFORE: Record<ClaimStatus, readonly ClaimStatus[]> = {
+  DRAFT: [],
+  SUBMITTED: ["DRAFT"],
+  UNDER_REVIEW: ["DRAFT", "SUBMITTED"],
+  QUERY_RAISED: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
+  DOCUMENTS_RESUBMITTED: ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "QUERY_RAISED"],
+  APPROVED: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
+  REJECTED: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
+  CLOSED: ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "APPROVED"],
+  QUERIED: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
+};
+
+const DAYS_AGO_BY_STATUS: Record<ClaimStatus, number> = {
+  DRAFT: 3,
+  SUBMITTED: 7,
+  UNDER_REVIEW: 12,
+  QUERY_RAISED: 16,
+  DOCUMENTS_RESUBMITTED: 20,
+  APPROVED: 26,
+  REJECTED: 22,
+  CLOSED: 40,
+  QUERIED: 12,
+};
+
+const SAMPLE_FIELDS: Record<string, string> = {
+  claimsProgram: "Developer Under Construction>85%",
+  ineligibleClaim: "No",
+  coApplicantName: "Sunita Sharma",
+  borrowerMobile: "9820012345",
+  borrowerEmail: "borrower@example.com",
+  borrowerPan: "ABCDE1234F",
+  sanctionedAmount: "4500000",
+  disbursedAmount: "4500000",
+  disbursementDate: ago(1600).slice(0, 10),
+  loanTenureMonths: "240",
+  interestRate: "9.25",
+  emiAmount: "42000",
+  currentOutstanding: "3240000",
+  npaDate: ago(120).slice(0, 10),
+  lastEmiDate: ago(210).slice(0, 10),
+  daysPastDue: "210",
+  assetClassification: "Doubtful 1",
+  defaultReason: "Loss of employment",
+  recallNoticeDate: ago(90).slice(0, 10),
+  legalNoticeDate: ago(60).slice(0, 10),
+  sarfaesiStatus: "13(2) notice served",
+  recoverySuitFiled: "No",
+  claimAmount: "2400000",
+  principalOutstanding: "2250000",
+  interestOutstanding: "150000",
+  recoveryToDate: "150000",
+  contactPerson: "Arjun Mehta",
+  contactDesignation: "Manager - Recovery",
+  contactPhone: "9820098200",
+  contactEmail: "arjun@hdfcbank.com",
+  remarks: "Borrower unreachable since the second recall notice.",
+  recoveryMode: "One-time settlement",
+  recoveryClosedDate: ago(30).slice(0, 10),
+  grossRecovered: "1850000",
+  recoveryExpenses: "120000",
+  netLossClaimed: "550000",
+  subsequentApprovedBy: "Recovery Committee",
+};
+
+export function buildSeed(): MockDb {
+  const lenderOrgs: LenderOrg[] = LENDER_DEFS.map((l) => ({
+    id: l.id,
+    name: l.name,
+    emailDomain: l.domain,
+    contactEmails: l.contacts,
+  }));
 
   const passwordHash = hashPasswordSync(DEMO_IMGC_PASSWORD);
+  const users = buildUsers(passwordHash);
+  const lenderUsersByOrg = new Map<string, User[]>();
+  users
+    .filter((u) => u.role === "LENDER")
+    .forEach((u) => {
+      const list = lenderUsersByOrg.get(u.lenderOrgId!) ?? [];
+      list.push(u);
+      lenderUsersByOrg.set(u.lenderOrgId!, list);
+    });
 
-  const users: User[] = [
-    {
-      id: "usr_emp1",
-      role: "IMGC",
-      name: "Meera Nair",
-      email: "meera.nair@imgc.in",
-      employeeId: "EMP-0001",
-      phone: "+91 98201 44092",
-      passwordHash,
-      createdAt: NOW,
-    },
-    {
-      id: "usr_emp2",
-      role: "IMGC",
-      name: "Rohit Sharma",
-      email: "rohit.sharma@imgc.in",
-      employeeId: "EMP-0002",
-      phone: "+91 98201 44093",
-      passwordHash,
-      createdAt: NOW,
-    },
-    {
-      id: "usr_emp3",
-      role: "IMGC",
-      name: "Anita Desai",
-      email: "anita.desai@imgc.in",
-      employeeId: "EMP-0003",
-      phone: "+91 98201 44094",
-      passwordHash,
-      createdAt: NOW,
-    },
-    {
-      id: "usr_len1",
-      role: "LENDER",
-      name: "Arjun Mehta",
-      email: "arjun@hdfcbank.com",
-      lenderOrgId: "org_acme",
-      createdAt: NOW,
-      createdBy: "usr_emp1",
-    },
-    {
-      id: "usr_len2",
-      role: "LENDER",
-      name: "Priya Rao",
-      email: "priya@hdfcbank.com",
-      lenderOrgId: "org_acme",
-      createdAt: NOW,
-      createdBy: "usr_emp1",
-    },
-    {
-      id: "usr_len3",
-      role: "LENDER",
-      name: "Sameer Kulkarni",
-      email: "rahul@icicibank.com",
-      lenderOrgId: "org_northgate",
-      createdAt: NOW,
-      createdBy: "usr_emp2",
-    },
-  ];
-
+  const TOTAL_ACCOUNTS = 300;
   const accounts: Account[] = [];
   const pasValues: PasValue[] = [];
   const claimDocuments: ClaimDocument[] = [];
   const documentFiles: DocumentFile[] = [];
+  const claims: Claim[] = [];
+  const claimQueries: ClaimQuery[] = [];
+  const remarks: Remark[] = [];
+  const auditEvents: AuditEventDraft[] = [];
 
-  CASES.forEach((c, i) => {
-    const lenderUser = users.find((u) => u.lenderOrgId === c.orgId);
-    const sanctioned = 2_500_000 + i * 640_000;
-    const outstanding = Math.round(sanctioned * 0.72);
+  const claimCountByPrefix: Record<string, number> = {};
 
-    // Every seeded case is claim-eligible so the lifecycle demo has something to act on.
-    // acc_100254 is the "eligible, no claim yet" demo row — force it NPA so it always shows
-    // the Initiate Claim action for the Acme lender.
-    const isNpa = c.forceNpa ?? (c.id === "acc_100254" ? true : i % 3 !== 1);
-    const isWriteOff =
-      c.forceWriteOff ?? (c.id === "acc_100254" ? false : i % 3 === 1);
+  for (let i = 0; i < TOTAL_ACCOUNTS; i += 1) {
+    const lender = LENDER_DEFS[i % LENDER_DEFS.length]!;
+    // Every pool-choice below reads `k`, not `i` — see `decorrelate`'s comment: with 10 lenders,
+    // a raw `i % N` for any N that shares a factor with 10 gives every account at one lender the
+    // same handful of values (this is how the first version of this generator silently produced
+    // near-identical DPD/name spreads per lender until it was caught in review).
+    const k = decorrelate(i);
+    const imgcAssignee: readonly [string, string] =
+      k % 3 === 0 ? ["usr_emp1", "Meera Nair"] : k % 3 === 1 ? ["usr_emp2", "Rohit Sharma"] : ["usr_emp3", "Anita Desai"];
 
-    // Odd-indexed accounts were under construction at disbursal — drives the conditional
-    // "Latest Technical Report" document. Even-indexed were ready to move.
-    // acc_100245 is forced true regardless of its (even) index: it backs CLM-2026-00001, the
-    // only seeded Initial Claim otherwise left demonstrating this document as always-optional —
-    // every other Initial Claim scenario also lands on an even index, so without this override
-    // no seeded claim ever shows "Latest Technical Report" as required.
-    const underConstruction = c.id === "acc_100245" ? true : i % 2 === 1;
+    const account = buildAccount(i, lender, imgcAssignee);
 
-    // DPD is a collections metric, not derived from `isNpa` — deliberately cycled independently
-    // of it so the mix includes accounts well past due that haven't been tagged NPA yet (and the
-    // reverse), the exact case the DPD screen exists to surface beyond the NPA-only claim grid.
-    const dpd = DPD_CYCLE[i % DPD_CYCLE.length];
-
-    accounts.push({
-      npa: isNpa,
-      writeOff: isWriteOff,
-      dpd,
-      id: c.id,
-      loanNo: c.loanNo,
-      borrowerName: c.borrowerName,
-      lenderOrgId: c.orgId,
-      product: c.product,
-      region: c.region,
-      branch: c.branch,
-      assignedUserId: c.assigned[0],
-      assignedUserName: c.assigned[1],
-      applicationDate: ago(c.appDaysAgo),
-      loanAmount: sanctioned,
-      outstandingAmount: outstanding,
-      sanctionDate: ago(c.appDaysAgo + 1400).slice(0, 10),
-      disbursementDate: ago(c.appDaysAgo + 1387).slice(0, 10),
-      tenureMonths: 180 + (i % 4) * 60,
-      propertyType:
-        i % 3 === 0
-          ? "Residential"
-          : i % 3 === 1
-            ? "Residential"
-            : "Commercial",
-      propertyStatus: underConstruction
-        ? "Under Construction"
-        : "Ready to Move",
-      propertyStatusAtDisbursal: underConstruction
-        ? "UNDER_CONSTRUCTION"
-        : "READY_TO_MOVE",
-      bucket: c.bucket,
-      stage: c.bucket === "IMGC" ? "Under IMGC review" : "Document collection",
-      claimStatus: c.claimStatus,
-      pushRecipients: [],
-      createdAt: ago(c.appDaysAgo),
-    });
-
+    // PAS values — every account, regardless of claim status (PAS is the underlying book, not a
+    // claim-scoped concept).
     const amounts: Record<string, number> = {
-      sanctionedAmount: sanctioned,
-      outstandingPrincipal: outstanding,
-      overdueAmount: Math.round(outstanding * 0.11),
-      emiAmount: Math.round(sanctioned / 180),
-      sumInsured: Math.round(sanctioned * 0.9),
-      claimAmount: outstanding,
+      sanctionedAmount: account.loanAmount,
+      outstandingPrincipal: account.outstandingAmount,
+      overdueAmount: Math.round(account.outstandingAmount * 0.11),
+      emiAmount: Math.round(account.loanAmount / account.tenureMonths),
+      sumInsured: Math.round(account.loanAmount * 0.9),
+      claimAmount: account.outstandingAmount,
     };
     PAS_TEMPLATE.forEach((t) => {
       pasValues.push({
-        id: `pas_${c.id}_${t.key}`,
-        accountId: c.id,
+        id: `pas_${account.id}_${t.key}`,
+        accountId: account.id,
         key: t.key,
         label: t.label,
         value: inr(amounts[t.key] ?? 0),
@@ -777,95 +426,355 @@ export function buildSeed(): MockDb {
       });
     });
 
-    // Legacy STANDARD_DOCUMENTS removed to fix IMGC checklist showing unrelated account-level documents.
+    // Every third account gets a claim — the other two-thirds are genuinely untouched
+    // ("Initiate Claim"), which is its own real state, not an omission.
+    const hasClaim = i % 3 !== 2;
+    if (hasClaim) {
+      const status = CLAIM_STATUS_PATTERN[k % CLAIM_STATUS_PATTERN.length]!;
+      const type: ClaimTypeKey = k % 2 === 0 ? "INITIAL" : "SUBSEQUENT";
+      const config = CLAIM_TYPES[type];
+      claimCountByPrefix[config.prefix] = (claimCountByPrefix[config.prefix] ?? 0) + 1;
+      const claimId = `clm_${String(i + 1).padStart(4, "0")}`;
+      const claimNo = `${config.prefix}-2026-${String(claimCountByPrefix[config.prefix]).padStart(5, "0")}`;
 
-    // The IMGC-authored additional documents.
-    c.additional.forEach((a, ai) => {
-      const docId = `doc_${c.id}_add${ai}`;
-      let currentFileId: string | undefined;
+      const lenderUser = lenderUsersByOrg.get(lender.id)?.[0];
+      const actorId = lenderUser?.id ?? "usr_len1";
+      const actorName = lenderUser?.name ?? "Arjun Mehta";
+      const imgcId = imgcAssignee[0];
+      const imgcName = imgcAssignee[1];
 
-      if (a.previous) {
-        documentFiles.push({
-          id: `${docId}_f${a.previous.version}`,
-          documentId: docId,
-          accountId: c.id,
-          originalName: a.previous.name,
-          storedPath: "",
-          size: 184_320,
-          mime: "application/pdf",
-          uploadedBy: lenderUser?.id ?? "usr_len1",
-          uploadedByName: lenderUser?.name ?? "Arjun Mehta",
-          uploadedAt: ago(6),
-          version: a.previous.version,
-          supersededAt: ago(4),
-          supersededReason: a.previous.supersededReason,
-        });
-      }
-      if (a.file) {
-        currentFileId = `${docId}_f${a.file.version}`;
-        documentFiles.push({
-          id: currentFileId,
-          documentId: docId,
-          accountId: c.id,
-          originalName: a.file.name,
-          storedPath: "",
-          size: 246_784,
-          mime: "application/pdf",
-          uploadedBy: lenderUser?.id ?? "usr_len1",
-          uploadedByName: lenderUser?.name ?? "Arjun Mehta",
-          uploadedAt: ago(3),
-          version: a.file.version,
-          documentNumber: a.file.number,
-          uploadRemarks: a.file.remarks,
-          documentDate: ago(30).slice(0, 10),
-        });
-      }
+      // A subset of APPROVED claims went through a query loop first — the "query then approved"
+      // path from the query-flow coverage requirement, distinct from a straight approval.
+      const wentThroughQuery = status === "APPROVED" && k % 4 === 0;
+      const history = wentThroughQuery
+        ? (["DRAFT", "SUBMITTED", "UNDER_REVIEW", "QUERY_RAISED", "DOCUMENTS_RESUBMITTED", "UNDER_REVIEW"] as const)
+        : HISTORY_BEFORE[status];
+      const daysAgo = DAYS_AGO_BY_STATUS[status] + (wentThroughQuery ? 12 : 0) + (k % 5);
 
-      claimDocuments.push({
-        id: docId,
-        accountId: c.id,
-        name: a.name,
-        required: a.required,
-        addedBy: "IMGC",
-        addedByName: c.assigned[1],
-        status: a.status,
-        category: a.category,
-        description: a.description,
-        applicableProduct: c.product,
-        applicableCaseType: "Initial Claim",
-        dueDate: a.dueInDays === undefined ? undefined : ahead(a.dueInDays),
-        priority: a.priority ?? "NORMAL",
-        active: true,
-        version: a.file?.version ?? 0,
-        currentFileId,
-        createdAt: ago(Math.max(1, c.appDaysAgo - 4)),
-        rejection:
-          a.status === "REJECTED"
-            ? {
-                at: ago(5),
-                by: c.assigned[1] ?? "Meera Nair",
-                reason: a.review?.remarks ?? "Document is outdated.",
-              }
-            : undefined,
-        review: a.review
+      const steps = [...history, status];
+      const statusHistory = steps.map((s, si) => {
+        const imgcSide = s !== "DRAFT" && s !== "SUBMITTED" && s !== "DOCUMENTS_RESUBMITTED";
+        return {
+          status: s,
+          at: ago(Math.max(0, daysAgo - si * (daysAgo / (steps.length + 1)))),
+          byId: imgcSide ? imgcId : actorId,
+          byName: imgcSide ? imgcName : actorName,
+          byRole: (imgcSide ? "IMGC" : "LENDER") as "IMGC" | "LENDER",
+        };
+      });
+
+      const fieldsComplete = status !== "DRAFT";
+      const decisionOutcome: "APPROVED" | "REJECTED" | "CLOSED" | undefined =
+        status === "APPROVED" || status === "REJECTED" || status === "CLOSED" ? status : undefined;
+
+      claims.push({
+        id: claimId,
+        claimNo,
+        accountId: account.id,
+        claimType: type,
+        status,
+        fields: fieldsComplete
+          ? Object.fromEntries(config.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""]))
+          : { contactPerson: actorName },
+        statusHistory,
+        createdById: actorId,
+        createdByName: actorName,
+        createdAt: ago(daysAgo),
+        submittedAt: status === "DRAFT" ? undefined : ago(Math.max(0, daysAgo - 1)),
+        lastUpdatedAt: statusHistory[statusHistory.length - 1]?.at ?? ago(daysAgo),
+        draftSaved: true,
+        bucket: status === "DRAFT" || status === "QUERY_RAISED" ? "LENDER" : "IMGC",
+        decision: decisionOutcome
           ? {
-              decision: a.review.decision,
-              by: c.assigned[0],
-              byName: c.assigned[1],
-              at: ago(2),
-              remarks: a.review.remarks,
-              version: a.file?.version ?? 1,
+              outcome: decisionOutcome,
+              byId: imgcId,
+              byName: imgcName,
+              at: ago(1),
+              remarks: DECISION_REMARKS[decisionOutcome][k % DECISION_REMARKS[decisionOutcome].length]!,
             }
           : undefined,
       });
+
+      account.claimStatus = status === "QUERY_RAISED" ? "QUERIED" : status;
+      account.stage =
+        status === "APPROVED" ? "Claim approved"
+          : status === "REJECTED" ? "Claim rejected"
+          : status === "CLOSED" ? "Claim closed"
+          : status === "QUERY_RAISED" ? "Query raised with the lender"
+          : account.bucket === "IMGC" ? "Under IMGC review" : "Document collection";
+      account.submittedAt = status === "DRAFT" ? undefined : ago(Math.max(0, daysAgo - 1));
+
+      if (decisionOutcome) {
+        remarks.push({
+          id: `rmk_${claimId}`,
+          accountId: account.id,
+          authorId: imgcId,
+          authorName: imgcName,
+          authorRole: "IMGC",
+          body: `Claim ${decisionOutcome.toLowerCase()}: ${DECISION_REMARKS[decisionOutcome][k % DECISION_REMARKS[decisionOutcome].length]!}`,
+          createdAt: ago(1),
+        });
+      }
+
+      // Approved-doc depth per stage — how much of the checklist is already through review.
+      const approvedDocs =
+        status === "DRAFT" ? 0
+          : status === "SUBMITTED" ? 0
+          : status === "REJECTED" ? 1
+          : status === "APPROVED" || status === "CLOSED" ? 99
+          : 2;
+
+      const hasOpenQuery = status === "QUERY_RAISED";
+      // Also true for a fraction of plain UNDER_REVIEW claims — a claim can be back under review
+      // after an earlier query was already answered, a real and common state.
+      const hasResolvedQuery =
+        status === "DOCUMENTS_RESUBMITTED" || wentThroughQuery || (status === "UNDER_REVIEW" && k % 6 === 0);
+      const q = QUERY_REASONS[k % QUERY_REASONS.length]!;
+      const loan = account as unknown as Record<string, unknown>;
+
+      config.documents.forEach((spec, di) => {
+        const applies = docConditionMet(spec.condition, loan);
+        const isQueriedDoc = (hasOpenQuery || hasResolvedQuery) && di === 0;
+        const rejected = status === "REJECTED" && di === 0;
+        const approved = di < approvedDocs;
+
+        const docStatus: DocStatus = isQueriedDoc && hasOpenQuery
+          ? "REUPLOAD_REQUIRED"
+          : rejected
+            ? "REJECTED"
+            : approved
+              ? "APPROVED"
+              : status === "DRAFT"
+                ? "PENDING_UPLOAD"
+                : "UNDER_REVIEW";
+
+        const uploaded = applies && docStatus !== "PENDING_UPLOAD";
+        const docId = `${claimId}_doc${di}`;
+        let currentFileId: string | undefined;
+
+        if (uploaded) {
+          currentFileId = `${docId}_f1`;
+          documentFiles.push({
+            id: currentFileId,
+            documentId: docId,
+            accountId: account.id,
+            originalName: `${spec.name}.pdf`,
+            storedPath: "",
+            size: 200_000 + di * 7_000,
+            mime: "application/pdf",
+            uploadedBy: actorId,
+            uploadedByName: actorName,
+            uploadedAt: ago(Math.max(1, daysAgo - 1)),
+            version: 1,
+          });
+        }
+
+        claimDocuments.push({
+          id: docId,
+          accountId: account.id,
+          claimId,
+          slug: spec.slug,
+          name: spec.name,
+          category: spec.category,
+          description: spec.description,
+          required: spec.required && applies,
+          multiple: spec.multiple ?? false,
+          conditional: Boolean(spec.condition),
+          conditionReason: spec.condition ? conditionReason(spec.condition) : undefined,
+          addedBy: "SYSTEM",
+          status: applies ? docStatus : "PENDING_UPLOAD",
+          version: uploaded ? 1 : 0,
+          currentFileId,
+          rejection:
+            docStatus === "REJECTED"
+              ? { at: ago(Math.max(1, daysAgo - 2)), by: imgcName, reason: REJECTION_REASONS[k % REJECTION_REASONS.length]! }
+              : undefined,
+          review:
+            docStatus === "APPROVED"
+              ? { decision: "APPROVED", by: imgcId, byName: imgcName, at: ago(1), remarks: "Verified.", version: 1 }
+              : docStatus === "REJECTED"
+                ? { decision: "REJECTED", by: imgcId, byName: imgcName, at: ago(Math.max(1, daysAgo - 2)), remarks: REJECTION_REASONS[k % REJECTION_REASONS.length]!, version: 1 }
+                : undefined,
+          active: true,
+          createdAt: ago(daysAgo),
+        });
+      });
+
+      // Queries — an open one for QUERY_RAISED, a resolved one for DOCUMENTS_RESUBMITTED / the
+      // query-then-approved path.
+      if (hasOpenQuery || hasResolvedQuery) {
+        const requestedDoc = config.documents[0]?.name ?? "Loan Account Statement";
+        // Anchor the query to the claim's own status history wherever a real QUERY_RAISED /
+        // DOCUMENTS_RESUBMITTED step exists, so "Claim History" and the query thread agree on
+        // when it happened — an independently-computed date drifted earlier than "Submitted"
+        // for some claims, which read as the query existing before the claim was even filed.
+        // The one case with no such step (a resolved query on a plain UNDER_REVIEW claim, which
+        // moved on without leaving a QUERY_RAISED entry behind) falls back to a date between
+        // "Submitted" and the current "Under review" entry.
+        const queryRaisedEntry = statusHistory.find((h) => h.status === "QUERY_RAISED");
+        const docsResubmittedEntry = statusHistory.find((h) => h.status === "DOCUMENTS_RESUBMITTED");
+        const raisedAtIso = queryRaisedEntry?.at ?? ago(Math.round(daysAgo * 0.65));
+        const respondedAtIso = docsResubmittedEntry?.at ?? ago(Math.round(daysAgo * 0.55));
+        claimQueries.push({
+          id: `qry_${claimId}`,
+          claimId,
+          reason: q.reason,
+          remarks: q.remarks,
+          requestedDocuments: [requestedDoc],
+          raisedById: imgcId,
+          raisedByName: imgcName,
+          raisedAt: raisedAtIso,
+          // `ago(n)` with a positive `n` is a past date — that's what "overdue" means for a due
+          // date. Half of the open queries are overdue, half still have time to respond.
+          dueDate: hasOpenQuery ? (k % 2 === 0 ? ago(5) : ahead(4)) : undefined,
+          respondedAt: hasResolvedQuery ? respondedAtIso : undefined,
+          respondedById: hasResolvedQuery ? actorId : undefined,
+          respondedByName: hasResolvedQuery ? actorName : undefined,
+          responseRemarks: hasResolvedQuery ? "Re-scanned and resubmitted as requested." : undefined,
+        });
+      }
+
+      // Additional (IMGC-authored) documents — roughly one in five claimed accounts, 1–2 each,
+      // some already decided so the retention/reinstatement screen has real rows to show.
+      if (k % 5 === 0) {
+        const extraCount = 1 + (k % 2);
+        for (let e = 0; e < extraCount; e += 1) {
+          const pick = ADDITIONAL_DOC_POOL[(k + e) % ADDITIONAL_DOC_POOL.length]!;
+          const docId = `doc_${account.id}_add${e}`;
+          const extraStatus: DocStatus =
+            e === 0 && k % 15 === 0 ? "REJECTED" : k % 4 === 0 ? "APPROVED" : k % 4 === 1 ? "UNDER_REVIEW" : "PENDING_UPLOAD";
+          let currentFileId: string | undefined;
+          if (extraStatus !== "PENDING_UPLOAD") {
+            currentFileId = `${docId}_f1`;
+            documentFiles.push({
+              id: currentFileId,
+              documentId: docId,
+              accountId: account.id,
+              originalName: `${pick.name}.pdf`,
+              storedPath: "",
+              size: 180_000,
+              mime: "application/pdf",
+              uploadedBy: actorId,
+              uploadedByName: actorName,
+              uploadedAt: ago(6),
+              version: 1,
+            });
+          }
+          // Three retention scenarios, and a reinstatement state on top of them — cycling by
+          // `Math.floor(k / 15)`, not `k` itself: this whole branch only ever fires when `k` is a
+          // multiple of 15, so `k % 3` (or `% 4`) would always land on the exact same remainder
+          // and every rejected document would get the identical "days left"/reinstatement state
+          // (this is the same class of bug `decorrelate` exists to avoid, just re-introduced
+          // locally here — a reminder that the fix has to travel with wherever the correlated
+          // modulus is used, not just live in one shared helper).
+          const cycle = Math.floor(k / 15);
+          // Recently rejected (eligible), rejected ~2 months ago (still eligible), rejected 80
+          // days ago (retention days-left drops to 10 — the "expiring within 14 days" case), and
+          // rejected >3 months ago (past the 90-day window, expired) — every retention-page
+          // scenario the application's own 90-day window (see `retention.ts`) can produce.
+          const rejectedDaysAgo = [15, 60, 80, 100][cycle % 4]!;
+          // No reinstatement / requested (awaiting IMGC's decision) / already approved (held) —
+          // so the retention screen's own three non-"total" KPI tiles all have real rows. Reads
+          // `(cycle + 1) % 3`, not `cycle % something` — deriving both this and `rejectedDaysAgo`
+          // from the same modulus of the same variable would correlate them (e.g. every
+          // "expiring within 14 days" row always landing on "held", which zeroes out that count
+          // exactly the way the uncorrected version above did).
+          const reinstateState = (cycle + 1) % 3;
+          claimDocuments.push({
+            id: docId,
+            accountId: account.id,
+            name: pick.name,
+            required: true,
+            addedBy: "IMGC",
+            addedByName: imgcName,
+            status: extraStatus,
+            category: pick.category,
+            description: pick.description,
+            applicableProduct: account.product,
+            applicableCaseType: "Initial Claim",
+            dueDate: extraStatus === "PENDING_UPLOAD" ? ahead(7) : undefined,
+            priority: "NORMAL",
+            active: true,
+            version: extraStatus === "PENDING_UPLOAD" ? 0 : 1,
+            currentFileId,
+            rejection:
+              extraStatus === "REJECTED"
+                ? {
+                    at: ago(rejectedDaysAgo),
+                    by: imgcName,
+                    reason: REJECTION_REASONS[(k + e) % REJECTION_REASONS.length]!,
+                    reinstate:
+                      reinstateState === 1
+                        ? { status: "REQUESTED", requestedBy: actorName, requestedAt: ago(Math.max(1, rejectedDaysAgo - 3)) }
+                        : reinstateState === 2
+                          ? {
+                              status: "APPROVED",
+                              requestedBy: actorName,
+                              requestedAt: ago(Math.max(1, rejectedDaysAgo - 3)),
+                              decidedBy: imgcName,
+                              decidedAt: ago(Math.max(1, rejectedDaysAgo - 1)),
+                            }
+                          : undefined,
+                  }
+                : undefined,
+            review:
+              extraStatus === "APPROVED"
+                ? { decision: "APPROVED", by: imgcId, byName: imgcName, at: ago(2), remarks: "Verified.", version: 1 }
+                : extraStatus === "REJECTED"
+                  ? { decision: "REJECTED", by: imgcId, byName: imgcName, at: ago(rejectedDaysAgo), remarks: REJECTION_REASONS[(k + e) % REJECTION_REASONS.length]!, version: 1 }
+                  : undefined,
+            createdAt: ago(daysAgo + 4),
+          });
+        }
+      }
+
+      // Audit trail — one entry per real status transition, plus a document-decision entry per
+      // decided document. Derived from the claim/documents just built, not a separate hard-coded
+      // "recent activity" list.
+      statusHistory.forEach((h, hi) => {
+        if (hi === 0) return; // the first entry is the claim's creation, not a "change"
+        auditEvents.push({
+          accountId: account.id,
+          at: h.at,
+          actorId: h.byId,
+          actorName: h.byName,
+          actorRole: h.byRole,
+          type: "CLAIM_STATUS_CHANGED",
+          summary: `Claim ${h.status.toLowerCase().replace(/_/g, " ")}`,
+          meta: { status: h.status },
+        });
+      });
+      if (account.submittedAt) {
+        auditEvents.push({
+          accountId: account.id,
+          at: account.submittedAt,
+          actorId: actorId,
+          actorName: actorName,
+          actorRole: "LENDER",
+          type: "CLAIM_SUBMITTED",
+          summary: `Claim ${claimNo} submitted`,
+        });
+      }
+    } else {
+      account.stage = "Document collection";
+    }
+
+    accounts.push(account);
+  }
+
+  // One document-decision audit entry per document that has actually been decided.
+  claimDocuments.forEach((d) => {
+    if (!d.review) return;
+    auditEvents.push({
+      accountId: d.accountId,
+      at: d.review.at,
+      actorId: d.review.by,
+      actorName: d.review.byName,
+      actorRole: "IMGC",
+      type: d.review.decision === "APPROVED" ? "DOC_APPROVED" : "DOC_REJECTED",
+      summary: `"${d.name}" ${d.review.decision === "APPROVED" ? "approved" : "rejected"}`,
     });
   });
-
-  const { claims, claimQueries } = buildClaims(
-    accounts,
-    claimDocuments,
-    documentFiles
-  );
 
   return {
     lenderOrgs,
@@ -877,342 +786,36 @@ export function buildSeed(): MockDb {
     documentFiles,
     claims,
     claimQueries,
-    remarks: [],
-    auditEvents: [],
+    remarks,
+    auditEvents: auditEvents.map((e, i) => ({ id: `aud_${String(i + 1).padStart(4, "0")}`, ...e })),
     notifications: [],
   };
 }
 
-/* ── claims: the seven lifecycle scenarios ─────────────────────────── */
-
-type Scenario = Readonly<{
-  accountIndex: number;
-  type: ClaimTypeKey;
-  status: ClaimStatus;
-  daysAgo: number;
-  /** Statuses walked through before the current one, oldest first. */
-  history: readonly ClaimStatus[];
-  fieldsComplete: boolean;
-  /** How many of the checklist's required documents are already approved. */
-  approvedDocs: number;
-  query?: {
-    reason: string;
-    remarks: string;
-    requested: string[];
-    answered: boolean;
-  };
-  decision?: { outcome: "APPROVED" | "REJECTED" | "CLOSED"; remarks: string };
-}>;
-
-/**
- * One case per scenario, so every state the UI can render is on screen from first load:
- * draft, submitted, under review, query raised, documents resubmitted, approved, rejected.
- */
-const SCENARIOS: readonly Scenario[] = [
-  {
-    accountIndex: 0,
-    type: "INITIAL",
-    status: "QUERY_RAISED",
-    daysAgo: 9,
-    history: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
-    fieldsComplete: true,
-    approvedDocs: 2,
-    query: {
-      reason: "Please upload the NOC document.",
-      remarks: "The recall notice references an NOC that was not attached.",
-      requested: ["Legal / Recall Notice"],
-      answered: false,
-    },
-  },
-  {
-    accountIndex: 1,
-    type: "SUBSEQUENT",
-    status: "DRAFT",
-    daysAgo: 2,
-    history: [],
-    fieldsComplete: false,
-    approvedDocs: 0,
-  },
-  {
-    accountIndex: 2,
-    type: "INITIAL",
-    status: "SUBMITTED",
-    daysAgo: 4,
-    history: ["DRAFT"],
-    fieldsComplete: true,
-    approvedDocs: 0,
-  },
-  {
-    accountIndex: 3,
-    type: "SUBSEQUENT",
-    status: "UNDER_REVIEW",
-    daysAgo: 6,
-    history: ["DRAFT", "SUBMITTED"],
-    fieldsComplete: true,
-    approvedDocs: 3,
-  },
-  {
-    accountIndex: 4,
-    type: "INITIAL",
-    status: "DOCUMENTS_RESUBMITTED",
-    daysAgo: 5,
-    history: ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "QUERY_RAISED"],
-    fieldsComplete: true,
-    approvedDocs: 3,
-    query: {
-      reason: "The uploaded statement is illegible.",
-      remarks: "Please provide a bank-stamped copy at 300dpi.",
-      requested: ["Loan Account Statement"],
-      answered: true,
-    },
-  },
-  {
-    accountIndex: 5,
-    type: "SUBSEQUENT",
-    status: "APPROVED",
-    daysAgo: 14,
-    history: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
-    fieldsComplete: true,
-    approvedDocs: 99,
-    decision: {
-      outcome: "APPROVED",
-      remarks: "Settlement verified. Claim payable in full.",
-    },
-  },
-  {
-    accountIndex: 6,
-    type: "INITIAL",
-    status: "REJECTED",
-    daysAgo: 11,
-    history: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
-    fieldsComplete: true,
-    approvedDocs: 1,
-    decision: {
-      outcome: "REJECTED",
-      remarks:
-        "Account was not in the guarantee cover period at the date of default.",
-    },
-  },
-];
-
-const SAMPLE_FIELDS: Record<string, string> = {
-  // Claim program (config/claimConfig.ts CLAIM_PROGRAM_FIELDS)
-  claimsProgram: "Developer Under Construction>85%",
-  ineligibleClaim: "No",
-  // Borrower
-  coApplicantName: "Sunita Sharma",
-  borrowerMobile: "9820012345",
-  borrowerEmail: "borrower@example.com",
-  borrowerPan: "ABCDE1234F",
-  // Loan
-  sanctionedAmount: "4500000",
-  disbursedAmount: "4500000",
-  disbursementDate: ago(1600).slice(0, 10),
-  loanTenureMonths: "240",
-  interestRate: "9.25",
-  emiAmount: "42000",
-  currentOutstanding: "3240000",
-  // Default
-  npaDate: ago(120).slice(0, 10),
-  lastEmiDate: ago(210).slice(0, 10),
-  daysPastDue: "210",
-  assetClassification: "Doubtful 1",
-  defaultReason: "Loss of employment",
-  // Legal action (Initial)
-  recallNoticeDate: ago(90).slice(0, 10),
-  legalNoticeDate: ago(60).slice(0, 10),
-  sarfaesiStatus: "13(2) notice served",
-  recoverySuitFiled: "No",
-  // Claim & recovery
-  claimAmount: "2400000",
-  principalOutstanding: "2250000",
-  interestOutstanding: "150000",
-  recoveryToDate: "150000",
-  // Lender contact
-  contactPerson: "Arjun Mehta",
-  contactDesignation: "Manager - Recovery",
-  contactPhone: "9820098200",
-  contactEmail: "arjun@hdfcbank.com",
-  // Additional
-  remarks: "Borrower unreachable since the second recall notice.",
-  // Subsequent (final loss)
-  recoveryMode: "One-time settlement",
-  recoveryClosedDate: ago(30).slice(0, 10),
-  grossRecovered: "1850000",
-  recoveryExpenses: "120000",
-  netLossClaimed: "550000",
-  subsequentApprovedBy: "Recovery Committee",
+/** Shape built up during generation, before the sequential `id` is assigned. */
+type AuditEventDraft = {
+  accountId: string;
+  at: string;
+  actorId: string;
+  actorName: string;
+  actorRole: "IMGC" | "LENDER" | "SYSTEM";
+  type:
+    | "DOC_UPLOADED"
+    | "DOC_STATUS_CHANGED"
+    | "DOC_REQUIREMENT_ADDED"
+    | "REMARK_ADDED"
+    | "PAS_VALUE_UPDATED"
+    | "BUCKET_SHIFTED"
+    | "CLAIM_SUBMITTED"
+    | "CLAIM_STATUS_CHANGED"
+    | "REINSTATE_REQUESTED"
+    | "REINSTATE_DECIDED"
+    | "RETENTION_PURGED"
+    | "DOC_REQUIREMENT_UPDATED"
+    | "DOC_APPROVED"
+    | "DOC_REJECTED"
+    | "DOC_REUPLOAD_REQUESTED"
+    | "DOC_REACTIVATED";
+  summary: string;
+  meta?: Record<string, string>;
 };
-
-function buildClaims(
-  accounts: Account[],
-  claimDocuments: ClaimDocument[],
-  documentFiles: DocumentFile[]
-): { claims: Claim[]; claimQueries: ClaimQuery[] } {
-  const claims: Claim[] = [];
-  const claimQueries: ClaimQuery[] = [];
-  const counters: Record<string, number> = {};
-
-  SCENARIOS.forEach((sc, n) => {
-    const account = accounts[sc.accountIndex];
-    if (!account) return;
-
-    const config = CLAIM_TYPES[sc.type];
-    counters[config.prefix] = (counters[config.prefix] ?? 0) + 1;
-    const claimId = `clm_${String(n + 1).padStart(3, "0")}`;
-    const seq = String(counters[config.prefix]).padStart(5, "0");
-    const claimNo = `${config.prefix}-2026-${seq}`;
-    const actorId = "usr_len1";
-    const actorName = "Arjun Mehta";
-
-    // Walked in order, so the timeline has real, increasing timestamps.
-    const steps = [...sc.history, sc.status];
-    const statusHistory = steps.map((status, i) => {
-      const imgcSide =
-        status === "UNDER_REVIEW" ||
-        status === "QUERY_RAISED" ||
-        status === "APPROVED" ||
-        status === "REJECTED" ||
-        status === "CLOSED";
-      return {
-        status,
-        at: ago(sc.daysAgo - i * (sc.daysAgo / (steps.length + 1))),
-        byId: imgcSide ? "usr_emp1" : actorId,
-        byName: imgcSide ? "Meera Nair" : actorName,
-        byRole: (imgcSide ? "IMGC" : "LENDER") as "IMGC" | "LENDER",
-      };
-    });
-
-    claims.push({
-      id: claimId,
-      claimNo,
-      accountId: account.id,
-      claimType: sc.type,
-      status: sc.status,
-      fields: sc.fieldsComplete
-        ? Object.fromEntries(
-            config.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""])
-          )
-        : { contactPerson: actorName },
-      statusHistory,
-      createdById: actorId,
-      createdByName: actorName,
-      createdAt: ago(sc.daysAgo),
-      submittedAt: sc.status === "DRAFT" ? undefined : ago(sc.daysAgo - 1),
-      lastUpdatedAt:
-        statusHistory[statusHistory.length - 1]?.at ?? ago(sc.daysAgo),
-      // Every seeded scenario has real backstory (even "Draft" represents a lender mid-way
-      // through, not one who merely opened the form) — distinct from an account with no claim
-      // at all, which is how the seed represents a genuinely untouched "Initiate Claim" row.
-      draftSaved: true,
-      bucket:
-        sc.status === "DRAFT" || sc.status === "QUERY_RAISED"
-          ? "LENDER"
-          : "IMGC",
-      decision: sc.decision
-        ? {
-            outcome: sc.decision.outcome,
-            byId: "usr_emp1",
-            byName: "Meera Nair",
-            at: ago(1),
-            remarks: sc.decision.remarks,
-          }
-        : undefined,
-    });
-
-    // The configured checklist, materialised with this scenario's progress applied.
-    config.documents.forEach((spec, i) => {
-      const requested =
-        Boolean(sc.query?.requested.includes(spec.name)) && !sc.query?.answered;
-      const approved = i < sc.approvedDocs;
-      const status: DocStatus = requested
-        ? "REUPLOAD_REQUIRED"
-        : approved
-          ? "APPROVED"
-          : sc.status === "DRAFT"
-            ? "PENDING_UPLOAD"
-            : "UNDER_REVIEW";
-
-      const loan = account as unknown as Record<string, unknown>;
-      const applies = docConditionMet(spec.condition, loan);
-      const uploaded = applies && status !== "PENDING_UPLOAD";
-      const docId = `${claimId}_doc${i}`;
-      let currentFileId: string | undefined;
-
-      // A status of "Under review" or "Approved" with nothing behind it is exactly the
-      // inconsistency the lender flags as "not a document I uploaded" — so every fabricated
-      // status here gets a matching seeded file, the same way IMGC-authored additional documents
-      // already do above.
-      if (uploaded) {
-        currentFileId = `${docId}_f1`;
-        documentFiles.push({
-          id: currentFileId,
-          documentId: docId,
-          accountId: account.id,
-          originalName: `${spec.name}.pdf`,
-          storedPath: "",
-          size: 214_016,
-          mime: "application/pdf",
-          uploadedBy: actorId,
-          uploadedByName: actorName,
-          uploadedAt: ago(Math.max(1, sc.daysAgo - 1)),
-          version: 1,
-        });
-      }
-
-      claimDocuments.push({
-        id: docId,
-        accountId: account.id,
-        claimId,
-        slug: spec.slug,
-        name: spec.name,
-        category: spec.category,
-        description: spec.description,
-        required: spec.required && applies,
-        multiple: spec.multiple ?? false,
-        conditional: Boolean(spec.condition),
-        conditionReason: spec.condition
-          ? conditionReason(spec.condition)
-          : undefined,
-        addedBy: "SYSTEM",
-        status: applies ? status : "PENDING_UPLOAD",
-        version: uploaded ? 1 : 0,
-        currentFileId,
-        review:
-          status === "APPROVED"
-            ? {
-                decision: "APPROVED",
-                by: "usr_emp1",
-                byName: "Meera Nair",
-                at: ago(1),
-                remarks: "Verified.",
-                version: 1,
-              }
-            : undefined,
-        active: true,
-        createdAt: ago(sc.daysAgo),
-      });
-    });
-
-    if (sc.query) {
-      claimQueries.push({
-        id: `qry_${claimId}`,
-        claimId,
-        reason: sc.query.reason,
-        remarks: sc.query.remarks,
-        requestedDocuments: [...sc.query.requested],
-        raisedById: "usr_emp1",
-        raisedByName: "Meera Nair",
-        raisedAt: ago(Math.max(1, sc.daysAgo - 3)),
-        respondedAt: sc.query.answered ? ago(1) : undefined,
-        respondedById: sc.query.answered ? actorId : undefined,
-        respondedByName: sc.query.answered ? actorName : undefined,
-        responseRemarks: sc.query.answered
-          ? "Re-scanned and resubmitted as requested."
-          : undefined,
-      });
-    }
-  });
-
-  return { claims, claimQueries };
-}

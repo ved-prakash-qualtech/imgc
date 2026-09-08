@@ -340,21 +340,28 @@ export function EligibleCasesClient({
     [accounts]
   );
 
-  const toggleSort = useCallback((key: SortKey) => {
-    setSortKey((prevKey) => {
-      setSortDirection((prevDir) => {
-        if (prevKey === key) {
-          if (prevDir === "asc") return "desc";
-          if (prevDir === "desc") {
-            setSortKey(null);
-            return null;
-          }
-        }
-        return "asc";
-      });
-      return key;
-    });
-  }, []);
+  // Reads `sortKey`/`sortDirection` from the render closure rather than nesting one setState
+  // call inside the other's updater (the previous version called `setSortDirection` from within
+  // `setSortKey`'s updater, and `setSortKey` again from within *that* — updater functions are
+  // meant to be pure, and React 18 can invoke them more than once per commit to check exactly
+  // that; nesting a nested setState call in one meant every second click skipped "descending"
+  // entirely and jumped straight back to unsorted). One plain read, one or two plain `set` calls.
+  const toggleSort = useCallback(
+    (key: SortKey) => {
+      if (sortKey !== key) {
+        setSortKey(key);
+        setSortDirection("asc");
+        return;
+      }
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+        return;
+      }
+      setSortKey(null);
+      setSortDirection(null);
+    },
+    [sortKey, sortDirection]
+  );
 
   const handleQueryChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
