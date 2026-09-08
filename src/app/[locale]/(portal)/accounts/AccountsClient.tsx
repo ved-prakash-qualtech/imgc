@@ -38,9 +38,12 @@ import type { AccountRow } from "@/services/portal/accounts.server";
 import type { Role } from "@/server/mock/types";
 
 const BUCKETS = ["ALL", "IMGC", "LENDER"] as const;
-// "UNDER_PROGRESS" is a composite (not a real `claimStatus` value) — the same grouping the Claims
-// Overview band's own "Under Progress" tile counts, so a click on that tile and this filter always
-// agree. "APPROVED" also matches a "CLOSED" account below, for the same reason.
+// "UNDER_PROGRESS" and "ACTIVE" are composites (not real `claimStatus` values): "UNDER_PROGRESS"
+// is the same grouping the Claims Overview band's own "Under Progress" tile counts, so a click on
+// that tile and this filter always agree; "ACTIVE" reads the account's own `isActive` flag
+// (not-closed and touched within 8 days — same definition the Dashboard's "Active" ring and
+// DpdClient's own "Active" filter use). "APPROVED" also matches a "CLOSED" account below, for the
+// same reason "UNDER_PROGRESS" exists.
 const STATUSES = [
   "ALL",
   "DRAFT",
@@ -52,6 +55,7 @@ const STATUSES = [
   "APPROVED",
   "REJECTED",
   "CLOSED",
+  "ACTIVE",
 ] as const;
 /** Same four in-flight statuses `summariseClaimOverview`'s own "Under Progress" bucket counts. */
 const UNDER_PROGRESS_STATUSES = new Set<string>([
@@ -318,6 +322,11 @@ export function AccountsClient({
         // applies (closest terminal-success bucket), so this filter's rows always match what the
         // "Claim Approved" tile counted.
         if (a.claimStatus !== "APPROVED" && a.claimStatus !== "CLOSED") return false;
+      } else if (status === "ACTIVE") {
+        // Not a `claimStatus` value — reads the account's own `isActive` flag (not closed, and
+        // touched within the last 8 days), same definition the Dashboard's "Active" ring and
+        // DpdClient's own "Active" filter use.
+        if (!a.isActive) return false;
       } else if (status !== "ALL" && a.claimStatus !== status) {
         return false;
       }

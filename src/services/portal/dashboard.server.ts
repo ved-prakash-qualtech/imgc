@@ -82,6 +82,13 @@ export interface ClaimPipelineKpis {
   overdueQueries: number;
 }
 
+export interface PriorityAccount {
+  id: string;
+  loanNo: string;
+  borrowerName: string;
+  loanAmount: number;
+}
+
 export interface DashboardSummary {
   accountCount: number;
   documentsIn: number;
@@ -118,6 +125,8 @@ export interface DashboardSummary {
   claimPipeline: ClaimPipelineKpis;
   /** IMGC only — the portfolio-wide command center at the top of the dashboard. */
   portfolio?: PortfolioSummary;
+  /** Lender only — top 5 high-value accounts requiring priority attention */
+  priorityAccounts?: PriorityAccount[];
 }
 
 function daysSince(iso: string): number {
@@ -540,7 +549,7 @@ export async function buildDashboardSummary(
       label: "Active",
       value: activeCount,
       tone: "success",
-      href: withLender("/dpd"),
+      href: withLender("/dpd?loanStatus=Active"),
     },
   ];
 
@@ -555,18 +564,9 @@ export async function buildDashboardSummary(
     {
       key: "in-progress",
       label: "Loan In Progress",
-      // Every account except the four stages that already have their own, more specific place on
-      // the dashboard: "New" (no claim yet), "Rejected", "Expired" (overdue query), and whatever
-      // "Active Loans" below counts. What's left — Underwriting, Pre Offer, Queried-but-not-
-      // overdue, Approved/Closed — is genuinely "somewhere in the claim pipeline right now".
-      value:
-        accounts.length -
-        notStartedCount -
-        claimStatusCount("REJECTED") -
-        expiredCount -
-        claimStatusCount("SUBMITTED"),
+      value: notStartedCount + claimStatusCount("DRAFT") + queriedCount + approvedCount,
       total: accounts.length || 1,
-      href: withLender("/dpd"),
+      href: withLender("/dpd?loanStatus=In%20Progress"),
     },
     {
       key: "submitted",
@@ -681,5 +681,20 @@ export async function buildDashboardSummary(
     // function produces the right numbers either way.
     portfolio: buildPortfolioSummary(accounts, lastTouch),
     claimPipeline,
+    priorityAccounts:
+      session.role === "LENDER"
+        ? accounts
+            .filter((a) => (a.dpd ?? 0) > 90)
+            .sort(
+              (a, b) => b.loanAmount - a.loanAmount || a.id.localeCompare(b.id)
+            )
+            .slice(0, 5)
+            .map((a) => ({
+              id: a.id,
+              loanNo: a.loanNo,
+              borrowerName: a.borrowerName,
+              loanAmount: a.loanAmount,
+            }))
+        : undefined,
   };
 }

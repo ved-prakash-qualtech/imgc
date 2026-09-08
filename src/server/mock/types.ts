@@ -27,7 +27,8 @@ export type ClaimStatus =
   | "REJECTED"
   | "CLOSED"
   // Retained: `Account.claimStatus` predates the Claim entity and still uses it.
-  | "QUERIED";
+  | "QUERIED"
+  | "ACTIVE";
 
 /** Which of the configured claim types a claim is. Values come from `config/claimConfig`. */
 export type ClaimTypeKey = "INITIAL" | "SUBSEQUENT";
