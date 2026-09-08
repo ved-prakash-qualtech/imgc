@@ -415,6 +415,15 @@ export function EligibleCasesClient({
             )
           );
         }
+        // "APPROVED" also matches CLOSED — same fold `summariseClaimOverview` applies to its own
+        // "approved" tile (closest terminal-success bucket), so this filter's rows always match
+        // what the "Claim Approved" tile counted.
+        if (status === "APPROVED") {
+          return (
+            !isNotStarted(a) &&
+            (a.claim?.status === "APPROVED" || a.claim?.status === "CLOSED")
+          );
+        }
         return !isNotStarted(a) && a.claim?.status === (status as ClaimStatus);
       });
     }

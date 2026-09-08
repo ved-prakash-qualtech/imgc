@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth/appSession";
 import { sweepExpiredRejections } from "@/server/mock/retention";
 import { listAccounts } from "@/services/portal/accounts.server";
 import { buildDashboardSummary } from "@/services/portal/dashboard.server";
-import { getLenderOrgById } from "@/services/portal/users.server";
+import { getLenderOrgById, listLenderOrgs } from "@/services/portal/users.server";
 
 export const dynamic = "force-dynamic";
 
@@ -15,12 +15,17 @@ export default async function DashboardPage() {
   // way in. A no-op unless something has actually aged out.
   await sweepExpiredRejections();
 
-  const [, summary, org] = await Promise.all([
+  const [, summary, org, lenderOrgs] = await Promise.all([
     listAccounts(session),
     buildDashboardSummary(session),
     session.role === "LENDER"
       ? getLenderOrgById(session.lenderOrgId)
       : Promise.resolve(null),
+    // Only IMGC's "every lender" hero banner has a lender dropdown to populate — same master list
+    // of lender organisations IMGC already manages everywhere else (Lender Access, Claims, All
+    // Loans), not a separate hard-coded subset — whatever lender is "available" here is exactly
+    // whatever's available on those other screens too.
+    session.role === "IMGC" ? listLenderOrgs() : Promise.resolve([]),
   ]);
 
   return (
@@ -34,6 +39,7 @@ export default async function DashboardPage() {
             : `${org?.name ?? "Lender"} claims workspace`
         }
         summary={summary}
+        lenderOrgs={lenderOrgs}
       />
     </PortalShell>
   );

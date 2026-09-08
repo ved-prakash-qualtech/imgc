@@ -38,7 +38,28 @@ import type { AccountRow } from "@/services/portal/accounts.server";
 import type { Role } from "@/server/mock/types";
 
 const BUCKETS = ["ALL", "IMGC", "LENDER"] as const;
-const STATUSES = ["ALL", "DRAFT", "SUBMITTED", "APPROVED", "QUERIED"] as const;
+// "UNDER_PROGRESS" is a composite (not a real `claimStatus` value) — the same grouping the Claims
+// Overview band's own "Under Progress" tile counts, so a click on that tile and this filter always
+// agree. "APPROVED" also matches a "CLOSED" account below, for the same reason.
+const STATUSES = [
+  "ALL",
+  "DRAFT",
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "QUERIED",
+  "DOCUMENTS_RESUBMITTED",
+  "UNDER_PROGRESS",
+  "APPROVED",
+  "REJECTED",
+  "CLOSED",
+] as const;
+/** Same four in-flight statuses `summariseClaimOverview`'s own "Under Progress" bucket counts. */
+const UNDER_PROGRESS_STATUSES = new Set<string>([
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "QUERIED",
+  "DOCUMENTS_RESUBMITTED",
+]);
 
 /** A coarse credit classification derived from the flags we actually carry — not a fourth
  *  status field, so it can never drift from what `npa`/`writeOff` already say. */
@@ -135,8 +156,23 @@ function assetClassDisplay(v: (typeof ASSET_CLASSES)[number]): string {
   return v === "ALL" ? "All classes" : ASSET_CLASS_LABEL[v];
 }
 
+/** Which `?status=` values are real filter options — the Claims Overview band links here with
+ *  one of these; anything else (or none) falls back to "ALL" rather than silently filtering
+ *  wrong. */
+function statusFromParam(value: string | null): (typeof STATUSES)[number] {
+  return (STATUSES as readonly string[]).includes(value ?? "")
+    ? (value as (typeof STATUSES)[number])
+    : "ALL";
+}
+
 function statusDisplay(v: (typeof STATUSES)[number]): string {
-  return v === "ALL" ? "All Loan Statuses" : v.toLowerCase();
+  if (v === "ALL") return "All Loan Statuses";
+  if (v === "UNDER_PROGRESS") return "Under progress";
+  return v
+    .toLowerCase()
+    .split("_")
+    .map((w) => w[0]!.toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 function purposeDisplay(v: string): string {
@@ -216,8 +252,8 @@ export function AccountsClient({
   const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>(
     (searchParams.get("bucket") as (typeof BUCKETS)[number] | null) ?? "ALL"
   );
-  const [status, setStatus] = useState<(typeof STATUSES)[number]>(
-    (searchParams.get("status") as (typeof STATUSES)[number] | null) ?? "ALL"
+  const [status, setStatus] = useState<(typeof STATUSES)[number]>(() =>
+    statusFromParam(searchParams.get("status"))
   );
   const [assetClass, setAssetClass] = useState<(typeof ASSET_CLASSES)[number]>(
     (searchParams.get("assetClass") as (typeof ASSET_CLASSES)[number] | null) ??
@@ -229,6 +265,22 @@ export function AccountsClient({
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
+
+  // A Claims Overview tile navigates here client-side (same route, new `?status=`) — this
+  // component doesn't remount for that, so the lazy useState initializer above only ran once on
+  // first load. Re-sync during render when the param actually changes (React's own pattern for
+  // "adjust state when a prop changes"), or a click updates the URL and the grid silently keeps
+  // showing the old filter — see EligibleCasesClient.tsx's identical fix for the Lender's own
+  // Claim page, which had the same bug.
+  const [prevStatusParam, setPrevStatusParam] = useState(
+    searchParams.get("status")
+  );
+  const statusParam = searchParams.get("status");
+  if (statusParam !== prevStatusParam) {
+    setPrevStatusParam(statusParam);
+    setStatus(statusFromParam(statusParam));
+    setPage(1);
+  }
 
   const products = useMemo(
     () => Array.from(new Set(accounts.map((a) => a.product))).sort(),
@@ -259,7 +311,16 @@ export function AccountsClient({
     const q = query.trim().toLowerCase();
     let result = accounts.filter((a) => {
       if (bucket !== "ALL" && a.bucket !== bucket) return false;
-      if (status !== "ALL" && a.claimStatus !== status) return false;
+      if (status === "UNDER_PROGRESS") {
+        if (!UNDER_PROGRESS_STATUSES.has(a.claimStatus)) return false;
+      } else if (status === "APPROVED") {
+        // Folds "CLOSED" in too — same fold `summariseClaimOverview`'s own "approved" bucket
+        // applies (closest terminal-success bucket), so this filter's rows always match what the
+        // "Claim Approved" tile counted.
+        if (a.claimStatus !== "APPROVED" && a.claimStatus !== "CLOSED") return false;
+      } else if (status !== "ALL" && a.claimStatus !== status) {
+        return false;
+      }
       if (assetClass !== "ALL" && assetClassOf(a) !== assetClass) return false;
       if (product !== "ALL" && a.product !== product) return false;
       if (!dpdInBand(a.dpd, dpdBand)) return false;

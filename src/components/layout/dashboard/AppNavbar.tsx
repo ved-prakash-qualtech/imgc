@@ -78,7 +78,7 @@ export function AppNavbar({
             type="button"
             onClick={onMenuClick}
             aria-label="Open navigation"
-            className="cursor-pointer text-neutral-500 hover:text-neutral-800"
+            className="cursor-pointer text-neutral-500 hover:text-neutral-800 md:hidden"
           >
             <MenuIcon className="size-5" />
           </button>

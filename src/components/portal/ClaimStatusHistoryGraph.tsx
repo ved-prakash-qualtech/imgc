@@ -1,6 +1,7 @@
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 
 import { CLAIM_STATUS_LABELS } from "@/config/claimConfig";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { ClaimStatusEntry } from "@/server/mock/types";
 
@@ -46,6 +47,10 @@ function collapseConsecutive(
  * by a connecting line — that earlier design either had to scroll horizontally forever, or wrap
  * and leave the second row's dots misaligned under the first row's. A wrapping run of pills has
  * no such alignment to keep, so it never needs either.
+ *
+ * The timestamp lives in a hover tooltip rather than as a second line under every pill — a tight
+ * row of small pills reads faster than one padded out with a date most people only need to check
+ * occasionally, and it's still one hover away for whoever does.
  */
 export function ClaimStatusHistoryGraph({
   history,
@@ -61,7 +66,7 @@ export function ClaimStatusHistoryGraph({
   }
 
   return (
-    <ol className="flex flex-wrap items-center gap-y-3">
+    <ol className="flex flex-wrap items-center gap-y-2">
       {entries.map((entry, i) => {
         const isCurrent = i === entries.length - 1;
         return (
@@ -69,52 +74,54 @@ export function ClaimStatusHistoryGraph({
             key={`${entry.status}-${entry.at}-${i}`}
             className="flex items-center"
           >
-            <div
-              className={cn(
-                "flex items-center gap-2 rounded-full border px-3 py-1.5",
-                isCurrent
-                  ? "border-brand-primary/50 bg-brand-light/70"
-                  : "border-neutral-200 bg-neutral-100"
-              )}
-            >
-              <span
-                className={cn(
-                  "relative grid size-6 shrink-0 place-items-center rounded-full text-white",
-                  isCurrent ? "bg-brand-primary" : "bg-success-500"
-                )}
-              >
-                {isCurrent ? (
-                  <span className="absolute inline-flex size-6 animate-ping rounded-full bg-brand-primary/50" />
-                ) : null}
-                <span className="relative">
-                  {isCurrent ? (
-                    <span className="text-[9.5px] font-bold">{i + 1}</span>
-                  ) : (
-                    <CheckIcon className="size-3.5" strokeWidth={3} />
-                  )}
-                </span>
-              </span>
-              <div>
-                <p
-                  className={cn(
-                    "text-[12.5px] leading-tight font-semibold whitespace-nowrap",
-                    isCurrent ? "text-brand-primary" : "text-neutral-900"
-                  )}
-                >
-                  {CLAIM_STATUS_LABELS[entry.status]}
-                  {isCurrent && (
-                    <span className="ml-1.5 rounded-full bg-brand-primary/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-brand-primary uppercase">
-                      Current
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <div
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full border px-2 py-1",
+                      isCurrent
+                        ? "border-brand-primary/50 bg-brand-light/70"
+                        : "border-neutral-200 bg-neutral-100"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "relative grid size-4 shrink-0 place-items-center rounded-full text-white",
+                        isCurrent ? "bg-brand-primary" : "bg-success-500"
+                      )}
+                    >
+                      {isCurrent ? (
+                        <span className="absolute inline-flex size-4 animate-ping rounded-full bg-brand-primary/50" />
+                      ) : null}
+                      <span className="relative grid place-items-center leading-none">
+                        {isCurrent ? (
+                          <span className="text-[8px] leading-none font-bold">{i + 1}</span>
+                        ) : (
+                          <CheckIcon className="size-2.5" strokeWidth={3} />
+                        )}
+                      </span>
                     </span>
-                  )}
-                </p>
-                <p className="text-[10.5px] leading-tight whitespace-nowrap text-neutral-500">
-                  {when(entry.at)}
-                </p>
-              </div>
-            </div>
+                    <p
+                      className={cn(
+                        "text-[11px] leading-tight font-semibold whitespace-nowrap",
+                        isCurrent ? "text-brand-primary" : "text-neutral-900"
+                      )}
+                    >
+                      {CLAIM_STATUS_LABELS[entry.status]}
+                      {isCurrent && (
+                        <span className="ml-1 rounded-full bg-brand-primary/15 px-1 py-0.5 text-[8px] font-bold tracking-wide text-brand-primary uppercase">
+                          Current
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                }
+              />
+              <TooltipContent>{when(entry.at)}</TooltipContent>
+            </Tooltip>
             {i < entries.length - 1 && (
-              <ChevronRightIcon className="mx-1.5 size-4 shrink-0 text-neutral-300" />
+              <ChevronRightIcon className="mx-1 size-3.5 shrink-0 text-neutral-400" />
             )}
           </li>
         );

@@ -1,8 +1,12 @@
+"use client";
+
 import Link from "next/link";
+import { useState, useTransition } from "react";
 import {
   ActivityIcon,
   AlertTriangleIcon,
   CheckCircle2Icon,
+  ChevronDownIcon,
   ClipboardListIcon,
   ClockIcon,
   FilePlus2Icon,
@@ -13,6 +17,7 @@ import {
   XCircleIcon,
 } from "lucide-react";
 
+import { getDashboardSummaryForLender } from "@/app/[locale]/(portal)/dashboard/actions";
 import { CommandBand, Section } from "@/components/portal/CommandBand";
 import { Donut } from "@/components/portal/Donut";
 import { Panel } from "@/components/portal/Panel";
@@ -21,7 +26,7 @@ import { cn } from "@/lib/utils/twMergeUtils";
 
 import type { DashboardSummary } from "@/services/portal/dashboard.server";
 import type { Tile } from "@/services/portal/dashboard.server";
-import type { Role } from "@/server/mock/types";
+import type { LenderOrg, Role } from "@/server/mock/types";
 
 /* ── tokens for the soft-tint tiles ────────────────────────────────── */
 
@@ -93,21 +98,69 @@ type Props = Readonly<{
   firstName: string;
   workspace: string;
   summary: DashboardSummary;
+  /** IMGC only — the master list the hero banner's lender dropdown is populated from. Empty for a
+   *  lender session, which has no "every lender" aggregate to narrow in the first place. */
+  lenderOrgs: readonly LenderOrg[];
 }>;
 
-export function DashboardView({ role, summary }: Props) {
+/** "Every Lender" in the dropdown maps to `null` (no filter) when calling the server action —
+ *  a real lender org id is never this value, so it's safe as the sentinel. */
+const EVERY_LENDER = "ALL";
+
+export function DashboardView({ role, summary: initialSummary, lenderOrgs }: Props) {
   const isLender = role === "LENDER";
+
+  // The hero banner's own lender filter — IMGC only. `summary` starts as whatever the server
+  // rendered and is swapped out in place on selection, so switching lenders updates the whole
+  // page (this band, Portfolio overview, Aging overview) without a navigation or full reload.
+  const [selectedLenderId, setSelectedLenderId] = useState<string>(EVERY_LENDER);
+  const [summary, setSummary] = useState<DashboardSummary>(initialSummary);
+  const [isPending, startTransition] = useTransition();
+
+  const selectedLenderName =
+    selectedLenderId === EVERY_LENDER
+      ? null
+      : (lenderOrgs.find((o) => o.id === selectedLenderId)?.name ?? null);
+
+  function handleLenderChange(next: string) {
+    setSelectedLenderId(next);
+    startTransition(async () => {
+      const nextSummary = await getDashboardSummaryForLender(
+        next === EVERY_LENDER ? null : next
+      );
+      setSummary(nextSummary);
+    });
+  }
 
   return (
     <div className="space-y-6">
       {/* ── In progress claim cases — same band, both roles: a lender's own book, every
           lender's for IMGC ─────────────────────────────────────────────────────────── */}
       <CommandBand
-        title={isLender ? "In progress claim cases" : "In progress claim cases — every lender"}
+        title={
+          isLender
+            ? "In progress claim cases"
+            : `In progress claim cases — ${selectedLenderName ?? "every lender"}`
+        }
         subtitle="Where every account currently stands"
         stats={[]}
+        action={
+          !isLender && lenderOrgs.length > 0 ? (
+            <LenderFilterSelect
+              lenderOrgs={lenderOrgs}
+              value={selectedLenderId}
+              onChange={handleLenderChange}
+              disabled={isPending}
+            />
+          ) : undefined
+        }
       >
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
+        <div
+          className={cn(
+            "grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8 transition-opacity",
+            isPending && "opacity-60"
+          )}
+        >
           {summary.progressTiles.map((tile) => (
             <ProgressTileCard key={tile.key} tile={tile} />
           ))}
@@ -119,7 +172,12 @@ export function DashboardView({ role, summary }: Props) {
         title="Portfolio overview"
         subtitle="Claim and document counts against their totals"
       >
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          className={cn(
+            "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 transition-opacity",
+            isPending && "opacity-60"
+          )}
+        >
           {summary.rings.map((ring) => {
               const tone = RING_TONE[ring.key];
               const style = tone ? RING_TONE_STYLE[tone] : undefined;
@@ -196,7 +254,10 @@ export function DashboardView({ role, summary }: Props) {
         title="Aging overview — open cases"
         subtitle="Days since anything last happened on the account"
       >
-        <Panel size="compact" className="p-5 shadow-md">
+        <Panel
+          size="compact"
+          className={cn("p-5 shadow-md transition-opacity", isPending && "opacity-60")}
+        >
             {/* One bar for the whole open pipeline — where four near-identical cards used to make
                 an empty band (0%) look like broken UI, a single stacked bar reads "everything's
                 piled up in one place" at a glance, which is the actual finding here. */}
@@ -245,6 +306,46 @@ export function DashboardView({ role, summary }: Props) {
           </Panel>
       </Section>
 
+    </div>
+  );
+}
+
+/**
+ * The hero banner's own lender filter — a compact translucent pill matching the dark band's
+ * existing chip language (same `bg-white/…` treatment `BandStat`/`ProgressTileCard` use), not the
+ * light-page filter pills the rest of the portal uses elsewhere (those assume a white background,
+ * this one sits directly on the gradient). A plain native `<select>` — same choice `DpdClient`'s
+ * own filter pills make — keeps it keyboard/native-accessible without pulling in the full popover
+ * `Select` primitive for one field.
+ */
+function LenderFilterSelect({
+  lenderOrgs,
+  value,
+  onChange,
+  disabled,
+}: Readonly<{
+  lenderOrgs: readonly LenderOrg[];
+  value: string;
+  onChange: (next: string) => void;
+  disabled?: boolean;
+}>) {
+  return (
+    <div className="relative">
+      <select
+        aria-label="Filter by lender"
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-8 appearance-none rounded-full border border-white/20 bg-white/10 py-0 pr-7 pl-3 text-[12.5px] font-medium text-white outline-none backdrop-blur-sm transition-colors hover:bg-white/15 focus:border-white/40 focus:ring-2 focus:ring-white/20 disabled:cursor-not-allowed disabled:opacity-60 [&>option]:text-neutral-900"
+      >
+        <option value={EVERY_LENDER}>Every Lender</option>
+        {lenderOrgs.map((org) => (
+          <option key={org.id} value={org.id}>
+            {org.name}
+          </option>
+        ))}
+      </select>
+      <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-white/70" />
     </div>
   );
 }

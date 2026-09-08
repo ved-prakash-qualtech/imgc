@@ -1,5 +1,9 @@
 import "server-only";
 
+/* eslint-disable security/detect-non-literal-fs-filename -- every path here is built from
+   `process.cwd()`/"/tmp" plus fixed literal segments (see DATA_DIR/DB_FILE/SEED_FILE below), never
+   from request input; the env-conditional branch for the serverless data dir is enough to defeat
+   the lint rule's literal-tracking, not an actual path-injection risk. */
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
@@ -10,9 +14,25 @@ import { buildSeed } from "@/server/mock/seed";
  * Prototype persistence: the whole domain in one JSON file under `.data/`, plus uploaded files
  * under `.data/uploads/`. Single process, no concurrency guarantees beyond the in-process write
  * queue below — deliberately simple, and the seam a real build replaces with QCP services.
+ *
+ * Serverless note: on Vercel (and Lambda generally) the deployed bundle — `process.cwd()`,
+ * where `.data/imgc-db.json` ships checked into the repo — is a read-only filesystem. A plain
+ * `readFile` against it succeeds (that's why every page that only *reads* — Dashboard, All Loans,
+ * Claims — works fine once deployed), but `fs.writeFile` on it throws `EROFS`, which is exactly
+ * what "Initiate Claim" hits the moment it calls `writeDb` to persist a new claim: the crash is
+ * real, not flaky, and only ever shows up on a write path. `/tmp` is the one directory Vercel's
+ * functions can actually write to, so that's where every write goes instead — reads still fall
+ * back to the bundled seed the first time. `/tmp` is itself ephemeral (wiped on cold start, and
+ * not shared across concurrent instances), so this stops the crash and makes demo writes work
+ * within a warm instance, but it is not durable storage: a real deployment needs this file swapped
+ * for an actual database, same as the other stand-ins this template documents.
  */
-
-const DATA_DIR = path.join(process.cwd(), ".data");
+const IS_SERVERLESS = Boolean(
+  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+);
+const SEED_DIR = path.join(process.cwd(), ".data");
+const SEED_FILE = path.join(SEED_DIR, "imgc-db.json");
+const DATA_DIR = IS_SERVERLESS ? path.join("/tmp", "imgc-data") : SEED_DIR;
 const DB_FILE = path.join(DATA_DIR, "imgc-db.json");
 export const UPLOAD_DIR = path.join(DATA_DIR, "uploads");
 
@@ -31,11 +51,20 @@ async function load(): Promise<MockDb> {
   try {
     const raw = await fs.readFile(DB_FILE, "utf8");
     cache = JSON.parse(raw) as MockDb;
+    return cache;
   } catch {
-    cache = buildSeed();
+    // No writable copy yet. On serverless, prefer copying the bundled seed (read-only but always
+    // present) over rebuilding from scratch, so a first write doesn't reset demo data that was
+    // already checked in — falls back to `buildSeed()` only if even that bundled file is missing.
+    try {
+      const seedRaw = await fs.readFile(SEED_FILE, "utf8");
+      cache = JSON.parse(seedRaw) as MockDb;
+    } catch {
+      cache = buildSeed();
+    }
     await fs.writeFile(DB_FILE, JSON.stringify(cache, null, 2), "utf8");
+    return cache;
   }
-  return cache;
 }
 
 async function persist(db: MockDb): Promise<void> {

@@ -19,9 +19,9 @@ const CLAIM_OVERVIEW_HREFS: Record<keyof ClaimOverviewCounts, string> = {
   total: ROUTES.initiateClaim,
   initiation: `${ROUTES.initiateClaim}?status=INITIATION`,
   underProgress: `${ROUTES.initiateClaim}?status=UNDER_PROGRESS`,
+  // Folds CLOSED in too — see `summariseClaimOverview`'s own comment on why.
   approved: `${ROUTES.initiateClaim}?status=APPROVED`,
   rejected: `${ROUTES.initiateClaim}?status=REJECTED`,
-  paid: `${ROUTES.initiateClaim}?status=CLOSED`,
 };
 
 export const dynamic = "force-dynamic";

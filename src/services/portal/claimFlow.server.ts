@@ -189,16 +189,20 @@ export interface ClaimOverviewCounts {
   underProgress: number;
   approved: number;
   rejected: number;
-  /** Stand-in for "paid" — the claim workflow has no PAID status yet, so a CLOSED claim is the
-   *  closest real signal until that concept exists. */
-  paid: number;
 }
 
 /**
- * The same five mutually-exclusive buckets, over whatever universe of accounts the caller
+ * The same four mutually-exclusive buckets, over whatever universe of accounts the caller
  * considers "in scope" (the Claim page's own eligible-accounts row set; the Dashboard's
  * lender/IMGC-scoped account set) — one function, so the Claim page and the Dashboard can never
  * quietly disagree about what "under progress" or "approved" means.
+ *
+ * `CLOSED` folds into `approved` — the same fold `classifyLoanStatus` (accounts.server.ts) and
+ * the Dashboard's own "Approved" KPI already apply (closest terminal-success bucket, since the
+ * claim workflow has no separate PAID status). A `CLOSED` claim used to fall into a `paid` bucket
+ * this band never rendered a tile for — invisible in the KPI band even though the same account
+ * reads "Approved" everywhere else in the app (Dashboard, All Loans) — so the four visible tiles
+ * silently undercounted against "total" whenever any claim had actually reached CLOSED.
  */
 export function summariseClaimOverview(
   rows: ReadonlyArray<{ claim: { status: ClaimStatus } | null }>
@@ -207,15 +211,13 @@ export function summariseClaimOverview(
   let underProgress = 0;
   let approved = 0;
   let rejected = 0;
-  let paid = 0;
 
   for (const row of rows) {
     const status = row.claim?.status;
     if (!status || status === "DRAFT") initiation += 1;
     else if (UNDER_PROGRESS_STATUSES.has(status)) underProgress += 1;
-    else if (status === "APPROVED") approved += 1;
+    else if (status === "APPROVED" || status === "CLOSED") approved += 1;
     else if (status === "REJECTED") rejected += 1;
-    else if (status === "CLOSED") paid += 1;
   }
 
   return {
@@ -224,7 +226,6 @@ export function summariseClaimOverview(
     underProgress,
     approved,
     rejected,
-    paid,
   };
 }
 

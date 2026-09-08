@@ -245,10 +245,11 @@ export function AppSidebar({
   if (overlay) {
     return (
       <>
-        {/* Backdrop */}
+        {/* Backdrop — md:hidden because this whole mode only exists for the mobile drawer; the
+            rail below is what desktop/tablet always shows instead. */}
         {open && (
           <div
-            className="fixed inset-0 z-40 bg-black/40"
+            className="fixed inset-0 z-40 bg-black/40 md:hidden"
             aria-hidden
             onClick={onClose}
           />
@@ -257,7 +258,7 @@ export function AppSidebar({
         {/* Drawer panel */}
         <aside
           className={cn(
-            "fixed left-0 top-0 z-50 flex h-full w-sidebar-w flex-col bg-sidebar-bg text-white shadow-2xl transition-transform duration-200",
+            "fixed left-0 top-0 z-50 flex h-full w-sidebar-w flex-col bg-sidebar-bg text-white shadow-2xl transition-transform duration-200 md:hidden",
             open ? "translate-x-0" : "-translate-x-full"
           )}
         >
@@ -277,7 +278,9 @@ export function AppSidebar({
   return (
     <aside
       className={cn(
-        "sticky top-0 flex h-screen shrink-0 flex-col bg-sidebar-bg text-white transition-[width] duration-200",
+        // Hidden below md — a mobile viewport gets the overlay drawer above instead, opened via
+        // the navbar's hamburger button; this rail is the desktop/tablet-width experience.
+        "sticky top-0 hidden h-screen shrink-0 flex-col bg-sidebar-bg text-white transition-[width] duration-200 md:flex",
         isCollapsed ? "w-16" : "w-sidebar-w"
       )}
     >
