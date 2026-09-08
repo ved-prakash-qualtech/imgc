@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { DownloadIcon, SearchIcon, UserPlusIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, ArrowUpDownIcon, DownloadIcon, SearchIcon, UserPlusIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { grantLenderAccessAction } from "@/app/[locale]/(portal)/admin/users/actions";
@@ -27,6 +27,53 @@ import {
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { LenderOrg } from "@/server/mock/types";
 import type { UserRow } from "@/services/portal/users.server";
+
+type SortKey = "name" | "email" | "role" | "organization" | "status";
+type SortDirection = "asc" | "desc" | null;
+
+const SortIcon = ({
+  column,
+  sortKey,
+  sortDirection,
+}: {
+  column: SortKey;
+  sortKey: SortKey | null;
+  sortDirection: SortDirection;
+}) => {
+  if (sortKey !== column)
+    return <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />;
+  return sortDirection === "asc" ? (
+    <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+  ) : (
+    <ArrowDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+  );
+};
+
+const SortableTableHead = ({
+  column,
+  label,
+  sortKey,
+  sortDirection,
+  onToggle,
+  className,
+}: {
+  column: SortKey;
+  label: string;
+  sortKey: SortKey | null;
+  sortDirection: SortDirection;
+  onToggle: (k: SortKey) => void;
+  className?: string;
+}) => (
+  <TableHead
+    onClick={() => onToggle(column)}
+    className={`h-8 cursor-pointer select-none px-1.5 text-[10.5px] transition-colors hover:bg-neutral-50 ${className || ""}`}
+  >
+    <div className="flex items-center">
+      {label}
+      <SortIcon column={column} sortKey={sortKey} sortDirection={sortDirection} />
+    </div>
+  </TableHead>
+);
 
 /** Escapes a value for one CSV field. */
 function csvField(value: string): string {
@@ -85,6 +132,25 @@ export function UsersClient({
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+
+  const toggleSort = useCallback(
+    (key: SortKey) => {
+      if (sortKey !== key) {
+        setSortKey(key);
+        setSortDirection("asc");
+        return;
+      }
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+        return;
+      }
+      setSortKey(null);
+      setSortDirection(null);
+    },
+    [sortKey, sortDirection]
+  );
 
   const handleQueryChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -100,13 +166,37 @@ export function UsersClient({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter((u) =>
-      `${u.name} ${u.email} ${u.role} ${u.lenderOrgName ?? ""}`
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [users, query]);
+    let result = users;
+    if (q) {
+      result = users.filter((u) =>
+        `${u.name} ${u.email} ${u.role} ${u.lenderOrgName ?? ""}`
+          .toLowerCase()
+          .includes(q)
+      );
+    }
+
+    if (sortKey && sortDirection) {
+      result = [...result].sort((a, b) => {
+        let valA: string | number;
+        let valB: string | number;
+        switch (sortKey) {
+          case "name": valA = a.name; valB = b.name; break;
+          case "email": valA = a.email; valB = b.email; break;
+          case "role": valA = a.role; valB = b.role; break;
+          case "organization": valA = a.lenderOrgName ?? ""; valB = b.lenderOrgName ?? ""; break;
+          case "status": valA = a.role === "IMGC" ? 0 : 1; valB = b.role === "IMGC" ? 0 : 1; break;
+        }
+        if (typeof valA === "string" && typeof valB === "string") {
+          valA = valA.toLowerCase();
+          valB = valB.toLowerCase();
+        }
+        if (valA < valB) return sortDirection === "asc" ? -1 : 1;
+        if (valA > valB) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return result;
+  }, [users, query, sortKey, sortDirection]);
 
   const pageCount = Math.ceil(filtered.length / pageSize) || 1;
   const currentPage = Math.min(page, pageCount);
@@ -197,11 +287,19 @@ export function UsersClient({
                   (new domains only)
                 </span>
               </span>
-              <input
+              <select
                 name="orgName"
-                placeholder="HDFC Bank"
-                className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-              />
+                className="h-9 w-full appearance-none rounded-lg border border-neutral-200 bg-white px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              >
+                <option value="">Select a lender...</option>
+                <option value="HDFC Bank">HDFC Bank</option>
+                <option value="ICICI Bank">ICICI Bank</option>
+                <option value="Axis Bank">Axis Bank</option>
+                <option value="Kotak Bank">Kotak Bank</option>
+                <option value="Yes Bank">Yes Bank</option>
+                <option value="Sunrise Housing Finance">Sunrise Housing Finance</option>
+                <option value="PQR Finance">PQR Finance</option>
+              </select>
             </label>
             <Button type="submit" size="sm" disabled={pending}>
               Grant access
@@ -234,11 +332,11 @@ export function UsersClient({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Name</TableHead>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Email</TableHead>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Role</TableHead>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Organisation</TableHead>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Sign-in</TableHead>
+                <SortableTableHead column="name" label="Name" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                <SortableTableHead column="email" label="Email" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                <SortableTableHead column="role" label="Role" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                <SortableTableHead column="organization" label="Organisation" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                <SortableTableHead column="status" label="Sign-in" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -249,36 +347,36 @@ export function UsersClient({
                   </TableCell>
                 </TableRow>
               ) : (
-              currentUsers.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
-                    {u.name}
-                  </TableCell>
-                  <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-600">
-                    {u.email}
-                  </TableCell>
-                  <TableCell className="px-1.5 py-1.5">
-                    <span
-                      className={cn(
-                        "rounded px-1.5 py-0.5 text-[10.5px] font-semibold whitespace-nowrap",
-                        u.role === "IMGC"
-                          ? "bg-brand-muted text-brand-dark"
-                          : "bg-warning/15 text-warning"
-                      )}
-                    >
-                      {u.role}
-                    </span>
-                  </TableCell>
-                  <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-600">
-                    {u.lenderOrgName ?? "IMGC"}
-                  </TableCell>
-                  <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-500">
-                    {u.role === "IMGC"
-                      ? `Employee ID ${u.employeeId}`
-                      : "Email one-time code"}
-                  </TableCell>
-                </TableRow>
-              )))}
+                currentUsers.map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
+                      {u.name}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-600">
+                      {u.email}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5">
+                      <span
+                        className={cn(
+                          "rounded px-1.5 py-0.5 text-[10.5px] font-semibold whitespace-nowrap",
+                          u.role === "IMGC"
+                            ? "bg-brand-muted text-brand-dark"
+                            : "bg-warning/15 text-warning"
+                        )}
+                      >
+                        {u.role}
+                      </span>
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-600">
+                      {u.lenderOrgName ?? "IMGC"}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-500">
+                      {u.role === "IMGC"
+                        ? `Employee ID ${u.employeeId}`
+                        : "Email one-time code"}
+                    </TableCell>
+                  </TableRow>
+                )))}
             </TableBody>
           </Table>
         </div>

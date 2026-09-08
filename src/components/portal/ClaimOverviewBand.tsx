@@ -21,12 +21,12 @@ import type { ClaimOverviewCounts } from "@/services/portal/claimFlow.server";
 type Tone = "blue" | "amber" | "violet" | "green" | "rose" | "gold";
 
 const TONE: Record<Tone, { bg: string; icon: string }> = {
-  blue: { bg: "bg-info/10 border-info/20", icon: "bg-info text-white" },
-  amber: { bg: "bg-warning/10 border-warning/25", icon: "bg-warning text-white" },
-  violet: { bg: "bg-brand-primary/10 border-brand-primary/25", icon: "bg-brand-primary text-white" },
-  green: { bg: "bg-success/10 border-success/25", icon: "bg-success text-white" },
-  rose: { bg: "bg-destructive/10 border-destructive/25", icon: "bg-destructive text-white" },
-  gold: { bg: "bg-[#ffc48a]/12 border-[#ffc48a]/30", icon: "bg-[#d9860f] text-white" },
+  blue: { bg: "border-info/30", icon: "bg-info/10 text-info" },
+  amber: { bg: "border-warning/30", icon: "bg-warning/10 text-warning" },
+  violet: { bg: "border-brand-primary/30", icon: "bg-brand-primary/10 text-brand-primary" },
+  green: { bg: "border-success/30", icon: "bg-success/10 text-success-600" },
+  rose: { bg: "border-destructive/30", icon: "bg-destructive/10 text-destructive" },
+  gold: { bg: "border-[#ffc48a]/50", icon: "bg-[#ffc48a]/20 text-[#d9860f]" },
 };
 
 const TILES: ReadonlyArray<{
@@ -62,14 +62,14 @@ export function ClaimOverviewBand({
           const tone = TONE[tile.tone];
           const href = hrefs?.[tile.key];
           const className = cn(
-            "flex flex-col rounded-xl border bg-white/8 backdrop-blur-sm px-3.5 py-3",
+            "flex flex-col rounded-xl border bg-white px-3.5 py-3 shadow-sm transition-all duration-300",
             tone.bg,
-            href && "transition-colors hover:bg-white/12 cursor-pointer"
+            href && "hover:-translate-y-1 hover:shadow-md hover:bg-neutral-50 cursor-pointer"
           );
           const content = (
             <>
               <div className="flex items-center justify-between gap-2">
-                <span className="font-outfit text-[22px] font-bold leading-none text-white">
+                <span className="font-outfit text-[22px] font-bold leading-none text-neutral-900">
                   {String(counts[tile.key]).padStart(2, "0")}
                 </span>
                 <span
@@ -81,17 +81,17 @@ export function ClaimOverviewBand({
                   {tile.icon}
                 </span>
               </div>
-              <p className="mt-2 truncate text-[12px] font-medium text-white/75">
+              <p className="mt-2 truncate text-[12px] font-medium text-neutral-500">
                 {tile.label}
               </p>
             </>
           );
           return href ? (
-            <Link key={tile.key} href={href} className={className}>
+            <Link key={tile.key} href={href} className={className} title={tile.label}>
               {content}
             </Link>
           ) : (
-            <div key={tile.key} className={className}>
+            <div key={tile.key} className={className} title={tile.label}>
               {content}
             </div>
           );

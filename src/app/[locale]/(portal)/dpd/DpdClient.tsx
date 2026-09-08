@@ -76,7 +76,7 @@ function dpdBandDisplay(v: DpdBand): string {
   return v === "ALL" ? "All DPD" : DPD_BAND_LABEL[v];
 }
 
-type SortKey = "loanNo" | "borrowerName" | "loanAmount" | "outstandingAmount" | "dpd";
+type SortKey = "loanNo" | "borrowerName" | "loanAmount" | "outstandingAmount" | "dpd" | "product" | "npa" | "loanStatus" | "lastUpdatedAt";
 type SortDirection = "asc" | "desc" | null;
 
 const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
@@ -330,6 +330,22 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
             valA = a.dpd ?? -1;
             valB = b.dpd ?? -1;
             break;
+          case "product":
+            valA = a.product;
+            valB = b.product;
+            break;
+          case "npa":
+            valA = a.npa ? 1 : 0;
+            valB = b.npa ? 1 : 0;
+            break;
+          case "loanStatus":
+            valA = a.loanStatus;
+            valB = b.loanStatus;
+            break;
+          case "lastUpdatedAt":
+            valA = a.claim?.lastUpdatedAt ?? "";
+            valB = b.claim?.lastUpdatedAt ?? "";
+            break;
         }
         if (typeof valA === "string" && typeof valB === "string") {
           valA = valA.toLowerCase();
@@ -436,7 +452,7 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
             options={["ALL", ...LOAN_STATUSES] as const}
             value={loanStatusFilter}
             onChange={handleLoanStatusChange}
-            display={(v) => (v === "ALL" ? "Loan Status" : v)}
+            display={(v) => (v === "ALL" ? "All Loan Statuses" : v)}
           />
           <FilterSelect
             label="Product"
@@ -456,13 +472,13 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
               <TableRow>
                 <SortableTableHead column="loanNo" label="Loan Account" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                 <SortableTableHead column="borrowerName" label="Customer" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Product</TableHead>
+                <SortableTableHead column="product" label="Product" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                 <SortableTableHead column="loanAmount" label="Loan Amount" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                 <SortableTableHead column="outstandingAmount" label="Outstanding" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                 <SortableTableHead column="dpd" label="DPD" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} title="DPD = Days Past Due" />
-                <TableHead className="h-8 px-1.5 text-[10.5px]">NPA</TableHead>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Loan Status</TableHead>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Last Updated</TableHead>
+                <SortableTableHead column="npa" label="NPA" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                <SortableTableHead column="loanStatus" label="Loan Status" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                <SortableTableHead column="lastUpdatedAt" label="Last Updated" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
 
               </TableRow>
             </TableHeader>

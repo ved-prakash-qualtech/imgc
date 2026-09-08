@@ -282,13 +282,13 @@ const PROGRESS_TILE_TONE: Record<
   Tile["tone"],
   { bg: string; icon: string; spark: string }
 > = {
-  neutral: { bg: "bg-white/8 border-white/15", icon: "bg-white/15 text-white/80", spark: "#e5e7eb" },
-  info: { bg: "bg-info/10 border-info/20", icon: "bg-info text-white", spark: "#3b82f6" },
-  teal: { bg: "bg-success/10 border-success/20", icon: "bg-success text-white", spark: "#14b8a6" },
-  violet: { bg: "bg-brand-primary/10 border-brand-primary/25", icon: "bg-brand-primary text-white", spark: "#a78bfa" },
-  warning: { bg: "bg-warning/10 border-warning/25", icon: "bg-warning text-white", spark: "#f59e0b" },
-  success: { bg: "bg-success/10 border-success/25", icon: "bg-success text-white", spark: "#22c55e" },
-  danger: { bg: "bg-destructive/10 border-destructive/25", icon: "bg-destructive text-white", spark: "#ef4444" },
+  neutral: { bg: "border-neutral-200", icon: "bg-neutral-100 text-neutral-600", spark: "#9ca3af" },
+  info: { bg: "border-info/30", icon: "bg-info/10 text-info", spark: "#3b82f6" },
+  teal: { bg: "border-success/30", icon: "bg-success/10 text-success-600", spark: "#14b8a6" },
+  violet: { bg: "border-brand-primary/30", icon: "bg-brand-primary/10 text-brand-primary", spark: "#8b5cf6" },
+  warning: { bg: "border-warning/30", icon: "bg-warning/10 text-warning", spark: "#f59e0b" },
+  success: { bg: "border-success/30", icon: "bg-success/10 text-success-600", spark: "#22c55e" },
+  danger: { bg: "border-destructive/30", icon: "bg-destructive/10 text-destructive", spark: "#ef4444" },
 };
 
 function ProgressTileCard({ tile }: Readonly<{ tile: Tile }>) {
@@ -296,28 +296,28 @@ function ProgressTileCard({ tile }: Readonly<{ tile: Tile }>) {
   const inner = (
     <>
       <div className="flex items-center justify-between gap-1.5">
-        <p className="truncate text-[11px] font-medium text-white/75">{tile.label}</p>
+        <p className="truncate text-[11px] font-medium text-neutral-500">{tile.label}</p>
         {PROGRESS_TILE_ICON[tile.key] && (
           <span className={cn("grid size-6 shrink-0 place-items-center rounded-md", t.icon)}>
             {PROGRESS_TILE_ICON[tile.key]}
           </span>
         )}
       </div>
-      <p className="font-outfit text-[20px] font-bold leading-none text-white">{tile.value}</p>
+      <p className="font-outfit text-[20px] font-bold leading-none text-neutral-900">{tile.value}</p>
       <Sparkline seed={tile.key} color={t.spark} />
     </>
   );
   const className = cn(
-    "flex flex-col gap-1 rounded-xl border bg-white/8 backdrop-blur-sm px-3 py-2.5",
+    "flex flex-col gap-1 rounded-xl border bg-white px-3 py-2.5 shadow-sm transition-all duration-300",
     t.bg,
-    tile.href && "transition-colors hover:bg-white/12 cursor-pointer"
+    tile.href && "hover:-translate-y-1 hover:shadow-md hover:bg-neutral-50 cursor-pointer"
   );
   return tile.href ? (
-    <Link href={tile.href} className={className}>
+    <Link href={tile.href} className={className} title={tile.label}>
       {inner}
     </Link>
   ) : (
-    <div className={className}>{inner}</div>
+    <div className={className} title={tile.label}>{inner}</div>
   );
 }
 

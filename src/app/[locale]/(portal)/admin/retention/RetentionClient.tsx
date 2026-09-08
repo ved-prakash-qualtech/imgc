@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BrushCleaningIcon, DownloadIcon, SearchIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, ArrowUpDownIcon, BrushCleaningIcon, DownloadIcon, SearchIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -32,6 +32,53 @@ import {
 import { ROUTES } from "@/constants/route";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { RejectedDocRow } from "@/services/portal/retention.server";
+
+type SortKey = "document" | "account" | "lender" | "reason" | "retention";
+type SortDirection = "asc" | "desc" | null;
+
+const SortIcon = ({
+  column,
+  sortKey,
+  sortDirection,
+}: {
+  column: SortKey;
+  sortKey: SortKey | null;
+  sortDirection: SortDirection;
+}) => {
+  if (sortKey !== column)
+    return <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />;
+  return sortDirection === "asc" ? (
+    <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+  ) : (
+    <ArrowDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+  );
+};
+
+const SortableTableHead = ({
+  column,
+  label,
+  sortKey,
+  sortDirection,
+  onToggle,
+  className,
+}: {
+  column: SortKey;
+  label: string;
+  sortKey: SortKey | null;
+  sortDirection: SortDirection;
+  onToggle: (k: SortKey) => void;
+  className?: string;
+}) => (
+  <TableHead
+    onClick={() => onToggle(column)}
+    className={`h-8 cursor-pointer select-none px-1.5 text-[10.5px] transition-colors hover:bg-neutral-50 ${className || ""}`}
+  >
+    <div className="flex items-center">
+      {label}
+      <SortIcon column={column} sortKey={sortKey} sortDirection={sortDirection} />
+    </div>
+  </TableHead>
+);
 
 /** Escapes a value for one CSV field. */
 function csvField(value: string | number): string {
@@ -74,6 +121,25 @@ export function RetentionClient({
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+
+  const toggleSort = useCallback(
+    (key: SortKey) => {
+      if (sortKey !== key) {
+        setSortKey(key);
+        setSortDirection("asc");
+        return;
+      }
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+        return;
+      }
+      setSortKey(null);
+      setSortDirection(null);
+    },
+    [sortKey, sortDirection]
+  );
 
   const handleQueryChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,13 +156,37 @@ export function RetentionClient({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) =>
-      `${r.name} ${r.accountLoanNo} ${r.borrowerName} ${r.lenderOrgName}`
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [rows, query]);
+    let result = rows;
+    if (q) {
+      result = rows.filter((r) =>
+        `${r.name} ${r.accountLoanNo} ${r.borrowerName} ${r.lenderOrgName}`
+          .toLowerCase()
+          .includes(q)
+      );
+    }
+    
+    if (sortKey && sortDirection) {
+      result = [...result].sort((a, b) => {
+        let valA: string | number;
+        let valB: string | number;
+        switch (sortKey) {
+          case "document": valA = a.name; valB = b.name; break;
+          case "account": valA = a.accountLoanNo; valB = b.accountLoanNo; break;
+          case "lender": valA = a.lenderOrgName; valB = b.lenderOrgName; break;
+          case "reason": valA = a.rejection.reason; valB = b.rejection.reason; break;
+          case "retention": valA = a.held ? Infinity : a.daysLeft; valB = b.held ? Infinity : b.daysLeft; break;
+        }
+        if (typeof valA === "string" && typeof valB === "string") {
+          valA = valA.toLowerCase();
+          valB = valB.toLowerCase();
+        }
+        if (valA < valB) return sortDirection === "asc" ? -1 : 1;
+        if (valA > valB) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return result;
+  }, [rows, query, sortKey, sortDirection]);
 
   const pageCount = Math.ceil(filtered.length / pageSize) || 1;
   const currentPage = Math.min(page, pageCount);
@@ -181,11 +271,11 @@ export function RetentionClient({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="h-8 px-1.5 text-[10.5px]">Document</TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px]">Account</TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px]">Lender</TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px]">Reason</TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px]">Retention</TableHead>
+                  <SortableTableHead column="document" label="Document" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                  <SortableTableHead column="account" label="Account" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                  <SortableTableHead column="lender" label="Lender" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                  <SortableTableHead column="reason" label="Reason" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                  <SortableTableHead column="retention" label="Retention" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                   <TableHead className="h-8 px-1.5 text-right text-[10.5px]">Reinstatement</TableHead>
                 </TableRow>
               </TableHeader>
