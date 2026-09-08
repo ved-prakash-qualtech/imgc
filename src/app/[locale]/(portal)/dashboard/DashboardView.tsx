@@ -109,7 +109,7 @@ export function DashboardView({ role, summary }: Props) {
   const isLender = role === "LENDER";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* ── In progress claim cases — same band, both roles: a lender's own book, every
           lender's for IMGC ─────────────────────────────────────────────────────────── */}
       <CommandBand
@@ -126,7 +126,7 @@ export function DashboardView({ role, summary }: Props) {
 
       {/* ── Portfolio overview ───────────────────────────────────── */}
       <section>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {summary.rings
             .filter((ring) =>
               isLender
@@ -274,7 +274,7 @@ export function DashboardView({ role, summary }: Props) {
               )}
             </div>
 
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-2.5 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
               {summary.aging.map((band) => (
                 <div
                   key={band.label}
@@ -356,7 +356,7 @@ function ProgressTileCard({ tile }: Readonly<{ tile: Tile }>) {
     </>
   );
   const className = cn(
-    "flex flex-col gap-1 rounded-xl border bg-white px-3 py-2.5 shadow-sm transition-all duration-300",
+    "flex flex-col gap-1 rounded-xl border bg-white px-2.5 py-2 shadow-sm transition-all duration-300",
     t.bg,
     tile.href && "hover:-translate-y-1 hover:shadow-md hover:bg-neutral-50 cursor-pointer"
   );

@@ -257,7 +257,7 @@ export function AppSidebar({
         {/* Drawer panel */}
         <aside
           className={cn(
-            "fixed left-0 top-0 z-50 flex h-full w-sidebar-w flex-col bg-sidebar-bg text-white shadow-2xl transition-transform duration-200",
+            "fixed left-0 top-0 z-50 flex h-full w-sidebar-w flex-col bg-gradient-to-b from-[#5c5c5c] to-[#383838] text-white shadow-2xl transition-transform duration-200",
             open ? "translate-x-0" : "-translate-x-full"
           )}
         >
@@ -277,7 +277,7 @@ export function AppSidebar({
   return (
     <aside
       className={cn(
-        "sticky top-0 flex h-screen shrink-0 flex-col bg-sidebar-bg text-white transition-[width] duration-200",
+        "sticky top-0 flex h-screen shrink-0 flex-col bg-gradient-to-b from-[#5c5c5c] to-[#383838] text-white transition-[width] duration-200",
         isCollapsed ? "w-16" : "w-sidebar-w"
       )}
     >
