@@ -4,6 +4,9 @@ import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ArrowUpDownIcon,
   BanIcon,
   ChevronDownIcon,
   DownloadIcon,
@@ -59,6 +62,65 @@ const STATUSES: ReadonlyArray<DocStatus> = [
   "REJECTED",
   "REUPLOAD_REQUIRED",
 ];
+
+const STATUS_LABEL: Record<DocStatus, string> = {
+  NOT_REQUESTED: "Not requested",
+  PENDING_UPLOAD: "Pending upload",
+  UNDER_REVIEW: "Under review",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+  REUPLOAD_REQUIRED: "Reupload req.",
+};
+
+type SortKey = "caseId" | "customerName" | "documentName" | "required" | "status" | "lenderName" | "addedByName" | "addedOn";
+type SortDirection = "asc" | "desc" | null;
+
+const SortIcon = ({
+  column,
+  sortKey,
+  sortDirection,
+}: {
+  column: SortKey;
+  sortKey: SortKey | null;
+  sortDirection: SortDirection;
+}) => {
+  if (sortKey !== column)
+    return <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />;
+  return sortDirection === "asc" ? (
+    <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+  ) : (
+    <ArrowDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+  );
+};
+
+const SortableTableHead = ({
+  column,
+  label,
+  sortKey,
+  sortDirection,
+  onToggle,
+  className,
+}: {
+  column: SortKey;
+  label: string;
+  sortKey: SortKey | null;
+  sortDirection: SortDirection;
+  onToggle: (k: SortKey) => void;
+  className?: string;
+}) => (
+  <TableHead
+    onClick={() => onToggle(column)}
+    className={cn(
+      "h-8 cursor-pointer select-none px-1.5 text-[10.5px] transition-colors hover:bg-neutral-50",
+      className
+    )}
+  >
+    <div className="flex items-center">
+      {label}
+      <SortIcon column={column} sortKey={sortKey} sortDirection={sortDirection} />
+    </div>
+  </TableHead>
+);
 
 function shortDate(iso?: string): string {
   if (!iso) return "—";
@@ -173,6 +235,25 @@ export function AdditionalDocumentsClient({
   const [from, setFrom] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+
+  const toggleSort = useCallback(
+    (key: SortKey) => {
+      if (sortKey !== key) {
+        setSortKey(key);
+        setSortDirection("asc");
+        return;
+      }
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+        return;
+      }
+      setSortKey(null);
+      setSortDirection(null);
+    },
+    [sortKey, sortDirection]
+  );
 
   const [adding, setAdding] = useState(false);
   const [addCaseId, setAddCaseId] = useState("");
@@ -191,7 +272,7 @@ export function AdditionalDocumentsClient({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return rows.filter((r) => {
+    let result = rows.filter((r) => {
       if (q) {
         const hay =
           `${r.caseId} ${r.customerName} ${r.name} ${r.lenderName} ${r.category}`.toLowerCase();
@@ -207,7 +288,32 @@ export function AdditionalDocumentsClient({
       if (from && Date.parse(r.addedOn) < Date.parse(from)) return false;
       return true;
     });
-  }, [rows, query, caseId, lender, product, document, status, necessity, from]);
+    
+    if (sortKey && sortDirection) {
+      result = [...result].sort((a, b) => {
+        let valA: string | number = "";
+        let valB: string | number = "";
+        switch (sortKey) {
+          case "caseId": valA = a.caseId; valB = b.caseId; break;
+          case "customerName": valA = a.customerName; valB = b.customerName; break;
+          case "documentName": valA = a.name; valB = b.name; break;
+          case "required": valA = a.required ? 1 : 0; valB = b.required ? 1 : 0; break;
+          case "status": valA = a.active ? a.status : "DEACTIVATED"; valB = b.active ? b.status : "DEACTIVATED"; break;
+          case "lenderName": valA = a.lenderName; valB = b.lenderName; break;
+          case "addedByName": valA = a.addedByName; valB = b.addedByName; break;
+          case "addedOn": valA = a.addedOn; valB = b.addedOn; break;
+        }
+        if (typeof valA === "string" && typeof valB === "string") {
+          valA = valA.toLowerCase();
+          valB = valB.toLowerCase();
+        }
+        if (valA < valB) return sortDirection === "asc" ? -1 : 1;
+        if (valA > valB) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return result;
+  }, [rows, query, caseId, lender, product, document, status, necessity, from, sortKey, sortDirection]);
 
   const anyFilter =
     Boolean(query || caseId || lender || product || document || status || necessity || from);
@@ -408,14 +514,14 @@ export function AdditionalDocumentsClient({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Case ID</TableHead>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Customer</TableHead>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Document</TableHead>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Required</TableHead>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Status</TableHead>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Lender</TableHead>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Added by</TableHead>
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Added on</TableHead>
+                <SortableTableHead column="caseId" label="Case ID" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                <SortableTableHead column="customerName" label="Customer" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                <SortableTableHead column="documentName" label="Document" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                <SortableTableHead column="required" label="Required" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                <SortableTableHead column="status" label="Status" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                <SortableTableHead column="lenderName" label="Lender" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                <SortableTableHead column="addedByName" label="Added by" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                <SortableTableHead column="addedOn" label="Added on" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                 <TableHead className="h-8 px-1.5 text-right text-[10.5px]">Action</TableHead>
               </TableRow>
             </TableHeader>

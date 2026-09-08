@@ -39,8 +39,11 @@ type SortKey =
   | "loanNo"
   | "claimNo"
   | "borrowerName"
+  | "purpose"
   | "loanAmount"
   | "dpd"
+  | "status"
+  | "bucket"
   | "lastUpdatedAt";
 type SortDirection = "asc" | "desc" | null;
 
@@ -60,8 +63,11 @@ function sortFromParam(value: string | null): {
     "loanNo",
     "claimNo",
     "borrowerName",
+    "purpose",
     "loanAmount",
     "dpd",
+    "status",
+    "bucket",
     "lastUpdatedAt",
   ];
   const key = validKeys.includes(rawKey as SortKey)
@@ -118,7 +124,7 @@ function dateOrDash(iso?: string): string {
 }
 
 function statusLabel(v: (typeof STATUS_OPTIONS)[number]): string {
-  if (v === "ALL") return "Claim Status";
+  if (v === "ALL") return "All Claim Statuses";
   if (v === "NOT_STARTED") return "Not started";
   if (v === "INITIATION") return "Claim initiation";
   if (v === "UNDER_PROGRESS") return "Under progress";
@@ -451,6 +457,18 @@ export function EligibleCasesClient({
             valA = a.claim?.claimNo ?? "";
             valB = b.claim?.claimNo ?? "";
             break;
+          case "purpose":
+            valA = a.product;
+            valB = b.product;
+            break;
+          case "status":
+            valA = isNotStarted(a) ? "NOT_STARTED" : a.claim?.status ?? "";
+            valB = isNotStarted(b) ? "NOT_STARTED" : b.claim?.status ?? "";
+            break;
+          case "bucket":
+            valA = a.claim?.bucket ?? "";
+            valB = b.claim?.bucket ?? "";
+            break;
           case "lastUpdatedAt":
             valA = a.claim?.lastUpdatedAt ?? "";
             valB = b.claim?.lastUpdatedAt ?? "";
@@ -540,7 +558,7 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <TableHead className="h-8 px-1 text-[10.5px]">Purpose</TableHead>
+              <SortableTableHead column="purpose" label="Purpose" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               <SortableTableHead
                 column="loanAmount"
                 label="Amount"
@@ -555,8 +573,8 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <TableHead className="h-8 px-1 text-[10.5px]">Status</TableHead>
-              <TableHead className="h-8 px-1 text-[10.5px]">Bucket</TableHead>
+              <SortableTableHead column="status" label="Status" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <SortableTableHead column="bucket" label="Bucket" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               <SortableTableHead
                 column="lastUpdatedAt"
                 label="Last Updated"

@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "@/i18n/navigation";
-import { SearchIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, ArrowUpDownIcon, SearchIcon } from "lucide-react";
 
 import { Panel } from "@/components/portal/Panel";
 import {
@@ -29,6 +29,53 @@ type AccountSummary = {
   borrowerName: string;
 };
 
+type SortKey = "timestamp" | "account" | "activity" | "user";
+type SortDirection = "asc" | "desc" | null;
+
+const SortIcon = ({
+  column,
+  sortKey,
+  sortDirection,
+}: {
+  column: SortKey;
+  sortKey: SortKey | null;
+  sortDirection: SortDirection;
+}) => {
+  if (sortKey !== column)
+    return <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />;
+  return sortDirection === "asc" ? (
+    <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+  ) : (
+    <ArrowDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+  );
+};
+
+const SortableTableHead = ({
+  column,
+  label,
+  sortKey,
+  sortDirection,
+  onToggle,
+  className,
+}: {
+  column: SortKey;
+  label: string;
+  sortKey: SortKey | null;
+  sortDirection: SortDirection;
+  onToggle: (k: SortKey) => void;
+  className?: string;
+}) => (
+  <TableHead
+    onClick={() => onToggle(column)}
+    className={`h-8 cursor-pointer select-none px-1.5 text-[10.5px] transition-colors hover:bg-neutral-50 ${className || ""}`}
+  >
+    <div className="flex items-center">
+      {label}
+      <SortIcon column={column} sortKey={sortKey} sortDirection={sortDirection} />
+    </div>
+  </TableHead>
+);
+
 export function AuditTrailClient({
   events,
   accountMap,
@@ -39,10 +86,29 @@ export function AuditTrailClient({
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+
+  const toggleSort = useCallback(
+    (key: SortKey) => {
+      if (sortKey !== key) {
+        setSortKey(key);
+        setSortDirection("asc");
+        return;
+      }
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+        return;
+      }
+      setSortKey(null);
+      setSortDirection(null);
+    },
+    [sortKey, sortDirection]
+  );
 
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return events.filter((e) => {
+    let result = events.filter((e) => {
       if (!q) return true;
       const account = accountMap[e.accountId];
       return (
@@ -52,7 +118,28 @@ export function AuditTrailClient({
         e.actorName.toLowerCase().includes(q)
       );
     });
-  }, [events, query, accountMap]);
+    
+    if (sortKey && sortDirection) {
+      result = [...result].sort((a, b) => {
+        let valA: string | number;
+        let valB: string | number;
+        switch (sortKey) {
+          case "timestamp": valA = a.at; valB = b.at; break;
+          case "account": valA = accountMap[a.accountId]?.loanNo || ""; valB = accountMap[b.accountId]?.loanNo || ""; break;
+          case "activity": valA = a.summary; valB = b.summary; break;
+          case "user": valA = a.actorName; valB = b.actorName; break;
+        }
+        if (typeof valA === "string" && typeof valB === "string") {
+          valA = valA.toLowerCase();
+          valB = valB.toLowerCase();
+        }
+        if (valA < valB) return sortDirection === "asc" ? -1 : 1;
+        if (valA > valB) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return result;
+  }, [events, query, accountMap, sortKey, sortDirection]);
 
   const pageCount = Math.ceil(filteredRows.length / pageSize) || 1;
   const currentRows = filteredRows.slice(
@@ -93,12 +180,10 @@ export function AuditTrailClient({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[160px] shrink-0">
-              Date &amp; Time
-            </TableHead>
-            <TableHead className="w-[150px]">Account</TableHead>
-            <TableHead>Activity</TableHead>
-            <TableHead className="w-[140px]">Performed By</TableHead>
+            <SortableTableHead column="timestamp" label="Timestamp" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} className="w-[160px] shrink-0" />
+            <SortableTableHead column="account" label="Account" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} className="w-[150px]" />
+            <SortableTableHead column="activity" label="Activity" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+            <SortableTableHead column="user" label="User" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} className="w-[150px]" />
             <TableHead className="w-[100px] text-right">Action</TableHead>
           </TableRow>
         </TableHeader>

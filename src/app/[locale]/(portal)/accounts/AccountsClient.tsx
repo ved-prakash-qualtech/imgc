@@ -60,10 +60,15 @@ const ASSET_CLASS_LABEL: Record<AssetClass, string> = {
 type SortKey =
   | "loanNo"
   | "borrowerName"
+  | "lender"
+  | "purpose"
   | "loanAmount"
   | "outstandingAmount"
   | "disbursementDate"
-  | "dpd";
+  | "dpd"
+  | "assetClass"
+  | "bucket"
+  | "status";
 type SortDirection = "asc" | "desc" | null;
 
 const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
@@ -131,7 +136,7 @@ function assetClassDisplay(v: (typeof ASSET_CLASSES)[number]): string {
 }
 
 function statusDisplay(v: (typeof STATUSES)[number]): string {
-  return v === "ALL" ? "Claim Status" : v.toLowerCase();
+  return v === "ALL" ? "All Loan Statuses" : v.toLowerCase();
 }
 
 function purposeDisplay(v: string): string {
@@ -297,6 +302,26 @@ export function AccountsClient({
             valA = a.dpd ?? -1;
             valB = b.dpd ?? -1;
             break;
+          case "lender":
+            valA = a.lenderOrgName;
+            valB = b.lenderOrgName;
+            break;
+          case "purpose":
+            valA = a.product;
+            valB = b.product;
+            break;
+          case "assetClass":
+            valA = assetClassOf(a);
+            valB = assetClassOf(b);
+            break;
+          case "bucket":
+            valA = a.bucket;
+            valB = b.bucket;
+            break;
+          case "status":
+            valA = a.claimStatus;
+            valB = b.claimStatus;
+            break;
         }
         if (typeof valA === "string" && typeof valB === "string") {
           valA = valA.toLowerCase();
@@ -438,8 +463,8 @@ export function AccountsClient({
             <TableRow>
               <SortableTableHead column="loanNo" label="Loan no." sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               <SortableTableHead column="borrowerName" label="Borrower" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              {role === "IMGC" && <TableHead className="h-8 px-1.5 text-[10.5px]">Lender</TableHead>}
-              <TableHead className="h-8 px-1.5 text-[10.5px]">Purpose</TableHead>
+              {role === "IMGC" && <SortableTableHead column="lender" label="Lender" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />}
+              <SortableTableHead column="purpose" label="Purpose" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               <SortableTableHead column="loanAmount" label="Principal" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               <SortableTableHead column="disbursementDate" label="Disbursed" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               <SortableTableHead
@@ -450,9 +475,9 @@ export function AccountsClient({
                 onToggle={toggleSort}
                 title="DPD = Days Past Due"
               />
-              <TableHead className="h-8 px-1.5 text-[10.5px]">Asset Class</TableHead>
-              <TableHead className="h-8 px-1.5 text-[10.5px]">Bucket</TableHead>
-              <TableHead className="h-8 px-1.5 text-[10.5px]">Claim</TableHead>
+              <SortableTableHead column="assetClass" label="Asset Class" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <SortableTableHead column="bucket" label="Bucket" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <SortableTableHead column="status" label="Claim" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
             </TableRow>
           </TableHeader>
           <TableBody>
