@@ -247,7 +247,7 @@ export function LoginClient({
             {/* Squarer chips with an icon tile, deliberately unlike the rounded-full benefit
                 pills above — these are assurances about the platform, not things it does. */}
             <div className="mt-6 max-w-[560px]">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-600">
+              <p className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-slate-900">
                 Security &amp; compliance
               </p>
               <ul className="mt-2.5 flex flex-wrap gap-2">

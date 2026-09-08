@@ -267,7 +267,7 @@ export function DashboardView({
               <Panel
                 size="compact"
                 title="Cases by Lender"
-                description={`${summary.lenderCaseCounts.reduce((sum, l) => sum + l.cases, 0)} claim cases across ${summary.lenderCaseCounts.length} lender${summary.lenderCaseCounts.length === 1 ? "" : "s"}`}
+                description={`${summary.lenderCaseCounts.reduce((sum, l) => sum + l.accounts, 0)} loans across ${summary.lenderCaseCounts.length} lender${summary.lenderCaseCounts.length === 1 ? "" : "s"}`}
                 actions={
                   <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-brand-light text-brand-primary shadow-sm">
                     <BuildingIcon className="size-4" />
@@ -277,27 +277,38 @@ export function DashboardView({
               >
                 {summary.lenderCaseCounts.length > 0 ? (
                   <ul className="max-h-[96px] flex-1 divide-y divide-neutral-100 overflow-y-auto px-3">
-                    {summary.lenderCaseCounts.map((l) => (
-                      <li key={l.lenderOrgId} className="flex items-center gap-1.5 py-[2px]">
-                        <span className="min-w-0 flex-1 truncate text-[10.5px] leading-none text-neutral-700">
-                          {l.lenderName}
-                        </span>
-                        <span className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-neutral-100">
-                          <span
-                            className="block h-full rounded-full bg-brand-primary"
-                            style={{
-                              width: `${Math.round((l.cases / (l.accounts || 1)) * 100)}%`,
-                            }}
-                          />
-                        </span>
-                        <span className="shrink-0 text-right font-outfit text-[11px] font-bold leading-none tabular-nums text-neutral-950">
-                          {l.cases}
-                        </span>
-                        <span className="w-7 shrink-0 text-right text-[10px] leading-none tabular-nums text-neutral-400">
-                          /{l.accounts}
-                        </span>
-                      </li>
-                    ))}
+                    {(() => {
+                      const booked = summary.lenderCaseCounts.reduce(
+                        (sum, l) => sum + l.accounts,
+                        0
+                      );
+                      return summary.lenderCaseCounts.map((l) => (
+                        <li key={l.lenderOrgId}>
+                          {/* Same `?lender=` param the KPI rings link with, so the row's number
+                              and the grid it opens always agree. */}
+                          <Link
+                            href={`/dpd?lender=${encodeURIComponent(l.lenderOrgId)}`}
+                            title={`${l.cases} of ${l.accounts} loans have a claim raised`}
+                            className="-mx-1 flex items-center gap-1.5 rounded px-1 py-[2px] transition-colors hover:bg-brand-light/60"
+                          >
+                            <span className="min-w-0 flex-1 truncate text-[10.5px] leading-none text-neutral-700">
+                              {l.lenderName}
+                            </span>
+                            <span className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-neutral-100">
+                              <span
+                                className="block h-full rounded-full bg-brand-primary"
+                                style={{
+                                  width: `${Math.round((l.accounts / (booked || 1)) * 100)}%`,
+                                }}
+                              />
+                            </span>
+                            <span className="shrink-0 text-right font-outfit text-[11px] font-bold leading-none tabular-nums text-neutral-950">
+                              {l.accounts}
+                            </span>
+                          </Link>
+                        </li>
+                      ));
+                    })()}
                   </ul>
                 ) : (
                   <div className="flex flex-1 items-center justify-center py-5 text-[13px] text-neutral-500">
