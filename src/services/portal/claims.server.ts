@@ -286,7 +286,7 @@ export async function uploadDocument(
     actor: session,
     type: "DOC_UPLOADED",
     summary: `"${doc.name}" uploaded — version ${version} (${file.name})`,
-    meta: { document: doc.name, file: file.name, version: String(version) },
+    meta: { document: doc.name, file: file.name, version: String(version), fileId },
   });
 
   const fresh = await readDb();
