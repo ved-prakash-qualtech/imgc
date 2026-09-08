@@ -4,7 +4,6 @@ import { requireSession } from "@/lib/auth/appSession";
 import { sweepExpiredRejections } from "@/server/mock/retention";
 import { listAccounts } from "@/services/portal/accounts.server";
 import { buildDashboardSummary } from "@/services/portal/dashboard.server";
-import { getLenderOrgById } from "@/services/portal/users.server";
 
 export const dynamic = "force-dynamic";
 
@@ -15,24 +14,15 @@ export default async function DashboardPage() {
   // way in. A no-op unless something has actually aged out.
   await sweepExpiredRejections();
 
-  const [, summary, org] = await Promise.all([
+  const [, summary] = await Promise.all([
     listAccounts(session),
     buildDashboardSummary(session),
-    session.role === "LENDER"
-      ? getLenderOrgById(session.lenderOrgId)
-      : Promise.resolve(null),
   ]);
 
   return (
     <PortalShell activeKey="dashboard" title="Dashboard">
       <DashboardView
         role={session.role}
-        firstName={session.name.split(" ")[0] ?? session.name}
-        workspace={
-          session.role === "IMGC"
-            ? "IMGC claims operations workspace"
-            : `${org?.name ?? "Lender"} claims workspace`
-        }
         summary={summary}
       />
     </PortalShell>

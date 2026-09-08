@@ -498,6 +498,7 @@ export function EligibleCasesClient({
 
   return (
     <Panel
+      size="compact"
       title={`${rows.length} claim${rows.length === 1 ? "" : "s"}`}
       description="Every NPA account you can raise a claim on, and every claim already in flight."
       actions={
@@ -506,7 +507,7 @@ export function EligibleCasesClient({
         </Button>
       }
     >
-      <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-4 py-2.5">
+      <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-3 py-1.5">
         <div className="relative">
           <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
           <input

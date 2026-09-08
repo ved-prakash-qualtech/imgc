@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ActivityIcon,
   AlertTriangleIcon,
@@ -18,6 +21,14 @@ import { Donut } from "@/components/portal/Donut";
 import { Panel } from "@/components/portal/Panel";
 import { Sparkline, StatusBreakdownCard } from "@/components/portal/PortfolioCommandCenter";
 import { cn } from "@/lib/utils/twMergeUtils";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 import type { DashboardSummary } from "@/services/portal/dashboard.server";
 import type { Tile } from "@/services/portal/dashboard.server";
@@ -90,12 +101,11 @@ const BAR_TONE = {
 
 type Props = Readonly<{
   role: Role;
-  firstName: string;
-  workspace: string;
   summary: DashboardSummary;
 }>;
 
 export function DashboardView({ role, summary }: Props) {
+  const router = useRouter();
   const isLender = role === "LENDER";
 
   return (
@@ -115,12 +125,15 @@ export function DashboardView({ role, summary }: Props) {
       </CommandBand>
 
       {/* ── Portfolio overview ───────────────────────────────────── */}
-      <Section
-        title="Portfolio overview"
-        subtitle="Claim and document counts against their totals"
-      >
+      <section>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {summary.rings.map((ring) => {
+          {summary.rings
+            .filter((ring) =>
+              isLender
+                ? !["submitted", "queried", "rejected-docs"].includes(ring.key)
+                : true
+            )
+            .map((ring) => {
               const tone = RING_TONE[ring.key];
               const style = tone ? RING_TONE_STYLE[tone] : undefined;
               const pct = Math.round((ring.value / (ring.total || 1)) * 100);
@@ -149,19 +162,19 @@ export function DashboardView({ role, summary }: Props) {
                       "hover:-translate-y-1 hover:shadow-xl"
                   )}
                 >
-                  <div className="flex flex-1 items-center justify-center py-5">
+                  <div className="flex flex-1 items-center justify-center">
                     <div className="relative grid place-items-center">
                       <Donut
                         value={ring.value}
                         total={ring.total}
-                        size={92}
+                        size={60}
                         stroke={10}
                         tone={tone ?? "brand"}
                       />
                       <div className="pointer-events-none absolute inset-0 grid place-items-center">
                         <p
                           className={cn(
-                            "font-outfit text-[22px] font-bold leading-none",
+                            "font-outfit text-[16px] font-bold leading-none",
                             style?.value ?? "text-neutral-950"
                           )}
                         >
@@ -181,22 +194,69 @@ export function DashboardView({ role, summary }: Props) {
                 <div key={ring.key}>{card}</div>
               );
             })}
-            {summary.portfolio && (
+            {!isLender && summary.portfolio && (
               <StatusBreakdownCard
                 breakdown={summary.portfolio.statusBreakdown}
                 npaLoans={summary.portfolio.npaLoans}
                 loansOnBook={summary.portfolio.loansOnBook}
               />
             )}
+            
+            {/* ── Priority Accounts (Lender only) ────────────────────────────────── */}
+            {isLender && summary.priorityAccounts && (
+              <Panel
+                size="compact"
+                title="Priority Accounts"
+                description="Top 5 critical loan accounts"
+                className="flex h-full flex-col overflow-hidden border-t-4 border-t-brand-primary bg-white shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
+              >
+                {summary.priorityAccounts.length > 0 ? (
+                  <div className="flex-1 overflow-x-auto">
+                    <Table>
+                      <TableHeader className="bg-neutral-50/50">
+                        <TableRow>
+                          <TableHead className="h-5 px-2 py-0 text-[12px] font-semibold text-neutral-600">Loan ID</TableHead>
+                          <TableHead className="h-5 px-2 py-0 text-right text-[12px] font-semibold text-neutral-600">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {summary.priorityAccounts.map((account) => (
+                          <TableRow 
+                            key={account.id}
+                            className="cursor-pointer hover:bg-neutral-50 transition-colors"
+                            onClick={() => router.push(`/dpd?query=${encodeURIComponent(account.loanNo)}`)}
+                          >
+                            <TableCell className="px-2 py-0 text-[12px] font-medium text-neutral-900">
+                              {account.loanNo}
+                            </TableCell>
+                            <TableCell className="px-2 py-0 text-right text-[12px] text-neutral-900">
+                              {new Intl.NumberFormat("en-IN", {
+                                style: "currency",
+                                currency: "INR",
+                                maximumFractionDigits: 0,
+                              }).format(account.loanAmount)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="flex flex-1 items-center justify-center py-5 text-[13px] text-neutral-500">
+                    No priority accounts
+                  </div>
+                )}
+              </Panel>
+            )}
           </div>
-      </Section>
+      </section>
 
       {/* ── Aging ────────────────────────────────────────────────── */}
       <Section
         title="Aging overview — open cases"
         subtitle="Days since anything last happened on the account"
       >
-        <Panel size="compact" className="p-5 shadow-md">
+        <Panel size="compact" className="p-3 shadow-md">
             {/* One bar for the whole open pipeline — where four near-identical cards used to make
                 an empty band (0%) look like broken UI, a single stacked bar reads "everything's
                 piled up in one place" at a glance, which is the actual finding here. */}
@@ -214,12 +274,12 @@ export function DashboardView({ role, summary }: Props) {
               )}
             </div>
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {summary.aging.map((band) => (
                 <div
                   key={band.label}
                   className={cn(
-                    "flex items-center gap-2.5 rounded-lg px-3 py-2.5 transition-opacity",
+                    "flex items-center gap-2.5 rounded-lg px-3 py-1.5 transition-opacity",
                     band.count === 0 ? "opacity-45" : "bg-neutral-25"
                   )}
                 >

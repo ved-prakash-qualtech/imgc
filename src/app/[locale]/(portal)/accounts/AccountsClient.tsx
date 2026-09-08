@@ -38,7 +38,7 @@ import type { AccountRow } from "@/services/portal/accounts.server";
 import type { Role } from "@/server/mock/types";
 
 const BUCKETS = ["ALL", "IMGC", "LENDER"] as const;
-const STATUSES = ["ALL", "DRAFT", "SUBMITTED", "APPROVED", "QUERIED"] as const;
+const STATUSES = ["ALL", "DRAFT", "SUBMITTED", "APPROVED", "QUERIED", "ACTIVE"] as const;
 
 /** A coarse credit classification derived from the flags we actually carry — not a fourth
  *  status field, so it can never drift from what `npa`/`writeOff` already say. */

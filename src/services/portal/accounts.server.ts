@@ -18,6 +18,7 @@ import type {
   ClaimQuery,
   ClaimStatus,
   LenderOrg,
+  AuditEvent,
 } from "@/server/mock/types";
 
 export interface AccountRow extends Account {
@@ -25,6 +26,7 @@ export interface AccountRow extends Account {
   requiredDocs: number;
   pendingDocs: number;
   loanStatus: string;
+  isActive?: boolean;
 }
 
 /** The one place lender scoping is applied: a lender sees an account iff the org ids match. */
@@ -86,10 +88,21 @@ function decorate(
   orgs: LenderOrg[],
   docs: { accountId: string; required: boolean; status: string; active?: boolean }[],
   claims: Claim[],
-  queries: ClaimQuery[]
+  queries: ClaimQuery[],
+  events: AuditEvent[]
 ): AccountRow {
   const own = docs.filter((d) => d.accountId === account.id);
   const claim = claims.find((c) => c.accountId === account.id);
+  const accountEvents = events.filter((e) => e.accountId === account.id);
+
+  let lastTouch = account.createdAt;
+  for (const e of accountEvents) {
+    if (e.at > lastTouch) lastTouch = e.at;
+  }
+  
+  const isClosed = account.writeOff || claim?.status === "APPROVED" || claim?.status === "REJECTED";
+  const daysSince = Math.floor((Date.now() - Date.parse(lastTouch)) / (1000 * 60 * 60 * 24));
+  const isActive = !isClosed && daysSince <= 8;
 
   return {
     ...account,
@@ -97,6 +110,7 @@ function decorate(
     lenderOrgName: orgs.find((o) => o.id === account.lenderOrgId)?.name ?? "—",
     requiredDocs: own.filter((d) => d.required && d.active !== false).length,
     pendingDocs: own.filter((d) => d.required && d.active !== false && d.status !== "UNDER_REVIEW" && d.status !== "APPROVED").length,
+    isActive,
   };
 }
 
@@ -104,7 +118,7 @@ export async function listAccounts(session: AppSession): Promise<AccountRow[]> {
   const db = await readDb();
   return db.accounts
     .filter((a) => inScope(session, a))
-    .map((a) => decorate(a, db.lenderOrgs, db.claimDocuments, db.claims, db.claimQueries))
+    .map((a) => decorate(a, db.lenderOrgs, db.claimDocuments, db.claims, db.claimQueries, db.auditEvents))
     .sort((a, b) => a.loanNo.localeCompare(b.loanNo));
 }
 
@@ -115,7 +129,7 @@ export async function getAccount(
   const db = await readDb();
   const a = db.accounts.find((x) => x.id === accountId);
   if (!a || !inScope(session, a)) return null;
-  return decorate(a, db.lenderOrgs, db.claimDocuments, db.claims, db.claimQueries);
+  return decorate(a, db.lenderOrgs, db.claimDocuments, db.claims, db.claimQueries, db.auditEvents);
 }
 
 export async function listAccessibleAccountIds(session: AppSession): Promise<string[]> {

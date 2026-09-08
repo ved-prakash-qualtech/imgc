@@ -14,9 +14,7 @@ import {
   SearchIcon,
 } from "lucide-react";
 
-import { ClaimRowActions } from "@/components/portal/ClaimRowActions";
 import { Panel } from "@/components/portal/Panel";
-import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
 import { PaginationNumbers } from "@/components/ui/pagination";
 import {
@@ -43,29 +41,6 @@ import type { EligibleRow } from "@/app/[locale]/(portal)/initiate-claim/page";
  *  come from different server-side queries and this is the only place this screen needs it. */
 function isNotStarted(a: EligibleRow): boolean {
   return !a.claim || !a.claim.hasProgress;
-}
-
-const STATUS_OPTIONS = [
-  "ALL",
-  "NOT_STARTED",
-  "DRAFT",
-  "SUBMITTED",
-  "UNDER_REVIEW",
-  "QUERY_RAISED",
-  "DOCUMENTS_RESUBMITTED",
-  "APPROVED",
-  "REJECTED",
-  "CLOSED",
-] as const;
-
-function statusLabel(v: (typeof STATUS_OPTIONS)[number]): string {
-  if (v === "ALL") return "Claim Status";
-  if (v === "NOT_STARTED") return "Not initiated";
-  return v
-    .toLowerCase()
-    .split("_")
-    .map((w) => w[0]!.toUpperCase() + w.slice(1))
-    .join(" ");
 }
 
 function purposeDisplay(v: string): string {
@@ -188,11 +163,13 @@ const LOAN_STATUSES = [
   "Expired",
   "Approved",
   "Invoiced",
+  "Active",
+  "In Progress",
 ] as const;
 
 export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
   const searchParams = useSearchParams();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => searchParams.get("query") ?? "");
   const [dpdBand, setDpdBand] = useState<DpdBand>("ALL");
   const [npaFilter, setNpaFilter] = useState<"ALL" | "YES" | "NO">(() => {
     const param = searchParams.get("npa");
@@ -247,7 +224,13 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
       result = result.filter((a) => (npaFilter === "YES" ? a.npa : !a.npa));
     }
     if (loanStatusFilter !== "ALL") {
-      result = result.filter((a) => a.loanStatus === loanStatusFilter);
+      if (loanStatusFilter === "Active") {
+        result = result.filter((a) => a.isActive);
+      } else if (loanStatusFilter === "In Progress") {
+        result = result.filter((a) => ["New", "Underwriting", "Queried", "Approved"].includes(a.loanStatus));
+      } else {
+        result = result.filter((a) => a.loanStatus === loanStatusFilter);
+      }
     }
     if (product !== "ALL") {
       result = result.filter((a) => a.product === product);

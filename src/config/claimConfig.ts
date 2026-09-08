@@ -253,6 +253,7 @@ export const CLAIM_STATUS_LABELS: Readonly<Record<ClaimStatus, string>> = {
   REJECTED: "Rejected",
   CLOSED: "Closed",
   QUERIED: "Queried",
+  ACTIVE: "Active",
 };
 
 /** Statuses that still route the grid's left action to the Initiate Claim workspace.

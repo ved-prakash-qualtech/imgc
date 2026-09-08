@@ -4,7 +4,6 @@ import {
   ClipboardListIcon,
   FilePlus2Icon,
   LayersIcon,
-  TrendingUpIcon,
   XCircleIcon,
 } from "lucide-react";
 
@@ -62,14 +61,14 @@ export function ClaimOverviewBand({
           const tone = TONE[tile.tone];
           const href = hrefs?.[tile.key];
           const className = cn(
-            "flex flex-col rounded-xl border bg-white px-3.5 py-3 shadow-sm transition-all duration-300",
+            "flex flex-col rounded-xl border bg-white px-3.5 py-2 shadow-sm transition-all duration-300",
             tone.bg,
             href && "hover:-translate-y-1 hover:shadow-md hover:bg-neutral-50 cursor-pointer"
           );
           const content = (
             <>
               <div className="flex items-center justify-between gap-2">
-                <span className="font-outfit text-[22px] font-bold leading-none text-neutral-900">
+                <span className="font-outfit text-[20px] font-bold leading-none text-neutral-900">
                   {String(counts[tile.key]).padStart(2, "0")}
                 </span>
                 <span
@@ -81,7 +80,7 @@ export function ClaimOverviewBand({
                   {tile.icon}
                 </span>
               </div>
-              <p className="mt-2 truncate text-[12px] font-medium text-neutral-500">
+              <p className="mt-1 truncate text-[12px] font-medium text-neutral-500">
                 {tile.label}
               </p>
             </>

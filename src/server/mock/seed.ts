@@ -306,6 +306,7 @@ const HISTORY_BEFORE: Record<ClaimStatus, readonly ClaimStatus[]> = {
   REJECTED: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
   CLOSED: ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "APPROVED"],
   QUERIED: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
+  ACTIVE: [],
 };
 
 const DAYS_AGO_BY_STATUS: Record<ClaimStatus, number> = {
@@ -318,6 +319,7 @@ const DAYS_AGO_BY_STATUS: Record<ClaimStatus, number> = {
   REJECTED: 22,
   CLOSED: 40,
   QUERIED: 12,
+  ACTIVE: 0,
 };
 
 const SAMPLE_FIELDS: Record<string, string> = {
