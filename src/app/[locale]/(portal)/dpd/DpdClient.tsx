@@ -179,31 +179,6 @@ const SortableTableHead = ({
   </TableHead>
 );
 
-function SummaryCard({
-  label,
-  value,
-  tone,
-}: Readonly<{
-  label: string;
-  value: number;
-  tone: "neutral" | "info" | "warning" | "danger";
-}>) {
-  const toneClass = {
-    neutral: "text-neutral-950",
-    info: "text-info",
-    warning: "text-warning",
-    danger: "text-destructive",
-  }[tone];
-  return (
-    <div className="rounded-xl border border-neutral-100 bg-white px-4 py-3 shadow-sm">
-      <p className={cn("font-outfit text-[24px] font-bold leading-none", toneClass)}>
-        {value}
-      </p>
-      <p className="mt-1.5 text-[12px] text-neutral-500">{label}</p>
-    </div>
-  );
-}
-
 const LOAN_STATUSES = [
   "New",
   "Underwriting",
@@ -241,26 +216,6 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
     () => Array.from(new Set(accounts.map((a) => a.product))).sort(),
     [accounts]
   );
-
-  // Dynamically computed from this lender's own dataset — never hard-coded — and always over
-  // the full account set (not the currently-filtered rows), so the cards read as a stable summary
-  // rather than shifting every time a filter is touched.
-  const summary = useMemo(() => {
-    let total = 0;
-    let d1to30 = 0;
-    let d31to60 = 0;
-    let d61to90 = 0;
-    let d90plus = 0;
-    for (const a of accounts) {
-      if (a.dpd === undefined) continue;
-      total += 1;
-      if (dpdInBand(a.dpd, "1-30")) d1to30 += 1;
-      else if (dpdInBand(a.dpd, "31-60")) d31to60 += 1;
-      else if (dpdInBand(a.dpd, "61-90")) d61to90 += 1;
-      else if (dpdInBand(a.dpd, "90+")) d90plus += 1;
-    }
-    return { total, d1to30, d31to60, d61to90, d90plus };
-  }, [accounts]);
 
   // See EligibleCasesClient.tsx's `toggleSort` for why this reads `sortKey`/`sortDirection` from
   // the render closure instead of nesting one setState call inside the other's updater — that
@@ -408,14 +363,6 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
 
   return (
     <div className="space-y-4">
-      {/* ── Summary cards ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard label="1–30 DPD" value={summary.d1to30} tone="info" />
-        <SummaryCard label="31–60 DPD" value={summary.d31to60} tone="warning" />
-        <SummaryCard label="61–90 DPD" value={summary.d61to90} tone="warning" />
-        <SummaryCard label="90+ DPD" value={summary.d90plus} tone="danger" />
-      </div>
-
       <Panel
         title={`${rows.length} account${rows.length === 1 ? "" : "s"}`}
         description="View and manage all the loans"

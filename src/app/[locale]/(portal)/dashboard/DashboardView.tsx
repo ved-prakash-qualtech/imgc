@@ -107,7 +107,7 @@ export function DashboardView({ role, summary }: Props) {
         subtitle="Where every account currently stands"
         stats={[]}
       >
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
           {summary.progressTiles.map((tile) => (
             <ProgressTileCard key={tile.key} tile={tile} />
           ))}

@@ -471,20 +471,6 @@ export async function buildDashboardSummary(
       href: funnelHref("Underwriting"),
     },
     {
-      key: "ready",
-      label: "Pre Offer",
-      value: claimStatusCount("SUBMITTED"),
-      tone: "teal",
-      href: funnelHref("Pre Offer"),
-    },
-    {
-      key: "submitted",
-      label: "Invoiced",
-      value: claimStatusCount("UNDER_REVIEW"),
-      tone: "violet",
-      href: funnelHref("Invoiced"),
-    },
-    {
       key: "queried",
       label: "Queried",
       value: queriedCount,
