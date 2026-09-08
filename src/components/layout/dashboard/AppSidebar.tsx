@@ -258,7 +258,7 @@ export function AppSidebar({
         {/* Drawer panel */}
         <aside
           className={cn(
-            "fixed left-0 top-0 z-50 flex h-full w-sidebar-w flex-col bg-sidebar-bg text-white shadow-2xl transition-transform duration-200 md:hidden",
+            "fixed left-0 top-0 z-50 flex h-full w-sidebar-w flex-col bg-gradient-to-b from-[#5c5c5c] to-[#383838] text-white shadow-2xl transition-transform duration-200",
             open ? "translate-x-0" : "-translate-x-full"
           )}
         >
@@ -278,9 +278,7 @@ export function AppSidebar({
   return (
     <aside
       className={cn(
-        // Hidden below md — a mobile viewport gets the overlay drawer above instead, opened via
-        // the navbar's hamburger button; this rail is the desktop/tablet-width experience.
-        "sticky top-0 hidden h-screen shrink-0 flex-col bg-sidebar-bg text-white transition-[width] duration-200 md:flex",
+        "sticky top-0 flex h-screen shrink-0 flex-col bg-gradient-to-b from-[#5c5c5c] to-[#383838] text-white transition-[width] duration-200",
         isCollapsed ? "w-16" : "w-sidebar-w"
       )}
     >
@@ -315,42 +313,31 @@ function SidebarContents({
 }: SidebarContentsProps) {
   return (
     <>
-      {/* Header — logo mark on a white card, so it reads against the dark rail. Collapsed shows
-          just the icon mark; expanded shows the full lockup (icon + wordmark baked into one
-          image) instead of re-typesetting "IMGC / Defining Tomorrow" next to it. */}
-      <div className={cn("px-4 pt-4 pb-3", collapsed && "px-2")}>
+      {/* Header — logo mark and portal name on the same line. 
+          The logo is a white squircle with the IMGC mark. */}
+      <div className={cn("flex items-center gap-3 pt-5 pb-4", collapsed ? "justify-center px-2" : "px-5")}>
         <div
           className={cn(
-            "flex items-center justify-center rounded-2xl bg-white py-2.5 shadow-sm",
-            collapsed ? "px-0" : "px-3"
+            "flex shrink-0 items-center justify-center rounded-xl bg-white shadow-sm",
+            collapsed ? "size-9" : "size-[42px]"
           )}
         >
-          {collapsed ? (
-            <Image
-              src="/assets/icons/imgc-mark.svg"
-              alt=""
-              width={26}
-              height={26}
-              aria-hidden
-            />
-          ) : (
-            <Image
-              src="/assets/icons/logo.png"
-              alt="IMGC — Defining Tomorrow"
-              width={120}
-              height={120}
-              className="h-9 w-auto"
-              priority
-            />
-          )}
+          <Image
+            src={collapsed ? "/assets/icons/imgc-mark.svg" : "/assets/icons/logo.png"}
+            alt="IMGC Logo"
+            width={collapsed ? 20 : 32}
+            height={collapsed ? 20 : 32}
+            className="object-contain"
+            priority
+          />
         </div>
-      </div>
 
-      {!collapsed && sectionLabel && (
-        <p className="px-6 pt-1 pb-2 text-[10.5px] font-bold tracking-[0.14em] text-brand-primary uppercase">
-          {sectionLabel}
-        </p>
-      )}
+        {!collapsed && sectionLabel && (
+          <p className="min-w-0 flex-1 truncate text-[10px] font-bold tracking-[0.08em] text-brand-primary uppercase">
+            {sectionLabel}
+          </p>
+        )}
+      </div>
 
       {/* Nav items */}
       <nav

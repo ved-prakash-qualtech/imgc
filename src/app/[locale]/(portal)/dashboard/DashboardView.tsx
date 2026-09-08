@@ -190,7 +190,7 @@ export function DashboardView({
 
       {/* ── Portfolio overview ───────────────────────────────────── */}
       <section>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {summary.rings
             // "Active Loans", "Queries Awaiting Response" and "Rejected Documents" are no longer
             // shown on either dashboard — the same numbers stay reachable from the claim-stage
@@ -390,7 +390,7 @@ export function DashboardView({
               )}
             </div>
 
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-2.5 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
               {summary.aging.map((band) => (
                 <div
                   key={band.label}
@@ -512,7 +512,7 @@ function ProgressTileCard({ tile }: Readonly<{ tile: Tile }>) {
     </>
   );
   const className = cn(
-    "flex flex-col gap-1 rounded-xl border bg-white px-3 py-2.5 shadow-sm transition-all duration-300",
+    "flex flex-col gap-1 rounded-xl border bg-white px-2.5 py-2 shadow-sm transition-all duration-300",
     t.bg,
     tile.href && "hover:-translate-y-1 hover:shadow-md hover:bg-neutral-50 cursor-pointer"
   );

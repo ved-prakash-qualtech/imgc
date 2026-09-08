@@ -123,9 +123,21 @@ export function AuditTrailTab({ events }: Readonly<{ events: AuditEvent[] }>) {
                 <p className="mt-1 text-[13px] leading-snug text-neutral-800">
                   {e.summary}
                 </p>
-                <p className="mt-0.5 text-[11.5px] text-neutral-400">
-                  {e.actorName} · {e.actorRole}
-                </p>
+                <div className="mt-0.5 flex flex-wrap items-center gap-3">
+                  <p className="text-[11.5px] text-neutral-400">
+                    {e.actorName} · {e.actorRole}
+                  </p>
+                  {e.type === "DOC_UPLOADED" && e.meta?.fileId && (
+                    <a
+                      href={`/api/portal/files/${e.meta.fileId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 transition-colors hover:border-brand-primary hover:text-brand-primary"
+                    >
+                      View Document
+                    </a>
+                  )}
+                </div>
               </div>
             </li>
           ))}

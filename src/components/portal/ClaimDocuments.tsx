@@ -208,13 +208,19 @@ function DocAccordionItem({
   const bodyId = `docbody-${doc.id}`;
 
   const isPreSeeded = doc.files.some((f) => f.uploadedBy === "system");
+  // A pre-seeded document is normally locked to prevent casual replacement. However, if IMGC
+  // has explicitly rejected it, the lender must be able to supply a replacement — the rejection
+  // is the only signal that a change is actually needed, so the guard is lifted for that case.
+  const imgcRejected = doc.status === "REJECTED";
   const action =
-    !locked && doc.status !== "APPROVED" && !isPreSeeded
-      ? !hasFiles
-        ? { mode: "upload" as const, label: "Upload", icon: <UploadIcon /> }
-        : doc.multiple
-          ? { mode: "add" as const, label: "Add File", icon: <PlusIcon /> }
-          : { mode: "replace" as const, label: "Replace", icon: <RefreshCwIcon /> }
+    !locked && doc.status !== "APPROVED" && (!isPreSeeded || imgcRejected)
+      ? imgcRejected
+        ? { mode: "replace" as const, label: "Re-upload", icon: <UploadIcon /> }
+        : !hasFiles
+          ? { mode: "upload" as const, label: "Upload", icon: <UploadIcon /> }
+          : doc.multiple
+            ? { mode: "add" as const, label: "Add File", icon: <PlusIcon /> }
+            : { mode: "replace" as const, label: "Replace", icon: <RefreshCwIcon /> }
       : null;
 
   return (

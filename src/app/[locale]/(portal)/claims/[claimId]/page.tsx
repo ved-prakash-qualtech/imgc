@@ -20,6 +20,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { claimConfig } from "@/config/claimConfig";
+import { ROUTES } from "@/constants/route";
+import { Link } from "@/i18n/navigation";
 import { requireSession } from "@/lib/auth/appSession";
 import { getAccount } from "@/services/portal/accounts.server";
 import { getClaim, listQueries } from "@/services/portal/claimFlow.server";
@@ -78,17 +80,26 @@ export default async function ClaimDetailsPage({
           subtitle={`${claim.caseId} · ${claim.customerName} · ${claim.lenderName} · Claim Amount ${account ? inr.format(account.outstandingAmount) : "—"}`}
           stats={[]}
           action={
-            // Only IMGC gets to raise a query from here — a lender asking IMGC a free-form
-            // question isn't a flow the portal offers on this screen.
-            !terminal &&
-            !isLender && (
-              <ClaimQueryDialog
-                claimId={claim.id}
-                claimNo={claim.claimNo}
-                role={session.role}
-                requestableDocuments={config.documents.map((d) => d.name)}
-              />
-            )
+            <div className="flex items-center gap-3">
+              {isLender && (
+                <Link
+                  href={ROUTES.initiateClaim}
+                  className="inline-flex h-9 items-center justify-center rounded-md border border-neutral-200 bg-white px-4 text-[13px] font-medium text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-primary"
+                >
+                  Back to Claims Overview
+                </Link>
+              )}
+              {/* Only IMGC gets to raise a query from here — a lender asking IMGC a free-form
+                  question isn't a flow the portal offers on this screen. */}
+              {!terminal && !isLender && (
+                <ClaimQueryDialog
+                  claimId={claim.id}
+                  claimNo={claim.claimNo}
+                  role={session.role}
+                  requestableDocuments={config.documents.map((d) => d.name)}
+                />
+              )}
+            </div>
           }
         />
 
