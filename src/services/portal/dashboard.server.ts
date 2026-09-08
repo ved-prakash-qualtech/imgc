@@ -82,6 +82,17 @@ export interface ClaimPipelineKpis {
   overdueQueries: number;
 }
 
+/** One row of the IMGC-only "Cases by Lender" widget. */
+export interface LenderCaseCount {
+  lenderOrgId: string;
+  lenderName: string;
+  /** Accounts with a claim actually raised on them (`hasProgress`) — the workflow sense of a
+   *  "case", not merely an account that exists. */
+  cases: number;
+  /** That lender's whole book in scope, so the widget can show cases against their total. */
+  accounts: number;
+}
+
 export interface PriorityAccount {
   id: string;
   loanNo: string;
@@ -127,6 +138,9 @@ export interface DashboardSummary {
   portfolio?: PortfolioSummary;
   /** Lender only — top 5 high-value accounts requiring priority attention */
   priorityAccounts?: PriorityAccount[];
+  /** IMGC only — claim cases broken down by lender, biggest first. Undefined for a lender
+   *  session, whose whole dashboard is already one lender. */
+  lenderCaseCounts?: LenderCaseCount[];
 }
 
 function daysSince(iso: string): number {
@@ -331,18 +345,33 @@ function isIn(doc: ClaimDocument): boolean {
 }
 
 export async function buildDashboardSummary(
-  session: AppSession
+  session: AppSession,
+  /** IMGC-only lens on top of the normal scope below — narrows IMGC's own "every lender" set to
+   *  one lender's book (the Dashboard's own lender dropdown), computed from the exact same
+   *  accounts/claims/documents everything else here already reads, so every KPI and widget on the
+   *  page stays internally consistent for whichever lender is selected. Never applied to a lender
+   *  session (that scope is already just its own org, below) and never widens anyone's access —
+   *  it can only make an already-authorized IMGC view narrower. */
+  options?: { lenderOrgId?: string | null }
 ): Promise<DashboardSummary> {
   const db = await readDb();
 
-  const accounts = db.accounts.filter(
+  let accounts = db.accounts.filter(
     (a) => session.role === "IMGC" || a.lenderOrgId === session.lenderOrgId
   );
+  const selectedLenderOrgId =
+    session.role === "IMGC" ? (options?.lenderOrgId ?? undefined) : undefined;
+  if (selectedLenderOrgId) {
+    accounts = accounts.filter((a) => a.lenderOrgId === selectedLenderOrgId);
+  }
   const ids = new Set(accounts.map((a) => a.id));
   const docs = db.claimDocuments.filter((d) => ids.has(d.accountId));
   const events = db.auditEvents.filter((e) => ids.has(e.accountId));
 
-  const claims = await listClaims(session);
+  // Same claims `listClaims` already scopes by session — filtered again here against `ids` so a
+  // narrower `accounts` (the lender-filtered case above) narrows `claims` right along with it,
+  // without touching `listClaims`'s own access-control rules at all.
+  const claims = (await listClaims(session)).filter((c) => ids.has(c.accountId));
 
   const required = docs.filter((d) => d.required);
   const documentsRequired = required.length;
@@ -421,13 +450,25 @@ export async function buildDashboardSummary(
     (c) => c.hasProgress && overdueClaimIds.has(c.id)
   ).length;
 
+  // Every KPI on this page that links to `/dpd` has to carry the same lender narrowing the KPI
+  // itself was computed with — otherwise a tile counted against "HDFC Bank only" lands on an
+  // unfiltered (or wrongly-filtered) All Loans grid the moment it's clicked, showing every
+  // lender's rows again. `withLender` appends that `?lender=` param onto any `/dpd` URL whenever
+  // IMGC has actually narrowed to one lender; it's a no-op (returns the URL unchanged) for "every
+  // lender" and for a lender session (which never sets `selectedLenderOrgId` in the first place).
+  const withLender = (url: string): string =>
+    selectedLenderOrgId
+      ? `${url}${url.includes("?") ? "&" : "?"}lender=${encodeURIComponent(selectedLenderOrgId)}`
+      : url;
+
   // The claim-stage funnel band shown on the Dashboard — same shape and same source data for
   // both roles (the accounts/claims above are already scoped: a lender's own book, or, for IMGC,
   // every lender's). Both roles land on the same `/dpd` grid too (labelled "Accounts" for a
   // lender, "All Loans" for IMGC — see nav.ts) filtered by the exact same `loanStatus`
   // classification `accounts.server.ts` computes for every account, so a tile's count and what
   // its link shows always agree, for either role.
-  const funnelHref = (loanStatus: string) => `/dpd?loanStatus=${encodeURIComponent(loanStatus)}`;
+  const funnelHref = (loanStatus: string) =>
+    withLender(`/dpd?loanStatus=${encodeURIComponent(loanStatus)}`);
 
   /* Aging is measured from the last thing that happened on the account — an account nobody has
      touched for a fortnight is the one worth surfacing, whatever its status. Computed here (ahead
@@ -463,7 +504,7 @@ export async function buildDashboardSummary(
       label: "Total Loans",
       value: accounts.length,
       tone: "neutral",
-      href: "/dpd",
+      href: withLender("/dpd"),
     },
     {
       key: "new",
@@ -522,7 +563,7 @@ export async function buildDashboardSummary(
       label: "Active",
       value: activeCount,
       tone: "success",
-      href: "/dpd?loanStatus=Active",
+      href: withLender("/dpd?loanStatus=Active"),
     },
   ];
 
@@ -532,14 +573,14 @@ export async function buildDashboardSummary(
       label: "Total NPA Account",
       value: npaCount,
       total: accounts.length || 1,
-      href: "/dpd?npa=YES",
+      href: withLender("/dpd?npa=YES"),
     },
     {
       key: "in-progress",
       label: "Loan In Progress",
       value: notStartedCount + claimStatusCount("DRAFT") + queriedCount + approvedCount,
       total: accounts.length || 1,
-      href: "/dpd?loanStatus=In%20Progress",
+      href: withLender("/dpd?loanStatus=In%20Progress"),
     },
     {
       key: "submitted",
@@ -548,7 +589,7 @@ export async function buildDashboardSummary(
       total: accounts.length || 1,
       // "SUBMITTED" is what `classifyLoanStatus` (accounts.server.ts) labels "Pre Offer" — same
       // bucket, same field, just the All Loans grid's own name for it.
-      href: "/dpd?loanStatus=Pre%20Offer",
+      href: withLender("/dpd?loanStatus=Pre%20Offer"),
     },
     {
       key: "queried",
@@ -654,6 +695,30 @@ export async function buildDashboardSummary(
     // function produces the right numbers either way.
     portfolio: buildPortfolioSummary(accounts, lastTouch),
     claimPipeline,
+    // Cases (accounts carrying a claim that has actually been started) per lender, over the
+    // same scoped `accounts` every other figure here reads — so the hero banner's lender
+    // dropdown narrows this widget right along with the rest of the page.
+    lenderCaseCounts:
+      session.role === "IMGC"
+        ? (() => {
+            const byOrg = new Map<string, { cases: number; accounts: number }>();
+            for (const a of accounts) {
+              const row = byOrg.get(a.lenderOrgId) ?? { cases: 0, accounts: 0 };
+              row.accounts += 1;
+              if (claimByAccountId.get(a.id)?.hasProgress) row.cases += 1;
+              byOrg.set(a.lenderOrgId, row);
+            }
+            return Array.from(byOrg, ([lenderOrgId, row]) => ({
+              lenderOrgId,
+              lenderName:
+                db.lenderOrgs.find((o) => o.id === lenderOrgId)?.name ?? "—",
+              cases: row.cases,
+              accounts: row.accounts,
+            })).sort(
+              (x, y) => y.cases - x.cases || x.lenderName.localeCompare(y.lenderName)
+            );
+          })()
+        : undefined,
     priorityAccounts:
       session.role === "LENDER"
         ? accounts

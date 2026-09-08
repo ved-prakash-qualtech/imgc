@@ -1,10 +1,11 @@
+import { forbidden } from "next/navigation";
+
 import { AppFooter } from "@/components/layout/dashboard/AppFooter";
-import { AppNavbar } from "@/components/layout/dashboard/AppNavbar";
 import { AppSidebar } from "@/components/layout/dashboard/AppSidebar";
+import { MobileNavShell } from "@/components/layout/dashboard/MobileNavShell";
 import type { NavItem, NavKey } from "@/constants/nav";
 import type { SessionUser } from "@/lib/auth/session";
 import type { AssignedOfficer } from "@/services/portal/users.server";
-import { forbidden } from "next/navigation";
 
 export type DashboardShellProps = Readonly<{
   children: React.ReactNode;
@@ -78,12 +79,23 @@ export function DashboardShell({
         defaultCollapsed={sidebarDefaultCollapsed}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <AppNavbar
-          title={navbarTitle}
-          workspace={workspace}
-          user={user}
-          unreadCount={unreadCount}
-          assignedOfficer={assignedOfficer}
+        {/* The navbar's hamburger + the mobile drawer it opens share one bit of state, so that
+            pairing lives in its own small client component — everything else about this shell
+            (the access check above included) stays a server component. */}
+        <MobileNavShell
+          navbarProps={{
+            title: navbarTitle,
+            workspace,
+            user,
+            unreadCount,
+            assignedOfficer,
+          }}
+          sidebarProps={{
+            items,
+            activeKey,
+            badges,
+            sectionLabel: workspace ? `${workspace} Portal` : undefined,
+          }}
         />
         {/* flex-1 so a short page pushes the footer to the bottom rather than leaving
             it floating directly under the content. */}

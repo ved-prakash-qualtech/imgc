@@ -35,6 +35,7 @@ import {
 import { DPD_BANDS, DPD_BAND_LABEL, dpdInBand, formatDpd, type DpdBand } from "@/lib/dpd";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { EligibleRow } from "@/app/[locale]/(portal)/initiate-claim/page";
+import type { Role } from "@/server/mock/types";
 
 /** Same "not started" idea the Claim grid uses (a claim record can exist before the lender has
  *  actually done anything with it) — kept local rather than imported, since the two grids' rows
@@ -51,7 +52,7 @@ function dpdBandDisplay(v: DpdBand): string {
   return v === "ALL" ? "All DPD" : DPD_BAND_LABEL[v];
 }
 
-type SortKey = "loanNo" | "borrowerName" | "loanAmount" | "outstandingAmount" | "dpd" | "product" | "npa" | "loanStatus" | "lastUpdatedAt";
+type SortKey = "loanNo" | "borrowerName" | "lender" | "loanAmount" | "outstandingAmount" | "dpd" | "product" | "npa" | "loanStatus" | "lastUpdatedAt";
 type SortDirection = "asc" | "desc" | null;
 
 const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
@@ -70,10 +71,11 @@ function csvField(value: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function downloadCsv(rows: EligibleRow[]): void {
+function downloadCsv(rows: EligibleRow[], role: Role): void {
   const headers = [
     "Loan Account",
     "Customer",
+    ...(role === "IMGC" ? ["Lender"] : []),
     "Product",
     "Loan Amount",
     "Outstanding",
@@ -86,6 +88,7 @@ function downloadCsv(rows: EligibleRow[]): void {
     [
       a.loanNo,
       a.borrowerName,
+      ...(role === "IMGC" ? [a.lenderOrgName] : []),
       a.product,
       a.loanAmount,
       a.outstandingAmount,
@@ -167,10 +170,17 @@ const LOAN_STATUSES = [
   "In Progress",
 ] as const;
 
-export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
+export function DpdClient({
+  accounts,
+  role,
+}: Readonly<{ accounts: EligibleRow[]; role: Role }>) {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(() => searchParams.get("query") ?? "");
   const [dpdBand, setDpdBand] = useState<DpdBand>("ALL");
+  // Holds a `lenderOrgId`, not a display name — matches the `?lender=` param the Dashboard's own
+  // KPI rings/tiles link here with (see `withLender` in dashboard.server.ts), so a ring counted
+  // against one lender and the grid it opens always agree.
+  const [lender, setLender] = useState(() => searchParams.get("lender") ?? "ALL");
   const [npaFilter, setNpaFilter] = useState<"ALL" | "YES" | "NO">(() => {
     const param = searchParams.get("npa");
     return param === "YES" || param === "NO" ? param : "ALL";
@@ -192,6 +202,19 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
   const products = useMemo(
     () => Array.from(new Set(accounts.map((a) => a.product))).sort(),
     [accounts]
+  );
+  // IMGC only — a lender session's own accounts are all one lender already, nothing to filter.
+  // Keyed by id (what the URL and the filter itself use) with the display name alongside it.
+  const lenders = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const a of accounts) byId.set(a.lenderOrgId, a.lenderOrgName);
+    return Array.from(byId, ([id, name]) => ({ id, name })).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  }, [accounts]);
+  const lenderNameById = useMemo(
+    () => new Map(lenders.map((l) => [l.id, l.name])),
+    [lenders]
   );
 
   // See EligibleCasesClient.tsx's `toggleSort` for why this reads `sortKey`/`sortDirection` from
@@ -235,6 +258,9 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
     if (product !== "ALL") {
       result = result.filter((a) => a.product === product);
     }
+    if (lender !== "ALL") {
+      result = result.filter((a) => a.lenderOrgId === lender);
+    }
 
     const q = query.trim().toLowerCase();
     if (q) {
@@ -257,6 +283,10 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
           case "borrowerName":
             valA = a.borrowerName;
             valB = b.borrowerName;
+            break;
+          case "lender":
+            valA = a.lenderOrgName;
+            valB = b.lenderOrgName;
             break;
           case "loanAmount":
             valA = a.loanAmount;
@@ -298,7 +328,7 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
       });
     }
     return result;
-  }, [accounts, query, dpdBand, npaFilter, loanStatusFilter, product, sortKey, sortDirection]);
+  }, [accounts, query, dpdBand, npaFilter, loanStatusFilter, product, lender, sortKey, sortDirection]);
 
   const pageCount = Math.ceil(rows.length / pageSize) || 1;
   const currentPage = Math.min(page, pageCount);
@@ -327,6 +357,10 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
     setProduct(v);
     setPage(1);
   }, []);
+  const handleLenderChange = useCallback((v: string) => {
+    setLender(v);
+    setPage(1);
+  }, []);
   const handlePageSizeChange = useCallback((val: string | null) => {
     setPageSize(Number(val ?? "10"));
     setPage(1);
@@ -338,11 +372,12 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
     setNpaFilter("ALL");
     setLoanStatusFilter("ALL");
     setProduct("ALL");
+    setLender("ALL");
     setSortKey(null);
     setSortDirection(null);
     setPage(1);
   }, []);
-  const handleExport = useCallback(() => downloadCsv(rows), [rows]);
+  const handleExport = useCallback(() => downloadCsv(rows, role), [rows, role]);
 
   return (
     <div className="space-y-4">
@@ -355,7 +390,7 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
           </Button>
         }
       >
-        <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-neutral-100 px-4 py-2">
           <div className="relative">
             <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
             <input
@@ -363,7 +398,7 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
               onChange={handleQueryChange}
               placeholder="Loan account or customer name"
               aria-label="Search DPD accounts"
-              className="h-8 w-[230px] rounded-full border border-neutral-200 bg-white pl-9 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              className="h-7 w-[190px] rounded-full border border-neutral-200 bg-white pl-9 pr-3 text-[12px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
             />
           </div>
           <FilterSelect
@@ -394,6 +429,15 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
             onChange={handleProductChange}
             display={purposeDisplay}
           />
+          {role === "IMGC" && (
+            <FilterSelect
+              label="Lender"
+              options={["ALL", ...lenders.map((l) => l.id)] as const}
+              value={lender}
+              onChange={handleLenderChange}
+              display={(v) => (v === "ALL" ? "All Lenders" : (lenderNameById.get(v) ?? v))}
+            />
+          )}
           <Button variant="outline" size="sm" onClick={handleReset}>
             <RotateCcwIcon /> Reset Filters
           </Button>
@@ -405,6 +449,9 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
               <TableRow>
                 <SortableTableHead column="loanNo" label="Loan Account" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                 <SortableTableHead column="borrowerName" label="Customer" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                {role === "IMGC" && (
+                  <SortableTableHead column="lender" label="Lender" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                )}
                 <SortableTableHead column="product" label="Product" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                 <SortableTableHead column="loanAmount" label="Loan Amount" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                 <SortableTableHead column="outstandingAmount" label="Outstanding" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
@@ -418,7 +465,7 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
             <TableBody>
               {currentRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-14 text-center">
+                  <TableCell colSpan={role === "IMGC" ? 10 : 9} className="py-14 text-center">
                     <CalendarClockIcon className="mx-auto mb-2 size-6 text-neutral-300" />
                     <p className="text-[13px] font-medium text-neutral-700">No accounts found</p>
                     <p className="mt-0.5 text-[12.5px] text-neutral-500">
@@ -435,6 +482,11 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
                     <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap">
                       {a.borrowerName}
                     </TableCell>
+                    {role === "IMGC" && (
+                      <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap">
+                        {a.lenderOrgName}
+                      </TableCell>
+                    )}
                     <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
                       {a.product}
                     </TableCell>
@@ -527,7 +579,7 @@ function FilterSelect<T extends string>({
         aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
-        className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-[12.5px] font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+        className="h-7 max-w-[130px] appearance-none overflow-hidden rounded-full border border-neutral-200 bg-white py-0 pl-3 pr-6 text-[11.5px] font-medium text-ellipsis whitespace-nowrap text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
       >
         {options.map((option) => (
           <option key={option} value={option}>
@@ -535,7 +587,7 @@ function FilterSelect<T extends string>({
           </option>
         ))}
       </select>
-      <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+      <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 size-3 -translate-y-1/2 text-neutral-400" />
     </div>
   );
 }

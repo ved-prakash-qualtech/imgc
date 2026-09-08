@@ -245,10 +245,11 @@ export function AppSidebar({
   if (overlay) {
     return (
       <>
-        {/* Backdrop */}
+        {/* Backdrop — md:hidden because this whole mode only exists for the mobile drawer; the
+            rail below is what desktop/tablet always shows instead. */}
         {open && (
           <div
-            className="fixed inset-0 z-40 bg-black/40"
+            className="fixed inset-0 z-40 bg-black/40 md:hidden"
             aria-hidden
             onClick={onClose}
           />

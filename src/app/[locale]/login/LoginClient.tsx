@@ -4,11 +4,14 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
   ArrowRightIcon,
+  BadgeCheckIcon,
   CheckCircle2Icon,
   EyeIcon,
   EyeOffIcon,
+  KeyRoundIcon,
   LockIcon,
   MailIcon,
+  ShieldCheckIcon,
   UserIcon,
 } from "lucide-react";
 
@@ -35,19 +38,13 @@ const FEATURE_PILLS = [
   "Co-lending",
 ];
 
-const VALUE_ROWS = [
-  {
-    title: "Lenders upload once",
-    body: "A checklist per account, with save, submit and a full version history.",
-  },
-  {
-    title: "IMGC reviews in place",
-    body: "Accept, reject with a reason, or pull the account into the IMGC bucket.",
-  },
-  {
-    title: "Nothing is lost",
-    body: "Every upload, remark and PAS write lands on the account's audit trail.",
-  },
+/** The certifications and controls this workspace is run under — deliberately short labels, so
+ *  the row stays one line on a laptop and wraps to two only on a narrow window. */
+const SECURITY_BADGES = [
+  { label: "ISO 27001", icon: <ShieldCheckIcon className="size-3.5" /> },
+  { label: "SOC 2 Type II", icon: <BadgeCheckIcon className="size-3.5" /> },
+  { label: "AES-256", icon: <LockIcon className="size-3.5" /> },
+  { label: "MFA Enforced", icon: <KeyRoundIcon className="size-3.5" /> },
 ];
 
 function FieldLabel({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -247,18 +244,26 @@ export function LoginClient({
               ))}
             </ul>
 
-            <dl className="mt-6 max-w-[560px] space-y-4 border-l border-[#f26e22]/30 pl-5">
-              {VALUE_ROWS.map((row) => (
-                <div key={row.title}>
-                  <dt className="text-[14px] font-semibold text-slate-900">
-                    {row.title}
-                  </dt>
-                  <dd className="mt-0.5 text-[13px] font-medium leading-relaxed text-slate-800">
-                    {row.body}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+            {/* Squarer chips with an icon tile, deliberately unlike the rounded-full benefit
+                pills above — these are assurances about the platform, not things it does. */}
+            <div className="mt-6 max-w-[560px]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-600">
+                Security &amp; compliance
+              </p>
+              <ul className="mt-2.5 flex flex-wrap gap-2">
+                {SECURITY_BADGES.map((badge) => (
+                  <li
+                    key={badge.label}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-900/10 bg-white/80 px-2.5 py-1.5 text-[12.5px] font-semibold text-slate-800 shadow-sm backdrop-blur-sm"
+                  >
+                    <span className="grid size-5 shrink-0 place-items-center rounded-md bg-[#f26e22]/12 text-[#f26e22]">
+                      {badge.icon}
+                    </span>
+                    {badge.label}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </section>
 
           {/* Right: sign-in card */}

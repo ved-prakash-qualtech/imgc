@@ -82,6 +82,36 @@ const LENDER_DEFS: ReadonlyArray<{
   { id: "org_secure", name: "Secure Housing Finance", domain: "securehf.demo", contacts: ["claims@securehf.demo"] },
 ];
 
+/**
+ * How many accounts each lender gets — deliberately uneven and in the same order as
+ * `LENDER_DEFS`, summing to `TOTAL_ACCOUNTS` (300). An even 30-each split (`i % LENDER_DEFS.length`)
+ * made every lender's own dashboard/KPI numbers look identical (a lender dropdown that always
+ * showed "30" regardless of which lender was picked gave nothing to visually tell selections
+ * apart by), so this assigns each lender a contiguous block of that size instead — real book-size
+ * variety, still fully deterministic. `decorrelate` doesn't need to change for this: its own
+ * spread guarantee comes from `i` increasing by 1 within a contiguous run, which this still is,
+ * just no longer exactly 30 long.
+ */
+const LENDER_ACCOUNT_COUNTS: readonly number[] = [
+  42, // HDFC Bank
+  35, // ICICI Bank
+  18, // ABC Housing Finance
+  25, // XYZ Home Loans
+  15, // PQR Finance
+  22, // Sunrise Housing Finance
+  30, // National Housing Finance
+  20, // Prime Home Finance
+  48, // Metro Housing Finance
+  45, // Secure Housing Finance
+];
+
+/** Flattens `LENDER_ACCOUNT_COUNTS` into one lender-per-account-index lookup, e.g.
+ *  `[HDFC, HDFC, ..., ICICI, ICICI, ..., ...]` — built once, read by raw index in the main loop
+ *  below instead of every account re-deriving its own lender from a modulus. */
+const LENDER_BY_INDEX: ReadonlyArray<(typeof LENDER_DEFS)[number]> = LENDER_DEFS.flatMap(
+  (lender, i) => Array.from({ length: LENDER_ACCOUNT_COUNTS[i]! }, () => lender)
+);
+
 /* ── name / place pools — deterministic index-based selection only ──── */
 const FIRST_NAMES = [
   "Rajesh", "Kavya", "Imran", "Deepa", "Sneha", "Vikram", "Nikhil", "Ananya",
@@ -381,7 +411,8 @@ export function buildSeed(): MockDb {
       lenderUsersByOrg.set(u.lenderOrgId!, list);
     });
 
-  const TOTAL_ACCOUNTS = 300;
+  // Derived from `LENDER_ACCOUNT_COUNTS`, not restated — the two can never silently drift apart.
+  const TOTAL_ACCOUNTS = LENDER_BY_INDEX.length;
   const accounts: Account[] = [];
   const pasValues: PasValue[] = [];
   const claimDocuments: ClaimDocument[] = [];
@@ -394,7 +425,7 @@ export function buildSeed(): MockDb {
   const claimCountByPrefix: Record<string, number> = {};
 
   for (let i = 0; i < TOTAL_ACCOUNTS; i += 1) {
-    const lender = LENDER_DEFS[i % LENDER_DEFS.length]!;
+    const lender = LENDER_BY_INDEX[i]!;
     // Every pool-choice below reads `k`, not `i` — see `decorrelate`'s comment: with 10 lenders,
     // a raw `i % N` for any N that shares a factor with 10 gives every account at one lender the
     // same handful of values (this is how the first version of this generator silently produced

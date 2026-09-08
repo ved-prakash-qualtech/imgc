@@ -95,7 +95,7 @@ export function ClaimStatusGraph({
                 </span>
               </div>
               {i < flow.length - 1 && (
-                <ChevronRightIcon className="mx-1.5 size-4 shrink-0 text-neutral-300" />
+                <ChevronRightIcon className="mx-1.5 size-4 shrink-0 text-neutral-400" />
               )}
             </li>
           );

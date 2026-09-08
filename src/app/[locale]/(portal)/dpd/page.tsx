@@ -35,7 +35,7 @@ export default async function DpdPage() {
   return (
     <PortalShell activeKey="dpd" title="All Loans">
       <div className="space-y-4">
-        <DpdClient accounts={rows} />
+        <DpdClient accounts={rows} role={session.role} />
       </div>
     </PortalShell>
   );
