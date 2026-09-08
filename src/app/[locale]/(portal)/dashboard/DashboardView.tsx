@@ -1,23 +1,22 @@
 import Link from "next/link";
 import {
+  ActivityIcon,
   AlertTriangleIcon,
-  ArrowRightIcon,
   CheckCircle2Icon,
   ClipboardListIcon,
   ClockIcon,
   FilePlus2Icon,
+  LayersIcon,
   MessageSquareWarningIcon,
   SendIcon,
   TrendingUpIcon,
-  UploadCloudIcon,
   XCircleIcon,
 } from "lucide-react";
 
 import { CommandBand, Section } from "@/components/portal/CommandBand";
 import { Donut } from "@/components/portal/Donut";
 import { Panel } from "@/components/portal/Panel";
-import { PortfolioCommandCenter, Sparkline } from "@/components/portal/PortfolioCommandCenter";
-import { ROUTES } from "@/constants/route";
+import { Sparkline, StatusBreakdownCard } from "@/components/portal/PortfolioCommandCenter";
 import { cn } from "@/lib/utils/twMergeUtils";
 
 import type { DashboardSummary } from "@/services/portal/dashboard.server";
@@ -31,6 +30,10 @@ const RING_ICON: Record<string, React.ReactNode> = {
   accounts: <AlertTriangleIcon className="size-4" />,
   "in-progress": <TrendingUpIcon className="size-4" />,
   submitted: <CheckCircle2Icon className="size-4" />,
+  // Same icon language the "Actionable items" cards below already use for these two — a query
+  // is a message-shaped wait, a rejected document is a clock-shaped one (retention window).
+  queried: <MessageSquareWarningIcon className="size-4" />,
+  "rejected-docs": <ClockIcon className="size-4" />,
 };
 
 /** What each ring means, not just what it looks like: NPA exposure is risk, in-progress loans are
@@ -40,12 +43,40 @@ const RING_TONE: Record<string, keyof typeof RING_TONE_STYLE> = {
   accounts: "danger",
   "in-progress": "info",
   submitted: "success",
+  queried: "info",
+  "rejected-docs": "danger",
 };
 
+// Keys match `Donut`'s own supported strokes exactly (brand/danger/info/success) — the ring, its
+// icon chip and its value all read this same tone, so there's nothing to keep in sync by hand.
+// `wash`/`borderTop` give each card a faint tone-tinted background and a colored top edge — the
+// same "what does this number mean" signal as the icon chip and donut, just carried by the whole
+// card instead of one small corner of it.
 const RING_TONE_STYLE = {
-  danger: { chip: "bg-destructive/10 text-destructive", value: "text-destructive" },
-  info: { chip: "bg-info/10 text-info", value: "text-info" },
-  success: { chip: "bg-success/10 text-success", value: "text-success" },
+  brand: {
+    chip: "bg-brand-light text-brand-primary",
+    value: "text-neutral-950",
+    wash: "bg-gradient-to-br from-brand-light/50 via-white to-white",
+    borderTop: "border-t-brand-primary",
+  },
+  danger: {
+    chip: "bg-destructive/10 text-destructive",
+    value: "text-destructive",
+    wash: "bg-gradient-to-br from-destructive/8 via-white to-white",
+    borderTop: "border-t-destructive",
+  },
+  info: {
+    chip: "bg-info/10 text-info",
+    value: "text-info",
+    wash: "bg-gradient-to-br from-info/8 via-white to-white",
+    borderTop: "border-t-info",
+  },
+  success: {
+    chip: "bg-success/10 text-success",
+    value: "text-success",
+    wash: "bg-gradient-to-br from-success/8 via-white to-white",
+    borderTop: "border-t-success",
+  },
 } as const;
 
 const BAR_TONE = {
@@ -64,18 +95,6 @@ type Props = Readonly<{
   summary: DashboardSummary;
 }>;
 
-function renderUploadCloudIcon() {
-  return <UploadCloudIcon className="size-4" />;
-}
-
-function renderMessageWarningIcon() {
-  return <MessageSquareWarningIcon className="size-4" />;
-}
-
-function renderClockIcon() {
-  return <ClockIcon className="size-4" />;
-}
-
 export function DashboardView({ role, summary }: Props) {
   const isLender = role === "LENDER";
 
@@ -88,7 +107,7 @@ export function DashboardView({ role, summary }: Props) {
         subtitle="Where every account currently stands"
         stats={[]}
       >
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {summary.progressTiles.map((tile) => (
             <ProgressTileCard key={tile.key} tile={tile} />
           ))}
@@ -100,7 +119,7 @@ export function DashboardView({ role, summary }: Props) {
         title="Portfolio overview"
         subtitle="Claim and document counts against their totals"
       >
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {summary.rings.map((ring) => {
               const tone = RING_TONE[ring.key];
               const style = tone ? RING_TONE_STYLE[tone] : undefined;
@@ -114,7 +133,7 @@ export function DashboardView({ role, summary }: Props) {
                     RING_ICON[ring.key] && (
                       <span
                         className={cn(
-                          "grid size-6 shrink-0 place-items-center rounded-md",
+                          "grid size-7 shrink-0 place-items-center rounded-lg shadow-sm",
                           style?.chip ?? "bg-brand-light text-brand-primary"
                         )}
                       >
@@ -123,23 +142,26 @@ export function DashboardView({ role, summary }: Props) {
                     )
                   }
                   className={cn(
-                    "flex h-full flex-col transition-all",
-                    ring.href && "hover:-translate-y-0.5 hover:border-brand-primary/50 hover:shadow-md"
+                    "flex h-full flex-col overflow-hidden border-t-4 shadow-md transition-all duration-200",
+                    style?.wash ?? "bg-white",
+                    style?.borderTop ?? "border-t-brand-primary",
+                    ring.href &&
+                      "hover:-translate-y-1 hover:shadow-xl"
                   )}
                 >
-                  <div className="flex flex-1 items-center justify-center py-4">
+                  <div className="flex flex-1 items-center justify-center py-5">
                     <div className="relative grid place-items-center">
                       <Donut
                         value={ring.value}
                         total={ring.total}
-                        size={84}
-                        stroke={9}
+                        size={92}
+                        stroke={10}
                         tone={tone ?? "brand"}
                       />
                       <div className="pointer-events-none absolute inset-0 grid place-items-center">
                         <p
                           className={cn(
-                            "font-outfit text-[19px] font-bold leading-none",
+                            "font-outfit text-[22px] font-bold leading-none",
                             style?.value ?? "text-neutral-950"
                           )}
                         >
@@ -148,7 +170,7 @@ export function DashboardView({ role, summary }: Props) {
                       </div>
                     </div>
                   </div>
-                  <p className="text-center text-[11.5px] text-neutral-400">{pct}% of book</p>
+                  <p className="text-center text-[11.5px] font-medium text-neutral-400">{pct}% of book</p>
                 </Panel>
               );
               return ring.href ? (
@@ -159,44 +181,14 @@ export function DashboardView({ role, summary }: Props) {
                 <div key={ring.key}>{card}</div>
               );
             })}
+            {summary.portfolio && (
+              <StatusBreakdownCard
+                breakdown={summary.portfolio.statusBreakdown}
+                npaLoans={summary.portfolio.npaLoans}
+                loansOnBook={summary.portfolio.loansOnBook}
+              />
+            )}
           </div>
-      </Section>
-
-      {/* ── Actionable items ─────────────────────────────────────── */}
-      <Section
-        title="Actionable items"
-        subtitle="What is waiting on you right now"
-      >
-        <div className="grid gap-3 lg:grid-cols-3">
-          <ActionCard
-            icon={renderUploadCloudIcon()}
-            title="Pending document upload"
-            value={summary.pendingUploadAccounts}
-            unit={isLender ? "accounts pending" : "accounts pending, every lender"}
-            href={isLender ? ROUTES.initiateClaim : ROUTES.accounts}
-            tone="warning"
-          />
-          <ActionCard
-            icon={renderMessageWarningIcon()}
-            title="Queries awaiting response"
-            value={summary.queriedCount}
-            unit={isLender ? "claims queried by IMGC" : "claims currently queried"}
-            href={isLender ? ROUTES.trackQueryResponse : `${ROUTES.accounts}?status=QUERIED`}
-            tone="info"
-          />
-          <ActionCard
-            icon={renderClockIcon()}
-            title="Rejected documents"
-            value={summary.rejectedDocCount}
-            unit="held in the retention window"
-            href={
-              isLender
-                ? `${ROUTES.trackQueryResponse}?status=REJECTED`
-                : ROUTES.adminRetention
-            }
-            tone="danger"
-          />
-        </div>
       </Section>
 
       {/* ── Aging ────────────────────────────────────────────────── */}
@@ -204,7 +196,7 @@ export function DashboardView({ role, summary }: Props) {
         title="Aging overview — open cases"
         subtitle="Days since anything last happened on the account"
       >
-        <Panel size="compact" className="p-5">
+        <Panel size="compact" className="p-5 shadow-md">
             {/* One bar for the whole open pipeline — where four near-identical cards used to make
                 an empty band (0%) look like broken UI, a single stacked bar reads "everything's
                 piled up in one place" at a glance, which is the actual finding here. */}
@@ -253,12 +245,6 @@ export function DashboardView({ role, summary }: Props) {
           </Panel>
       </Section>
 
-      {/* ── Portfolio-wide charts — IMGC only; a lender has one lender's worth of collections
-          and status breakdown to show, which the sections above already cover ─────────────── */}
-      {!isLender && summary.portfolio && (
-        <PortfolioCommandCenter summary={summary.portfolio} showStats={false} />
-      )}
-
     </div>
   );
 }
@@ -268,6 +254,7 @@ export function DashboardView({ role, summary }: Props) {
 /** One icon + spark color per claim stage — same seven stages `progressTiles` classifies
  *  accounts into, just what each tile looks like. */
 const PROGRESS_TILE_ICON: Record<string, React.ReactNode> = {
+  "total-loans": <LayersIcon className="size-4" />,
   new: <FilePlus2Icon className="size-4" />,
   collecting: <ClipboardListIcon className="size-4" />,
   ready: <CheckCircle2Icon className="size-4" />,
@@ -276,6 +263,7 @@ const PROGRESS_TILE_ICON: Record<string, React.ReactNode> = {
   approved: <CheckCircle2Icon className="size-4" />,
   rejected: <XCircleIcon className="size-4" />,
   expired: <AlertTriangleIcon className="size-4" />,
+  active: <ActivityIcon className="size-4" />,
 };
 
 const PROGRESS_TILE_TONE: Record<
@@ -321,88 +309,3 @@ function ProgressTileCard({ tile }: Readonly<{ tile: Tile }>) {
   );
 }
 
-/** Same tone language as the portfolio rings: how urgent an actionable item is, not just what
- *  it's about — an upload backlog reads differently from a rejected document past retention. */
-const ACTION_TONE = {
-  warning: {
-    chip: "bg-warning/10 text-warning",
-    accent: "bg-warning",
-    value: "text-neutral-950",
-    badge: "bg-warning/10 text-warning",
-    button: "bg-warning text-white hover:bg-warning/85",
-  },
-  info: {
-    chip: "bg-info/10 text-info",
-    accent: "bg-info",
-    value: "text-neutral-950",
-    badge: "bg-info/10 text-info",
-    button: "bg-info text-white hover:bg-info/85",
-  },
-  danger: {
-    chip: "bg-destructive/10 text-destructive",
-    accent: "bg-destructive",
-    value: "text-destructive",
-    badge: "bg-destructive/10 text-destructive",
-    button: "bg-destructive text-white hover:bg-destructive/85",
-  },
-} as const;
-
-const ACTION_URGENCY_LABEL = {
-  warning: "Needs upload",
-  info: "Awaiting reply",
-  danger: "Action needed",
-} as const;
-
-function ActionCard({
-  icon,
-  title,
-  value,
-  unit,
-  href,
-  tone,
-}: Readonly<{
-  icon: React.ReactNode;
-  title: string;
-  value: number;
-  unit: string;
-  href: string;
-  tone: keyof typeof ACTION_TONE;
-}>) {
-  const t = ACTION_TONE[tone];
-  return (
-    <div className="group relative flex flex-col overflow-hidden rounded-xl border border-neutral-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-      <span className={cn("absolute inset-x-0 top-0 h-1", t.accent)} />
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className={cn("grid size-8 place-items-center rounded-lg", t.chip)}>
-            {icon}
-          </span>
-          <p className="text-[13.5px] font-semibold text-neutral-950">{title}</p>
-        </div>
-        {value > 0 && (
-          <span
-            className={cn(
-              "shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold",
-              t.badge
-            )}
-          >
-            {ACTION_URGENCY_LABEL[tone]}
-          </span>
-        )}
-      </div>
-      <p className={cn("font-outfit text-[32px] font-bold leading-none", t.value)}>
-        {value}
-      </p>
-      <p className="mt-1.5 text-[12.5px] text-neutral-500">{unit}</p>
-      <Link
-        href={href}
-        className={cn(
-          "mt-4 inline-flex h-9 w-fit items-center gap-1.5 rounded-lg px-3.5 text-[12.5px] font-semibold transition-colors",
-          t.button
-        )}
-      >
-        View details <ArrowRightIcon className="size-3.5" />
-      </Link>
-    </div>
-  );
-}

@@ -219,7 +219,10 @@ export function DpdClient({ accounts }: Readonly<{ accounts: EligibleRow[] }>) {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [dpdBand, setDpdBand] = useState<DpdBand>("ALL");
-  const [npaFilter, setNpaFilter] = useState<"ALL" | "YES" | "NO">("ALL");
+  const [npaFilter, setNpaFilter] = useState<"ALL" | "YES" | "NO">(() => {
+    const param = searchParams.get("npa");
+    return param === "YES" || param === "NO" ? param : "ALL";
+  });
   const [loanStatusFilter, setLoanStatusFilter] = useState<
     (typeof LOAN_STATUSES)[number] | "ALL"
   >(() => {

@@ -159,7 +159,7 @@ export default async function ClaimDetailsPage({
 
         {/* ── Documents ────────────────────────────────────────── */}
         <Panel id="documents" className="scroll-mt-14" title="Documents">
-          <div className="custom-scrollbar max-h-[220px] overflow-y-auto overflow-x-auto">
+          <div className="custom-scrollbar max-h-[267px] overflow-y-auto overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>

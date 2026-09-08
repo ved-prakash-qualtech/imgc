@@ -256,7 +256,7 @@ function Widget({
       title={title}
       description={subtitle}
       actions={action}
-      className="flex flex-col"
+      className="flex h-full flex-col overflow-hidden border-t-4 border-t-brand-primary bg-gradient-to-br from-brand-light/50 via-white to-white shadow-md transition-all duration-200"
     >
       <div className="flex flex-1 flex-col p-2">{children}</div>
     </Panel>
@@ -303,7 +303,7 @@ const STATUS_COLOR: Record<"active" | "overdue" | "closed", string> = {
   closed: "#a3a3a3",
 };
 
-function StatusBreakdownCard({
+export function StatusBreakdownCard({
   breakdown,
   npaLoans,
   loansOnBook,

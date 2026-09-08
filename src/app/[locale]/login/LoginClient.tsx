@@ -226,7 +226,9 @@ export function LoginClient({
           <section className="imgc-rise min-w-0 flex-1">
             <h1 className="font-outfit max-w-[620px] text-[34px] font-bold leading-[1.12] tracking-tight text-slate-900 sm:text-[44px]">
               One workspace{" "}
-              <span className="text-[#d85811]">for every lender.</span>
+              <span className="text-[#d85811] [text-shadow:_0_0_15px_rgb(255_255_255_/_100%),_0_1px_2px_rgb(255_255_255_/_80%)]">
+                for every lender.
+              </span>
             </h1>
             <p className="mt-4 max-w-[540px] text-[15px] leading-relaxed text-slate-800">
               Collect once, review everywhere — documents, PAS values and a

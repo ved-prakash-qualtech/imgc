@@ -2,6 +2,7 @@ import "server-only";
 
 /* eslint-disable security/detect-object-injection */
 import { readDb } from "@/server/mock/db";
+import { ROUTES } from "@/constants/route";
 import { listClaims } from "@/services/portal/claimFlow.server";
 import type { AppSession } from "@/lib/auth/appSession";
 import type { Claim, ClaimDocument } from "@/server/mock/types";
@@ -348,15 +349,11 @@ export async function buildDashboardSummary(
     requiredByAccount.set(doc.accountId, list);
   }
 
-  let untouched = 0;
-  let partly = 0;
   let readyToSubmit = 0;
   for (const account of accounts) {
     const own = requiredByAccount.get(account.id) ?? [];
     const inCount = own.filter(isIn).length;
     if (account.claimStatus !== "DRAFT") continue;
-    if (inCount === 0) untouched += 1;
-    else if (inCount < own.length) partly += 1;
     if (own.length > 0 && inCount === own.length) readyToSubmit += 1;
   }
 
@@ -366,8 +363,6 @@ export async function buildDashboardSummary(
   // Write-off outranks NPA — same mutually-exclusive classification the Accounts list uses
   // (assetClassOf in AccountsClient.tsx).
   const npaCount = accounts.filter((a) => a.npa && !a.writeOff).length;
-
-  const isLender = session.role === "LENDER";
 
   // Seven claim stages, sourced from the Claim entity itself — the same field
   // (`claim.status`/`hasProgress`) the Claim page's own `?status=` filter reads (see
@@ -403,6 +398,10 @@ export async function buildDashboardSummary(
   // against what `/dpd?loanStatus=Queried` actually lists.
   const queriedCount =
     claimStatusCount("QUERY_RAISED") + claimStatusCount("DOCUMENTS_RESUBMITTED");
+  // "Approved" folds in CLOSED too — same fold `classifyLoanStatus` in accounts.server.ts applies
+  // (closest terminal-success bucket) — so this tile's count doesn't undercount against what
+  // `/dpd?loanStatus=Approved` actually lists.
+  const approvedCount = claimStatusCount("APPROVED") + claimStatusCount("CLOSED");
 
   // Computed once, up here, so both the funnel band and the pipeline-health KPIs (further below)
   // read the same "overdue queries" number instead of two copies quietly drifting apart. No
@@ -421,7 +420,42 @@ export async function buildDashboardSummary(
   // its link shows always agree, for either role.
   const funnelHref = (loanStatus: string) => `/dpd?loanStatus=${encodeURIComponent(loanStatus)}`;
 
+  /* Aging is measured from the last thing that happened on the account — an account nobody has
+     touched for a fortnight is the one worth surfacing, whatever its status. Computed here (ahead
+     of `progressTiles`) because the "Active" tile below needs the same closed/overdue
+     classification `buildPortfolioSummary` already uses for IMGC's own Portfolio Status
+     Breakdown — reused, not reinvented, so "Active" means the same thing on both dashboards. */
+  const lastTouch = new Map<string, string>();
+  for (const event of events) {
+    const current = lastTouch.get(event.accountId);
+    if (!current || event.at > current)
+      lastTouch.set(event.accountId, event.at);
+  }
+
+  // Same two-step classification as `buildPortfolioSummary`: closed outranks overdue (a
+  // written-off or decided account isn't also "overdue"), and active is everything left over.
+  const closedIds = new Set(
+    accounts
+      .filter((a) => a.writeOff || a.claimStatus === "APPROVED" || a.claimStatus === "REJECTED")
+      .map((a) => a.id)
+  );
+  const overdueIds = new Set(
+    accounts
+      .filter((a) => !closedIds.has(a.id) && daysSince(lastTouch.get(a.id) ?? a.createdAt) > 8)
+      .map((a) => a.id)
+  );
+  const activeCount = accounts.filter(
+    (a) => !closedIds.has(a.id) && !overdueIds.has(a.id)
+  ).length;
+
   const progressTiles: Tile[] = [
+    {
+      key: "total-loans",
+      label: "Total Loans",
+      value: accounts.length,
+      tone: "neutral",
+      href: "/dpd",
+    },
     {
       key: "new",
       label: "New",
@@ -460,7 +494,7 @@ export async function buildDashboardSummary(
     {
       key: "approved",
       label: "Approved",
-      value: claimStatusCount("APPROVED"),
+      value: approvedCount,
       tone: "success",
       href: funnelHref("Approved"),
     },
@@ -483,6 +517,18 @@ export async function buildDashboardSummary(
       tone: "danger",
       href: funnelHref("Expired"),
     },
+    {
+      // Deliberately distinct from the "Pre Offer"/"Invoiced"/etc. stages above — this is the
+      // collections sense of "active": not written off or decided, and not gone quiet for more
+      // than a week. Same definition `buildPortfolioSummary` uses for IMGC's own Portfolio Status
+      // Breakdown (computed further below as `activeCount`), so "active" means one thing across
+      // both dashboards.
+      key: "active",
+      label: "Active",
+      value: activeCount,
+      tone: "success",
+      href: "/dpd",
+    },
   ];
 
   const rings: Ring[] = [
@@ -491,39 +537,77 @@ export async function buildDashboardSummary(
       label: "Total NPA Account",
       value: npaCount,
       total: accounts.length || 1,
-      href: isLender ? "/initiate-claim" : "/accounts?npa=yes",
+      href: "/dpd?npa=YES",
     },
     {
       key: "in-progress",
       label: "Loan In Progress",
-      value: untouched + partly,
+      // Every account except the four stages that already have their own, more specific place on
+      // the dashboard: "New" (no claim yet), "Rejected", "Expired" (overdue query), and whatever
+      // "Active Loans" below counts. What's left — Underwriting, Pre Offer, Queried-but-not-
+      // overdue, Approved/Closed — is genuinely "somewhere in the claim pipeline right now".
+      value:
+        accounts.length -
+        notStartedCount -
+        claimStatusCount("REJECTED") -
+        expiredCount -
+        claimStatusCount("SUBMITTED"),
       total: accounts.length || 1,
-      href: isLender ? "/initiate-claim" : "/accounts?status=DRAFT",
+      href: "/dpd",
     },
     {
       key: "submitted",
       label: "Active Loans",
       value: byStatus("SUBMITTED"),
       total: accounts.length || 1,
-      href: isLender
-        ? "/initiate-claim?status=SUBMITTED"
-        : "/accounts?status=SUBMITTED",
+      // "SUBMITTED" is what `classifyLoanStatus` (accounts.server.ts) labels "Pre Offer" — same
+      // bucket, same field, just the All Loans grid's own name for it.
+      href: "/dpd?loanStatus=Pre%20Offer",
+    },
+    {
+      key: "queried",
+      label: "Queries Awaiting Response",
+      value: queriedCount,
+      total: accounts.length || 1,
+      // Same "Queried" fold (QUERY_RAISED + DOCUMENTS_RESUBMITTED) `queriedCount` above already
+      // applies, and the same `/dpd?loanStatus=Queried` destination the funnel band's own
+      // "Queried" tile links to — so this ring's count and its click-through always agree.
+      href: funnelHref("Queried"),
+    },
+    {
+      key: "rejected-docs",
+      label: "Rejected Documents",
+      value: rejectedDocCount,
+      total: documentsRequired || 1,
+      // Same role-specific destination the "Rejected documents" Actionable-item card already
+      // links to: a lender resolves their own retention view on Track Query Response, IMGC's
+      // lives on the Retention workbench.
+      href:
+        session.role === "LENDER"
+          ? `${ROUTES.trackQueryResponse}?status=REJECTED`
+          : ROUTES.adminRetention,
     },
   ];
 
-  /* Aging is measured from the last thing that happened on the account — an account nobody has
-     touched for a fortnight is the one worth surfacing, whatever its status. */
-  const lastTouch = new Map<string, string>();
-  for (const event of events) {
-    const current = lastTouch.get(event.accountId);
-    if (!current || event.at > current)
-      lastTouch.set(event.accountId, event.at);
-  }
-
-  const open = accounts.filter(
-    (a) => a.claimStatus === "DRAFT" || a.claimStatus === "QUERIED"
+  // "Open" reads the real `Claim` entity, not `Account.claimStatus` (that legacy field defaults
+  // to "DRAFT" the moment an account is created, claim or no claim — so it was pulling in every
+  // untouched, no-claim-yet account and dating it from the loan's own origination date, months or
+  // years back, alongside genuinely open claims dated in days. The result was a widget that could
+  // only ever show "just now" or "ancient", never anything in between). A claim's own
+  // `lastUpdatedAt` (the same field `decidedAt`/`buildClaimPipelineKpis` above already trust) is
+  // also a truer "last touched" than the generic per-account `lastTouch` audit map, which an
+  // unrelated additional-document review can bump to "today" while the claim itself sits stalled.
+  const OPEN_CLAIM_STATUSES = new Set<Claim["status"]>([
+    "DRAFT",
+    "SUBMITTED",
+    "UNDER_REVIEW",
+    "QUERY_RAISED",
+    "DOCUMENTS_RESUBMITTED",
+  ]);
+  const openClaims = claims.filter(
+    (c) => c.hasProgress && OPEN_CLAIM_STATUSES.has(c.status) && !overdueClaimIds.has(c.id)
   );
-  const ages = open.map((a) => daysSince(lastTouch.get(a.id) ?? a.createdAt));
+  const ages = openClaims.map((c) => daysSince(c.lastUpdatedAt));
   const band = (min: number, max: number) =>
     ages.filter((d) => d >= min && d <= max).length;
 
@@ -578,10 +662,11 @@ export async function buildDashboardSummary(
         approved: by("APPROVED"),
       };
     })(),
-    portfolio:
-      session.role === "IMGC"
-        ? buildPortfolioSummary(accounts, lastTouch)
-        : undefined,
+    // Built for both roles now — the "Portfolio Status Breakdown" widget on the Dashboard sits
+    // under "Portfolio overview" for a lender too, not just IMGC's own command center. `accounts`
+    // is already scoped above (a lender's own book, or every lender's for IMGC), so the same
+    // function produces the right numbers either way.
+    portfolio: buildPortfolioSummary(accounts, lastTouch),
     claimPipeline,
   };
 }

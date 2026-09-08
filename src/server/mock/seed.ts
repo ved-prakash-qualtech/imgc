@@ -309,7 +309,7 @@ const HISTORY_BEFORE: Record<ClaimStatus, readonly ClaimStatus[]> = {
 };
 
 const DAYS_AGO_BY_STATUS: Record<ClaimStatus, number> = {
-  DRAFT: 3,
+  DRAFT: 1,
   SUBMITTED: 7,
   UNDER_REVIEW: 12,
   QUERY_RAISED: 16,
@@ -449,7 +449,11 @@ export function buildSeed(): MockDb {
       const history = wentThroughQuery
         ? (["DRAFT", "SUBMITTED", "UNDER_REVIEW", "QUERY_RAISED", "DOCUMENTS_RESUBMITTED", "UNDER_REVIEW"] as const)
         : HISTORY_BEFORE[status];
-      const daysAgo = DAYS_AGO_BY_STATUS[status] + (wentThroughQuery ? 12 : 0) + (k % 5);
+      // `k % 15`, not `k % 5` — a wider spread here is what gives the "Aging overview" widget on
+      // the Dashboard (buildDashboardSummary's `aging`, keyed off each open claim's own
+      // `lastUpdatedAt`) real coverage across all four of its day-bands instead of every open
+      // claim landing within the same few-day window.
+      const daysAgo = DAYS_AGO_BY_STATUS[status] + (wentThroughQuery ? 12 : 0) + (k % 15);
 
       const steps = [...history, status];
       const statusHistory = steps.map((s, si) => {
