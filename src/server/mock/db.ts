@@ -1,103 +1,136 @@
 import "server-only";
 
-/* eslint-disable security/detect-non-literal-fs-filename -- every path here is built from
-   `process.cwd()`/"/tmp" plus fixed literal segments (see DATA_DIR/DB_FILE/SEED_FILE below), never
-   from request input; the env-conditional branch for the serverless data dir is enough to defeat
-   the lint rule's literal-tracking, not an actual path-injection risk. */
-import { promises as fs } from "node:fs";
-import path from "node:path";
-
 import type { MockDb } from "@/server/mock/types";
 import { buildSeed } from "@/server/mock/seed";
+import {
+  StaleSnapshotError,
+  USING_BLOB,
+  readBundledSeed,
+  readSnapshot,
+  writeSnapshot,
+} from "@/server/mock/storage";
 
 /**
- * Prototype persistence: the whole domain in one JSON file under `.data/`, plus uploaded files
- * under `.data/uploads/`. Single process, no concurrency guarantees beyond the in-process write
- * queue below — deliberately simple, and the seam a real build replaces with QCP services.
+ * Prototype persistence: the whole domain as one JSON snapshot, plus uploaded files, both held by
+ * whichever backend `storage.ts` selects — the local disk in development, Vercel Blob wherever a
+ * store is connected. This module owns the shape and the read/modify/write cycle; it no longer
+ * knows where the bytes land.
  *
- * Serverless note: on Vercel (and Lambda generally) the deployed bundle — `process.cwd()`,
- * where `.data/imgc-db.json` ships checked into the repo — is a read-only filesystem. A plain
- * `readFile` against it succeeds (that's why every page that only *reads* — Dashboard, All Loans,
- * Claims — works fine once deployed), but `fs.writeFile` on it throws `EROFS`, which is exactly
- * what "Initiate Claim" hits the moment it calls `writeDb` to persist a new claim: the crash is
- * real, not flaky, and only ever shows up on a write path. `/tmp` is the one directory Vercel's
- * functions can actually write to, so that's where every write goes instead — reads still fall
- * back to the bundled seed the first time. `/tmp` is itself ephemeral (wiped on cold start, and
- * not shared across concurrent instances), so this stops the crash and makes demo writes work
- * within a warm instance, but it is not durable storage: a real deployment needs this file swapped
- * for an actual database, same as the other stand-ins this template documents.
+ * The snapshot is deliberately re-read on every `readDb()` rather than cached in module scope.
+ * With more than one serverless instance serving traffic, a cached copy is a copy of what *this*
+ * instance last saw, and the instance that served the write is usually not the one serving the
+ * next read — which is exactly how a successful save appears to vanish.
  */
-const IS_SERVERLESS = Boolean(
-  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
-);
-const SEED_DIR = path.join(process.cwd(), ".data");
-const SEED_FILE = path.join(SEED_DIR, "imgc-db.json");
-const DATA_DIR = IS_SERVERLESS ? path.join("/tmp", "imgc-data") : SEED_DIR;
-const DB_FILE = path.join(DATA_DIR, "imgc-db.json");
-export const UPLOAD_DIR = path.join(DATA_DIR, "uploads");
 
-let cache: MockDb | null = null;
-/** Serialises writes so two overlapping mutations cannot clobber each other's snapshot. */
+/** Serialises writes so two overlapping mutations in this instance cannot clobber each other. */
 let queue: Promise<unknown> = Promise.resolve();
 
-async function ensureDirs(): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.mkdir(UPLOAD_DIR, { recursive: true });
+/** The database plus the version tag a write has to quote to be accepted (see `writeSnapshot`). */
+interface Loaded {
+  db: MockDb;
+  etag?: string;
 }
 
-async function load(): Promise<MockDb> {
-  // if (cache) return cache; // Removed to prevent stale reads across Next.js module boundaries
-  await ensureDirs();
-  try {
-    const raw = await fs.readFile(DB_FILE, "utf8");
-    cache = JSON.parse(raw) as MockDb;
-    return cache;
-  } catch {
-    // No writable copy yet. On serverless, prefer copying the bundled seed (read-only but always
-    // present) over rebuilding from scratch, so a first write doesn't reset demo data that was
-    // already checked in — falls back to `buildSeed()` only if even that bundled file is missing.
+async function load(): Promise<Loaded> {
+  const raw = await readSnapshot();
+  if (raw) {
     try {
-      const seedRaw = await fs.readFile(SEED_FILE, "utf8");
-      cache = JSON.parse(seedRaw) as MockDb;
+      return { db: JSON.parse(raw.json) as MockDb, etag: raw.etag };
     } catch {
-      cache = buildSeed();
+      // A truncated or half-written snapshot: fall through and rebuild rather than crash every
+      // page with a JSON parse error.
     }
-    await fs.writeFile(DB_FILE, JSON.stringify(cache, null, 2), "utf8");
-    return cache;
   }
-}
 
-async function persist(db: MockDb): Promise<void> {
-  await ensureDirs();
-  cache = db;
-  await fs.writeFile(DB_FILE, JSON.stringify(db, null, 2), "utf8");
+  // Nothing stored yet. On disk-backed local dev, prefer whatever `.data/imgc-db.json` already
+  // holds over generating fresh — same idea as any other on-disk cache. On Blob, skip that
+  // entirely and always regenerate from `buildSeed()`: `.data/` is gitignored, so it is never a
+  // deployment's real seed — it is one developer's local scratch state, in whatever shape their
+  // last local session left it. `vercel --prod` uploads the working directory as-is (it is not a
+  // git-based deploy), so a `.data/imgc-db.json` sitting on disk when the CLI runs ships with the
+  // bundle and — before this — got read right back as the "official" seed the moment the Blob
+  // store was empty. That's precisely how a production reseed once came back already showing a
+  // reviewer's local rejection/approval history: not a persistence bug, a seed-source bug, and one
+  // `buildSeed()` (deterministic, code-defined, no filesystem read) can't reproduce.
+  const bundled = USING_BLOB ? null : await readBundledSeed();
+  let seeded: MockDb;
+  if (bundled) {
+    try {
+      seeded = JSON.parse(bundled) as MockDb;
+    } catch {
+      seeded = buildSeed();
+    }
+  } else {
+    seeded = buildSeed();
+  }
+
+  await writeSnapshot(JSON.stringify(seeded, null, 2));
+  // Re-read rather than assume: the write above may have lost a race with another instance
+  // seeding at the same moment, and the stored copy is the one everyone else will now build on.
+  const stored = await readSnapshot();
+  if (stored) {
+    try {
+      return { db: JSON.parse(stored.json) as MockDb, etag: stored.etag };
+    } catch {
+      /* fall through to the copy we just built */
+    }
+  }
+  return { db: seeded };
 }
 
 /** A read-only snapshot of the database. Do not mutate the result — go through `writeDb`. */
 export async function readDb(): Promise<MockDb> {
-  const db = await load();
-  return db;
+  return (await load()).db;
 }
 
 /**
  * Apply `mutator` to the database and persist the result. Mutations are queued, so callers can
  * `await writeDb(...)` without racing. The mutator may return a value, which is passed back.
+ *
+ * The snapshot is re-read inside the queue, immediately before the mutation, so each write builds
+ * on the latest stored state rather than on whatever this instance happened to load earlier.
+ *
+ * The queue only serialises writes *within one instance*, which is not enough on Vercel: two
+ * requests seconds apart routinely land on two different instances, and the second one's read can
+ * still predate the first one's write. So the write itself is conditional — it quotes the version
+ * it read (see `writeSnapshot`) — and a rejected write is retried here against freshly-read state
+ * rather than lost. The mutator runs again on that newer copy, so the two changes compose.
+ *
+ * That means a mutator must be safe to run more than once. They all are: each one looks its target
+ * up in the `db` it is handed and edits that, so re-running it against newer state is simply the
+ * same edit applied where it belongs.
  */
+const WRITE_ATTEMPTS = 5;
+
 export async function writeDb<T>(
   mutator: (db: MockDb) => T | Promise<T>
 ): Promise<T> {
   const run = queue.then(async () => {
-    const db = await load();
-    const result = await mutator(db);
-    await persist(db);
-    return result;
+    let lastError: unknown;
+    for (let attempt = 0; attempt < WRITE_ATTEMPTS; attempt += 1) {
+      const { db, etag } = await load();
+      const result = await mutator(db);
+      try {
+        await writeSnapshot(JSON.stringify(db, null, 2), etag);
+        return result;
+      } catch (error) {
+        if (!(error instanceof StaleSnapshotError)) throw error;
+        lastError = error;
+        // Someone wrote between our read and our write. Back off briefly — long enough for the
+        // winning write to be readable — then redo the whole read/modify/write on top of it.
+        await new Promise((resolve) => setTimeout(resolve, 120 * (attempt + 1)));
+      }
+    }
+    throw lastError;
   });
   // Keep the chain alive even if this mutation throws.
   queue = run.catch(() => undefined);
   return run;
 }
 
-/** Test/dev helper — drop the in-memory cache so the next read reloads from disk. */
+/** Test/dev helper — kept for callers; reads always hit storage, so there is no cache to drop. */
 export function resetDbCache(): void {
-  cache = null;
+  // Intentionally empty: `load()` re-reads the snapshot every time.
 }
+
+export { USING_BLOB };

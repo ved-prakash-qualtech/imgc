@@ -1,9 +1,8 @@
 import "server-only";
 
-import { promises as fs } from "node:fs";
-import path from "node:path";
 
-import { readDb, writeDb, UPLOAD_DIR } from "@/server/mock/db";
+import { readDb, writeDb } from "@/server/mock/db";
+import { putUpload } from "@/server/mock/storage";
 import { newId, nowIso } from "@/server/mock/ids";
 import { recordEvent } from "@/services/portal/audit.server";
 import { syncQueryForDocumentDecision } from "@/services/portal/claimFlow.server";
@@ -232,11 +231,15 @@ export async function uploadDocument(
 
   const fileId = newId("file");
   const safeName = file.name.replace(/[^\w.\-]+/g, "_").slice(-120);
-  const dir = path.join(UPLOAD_DIR, accountId);
-  const storedPath = path.join(dir, `${fileId}__${safeName}`);
-
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(storedPath, Buffer.from(await file.arrayBuffer()));
+  // Shared object storage on a deployment, the local disk in development — `storedPath` is
+  // whatever locator that backend hands back (a URL or an absolute path), and the file route
+  // reads either kind.
+  const storedPath = await putUpload(
+    accountId,
+    `${fileId}__${safeName}`,
+    Buffer.from(await file.arrayBuffer()),
+    file.type || "application/octet-stream"
+  );
 
   const version = await writeDb((fresh) => {
     const row = fresh.claimDocuments.find((d) => d.id === documentId);

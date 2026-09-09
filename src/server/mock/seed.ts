@@ -799,6 +799,47 @@ export function buildSeed(): MockDb {
     accounts.push(account);
   }
 
+  // A guaranteed block of "Initiate Claim"-eligible accounts for the demo lender (HDFC Bank).
+  // The main loop above already produces NPA-and-claimless accounts (`i % 3 !== 2` crossed with
+  // `dpd > 90` from `DPD_PATTERN`), but which specific accounts land in that intersection is a
+  // side effect of `decorrelate`'s spread, not something this file promises a count for — and it
+  // isn't scoped per lender. Demoing "Initiate Claim" needs a few rows that are *certain* to be
+  // eligible for whichever lender is signed in, so these are hand-built rather than left to fall
+  // out of the main pattern: no claim record at all, `npa: true`, on the same lender the "Demo as
+  // Lender" flow signs into (`org_acme` / HDFC Bank, see the comment on `LENDER_DEFS`).
+  const EXTRA_INITIATE_ELIGIBLE = 12;
+  for (let e = 0; e < EXTRA_INITIATE_ELIGIBLE; e += 1) {
+    const i = TOTAL_ACCOUNTS + e; // continues the index sequence — ids/loan numbers stay unique
+    const account = buildAccount(i, LENDER_DEFS[0]!, ["usr_len1", "Arjun Mehta"]);
+    account.npa = true;
+    account.writeOff = false;
+    account.dpd = DPD_PATTERN[19 + (e % (DPD_PATTERN.length - 19))]!; // always one of the >90 entries
+    account.stage = "Document collection";
+
+    const amounts: Record<string, number> = {
+      sanctionedAmount: account.loanAmount,
+      outstandingPrincipal: account.outstandingAmount,
+      overdueAmount: Math.round(account.outstandingAmount * 0.11),
+      emiAmount: Math.round(account.loanAmount / account.tenureMonths),
+      sumInsured: Math.round(account.loanAmount * 0.9),
+      claimAmount: account.outstandingAmount,
+    };
+    PAS_TEMPLATE.forEach((t) => {
+      pasValues.push({
+        id: `pas_${account.id}_${t.key}`,
+        accountId: account.id,
+        key: t.key,
+        label: t.label,
+        value: inr(amounts[t.key] ?? 0),
+        source: "PAS",
+        updatedAt: ago(2),
+        updatedBy: "PAS",
+      });
+    });
+
+    accounts.push(account);
+  }
+
   // One document-decision audit entry per document that has actually been decided.
   claimDocuments.forEach((d) => {
     if (!d.review) return;

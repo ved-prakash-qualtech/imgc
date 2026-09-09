@@ -93,6 +93,17 @@ export function InitialClaimsTab({
   /** Remarks typed against a row but not yet sent — what Save persists. */
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [adding, setAdding] = useState(false);
+  /**
+   * Which rows are expanded, keyed by document id — lifted up here rather than left as each
+   * row's own local state so a `router.refresh()` (fired after every accept/reject/upload) can
+   * never reset it: the id-keyed map survives a full `docs` prop replacement the same way a doc's
+   * own row does, whereas a value implicitly tied to a row's mount lifetime would not. Multiple
+   * rows are independent and open at once — there is no "close the others" behavior here.
+   */
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  const toggleExpanded = useCallback((docId: string) => {
+    setExpandedIds((prev) => ({ ...prev, [docId]: !prev[docId] }));
+  }, []);
 
   const isLender = role === "LENDER";
   const submitted = claimStatus === "SUBMITTED" || claimStatus === "APPROVED";
@@ -197,6 +208,8 @@ export function InitialClaimsTab({
               onToggleActive={onToggleActive}
               retentionDays={retentionDays}
               hasOpenQuery={queriedDocNames.includes(doc.name)}
+              expanded={Boolean(expandedIds[doc.id])}
+              onToggleExpanded={toggleExpanded}
             />
           ))}
         </ul>
@@ -254,6 +267,8 @@ function DocumentRowItem({
   onToggleActive,
   retentionDays,
   hasOpenQuery,
+  expanded,
+  onToggleExpanded,
 }: Readonly<{
   doc: DocumentRow;
   accountId: string;
@@ -267,12 +282,14 @@ function DocumentRowItem({
   /** Does an open query already name this document — so a fresh rejection (already synced into
    *  a query) doesn't get a redundant "Raise Query" button. */
   hasOpenQuery: boolean;
+  /** Owned by the parent, keyed by document id — every row opens and closes independently. */
+  expanded: boolean;
+  onToggleExpanded: (docId: string) => void;
 }>) {
   const router = useRouter();
   const [busy, startTransition] = useTransition();
   const [rejecting, setRejecting] = useState(false);
   const [previewing, setPreviewing] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const isLender = role === "LENDER";
   const working = pending || busy;
@@ -387,7 +404,7 @@ function DocumentRowItem({
       {/* Accordion Header */}
       <button
         type="button"
-        onClick={() => setExpanded((prev) => !prev)}
+        onClick={() => onToggleExpanded(doc.id)}
         aria-expanded={expanded}
         className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-neutral-50 focus:bg-neutral-50 focus:outline-none focus:ring-inset focus:ring-2 focus:ring-brand-primary/20"
       >

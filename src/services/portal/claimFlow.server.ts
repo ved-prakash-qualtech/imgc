@@ -1,10 +1,10 @@
-/* eslint-disable security/detect-non-literal-fs-filename, use-client/browser-api, security/detect-object-injection */
+/* eslint-disable use-client/browser-api, security/detect-object-injection */
 import "server-only";
 
-import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { readDb, writeDb, UPLOAD_DIR } from "@/server/mock/db";
+import { readDb, writeDb } from "@/server/mock/db";
+import { putUpload } from "@/server/mock/storage";
 import { newId, nowIso } from "@/server/mock/ids";
 import { recordEvent } from "@/services/portal/audit.server";
 import { sendMail } from "@/server/mock/mailer";
@@ -1099,10 +1099,13 @@ export async function addLenderDocument(
   const refNo = `AD-${String(existingAd + 1).padStart(3, "0")}`;
   const fileId = newId("file");
   const safeName = input.file.name.replace(/[^\w.\-]+/g, "_").slice(-120);
-  const dir = path.join(UPLOAD_DIR, accountId);
-  const storedPath = path.join(dir, `${fileId}__${safeName}`);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(storedPath, Buffer.from(await input.file.arrayBuffer()));
+  // Same shared-storage seam the checklist upload uses.
+  const storedPath = await putUpload(
+    accountId,
+    `${fileId}__${safeName}`,
+    Buffer.from(await input.file.arrayBuffer()),
+    input.file.type || "application/octet-stream"
+  );
 
   await writeDb((fresh) => {
     fresh.claimDocuments.push({

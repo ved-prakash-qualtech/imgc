@@ -67,3 +67,6 @@ certificates
 
 # IMGC Lender Portal — mock JSON database + uploaded claim documents (prototype persistence)
 /.data
+
+.vercel
+.env*

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFile } from "node:fs/promises";
 
 import { getSessionOrNull } from "@/lib/auth/appSession";
 import { readDb } from "@/server/mock/db";
+import { readUpload } from "@/server/mock/storage";
 
 /**
  * Serve an uploaded document file by its DocumentFile ID.
@@ -46,13 +46,11 @@ export async function GET(
     return new NextResponse("File not available (demo record)", { status: 404 });
   }
 
-  let bytes: Buffer;
-  try {
-    // Path comes from the authenticated DB record — not user-controlled input.
-    // eslint-disable-next-line security/detect-non-literal-fs-filename
-    bytes = await readFile(docFile.storedPath);
-  } catch {
-    return new NextResponse("File not found on disk", { status: 404 });
+  // The locator comes from the authenticated DB record — a Blob URL on a deployment, an
+  // absolute path for anything written by a local run. `readUpload` handles both.
+  const bytes = await readUpload(docFile.storedPath);
+  if (!bytes) {
+    return new NextResponse("File not found in storage", { status: 404 });
   }
 
   const mime = docFile.mime || "application/octet-stream";

@@ -1,0 +1,6 @@
+# `vercel --prod` deploys the working directory as-is — it is not a git-based deploy, so
+# `.gitignore` is not consulted here. `.data/` is this app's local disk-mode mock database and
+# upload store (see src/server/mock/storage.ts); it must never ship with a deployment. It's
+# gitignored precisely because it isn't source, and a stray copy sitting on disk when `vercel
+# --prod` runs has no business becoming part of what a fresh Vercel Blob store reseeds from.
+.data
