@@ -115,6 +115,18 @@ const nextConfig: NextConfig = {
   turbopack: { root: dirname },
   ...(basePath ? { assetPrefix: basePath } : {}),
   ...(devOriginPatterns.length ? { allowedDevOrigins: devOriginPatterns } : {}),
+  /**
+   * The two pre-seeded Initial Claim PDFs live in `public/demo/` and are recorded on their
+   * document rows as absolute filesystem paths (see `materialiseChecklist`). `public/` is served
+   * by Vercel's static layer, which is a different thing from being present on the function's own
+   * filesystem — so `fs.readFile` on that path, which works locally, found nothing once deployed.
+   * File tracing is how a serverless function is told to carry a file it never imports: without
+   * this the download route falls back to fetching the asset over HTTP, and that request arrives
+   * without a session, gets redirected to the login page, and hands back HTML labelled as a PDF.
+   */
+  outputFileTracingIncludes: {
+    "/api/portal/files/[fileId]": ["./public/demo/**"],
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

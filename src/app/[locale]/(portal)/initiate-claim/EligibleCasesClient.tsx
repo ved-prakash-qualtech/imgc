@@ -1,4 +1,4 @@
-/* eslint-disable react-perf/jsx-no-new-function-as-prop, react-perf/jsx-no-jsx-as-prop */
+/* eslint-disable react-perf/jsx-no-new-function-as-prop */
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
@@ -15,7 +15,6 @@ import {
 import { ClaimRowActions } from "@/components/portal/ClaimRowActions";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -99,6 +98,11 @@ const STATUS_OPTIONS = [
   "UNDER_PROGRESS",
 ] as const;
 
+/** Which side currently holds the claim. Same two values (and the same "ALL") the Accounts grid
+ *  filters on, so the two screens never disagree about what a bucket is. A row with no claim yet
+ *  has no bucket at all — it renders "—" — so it drops out whenever a specific side is picked. */
+const BUCKETS = ["ALL", "IMGC", "LENDER"] as const;
+
 /** In-flight — submitted but not yet decided one way or the other. Same set the Claims Overview
  *  band uses to compute its own "Under Progress" tile (see initiate-claim/page.tsx). */
 const UNDER_PROGRESS_STATUSES = new Set<ClaimStatus>([
@@ -137,6 +141,10 @@ function statusLabel(v: (typeof STATUS_OPTIONS)[number]): string {
 
 function purposeDisplay(v: string): string {
   return v === "ALL" ? "All purposes" : v;
+}
+
+function bucketDisplay(v: (typeof BUCKETS)[number]): string {
+  return v === "ALL" ? "All buckets" : v.toLowerCase();
 }
 
 /** A claim record exists the moment the lender opens the workspace — that's a plumbing detail
@@ -300,6 +308,7 @@ export function EligibleCasesClient({
     statusFromParam(searchParams.get("status"))
   );
   const [product, setProduct] = useState("ALL");
+  const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>("ALL");
 
   // Initialise sort from the URL param so that returning from claim submission
   // (with ?sort=lastUpdatedAt_desc) immediately shows the newest claim at row 1.
@@ -390,6 +399,11 @@ export function EligibleCasesClient({
     setPage(1);
   }, []);
 
+  const handleBucketChange = useCallback((v: (typeof BUCKETS)[number]) => {
+    setBucket(v);
+    setPage(1);
+  }, []);
+
   const handlePageSizeChange = useCallback((val: string | null) => {
     setPageSize(Number(val ?? "5"));
     setPage(1);
@@ -429,6 +443,11 @@ export function EligibleCasesClient({
     }
     if (product !== "ALL") {
       result = result.filter((a) => a.product === product);
+    }
+    if (bucket !== "ALL") {
+      // Reads the claim's own bucket, which is what the Bucket column renders — an account with
+      // no claim yet shows "—" there and so cannot match either side.
+      result = result.filter((a) => a.claim?.bucket === bucket);
     }
 
     const q = query.trim().toLowerCase();
@@ -494,7 +513,7 @@ export function EligibleCasesClient({
     }
 
     return result;
-  }, [accounts, query, status, product, sortKey, sortDirection]);
+  }, [accounts, query, status, product, bucket, sortKey, sortDirection]);
 
   const pageCount = Math.ceil(rows.length / pageSize) || 1;
   const currentPage = Math.min(page, pageCount);
@@ -506,16 +525,7 @@ export function EligibleCasesClient({
   const handleExport = useCallback(() => downloadCsv(rows), [rows]);
 
   return (
-    <Panel
-      size="compact"
-      title={`${rows.length} claim${rows.length === 1 ? "" : "s"}`}
-      description="Every NPA account you can raise a claim on, and every claim already in flight."
-      actions={
-        <Button variant="outline" size="sm" onClick={handleExport}>
-          <DownloadIcon /> Export CSV
-        </Button>
-      }
-    >
+    <Panel size="compact">
       <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-3 py-1.5">
         <div className="relative">
           <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
@@ -541,6 +551,23 @@ export function EligibleCasesClient({
           onChange={handleProductChange}
           display={purposeDisplay}
         />
+        <FilterSelect
+          label="Bucket"
+          options={BUCKETS}
+          value={bucket}
+          onChange={handleBucketChange}
+          display={bucketDisplay}
+        />
+        {/* Sits in the filter row rather than a panel header, and wears the same pill the
+            selects beside it wear — `ml-auto` keeps it at the right edge of the row however
+            many filters end up in front of it. */}
+        <button
+          type="button"
+          onClick={handleExport}
+          className="ml-auto inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 text-[12.5px] font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+        >
+          <DownloadIcon className="size-3.5" /> Export CSV
+        </button>
       </div>
 
       <div className="max-h-[60vh] overflow-auto">

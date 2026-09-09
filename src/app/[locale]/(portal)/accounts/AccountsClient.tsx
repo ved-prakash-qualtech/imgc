@@ -14,7 +14,6 @@ import {
 
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -460,34 +459,17 @@ export function AccountsClient({
     setDpdBand(v);
     setPage(1);
   }, []);
-  const exportAction = useMemo(
-    () => (
-      <Button variant="outline" size="sm" onClick={handleExport}>
-        <DownloadIcon /> Export CSV
-      </Button>
-    ),
-    [handleExport]
-  );
-
   return (
-    <Panel
-      title={`${filtered.length} account${filtered.length === 1 ? "" : "s"}`}
-      description={
-        role === "IMGC"
-          ? "The complete pool across every lender."
-          : "Accounts belonging to your organisation."
-      }
-      actions={exportAction}
-    >
-      <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-4 py-2.5">
+    <Panel>
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-neutral-100 px-3 py-2">
         <div className="relative">
-          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
           <input
             value={query}
             onChange={handleQueryChange}
             placeholder="Search borrower or loan ID"
             aria-label="Search accounts"
-            className="h-8 w-[230px] rounded-full border border-neutral-200 bg-white pl-9 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            className="h-8 w-[190px] rounded-full border border-neutral-200 bg-white pl-8 pr-2.5 text-[12px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           />
         </div>
         <FilterSelect
@@ -525,6 +507,16 @@ export function AccountsClient({
           value={dpdBand}
           onChange={handleDpdBandChange}
         />
+        {/* Sits at the end of the filter row rather than in a panel header, wearing the same pill
+            as the selects beside it. `ml-auto` keeps it at the right edge however many filters
+            end up in front of it. */}
+        <button
+          type="button"
+          onClick={handleExport}
+          className="ml-auto inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-[11.5px] font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+        >
+          <DownloadIcon className="size-3" /> Export CSV
+        </button>
       </div>
 
       <div className="max-h-[60vh] overflow-auto">
@@ -682,7 +674,9 @@ function FilterSelect<T extends string>({
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
         className={cn(
-          "h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-[12.5px] font-medium capitalize text-neutral-700 outline-none",
+          // Tightened so search + five filters + Export fit on one line — the row wraps
+          // otherwise, which pushed Export onto a second line of its own.
+          "h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-2.5 pr-6 text-center text-[11.5px] font-medium capitalize text-neutral-700 outline-none",
           "focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
         )}
       >
@@ -696,7 +690,7 @@ function FilterSelect<T extends string>({
           </option>
         ))}
       </select>
-      <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+      <ChevronDownIcon className="pointer-events-none absolute right-1.5 top-1/2 size-3 -translate-y-1/2 text-neutral-400" />
     </div>
   );
 }

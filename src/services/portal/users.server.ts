@@ -98,6 +98,127 @@ export async function listLenderOrgs(): Promise<LenderOrg[]> {
   return db.lenderOrgs;
 }
 
+/** A domain is the scoping key, so it has to be stored in one canonical shape — lower-cased and
+ *  without the "@" a user naturally types in front of it. */
+function normaliseDomain(raw: string): string {
+  return raw.trim().toLowerCase().replace(/^@+/, "");
+}
+
+/** Splits the stakeholder-mailbox textarea/CSV field into addresses, dropping blanks. */
+function parseMailboxes(raw: string): string[] {
+  return Array.from(
+    new Set(
+      raw
+        .split(/[\s,;]+/)
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+}
+
+/**
+ * A domain as `label(.label)+`, checked one label at a time rather than with a single nested
+ * regex. The obvious pattern for this — `^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.…)+$` — nests a
+ * quantifier inside a quantified group, which backtracks catastrophically on a long
+ * near-match; this input comes from a form field, so it is worth not writing that.
+ */
+const DOMAIN_LABEL_RE = /^[a-z0-9]+(-+[a-z0-9]+)*$/;
+
+function isValidDomain(domain: string): boolean {
+  if (domain.length > 253) return false;
+  const labels = domain.split(".");
+  if (labels.length < 2) return false;
+  return labels.every(
+    (l) => l.length > 0 && l.length <= 63 && DOMAIN_LABEL_RE.test(l)
+  );
+}
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+export interface LenderOrgInput {
+  name: string;
+  emailDomain: string;
+  contactEmails: string;
+}
+
+/**
+ * Create a lender organisation directly, before anyone from it has a login.
+ *
+ * Onboarding a lender is a step of its own — it happens before user accounts exist — so an org
+ * should not have to be conjured as a side effect of granting the first user access
+ * (`createLenderAccess` still does that for a domain nobody has registered yet, unchanged). The
+ * email domain remains the scoping key and is validated for uniqueness here rather than silently
+ * folding into whichever org already claimed it.
+ */
+export async function createLenderOrg(
+  session: AppSession,
+  input: LenderOrgInput
+): Promise<{ ok: boolean; error?: string }> {
+  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+
+  const name = input.name.trim();
+  const emailDomain = normaliseDomain(input.emailDomain);
+  const contactEmails = parseMailboxes(input.contactEmails);
+
+  if (!name) return { ok: false, error: "Give the organisation a name." };
+  if (!emailDomain) return { ok: false, error: "Give the organisation an email domain." };
+  if (!isValidDomain(emailDomain)) {
+    return { ok: false, error: `"${emailDomain}" is not a valid domain.` };
+  }
+  const badEmail = contactEmails.find((e) => !EMAIL_RE.test(e));
+  if (badEmail) return { ok: false, error: `"${badEmail}" is not a valid email address.` };
+
+  return writeDb((db) => {
+    const clash = db.lenderOrgs.find((o) => o.emailDomain === emailDomain);
+    if (clash) {
+      return {
+        ok: false as const,
+        error: `@${emailDomain} already belongs to ${clash.name}.`,
+      };
+    }
+    if (db.lenderOrgs.some((o) => o.name.toLowerCase() === name.toLowerCase())) {
+      return { ok: false as const, error: `An organisation named "${name}" already exists.` };
+    }
+    db.lenderOrgs.push({ id: newId("org"), name, emailDomain, contactEmails });
+    return { ok: true as const };
+  });
+}
+
+/**
+ * Rename an organisation or change who its stakeholder mail goes to.
+ *
+ * The email domain is deliberately not editable: it is the key every account, claim and user is
+ * scoped through, so changing it would silently re-point an entire book of business at a
+ * different organisation. Retiring a domain is a migration, not a field edit.
+ */
+export async function updateLenderOrg(
+  session: AppSession,
+  orgId: string,
+  input: { name: string; contactEmails: string }
+): Promise<{ ok: boolean; error?: string }> {
+  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+
+  const name = input.name.trim();
+  const contactEmails = parseMailboxes(input.contactEmails);
+  if (!name) return { ok: false, error: "Give the organisation a name." };
+  const badEmail = contactEmails.find((e) => !EMAIL_RE.test(e));
+  if (badEmail) return { ok: false, error: `"${badEmail}" is not a valid email address.` };
+
+  return writeDb((db) => {
+    const org = db.lenderOrgs.find((o) => o.id === orgId);
+    if (!org) return { ok: false as const, error: "That organisation no longer exists." };
+    const clash = db.lenderOrgs.find(
+      (o) => o.id !== orgId && o.name.toLowerCase() === name.toLowerCase()
+    );
+    if (clash) {
+      return { ok: false as const, error: `An organisation named "${name}" already exists.` };
+    }
+    org.name = name;
+    org.contactEmails = contactEmails;
+    return { ok: true as const };
+  });
+}
+
 /**
  * BRD: initial lender access is granted by IMGC. The lender's org — and therefore what they can
  * see — follows from the domain of the email address granted here.
