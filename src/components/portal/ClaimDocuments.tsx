@@ -1,16 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useState } from "react";
 import {
   CheckCircle2Icon,
   ChevronDownIcon,
   FileIcon,
   PlusIcon,
-  RefreshCwIcon,
   UploadIcon,
 } from "lucide-react";
-import { toast } from "sonner";
 
 
 import { AddLenderDocumentDialog } from "@/components/portal/AddLenderDocumentDialog";
@@ -96,6 +93,7 @@ export function ClaimDocuments({
   const [uploadTarget, setUploadTarget] = useState<{
     row: RequirementRow;
     mode: "upload" | "add" | "replace";
+    replaceFileId?: string;
   } | null>(null);
 
   const toggle = useCallback(
@@ -173,6 +171,7 @@ export function ClaimDocuments({
       <UploadDialog
         row={uploadTarget?.row ?? null}
         mode={uploadTarget?.mode}
+        replaceFileId={uploadTarget?.replaceFileId}
         open={uploadTarget !== null}
         onOpenChange={(next) => !next && setUploadTarget(null)}
       />
@@ -183,8 +182,10 @@ export function ClaimDocuments({
 function DocAccordionItem({
   doc,
   index,
-  accountId,
-  claimId,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  accountId: _accountId,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  claimId: _claimId,
   locked,
   open,
   onToggle,
@@ -200,9 +201,9 @@ function DocAccordionItem({
   onUpload: (t: {
     row: RequirementRow;
     mode: "upload" | "add" | "replace";
+    replaceFileId?: string;
   }) => void;
 }>) {
-  const router = useRouter();
   const hasFiles = doc.files.length > 0;
   const conditionalNotRequired = doc.conditional && !doc.required;
   const bodyId = `docbody-${doc.id}`;
@@ -214,13 +215,9 @@ function DocAccordionItem({
   const imgcRejected = doc.status === "REJECTED";
   const action =
     !locked && doc.status !== "APPROVED" && (!isPreSeeded || imgcRejected)
-      ? imgcRejected
-        ? { mode: "replace" as const, label: "Re-upload", icon: <UploadIcon /> }
-        : !hasFiles
-          ? { mode: "upload" as const, label: "Upload", icon: <UploadIcon /> }
-          : doc.multiple
-            ? { mode: "add" as const, label: "Add File", icon: <PlusIcon /> }
-            : { mode: "replace" as const, label: "Replace", icon: <RefreshCwIcon /> }
+      ? !hasFiles
+        ? { mode: "upload" as const, label: "Upload", icon: <UploadIcon /> }
+        : { mode: "add" as const, label: "Add File", icon: <PlusIcon /> }
       : null;
 
   return (
@@ -309,30 +306,73 @@ function DocAccordionItem({
                 hour: "2-digit",
                 minute: "2-digit",
               });
+              
+              const isRejected = doc.status === "REJECTED" && f.version === doc.review?.version;
+              const isReuploadReq = doc.status === "REUPLOAD_REQUIRED" && f.version === doc.review?.version;
+              const needsFix = isRejected || isReuploadReq;
+              const borderTheme = isRejected ? "border-destructive/40 bg-destructive/5" : isReuploadReq ? "border-warning/40 bg-warning/5" : "border-neutral-200/60 bg-white";
+              const textTheme = isRejected ? "text-destructive" : isReuploadReq ? "text-warning-700" : "text-brand-primary";
+              
               return (
                 <li
                   key={f.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-neutral-200/60 bg-white px-3 py-2 shadow-sm"
+                  className={cn("flex flex-col gap-2 rounded-md border px-3 py-2 shadow-sm", borderTheme)}
                 >
-                  <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                    <FileIcon className="size-4 shrink-0 text-brand-primary" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[12.5px] font-medium text-neutral-900">
-                        {f.originalName}
-                      </p>
-                      <p className="truncate text-[11px] text-neutral-500">
-                        {(f.size / 1024).toFixed(0)} KB · {f.uploadedByName}, {uploadedAt}
-                      </p>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                      <FileIcon className={cn("size-4 shrink-0", textTheme)} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[12.5px] font-medium text-neutral-900">
+                          {f.originalName}
+                          {isRejected && <span className="ml-2 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-destructive">Rejected</span>}
+                        </p>
+                        <p className={cn("truncate text-[11px]", needsFix ? (isRejected ? "text-destructive/80" : "text-warning-700/80") : "text-neutral-500")}>
+                          {(f.size / 1024).toFixed(0)} KB · {f.uploadedByName}, {uploadedAt}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {needsFix && !locked && (
+                        <button
+                          type="button"
+                          onClick={() => onUpload({ row: doc, mode: "replace", replaceFileId: f.id })}
+                          className={cn(
+                            "inline-flex h-7 items-center justify-center gap-1.5 rounded-md border bg-white px-3 text-[11.5px] font-medium transition-colors focus:outline-none focus:ring-2",
+                            isRejected
+                              ? "border-destructive/30 text-destructive hover:bg-destructive/10 focus:ring-destructive/20"
+                              : "border-warning/30 text-warning-700 hover:bg-warning/10 focus:ring-warning/20"
+                          )}
+                        >
+                          <UploadIcon className="size-3.5" />
+                          Re-upload
+                        </button>
+                      )}
+                      <a
+                        href={`/api/portal/files/${f.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={cn(
+                          "shrink-0 inline-flex h-7 items-center justify-center rounded-md border px-3 text-[11.5px] font-medium transition-colors focus:outline-none focus:ring-2",
+                          needsFix
+                            ? isRejected 
+                              ? "border-destructive/30 bg-white text-destructive hover:bg-destructive/10 focus:ring-destructive/20"
+                              : "border-warning/30 bg-white text-warning-700 hover:bg-warning/10 focus:ring-warning/20"
+                            : "border-neutral-200 bg-white text-brand-dark hover:bg-neutral-50 hover:text-brand-primary focus:ring-brand-primary/20"
+                        )}
+                      >
+                        View Document
+                      </a>
                     </div>
                   </div>
-                  <a
-                    href={`/api/portal/files/${f.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 inline-flex h-7 items-center justify-center rounded-md border border-neutral-200 bg-white px-3 text-[11.5px] font-medium text-brand-dark transition-colors hover:bg-neutral-50 hover:text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
-                  >
-                    View Document
-                  </a>
+                  {needsFix && doc.review?.remarks && (
+                    <p className={cn(
+                      "rounded-md border px-2.5 py-1.5 text-[12px] text-neutral-700",
+                      isRejected ? "border-destructive/15 bg-white/60" : "border-warning/15 bg-white/60"
+                    )}>
+                      <span className="font-semibold">{isRejected ? "Reason: " : "Query: "}</span>
+                      {doc.review.remarks}
+                    </p>
+                  )}
                 </li>
               );
             })}
@@ -340,19 +380,6 @@ function DocAccordionItem({
         ) : (
           <p className="mt-1.5 flex items-center gap-1.5 text-[12.5px] text-neutral-400">
             <FileIcon className="size-3.5" /> Nothing uploaded yet.
-          </p>
-        )}
-
-        {doc.status === "REJECTED" && doc.review?.remarks && (
-          <p className="mt-1.5 rounded-md border border-destructive/25 bg-destructive/5 px-2.5 py-1.5 text-[12px] text-neutral-700">
-            <span className="font-semibold">Reason: </span>
-            {doc.review.remarks}
-          </p>
-        )}
-        {doc.status === "REUPLOAD_REQUIRED" && doc.review?.remarks && (
-          <p className="mt-1.5 rounded-md border border-warning/30 bg-warning/8 px-2.5 py-1.5 text-[12px] text-neutral-700">
-            <span className="font-semibold">Query: </span>
-            {doc.review.remarks}
           </p>
         )}
 

@@ -24,6 +24,7 @@ import type {
 
 export interface DocumentRow extends ClaimDocument {
   file?: DocumentFile;
+  files: DocumentFile[];
   history: DocumentFile[];
 }
 
@@ -58,13 +59,17 @@ export async function listDocuments(
     // A withdrawn requirement is no longer being asked for, so the lender does not see it at
     // all. IMGC keeps it visible (greyed) — they withdrew it and may want it back.
     .filter((d) => session.role === "IMGC" || isActive(d))
-    .map((d) => ({
-      ...d,
-      file: db.documentFiles.find((f) => f.id === d.currentFileId),
-      history: db.documentFiles
+    .map((d) => {
+      const history = db.documentFiles
         .filter((f) => f.documentId === d.id)
-        .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt)),
-    }))
+        .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+      return {
+        ...d,
+        file: db.documentFiles.find((f) => f.id === d.currentFileId),
+        files: history.filter((f) => !f.supersededAt),
+        history,
+      };
+    })
     // Required first, then alphabetical — the checklist reads as a to-do list.
     .sort((a, b) =>
       a.required === b.required ? a.name.localeCompare(b.name) : a.required ? -1 : 1
@@ -203,6 +208,7 @@ export interface UploadMeta {
   documentNumber?: string;
   documentDate?: string;
   remarks?: string;
+  replaceFileId?: string;
 }
 
 export async function uploadDocument(
@@ -246,17 +252,18 @@ export async function uploadDocument(
     if (!row) return 0;
     const next = (row.version ?? 0) + 1;
 
-    // A multi-file category keeps every file it is given. A single-file one supersedes the
-    // previous version — never deleting it — and carries the reason it was replaced so the
-    // history reads as a conversation rather than a pile of files.
-    if (!row.multiple) {
-      for (const f of fresh.documentFiles) {
-        if (f.documentId === documentId && !f.supersededAt) {
-          f.supersededAt = nowIso();
-          f.supersededReason = row.review?.remarks;
-        }
+    // File-level supersession: if the lender clicked Re-upload on a specific rejected file,
+    // supersede only that file.
+    if (meta.replaceFileId) {
+      const target = fresh.documentFiles.find(
+        (f) => f.id === meta.replaceFileId && f.documentId === documentId
+      );
+      if (target && !target.supersededAt) {
+        target.supersededAt = nowIso();
+        target.supersededReason = row.review?.remarks;
       }
     }
+
     fresh.documentFiles.push({
       id: fileId,
       documentId,
