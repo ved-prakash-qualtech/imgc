@@ -43,12 +43,14 @@ export function UploadDialog({
   open,
   onOpenChange,
   mode,
+  replaceFileId,
 }: Readonly<{
   row: RequirementRow | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** "add" = a new file on a multi-file category (no supersede). Otherwise derived from state. */
   mode?: "upload" | "add" | "replace";
+  replaceFileId?: string;
 }>) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -82,6 +84,10 @@ export function UploadDialog({
     setFile(picked);
   }, []);
 
+  const effectiveMode: "upload" | "add" | "replace" =
+    mode ?? ((row?.version ?? 0) > 0 ? "replace" : "upload");
+  const isReupload = effectiveMode === "replace";
+
   const submit = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -94,6 +100,9 @@ export function UploadDialog({
       data.set("accountId", row.accountId);
       data.set("documentId", row.id);
       data.set("file", file);
+      if (replaceFileId) {
+        data.set("replaceFileId", replaceFileId);
+      }
 
       startTransition(async () => {
         const result = await uploadRequirementAction(data);
@@ -111,13 +120,10 @@ export function UploadDialog({
         router.refresh();
       });
     },
-    [row, file, reset, onOpenChange, router]
+    [row, file, reset, onOpenChange, router, effectiveMode, replaceFileId]
   );
 
   if (!row) return null;
-  const effectiveMode: "upload" | "add" | "replace" =
-    mode ?? ((row.version ?? 0) > 0 ? "replace" : "upload");
-  const isReupload = effectiveMode === "replace";
 
   return (
     <Dialog

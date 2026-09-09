@@ -11,16 +11,13 @@ import {
   FileTextIcon,
   MessageSquareWarningIcon,
   PaperclipIcon,
-  PlusIcon,
   RotateCcwIcon,
   UploadIcon,
   XIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  addRemarkAction,
-  addRequirementAction,
+import { addRemarkAction,
   decideDocumentAction,
   decideReinstateAction,
   raiseQueryForRejectedDocumentAction,
@@ -30,7 +27,6 @@ import {
   submitClaimAction,
   uploadDocumentAction,
 } from "@/app/[locale]/(portal)/accounts/[accountId]/actions";
-import { AddRequirementForm } from "@/components/portal/AddRequirementForm";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
@@ -43,7 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { daysUntil } from "@/constants/documents";
 import { cn } from "@/lib/utils/twMergeUtils";
-import type { DocumentRow, RequirementInput } from "@/services/portal/claims.server";
+import type { DocumentRow } from "@/services/portal/claims.server";
 import type { ClaimStatus, Role } from "@/server/mock/types";
 
 type Props = Readonly<{
@@ -80,7 +76,8 @@ function daysLeft(rejectedAt: string, retentionDays: number): number {
 
 export function InitialClaimsTab({
   accountId,
-  accountProduct,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  accountProduct: _accountProduct,
   role,
   docs,
   claimStatus,
@@ -92,7 +89,6 @@ export function InitialClaimsTab({
   const [pending, startTransition] = useTransition();
   /** Remarks typed against a row but not yet sent — what Save persists. */
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [adding, setAdding] = useState(false);
   /**
    * Which rows are expanded, keyed by document id — lifted up here rather than left as each
    * row's own local state so a `router.refresh()` (fired after every accept/reject/upload) can
@@ -153,15 +149,6 @@ export function InitialClaimsTab({
     router.refresh();
     toast.info("Unsaved remarks discarded.");
   }, [router]);
-
-  const onAddRequirement = useCallback(
-    async (input: RequirementInput) => {
-      const result = await addRequirementAction(accountId, input);
-      if (result.ok) router.refresh();
-      return result;
-    },
-    [accountId, router]
-  );
 
   const onToggleActive = useCallback(
     (documentId: string, active: boolean) => {
@@ -289,7 +276,7 @@ function DocumentRowItem({
   const router = useRouter();
   const [busy, startTransition] = useTransition();
   const [rejecting, setRejecting] = useState(false);
-  const [previewing, setPreviewing] = useState(false);
+  const [previewingFileId, setPreviewingFileId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const isLender = role === "LENDER";
   const working = pending || busy;
@@ -498,42 +485,39 @@ function DocumentRowItem({
             </p>
           )}
 
-          {doc.file ? (
-            <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12px] text-neutral-500">
-              <PaperclipIcon className="size-3.5" />
-              <span className="font-medium text-neutral-700">
-                {doc.file.originalName}
-              </span>
-              <span>· {bytes(doc.file.size)}</span>
-              <span>
-                · {doc.file.uploadedByName}, {when(doc.file.uploadedAt)}
-              </span>
-              {doc.history.length > 1 && (
-                <span className="text-neutral-400">
-                  · {doc.history.length} versions
-                </span>
-              )}
-              {doc.file.storedPath ? (
-                // A real upload has real bytes on disk — open the actual file (its own tab's
-                // native PDF viewer gives a download button for free) instead of a mockup.
-                <a
-                  href={`/api/portal/files/${doc.file.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
-                >
-                  <EyeIcon className="size-3" /> View
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setPreviewing(true)}
-                  className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
-                >
-                  <EyeIcon className="size-3" /> View
-                </button>
-              )}
-            </p>
+          {doc.files.length > 0 ? (
+            <div className="mt-1.5 space-y-2">
+              {doc.files.map((f) => (
+                <p key={f.id} className="flex flex-wrap items-center gap-1.5 text-[12px] text-neutral-500">
+                  <PaperclipIcon className="size-3.5" />
+                  <span className="font-medium text-neutral-700">
+                    {f.originalName}
+                  </span>
+                  <span>· {bytes(f.size)}</span>
+                  <span>
+                    · {f.uploadedByName}, {when(f.uploadedAt)}
+                  </span>
+                  {f.storedPath ? (
+                    <a
+                      href={`/api/portal/files/${f.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                    >
+                      <EyeIcon className="size-3" /> View
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewingFileId(f.id)}
+                      className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                    >
+                      <EyeIcon className="size-3" /> View
+                    </button>
+                  )}
+                </p>
+              ))}
+            </div>
           ) : (
             <p className="mt-1.5 text-[12px] text-neutral-400">
               Nothing uploaded yet.
@@ -748,13 +732,11 @@ function DocumentRowItem({
         </div>
       )}
 
-      {doc.file && (
-        <DocumentPreviewDialog
-          file={doc.file}
-          open={previewing}
-          onOpenChange={setPreviewing}
-        />
-      )}
+      <DocumentPreviewDialog
+        file={doc.files.find(f => f.id === previewingFileId) ?? undefined}
+        open={previewingFileId !== null}
+        onOpenChange={(open) => !open && setPreviewingFileId(null)}
+      />
     </li>
   );
 }

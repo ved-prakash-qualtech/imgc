@@ -115,6 +115,7 @@ export async function uploadRequirementAction(
     documentNumber: String(formData.get("documentNumber") ?? ""),
     documentDate: String(formData.get("documentDate") ?? ""),
     remarks: String(formData.get("remarks") ?? ""),
+    replaceFileId: formData.get("replaceFileId") ? String(formData.get("replaceFileId")) : undefined,
   };
 
   const result = await uploadDocument(

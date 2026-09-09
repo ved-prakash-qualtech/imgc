@@ -38,7 +38,8 @@ export async function uploadDocumentAction(formData: FormData): Promise<Result> 
 
   if (!(file instanceof File)) return { ok: false, error: "Choose a file to upload." };
 
-  const result = await uploadDocument(session, accountId, documentId, file);
+  const replaceFileId = formData.get("replaceFileId") ? String(formData.get("replaceFileId")) : undefined;
+  const result = await uploadDocument(session, accountId, documentId, file, { replaceFileId });
   if (result.ok) refresh(accountId);
   return result;
 }
