@@ -21,21 +21,23 @@ import type { RequirementRow } from "@/services/portal/requirements.server";
 import type { AuditEvent, ClaimQuery, Role } from "@/server/mock/types";
 
 const TABS = [
-  "Overview",
-  "Initial Claims",
+  "Loan Details",
+  "Query Trail",
+  "Documents",
   "Audit Trail",
 ] as const;
 
 /** URL-friendly slugs for `?tab=` — a notification linking into an account picks the tab that
  *  actually shows what it's about (see notifications/page.tsx's `tabSlugForEvent`). */
 const TAB_SLUGS: Record<(typeof TABS)[number], string> = {
-  Overview: "overview",
-  "Initial Claims": "initial-claims",
+  "Loan Details": "overview",
+  "Query Trail": "query-trail",
+  Documents: "initial-claims",
   "Audit Trail": "audit-trail",
 };
 
 function tabFromSlug(slug: string | null): (typeof TABS)[number] {
-  return TABS.find((t) => TAB_SLUGS[t] === slug) ?? "Overview";
+  return TABS.find((t) => TAB_SLUGS[t] === slug) ?? "Loan Details";
 }
 
 type Props = Readonly<{
@@ -66,7 +68,7 @@ export function AccountWorkspace({
   queriedDocNames,
 }: Props) {
   // A notification deep-links here with `?tab=initial-claims` etc. — land on that tab instead of
-  // always defaulting to Overview. Read once; switching tabs afterwards stays plain local state.
+  // always defaulting to Loan Details. Read once; switching tabs afterwards stays plain local state.
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<(typeof TABS)[number]>(() =>
     tabFromSlug(searchParams.get("tab"))
@@ -100,7 +102,7 @@ export function AccountWorkspace({
             )}
           >
             {name}
-            {name === "Initial Claims" && (
+            {name === "Documents" && (
               <span
                 className={cn(
                   "ml-1.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold",
@@ -117,8 +119,14 @@ export function AccountWorkspace({
         ))}
       </div>
 
-      {tab === "Overview" && (
+      {tab === "Loan Details" && (
         <OverviewTab
+          account={account}
+        />
+      )}
+
+      {tab === "Query Trail" && (
+        <QueryTrailTab
           account={account}
           role={role}
           claim={claim}
@@ -127,7 +135,7 @@ export function AccountWorkspace({
         />
       )}
 
-      {tab === "Initial Claims" && (
+      {tab === "Documents" && (
         <InitialClaimsTab
           accountId={account.id}
           accountProduct={account.product}
@@ -144,20 +152,7 @@ export function AccountWorkspace({
   );
 }
 
-/* ── Overview ──────────────────────────────────────────────────────── */
-
-function Fact({ label, value }: Readonly<{ label: string; value: React.ReactNode }>) {
-  return (
-    <div className="px-5 py-3.5">
-      <p className="text-[11.5px] font-medium uppercase tracking-wide text-neutral-400">
-        {label}
-      </p>
-      <p className="mt-1 text-[13.5px] font-medium text-neutral-900">{value}</p>
-    </div>
-  );
-}
-
-function OverviewTab({
+function QueryTrailTab({
   account,
   role,
   claim,
@@ -186,7 +181,7 @@ function OverviewTab({
         );
         return;
       }
-      
+
       startTransition(async () => {
         const result = await setClaimStatusAction(account.id, status, note);
         if (!result.ok) {
@@ -202,6 +197,99 @@ function OverviewTab({
     [account.id, note, router]
   );
 
+  if (role !== "IMGC") return null;
+
+  const imgcComposer = (
+    <div className="flex flex-col gap-0.5 px-2 py-1">
+      <div className="flex flex-wrap items-end gap-1">
+        <label className="min-w-[280px] flex-1">
+          <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
+            Note <span className="text-red-500">*</span>
+          </span>
+          <input
+            value={note}
+            onChange={(e) => {
+              setNote(e.target.value);
+              if (noteError) setNoteError("");
+            }}
+            placeholder="e.g. Valuation clarified with the lender on call"
+            className={`h-9 w-full rounded-lg border px-3 text-[13px] outline-none transition-colors ${
+              noteError
+                ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                : "border-neutral-200 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            }`}
+          />
+        </label>
+        <Button
+          size="sm"
+          variant="success"
+          onClick={() => decide("APPROVED")}
+          disabled={pending}
+        >
+          Mark approved
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => decide("QUERIED")}
+          disabled={pending}
+        >
+          Raise a query
+        </Button>
+      </div>
+      {noteError && (
+        <p className="text-[12.5px] font-medium text-red-500">{noteError}</p>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="h-[min(620px,calc(100vh-14rem))] min-h-[420px] min-w-0">
+      {claim ? (
+        <QueryResponseSection
+          accountId={account.id}
+          claimId={claim.id}
+          claimStatus={claim.status}
+          openQuery={claim.openQuery ?? null}
+          queries={queries}
+          savedResponse={claim.fields.__queryResponse ?? ""}
+          documents={claimDocuments}
+          isLender={false}
+          imgcComposer={imgcComposer}
+          title="Query Trail"
+          constrainedLayout
+        />
+      ) : (
+        <Panel
+          title="Processing outcome"
+          description="Processing itself happens in PAS. Record the outcome here so the lender can see it."
+          className="flex h-full min-h-0 flex-col overflow-hidden"
+        >
+          <div className="shrink-0">{imgcComposer}</div>
+        </Panel>
+      )}
+    </div>
+  );
+}
+
+/* ── Overview ──────────────────────────────────────────────────────── */
+
+function Fact({ label, value }: Readonly<{ label: string; value: React.ReactNode }>) {
+  return (
+    <div className="px-5 py-3.5">
+      <p className="text-[11.5px] font-medium uppercase tracking-wide text-neutral-400">
+        {label}
+      </p>
+      <p className="mt-1 text-[13.5px] font-medium text-neutral-900">{value}</p>
+    </div>
+  );
+}
+
+function OverviewTab({
+  account,
+}: Readonly<{
+  account: AccountRow;
+}>) {
   return (
     <div className="space-y-4">
       <Panel title="Account">
@@ -219,76 +307,6 @@ function OverviewTab({
           />
         </div>
       </Panel>
-
-      {role === "IMGC" && (() => {
-        const imgcComposer = (
-          <div className="flex flex-col gap-2 px-5 py-4">
-            <div className="flex flex-wrap items-end gap-3">
-              <label className="min-w-[280px] flex-1">
-                <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                  Note <span className="text-red-500">*</span>
-                </span>
-                <input
-                  value={note}
-                  onChange={(e) => {
-                    setNote(e.target.value);
-                    if (noteError) setNoteError("");
-                  }}
-                  placeholder="e.g. Valuation clarified with the lender on call"
-                  className={`h-9 w-full rounded-lg border px-3 text-[13px] outline-none transition-colors ${
-                    noteError
-                      ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
-                      : "border-neutral-200 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-                  }`}
-                />
-              </label>
-              <Button
-                size="sm"
-                variant="success"
-                onClick={() => decide("APPROVED")}
-                disabled={pending}
-              >
-                Mark approved
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => decide("QUERIED")}
-                disabled={pending}
-              >
-                Raise a query
-              </Button>
-            </div>
-            {noteError && (
-              <p className="text-[12.5px] font-medium text-red-500">
-                {noteError}
-              </p>
-            )}
-          </div>
-        );
-
-        return claim ? (
-          <QueryResponseSection
-            accountId={account.id}
-            claimId={claim.id}
-            claimStatus={claim.status}
-            openQuery={claim.openQuery ?? null}
-            queries={queries}
-            savedResponse={claim.fields.__queryResponse ?? ""}
-            documents={claimDocuments}
-            isLender={false}
-            imgcComposer={imgcComposer}
-          />
-        ) : (
-          <Panel
-            title="Processing outcome"
-            description="Processing itself happens in PAS. Record the outcome here so the lender can see it."
-          >
-            {imgcComposer}
-          </Panel>
-        );
-      })()}
-
 
       {account.pushRecipients.length > 0 && (
         <Panel title="Notification recipients">

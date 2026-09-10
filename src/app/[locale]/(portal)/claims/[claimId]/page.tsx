@@ -1,12 +1,12 @@
-/* eslint-disable react-perf/jsx-no-new-array-as-prop, react-perf/jsx-no-jsx-as-prop */
-import { EyeIcon } from "lucide-react";
+/* eslint-disable react-perf/jsx-no-jsx-as-prop */
+import { ArrowLeftIcon, EyeIcon } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { ClaimDetailTabs } from "@/components/portal/ClaimDetailTabs";
 import { ClaimHistory } from "@/components/portal/ClaimHistory";
 import { ClaimQueryDialog } from "@/components/portal/ClaimQueryDialog";
 import { ClaimStatusHistoryGraph } from "@/components/portal/ClaimStatusHistoryGraph";
-import { CommandBand } from "@/components/portal/CommandBand";
+import { LoanDetailsCard } from "@/components/portal/LoanDetailsCard";
 import { Panel } from "@/components/portal/Panel";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { QueryResponseSection } from "@/components/portal/QueryResponseSection";
@@ -26,12 +26,6 @@ import { requireSession } from "@/lib/auth/appSession";
 import { getAccount } from "@/services/portal/accounts.server";
 import { getClaim, listQueries } from "@/services/portal/claimFlow.server";
 import { listClaimDocuments } from "@/services/portal/requirements.server";
-
-const inr = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  maximumFractionDigits: 0,
-});
 
 export const dynamic = "force-dynamic";
 
@@ -72,25 +66,24 @@ export default async function ClaimDetailsPage({
   return (
     <PortalShell
       activeKey="initiate-claim"
-      title={`Track Claim · ${claim.claimNo}`}
+      title={`Track Claim · ${claim.customerName} · ${claim.claimNo}`}
     >
-      <div className="space-y-6">
-        <CommandBand
-          title={`${claim.claimNo} · ${claim.typeLabel}`}
-          subtitle={`${claim.caseId} · ${claim.customerName} · ${claim.lenderName} · Claim Amount ${account ? inr.format(account.outstandingAmount) : "—"}`}
-          stats={[]}
-          action={
+      <div
+        className="flex flex-col overflow-hidden"
+        style={{ height: "calc(100vh - 5.5rem)" }}
+      >
+        <ClaimDetailTabs
+          loanDetails={account ? <LoanDetailsCard account={account} /> : null}
+          backLink={
             <div className="flex items-center gap-3">
               {isLender && (
                 <Link
                   href={ROUTES.initiateClaim}
-                  className="inline-flex h-9 items-center justify-center rounded-md border border-neutral-200 bg-white px-4 text-[13px] font-medium text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-primary"
+                  className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
                 >
-                  Back to Claims Overview
+                  <ArrowLeftIcon className="size-3" /> Back
                 </Link>
               )}
-              {/* Only IMGC gets to raise a query from here — a lender asking IMGC a free-form
-                  question isn't a flow the portal offers on this screen. */}
               {!terminal && !isLender && (
                 <ClaimQueryDialog
                   claimId={claim.id}
@@ -101,26 +94,19 @@ export default async function ClaimDetailsPage({
               )}
             </div>
           }
-        />
-
-        {/* ── Three tabs, one claim: Status & Query, Documents, History. The sections
-             themselves are unchanged — `ClaimDetailTabs` only decides which is on screen,
-             and keeps them all mounted so switching away never discards an in-progress
-             query response. ── */}
-        <ClaimDetailTabs
           statusAndQuery={
             <>
-              <Panel
-                title="Claim Status"
-                description="Generated from this claim's own status history — only what has actually happened."
-              >
+              <Panel title="Claim Status" className="shrink-0">
                 <div className="px-5 py-4">
-                  <ClaimStatusHistoryGraph history={claim.statusHistory} />
+                  <ClaimStatusHistoryGraph
+                    history={claim.statusHistory}
+                    currentStatus={claim.status}
+                  />
                 </div>
               </Panel>
 
               {claim.decision && (
-                <Panel title="Decision">
+                <Panel title="Decision" className="shrink-0">
                   <div className="px-5 py-4">
                     <p className="flex flex-wrap items-center gap-2 text-[13.5px]">
                       <StatusPill status={claim.decision.outcome} />
@@ -137,7 +123,7 @@ export default async function ClaimDetailsPage({
                 </Panel>
               )}
 
-              <div>
+              <div className="flex-1 min-h-0 flex flex-col">
                 <QueryResponseSection
                   accountId={claim.accountId}
                   claimId={claim.id}
@@ -149,6 +135,7 @@ export default async function ClaimDetailsPage({
                   savedResponse={claim.fields.__queryResponse ?? ""}
                   documents={documents}
                   isLender={isLender}
+                  fillLayout
                 />
               </div>
             </>
