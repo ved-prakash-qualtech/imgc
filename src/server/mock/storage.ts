@@ -266,11 +266,32 @@ export async function readUpload(storedPath: string): Promise<Buffer | null> {
     const marker = storedPath.indexOf(PUBLIC_DIR_MARKER);
     if (marker === -1) return null;
     const publicPath = storedPath.slice(marker + PUBLIC_DIR_MARKER.length).split(path.sep).join("/");
+
+    // `storedPath` was built from the `process.cwd()` of whichever machine wrote the row, which on
+    // a deployment is not the `process.cwd()` doing the reading. Try the same asset where this
+    // runtime could actually be keeping it before giving up on the filesystem.
+    const candidates = [
+      path.join(process.cwd(), "public", ...publicPath.split("/")),
+      path.join(process.cwd(), ".next", "standalone", "public", ...publicPath.split("/")),
+      path.join("/var/task", "public", ...publicPath.split("/")),
+    ];
+    for (const candidate of candidates) {
+      try {
+        return await fs.readFile(candidate);
+      } catch {
+        /* try the next one */
+      }
+    }
     const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
     try {
       const res = await fetch(`${base}/${publicPath}`, { cache: "no-store" });
       if (!res.ok) return null;
-      return Buffer.from(await res.arrayBuffer());
+      const bytes = Buffer.from(await res.arrayBuffer());
+      // This request carries no session, so the app's own middleware answers it with the login
+      // page — HTTP 200, HTML body. Serving that back as the document's `mime` produced a file
+      // that claimed to be a PDF and was not, which a viewer can only report as a broken
+      // document. A file is only a file if it looks like one.
+      return bytes.subarray(0, 5).toString("latin1") === "%PDF-" ? bytes : null;
     } catch {
       return null;
     }
