@@ -3,6 +3,7 @@ import {
   CLAIM_TYPES,
   conditionReason,
   docConditionMet,
+  toAccountClaimStatus,
 } from "@/config/claimConfig";
 import type {
   Account,
@@ -532,7 +533,8 @@ export function buildSeed(): MockDb {
           : undefined,
       });
 
-      account.claimStatus = status === "QUERY_RAISED" ? "QUERIED" : status;
+      // Same mapping every runtime write goes through — see `toAccountClaimStatus`.
+      account.claimStatus = toAccountClaimStatus(status);
       account.stage =
         status === "APPROVED" ? "Claim approved"
           : status === "REJECTED" ? "Claim rejected"

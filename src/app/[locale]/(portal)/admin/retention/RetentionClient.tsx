@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowDownIcon, ArrowUpIcon, ArrowUpDownIcon, BrushCleaningIcon, DownloadIcon, SearchIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, ArrowUpDownIcon, BrushCleaningIcon, ChevronDownIcon, DownloadIcon, SearchIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -124,6 +124,36 @@ export function RetentionClient({
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
+  /**
+   * Reinstatement state, which is what this screen is actually worked from: "Awaiting decision"
+   * is the only value that needs an action, and those rows are otherwise scattered through seven
+   * pages of documents nobody has asked to reinstate. `NONE` covers a row with no `reinstate`
+   * record at all — rendered as "Not requested".
+   */
+  const [reinstateFilter, setReinstateFilter] = useState<
+    "ALL" | "REQUESTED" | "APPROVED" | "DENIED" | "NONE"
+  >("ALL");
+
+  function handleReinstateFilterChange(v: string) {
+    setReinstateFilter(v as typeof reinstateFilter);
+    setPage(1);
+  }
+
+  const [lenderFilter, setLenderFilter] = useState("ALL");
+
+  function handleLenderFilterChange(v: string) {
+    setLenderFilter(v);
+    setPage(1);
+  }
+
+  /** Built from the rows themselves rather than a fixed list, so a newly onboarded lender appears
+   *  here the moment one of its documents is rejected — and a lender with nothing rejected never
+   *  offers an option that returns an empty table. */
+  const lenders = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.lenderOrgName))).sort(),
+    [rows]
+  );
+
   const toggleSort = useCallback(
     (key: SortKey) => {
       if (sortKey !== key) {
@@ -157,14 +187,24 @@ export function RetentionClient({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let result = rows;
+    if (reinstateFilter !== "ALL") {
+      result = result.filter((r) =>
+        reinstateFilter === "NONE"
+          ? !r.rejection.reinstate
+          : r.rejection.reinstate?.status === reinstateFilter
+      );
+    }
+    if (lenderFilter !== "ALL") {
+      result = result.filter((r) => r.lenderOrgName === lenderFilter);
+    }
     if (q) {
-      result = rows.filter((r) =>
+      result = result.filter((r) =>
         `${r.name} ${r.accountLoanNo} ${r.borrowerName} ${r.lenderOrgName}`
           .toLowerCase()
           .includes(q)
       );
     }
-    
+
     if (sortKey && sortDirection) {
       result = [...result].sort((a, b) => {
         let valA: string | number;
@@ -186,7 +226,7 @@ export function RetentionClient({
       });
     }
     return result;
-  }, [rows, query, sortKey, sortDirection]);
+  }, [rows, query, reinstateFilter, lenderFilter, sortKey, sortDirection]);
 
   const pageCount = Math.ceil(filtered.length / pageSize) || 1;
   const currentPage = Math.min(page, pageCount);
@@ -248,7 +288,7 @@ export function RetentionClient({
         </div>
       }
     >
-      <div className="border-b border-neutral-100 px-4 py-2.5">
+      <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-4 py-2.5">
         <div className="relative w-fit">
           <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
           <input
@@ -259,6 +299,41 @@ export function RetentionClient({
             className="h-8 w-[260px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           />
         </div>
+        <div className="relative">
+          <select
+            aria-label="Reinstatement"
+            value={reinstateFilter}
+            onChange={(e) => handleReinstateFilterChange(e.target.value)}
+            className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-[12.5px] font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+          >
+            <option value="ALL">All reinstatements</option>
+            <option value="REQUESTED">Awaiting decision</option>
+            <option value="APPROVED">Approved</option>
+            <option value="DENIED">Denied</option>
+            <option value="NONE">Not requested</option>
+          </select>
+          <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+        </div>
+        {/* Hidden for a lender signing in to their own retention list: the rows are all theirs,
+            so the only option a lender could pick is the one already applied. */}
+        {lenders.length > 1 && (
+          <div className="relative">
+            <select
+              aria-label="Lender"
+              value={lenderFilter}
+              onChange={(e) => handleLenderFilterChange(e.target.value)}
+              className="h-8 max-w-[190px] appearance-none truncate rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-[12.5px] font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            >
+              <option value="ALL">All lenders</option>
+              {lenders.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+            <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+          </div>
+        )}
       </div>
 
       {rows.length === 0 ? (
@@ -267,7 +342,9 @@ export function RetentionClient({
         </p>
       ) : (
         <>
-          <div className="max-h-[60vh] overflow-auto">
+          {/* No height cap: the page size bounds the table to six rows, so a scroll container
+              here would only add a second, redundant scrollbar inside the page's own. */}
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>

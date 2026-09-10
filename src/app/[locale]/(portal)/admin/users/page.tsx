@@ -58,7 +58,7 @@ function StatTile({
       href={href}
       title={title}
       className={cn(
-        "flex cursor-pointer flex-col rounded-xl border bg-white px-3.5 py-2 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:bg-neutral-50 hover:shadow-md",
+        "flex cursor-pointer flex-col rounded-xl border bg-white px-3.5 py-1.5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:bg-neutral-50 hover:shadow-md",
         TONE[tone].border
       )}
     >
@@ -101,20 +101,20 @@ export default async function AdminUsersPage() {
 
   return (
     <PortalShell activeKey="admin-users" title="Lender Access">
-      <div className="space-y-4">
+      <div className="space-y-3">
         <CommandBand
           title="Lender Access Overview"
           subtitle="Who can sign in, and which lender they are scoped to"
           stats={[]}
         >
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-5">
             <StatTile
               value={orgs.length}
               label="Lender Organisations"
               icon={<BuildingIcon className="size-4" />}
               tone="blue"
               title="Lender organisations onboarded — show all of them"
-              href="/admin/users?orgs=ALL#organisations"
+              href="/admin/users?tab=organisations&orgs=ALL"
             />
             <StatTile
               value={lenders}
@@ -122,7 +122,7 @@ export default async function AdminUsersPage() {
               icon={<UsersIcon className="size-4" />}
               tone="violet"
               title="Sign in with a one-time code emailed to them — show only these"
-              href="/admin/users?role=LENDER#users"
+              href="/admin/users?tab=users&role=LENDER"
             />
             <StatTile
               value={staff}
@@ -130,7 +130,7 @@ export default async function AdminUsersPage() {
               icon={<ShieldIcon className="size-4" />}
               tone="amber"
               title="Sign in with an Employee ID and password — show only these"
-              href="/admin/users?role=IMGC#users"
+              href="/admin/users?tab=users&role=IMGC"
             />
             <StatTile
               value={domains}
@@ -138,7 +138,7 @@ export default async function AdminUsersPage() {
               icon={<AtSignIcon className="size-4" />}
               tone="gold"
               title="One domain per organisation — sorted by domain"
-              href="/admin/users?orgs=ALL#organisations"
+              href="/admin/users?tab=organisations&orgs=ALL"
             />
             <StatTile
               value={awaitingFirstUser}
@@ -146,7 +146,7 @@ export default async function AdminUsersPage() {
               icon={<UserPlusIcon className="size-4" />}
               tone="rose"
               title="Organisations onboarded but with nobody able to sign in yet"
-              href="/admin/users?orgs=AWAITING#organisations"
+              href="/admin/users?tab=organisations&orgs=AWAITING"
             />
           </div>
         </CommandBand>

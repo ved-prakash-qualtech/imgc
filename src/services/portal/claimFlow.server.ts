@@ -16,6 +16,7 @@ import {
   fieldVisible,
   LENDER_ACTIONABLE,
   TERMINAL_STATUSES,
+  toAccountClaimStatus,
 } from "@/config/claimConfig";
 import type { AppSession } from "@/lib/auth/appSession";
 import type {
@@ -108,10 +109,18 @@ export interface ClaimRow extends Claim {
   requiredDocs: number;
   approvedDocs: number;
   /**
-   * Mirrors `Claim.draftSaved` — whether the lender has explicitly clicked Save or Save & Submit
-   * on this claim. A draft is auto-created the moment "Initiate Claim" is opened, so mere
-   * existence isn't enough: opening the workspace and leaving without saving anything should
-   * still read "Initiate Claim" in the grid, not "Continue Claim".
+   * Whether this claim has actually got going, as opposed to being an empty shell.
+   *
+   * A draft is auto-created the moment "Initiate Claim" is opened, so mere existence isn't
+   * enough: opening the workspace and leaving without saving anything should still read
+   * "Initiate Claim" in the grid, not "Continue Claim" — that is what `Claim.draftSaved` records.
+   *
+   * But the lender is not the only one who can move a claim. IMGC rejecting a document raises a
+   * query and advances the claim, which can leave a `QUERY_RAISED` claim whose `draftSaved` was
+   * never set. Reading `draftSaved` alone then called that claim "Not started": it dropped out of
+   * the grid's "Under progress" filter while the Claims Overview band — which reads the claim's
+   * status — still counted it, and its row offered "Initiate" on a claim already under query.
+   * Anything past DRAFT has demonstrably started, whoever moved it.
    */
   hasProgress: boolean;
 }
@@ -134,7 +143,7 @@ function decorate(claim: Claim, db: MockDb): ClaimRow {
         .sort((a, b) => b.raisedAt.localeCompare(a.raisedAt))[0] ?? null,
     requiredDocs: required.length,
     approvedDocs: required.filter((d) => d.status === "APPROVED").length,
-    hasProgress: Boolean(claim.draftSaved),
+    hasProgress: Boolean(claim.draftSaved) || claim.status !== "DRAFT",
   };
 }
 
@@ -182,6 +191,7 @@ const UNDER_PROGRESS_STATUSES = new Set<ClaimStatus>([
   "QUERY_RAISED",
   "DOCUMENTS_RESUBMITTED",
 ]);
+
 
 export interface ClaimOverviewCounts {
   total: number;
@@ -260,7 +270,7 @@ function advance(
 
   const account = db.accounts.find((a) => a.id === claim.accountId);
   if (account) {
-    account.claimStatus = status;
+    account.claimStatus = toAccountClaimStatus(status);
     if (
       status === "SUBMITTED" ||
       status === "DOCUMENTS_RESUBMITTED" ||

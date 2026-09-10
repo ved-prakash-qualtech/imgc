@@ -47,7 +47,7 @@ import type { UserRow } from "@/services/portal/users.server";
 
 type SortKey = "name" | "email" | "role" | "organization" | "status";
 /** The organisations table's own sortable columns — "Actions" is not one. */
-type OrgSortKey = "name" | "emailDomain" | "mailboxes" | "users";
+type OrgSortKey = "name" | "emailDomain" | "users";
 type SortDirection = "asc" | "desc" | null;
 
 // Generic over the key type so the users table and the organisations table sort through the same
@@ -96,6 +96,15 @@ function SortableTableHead<K extends string>({
       </div>
     </TableHead>
   );
+}
+
+/** The two peer datasets this screen manages. Tabs rather than two stacked panels: they are
+ *  alternatives you work in one at a time, so only one needs to be on screen — which is what
+ *  keeps the page inside a viewport instead of scrolling past two full tables. */
+type Tab = "users" | "organisations";
+
+function tabFromParam(value: string | null): Tab {
+  return value === "organisations" ? "organisations" : "users";
 }
 
 /** Which `?role=` values the band's tiles may deep-link with — anything else falls back to
@@ -185,9 +194,9 @@ function OrgRow({
   );
   return (
     <TableRow>
-      <TableCell className="px-1.5 py-1.5">
+      <TableCell className="px-1.5 py-0.5">
         <div className="flex items-center gap-2">
-          <span className="grid size-6 shrink-0 place-items-center rounded-md bg-brand-light text-[10px] font-bold text-brand-dark">
+          <span className="grid size-5 shrink-0 place-items-center rounded-md bg-brand-light text-[10px] font-bold text-brand-dark">
             {initialsOf(org.name)}
           </span>
           <span className="text-[12px] font-medium whitespace-nowrap text-neutral-950">
@@ -195,28 +204,12 @@ function OrgRow({
           </span>
         </div>
       </TableCell>
-      <TableCell className="px-1.5 py-1.5">
+      <TableCell className="px-1.5 py-0.5">
         <code className="rounded bg-neutral-100 px-1.5 py-0.5 text-[11px] whitespace-nowrap">
           @{org.emailDomain}
         </code>
       </TableCell>
-      <TableCell className="px-1.5 py-1.5 text-[11.5px] text-neutral-600">
-        {org.contactEmails.length ? (
-          <div className="flex flex-wrap gap-1">
-            {org.contactEmails.map((e) => (
-              <span
-                key={e}
-                className="rounded-full bg-neutral-50 px-1.5 py-0.5 text-[11px] whitespace-nowrap text-neutral-600 ring-1 ring-neutral-200"
-              >
-                {e}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <span className="text-neutral-400">None yet</span>
-        )}
-      </TableCell>
-      <TableCell className="px-1.5 py-1.5">
+      <TableCell className="px-1.5 py-0.5">
         <span
           className={cn(
             "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold whitespace-nowrap",
@@ -234,7 +227,7 @@ function OrgRow({
           {userCount}
         </span>
       </TableCell>
-      <TableCell className="px-1.5 py-1.5 text-right">
+      <TableCell className="px-1.5 py-0.5 text-right">
         <Button variant="outline" size="xs" onClick={handleEdit}>
           <PencilIcon /> Edit
         </Button>
@@ -271,7 +264,7 @@ function OrgForm({
       // instead of keeping whatever the previously-open row put there.
       key={org?.id ?? "create"}
       onSubmit={onSubmit}
-      className="border-b border-neutral-100 bg-neutral-25 px-5 py-4"
+      className="border-b border-neutral-100 bg-neutral-25 px-5 py-3"
     >
       <p className="mb-3 flex items-center gap-1.5 text-[12.5px] font-semibold text-neutral-800">
         <Building2Icon className="size-3.5 text-brand-primary" />
@@ -372,6 +365,22 @@ export function UsersClient({
   // filters are therefore re-synced during render when their param changes — React's own
   // "adjust state when a prop changes" pattern, the same one EligibleCasesClient uses for the
   // Claims Overview tiles. Without it, the URL updates and the tables keep the old filter.
+  /** Which table is on screen. Held in the URL so a KPI tile can land on the right one, and so a
+   *  refresh or the back button keeps you where you were. */
+  const [tab, setTab] = useState<Tab>(() => tabFromParam(searchParams.get("tab")));
+  const tabParam = searchParams.get("tab");
+  const [prevTabParam, setPrevTabParam] = useState(tabParam);
+  if (tabParam !== prevTabParam) {
+    setPrevTabParam(tabParam);
+    setTab(tabFromParam(tabParam));
+  }
+  function showUsers() {
+    setTab("users");
+  }
+  function showOrganisations() {
+    setTab("organisations");
+  }
+
   const roleParam = searchParams.get("role");
   const [prevRoleParam, setPrevRoleParam] = useState(roleParam);
   if (roleParam !== prevRoleParam) {
@@ -462,23 +471,89 @@ export function UsersClient({
 
   /* ── granting access ─────────────────────────────────────────────── */
 
-  /** The email is controlled purely so the organisation it resolves to can be shown while it is
-   *  being typed. Every other field on that form stays uncontrolled and is read from FormData. */
-  const [grantEmail, setGrantEmail] = useState("");
+  /**
+   * Which lender the new user belongs to: "" until chosen, then the lender's email domain — the
+   * key the server scopes on. Holding the *domain* rather than an id is deliberate: it is exactly
+   * what the address has to end in, so the two cannot drift apart. A lender that does not exist
+   * yet is onboarded on the "Lender organisations" tab first, not from inside this form.
+   */
+  const [grantOrg, setGrantOrg] = useState("");
+  /** Mailbox name only — the domain comes from the selected lender. */
+  const [grantLocal, setGrantLocal] = useState("");
 
-  /** Same normalisation `domainOf` applies on the server, so what the form claims will happen
-   *  and what actually happens cannot drift apart. */
-  const grantDomain = grantEmail.trim().toLowerCase().split("@")[1]?.trim() ?? "";
-  const matchedOrg = grantDomain
-    ? (orgs.find((o) => o.emailDomain === grantDomain) ?? null)
+  const selectedGrantOrg = grantOrg
+    ? (orgs.find((o) => o.emailDomain === grantOrg) ?? null)
     : null;
 
-  function handleGrantEmailChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setGrantEmail(e.target.value);
+  /** Set when a whole address was entered whose domain belongs to no lender on record. */
+  const [grantMailboxError, setGrantMailboxError] = useState("");
+
+  /** What actually gets submitted — assembled from the lender chosen plus the mailbox typed, so
+   *  the address can never disagree with the lender. Empty while the mailbox still holds an
+   *  unresolved "@…", which keeps a half-typed address from being composed into
+   *  `sanjay@bad.com@icicibank.com`. */
+  const grantComposedEmail =
+    selectedGrantOrg && grantLocal.trim() && !grantLocal.includes("@")
+      ? `${grantLocal.trim().toLowerCase()}@${selectedGrantOrg.emailDomain}`
+      : "";
+
+  function handleGrantOrgChange(v: string) {
+    setGrantOrg(v);
+    // Switching lender must not leave the previous lender's address behind.
+    setGrantLocal("");
+    setGrantMailboxError("");
+  }
+
+  /**
+   * Accepts a whole address as readily as a mailbox name, because an administrator onboarding a
+   * user usually has the address in their clipboard, not its two halves.
+   *
+   * Pasting `sanjay@icicibank.com` drops the domain and keeps `sanjay`; pasting an address that
+   * belongs to a *different* lender on record switches the dropdown to that lender rather than
+   * quietly filing the user under the wrong one. A domain nobody owns is left in the field to
+   * carry on typing — `onBlur` is what decides it is wrong, so the error cannot fire halfway
+   * through someone typing "icicibank.com" one character at a time.
+   */
+  function handleGrantLocalChange(raw: string) {
+    const at = raw.indexOf("@");
+    if (at === -1) {
+      setGrantLocal(raw);
+      setGrantMailboxError("");
+      return;
+    }
+    const local = raw.slice(0, at);
+    const domain = raw.slice(at + 1).trim().toLowerCase();
+    const match = orgs.find((o) => o.emailDomain === domain);
+    if (match) {
+      setGrantOrg(match.emailDomain);
+      setGrantLocal(local);
+      setGrantMailboxError("");
+      return;
+    }
+    setGrantLocal(raw);
+  }
+
+  function handleGrantLocalBlur() {
+    const at = grantLocal.indexOf("@");
+    if (at === -1) return;
+    const domain = grantLocal.slice(at + 1).trim().toLowerCase();
+    if (!domain) {
+      // A trailing "@" and nothing after it — just drop it rather than complain.
+      setGrantLocal(grantLocal.slice(0, at));
+      return;
+    }
+    setGrantMailboxError(
+      `No lender on record uses @${domain}. Pick that lender above, or add it first on the Lender organisations tab.`
+    );
+  }
+  function resetGrantForm() {
+    setGrantOrg("");
+    setGrantLocal("");
+    setGrantMailboxError("");
   }
   function closeGrantForm() {
     setOpen(false);
-    setGrantEmail("");
+    resetGrantForm();
   }
 
   /* ── lender organisations ────────────────────────────────────────── */
@@ -528,6 +603,12 @@ export function UsersClient({
     setOrgPage(1);
   }
 
+  /** Organisations onboarded but with nobody able to sign in yet — surfaced on the tab so the
+   *  state is visible without switching to the table that holds it. */
+  const awaitingFirstUser = orgs.filter(
+    (o) => (usersByOrg.get(o.id) ?? 0) === 0
+  ).length;
+
   const visibleOrgs = useMemo(() => {
     const q = orgQuery.trim().toLowerCase();
     let result = orgs;
@@ -559,10 +640,6 @@ export function UsersClient({
           case "emailDomain":
             valA = a.emailDomain.toLowerCase();
             valB = b.emailDomain.toLowerCase();
-            break;
-          case "mailboxes":
-            valA = a.contactEmails.length;
-            valB = b.contactEmails.length;
             break;
           case "users":
             valA = usersByOrg.get(a.id) ?? 0;
@@ -653,56 +730,117 @@ export function UsersClient({
     });
   }
 
-  const onGrant = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      const form = event.currentTarget;
-      const data = new FormData(form);
-      startTransition(async () => {
-        const result = await grantLenderAccessAction(
-          String(data.get("name") ?? ""),
-          String(data.get("email") ?? ""),
-          String(data.get("orgName") ?? "")
-        );
-        if (!result.ok) {
-          toast.error(result.error ?? "Access could not be granted.");
-          return;
-        }
-        toast.success("Lender access granted — a welcome message has been sent.");
-        form.reset();
-        // `form.reset()` does not clear a controlled input, so the email — and the organisation
-        // resolved from it — has to be cleared explicitly, or the next open starts pre-filled.
-        setGrantEmail("");
-        setOpen(false);
-        router.refresh();
-      });
-    },
-    [router]
-  );
+  function onGrant(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    // The address is assembled from the lender chosen plus the mailbox typed, not read back out
+    // of a field — that is what keeps the two from disagreeing.
+    const email = grantComposedEmail;
+    if (!email) {
+      toast.error(
+        !selectedGrantOrg
+          ? "Choose a lender first."
+          : grantLocal.includes("@")
+            ? "That address's domain doesn't match the lender selected — fix one or the other."
+            : "Enter the mailbox name."
+      );
+      return;
+    }
+    startTransition(async () => {
+      // No org name: the lender always exists already (it was picked from the dropdown), so the
+      // server resolves it from the address's domain. New lenders are onboarded on the other tab.
+      const result = await grantLenderAccessAction(
+        String(data.get("name") ?? ""),
+        email,
+        ""
+      );
+      if (!result.ok) {
+        toast.error(result.error ?? "Access could not be granted.");
+        return;
+      }
+      toast.success("Lender access granted — a welcome message has been sent.");
+      form.reset();
+      // `form.reset()` does not clear controlled inputs, so the lender and address have to be
+      // cleared explicitly, or the next open starts pre-filled with the last grant.
+      resetGrantForm();
+      setOpen(false);
+      router.refresh();
+    });
+  }
 
   return (
-    <div className="space-y-4">
-      <Panel
-        id="users"
-        title="Lender access"
-        description="A lender sees exactly the accounts whose lender matches the domain of the address granted here."
-        actions={
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleExportUsers}>
-              <DownloadIcon /> Export CSV
-            </Button>
-            <Button size="sm" onClick={() => setOpen((v) => !v)}>
-              <UserPlusIcon /> Grant access
-            </Button>
-          </div>
-        }
+    <div className="space-y-3">
+      {/* Same tab treatment the account workspace uses (Overview / Initial Claims / Audit
+          Trail), so this screen doesn't introduce a second idiom for the same job. Counts sit on
+          the tabs because they are the one thing you'd otherwise switch tabs to find out. */}
+      <div
+        className="flex flex-wrap gap-1 border-b border-neutral-200"
+        role="tablist"
+        aria-label="Lender access sections"
       >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "users"}
+          onClick={showUsers}
+          className={cn(
+            "-mb-px border-b-2 px-3.5 py-2 text-[13px] font-medium transition-colors",
+            tab === "users"
+              ? "border-brand-primary text-brand-primary"
+              : "border-transparent text-neutral-500 hover:text-neutral-800"
+          )}
+        >
+          Lender access
+          <span className="ml-1.5 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-bold text-neutral-600">
+            {users.length}
+          </span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "organisations"}
+          onClick={showOrganisations}
+          className={cn(
+            "-mb-px border-b-2 px-3.5 py-2 text-[13px] font-medium transition-colors",
+            tab === "organisations"
+              ? "border-brand-primary text-brand-primary"
+              : "border-transparent text-neutral-500 hover:text-neutral-800"
+          )}
+        >
+          Lender organisations
+          <span
+            className={cn(
+              "ml-1.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold",
+              awaitingFirstUser > 0
+                ? "bg-warning/15 text-warning"
+                : "bg-neutral-100 text-neutral-600"
+            )}
+            title={
+              awaitingFirstUser > 0
+                ? `${awaitingFirstUser} organisation(s) with nobody able to sign in yet`
+                : undefined
+            }
+          >
+            {orgs.length}
+          </span>
+        </button>
+      </div>
+
+      {tab === "users" && (
+      <Panel size="compact" id="users">
+        {/* Fields on their own grid, actions on their own row. Previously every field *and* both
+            buttons shared one wrapping flex row, so the columns misaligned as soon as one cell
+            was taller than its neighbours, and the buttons drifted into the fields when a fourth
+            one appeared. A grid keeps the labels on one baseline whatever each cell contains, and
+            the actions can no longer collide with anything. */}
         {open && (
           <form
             onSubmit={onGrant}
-            className="flex flex-wrap items-end gap-3 border-b border-neutral-100 bg-neutral-25 px-5 py-4"
+            className="border-b border-neutral-100 bg-neutral-25 px-5 py-3"
           >
-            <label className="min-w-[180px] flex-1">
+            <div className="grid gap-x-3 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="block">
               <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
                 Full name
               </span>
@@ -717,70 +855,103 @@ export function UsersClient({
                 className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
               />
             </label>
-            <label className="min-w-[220px] flex-1">
-              <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                Work email
-              </span>
-              <input
-                name="email"
-                type="email"
-                required
-                value={grantEmail}
-                onChange={handleGrantEmailChange}
-                placeholder="name@lender.com"
-                className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-              />
-            </label>
-
-            {/* Not a list of lenders to choose from: the domain of the address above already
-                decides the organisation (`createLenderAccess` resolves it that way, and ignores
-                any name given for a domain it already knows). So this shows the resolution
-                rather than inviting a choice that would be discarded — and only asks for a name
-                in the one case the server actually uses it, a domain nobody has registered. */}
-            <div className="min-w-[200px] flex-1">
+            {/* The lender is picked first, because it is the decision the rest of the form
+                follows from: choosing one *fixes* the domain, so only the mailbox name is typed
+                and a mismatch between the lender picked and the address entered is not
+                expressible. A lender that does not exist yet is added on the "Lender
+                organisations" tab, not from here. */}
+            <label className="block">
               <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
                 Lender organisation
               </span>
-              {matchedOrg ? (
-                <div className="flex h-9 items-center gap-1.5 rounded-lg border border-success-200 bg-success-50 px-3 text-[12.5px] font-medium text-success-700">
-                  <Building2Icon className="size-3.5 shrink-0" />
-                  <span className="truncate">{matchedOrg.name}</span>
-                </div>
-              ) : grantDomain ? (
-                <input
-                  name="orgName"
-                  required
-                  placeholder="Bajaj Housing Finance"
-                  className="h-9 w-full rounded-lg border border-warning/40 bg-warning/5 px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-                />
+              <div className="relative">
+                <select
+                  value={grantOrg}
+                  onChange={(e) => handleGrantOrgChange(e.target.value)}
+                  className="h-9 w-full appearance-none truncate rounded-lg border border-neutral-200 bg-white pl-3 pr-8 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                >
+                  <option value="">Select a lender…</option>
+                  {orgs.map((o) => (
+                    <option key={o.id} value={o.emailDomain}>
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+              </div>
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
+                Work email
+              </span>
+              {selectedGrantOrg ? (
+                // Mailbox name, with the lender's domain fixed alongside it — but a whole address
+                // pasted in here is understood too, see `handleGrantLocalChange`.
+                <>
+                  <div
+                    className={cn(
+                      "flex h-9 items-stretch overflow-hidden rounded-lg border bg-white focus-within:ring-2",
+                      grantMailboxError
+                        ? "border-destructive focus-within:border-destructive focus-within:ring-destructive/20"
+                        : "border-neutral-200 focus-within:border-brand-primary focus-within:ring-brand-primary/20"
+                    )}
+                  >
+                    <input
+                      value={grantLocal}
+                      onChange={(e) => handleGrantLocalChange(e.target.value)}
+                      onBlur={handleGrantLocalBlur}
+                      required
+                      placeholder="arjun"
+                      aria-label="Mailbox name"
+                      aria-invalid={Boolean(grantMailboxError)}
+                      className="min-w-0 flex-1 px-3 text-[13px] outline-none"
+                    />
+                    <span className="flex items-center whitespace-nowrap border-l border-neutral-200 bg-neutral-50 px-2.5 text-[12.5px] text-neutral-500">
+                      @{selectedGrantOrg.emailDomain}
+                    </span>
+                  </div>
+                  {grantMailboxError && (
+                    <p className="mt-1 text-[11.5px] text-destructive">
+                      {grantMailboxError}
+                    </p>
+                  )}
+                </>
               ) : (
                 <div className="flex h-9 items-center rounded-lg border border-dashed border-neutral-200 px-3 text-[12.5px] text-neutral-400">
-                  Enter a work email first
+                  Select a lender first
                 </div>
               )}
-              <p className="mt-1 text-[11px] text-neutral-500">
-                {matchedOrg
-                  ? `Resolved from @${grantDomain} — they will see only this lender's accounts.`
-                  : grantDomain
-                    ? `No organisation uses @${grantDomain} yet — this creates one.`
-                    : "The email domain decides which lender they are scoped to."}
-              </p>
+            </label>
             </div>
-            <Button type="submit" size="sm" disabled={pending}>
-              Grant access
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={closeGrantForm}
-            >
-              Cancel
-            </Button>
+
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11.5px] text-neutral-500">
+                {selectedGrantOrg
+                  ? `They will see only ${selectedGrantOrg.name}'s accounts.`
+                  : "Pick the lender first; the address's domain is what scopes them."}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button type="submit" size="sm" disabled={pending}>
+                  Grant access
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={closeGrantForm}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
           </form>
         )}
 
-        <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-4 py-2.5">
+        {/* The panel has no header of its own, so Export and Grant access live at the end of
+            this row — `ml-auto` holds them at the right edge regardless of how wide the search
+            and filter are. */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-4 py-2">
           <div className="relative w-fit">
             <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
             <input
@@ -803,6 +974,14 @@ export function UsersClient({
               <option value="IMGC">IMGC staff</option>
             </select>
             <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleExportUsers}>
+              <DownloadIcon /> Export CSV
+            </Button>
+            <Button size="sm" onClick={() => setOpen((v) => !v)}>
+              <UserPlusIcon /> Grant access
+            </Button>
           </div>
         </div>
 
@@ -859,7 +1038,7 @@ export function UsersClient({
           </Table>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-1.5">
           <div className="flex items-center gap-3 text-[13px] text-neutral-500">
             <div className="flex items-center gap-2">
               <span>Rows per page</span>
@@ -901,8 +1080,11 @@ export function UsersClient({
           </div>
         </div>
       </Panel>
+      )}
 
+      {tab === "organisations" && (
       <Panel
+        size="compact"
         id="organisations"
         title="Lender organisations"
         description="Scope is keyed on the email domain — every account, claim and user a lender sees follows from it."
@@ -930,7 +1112,7 @@ export function UsersClient({
         {/* Same shape as the users table's own search row above — one search affordance on the
             page, not two that look different. The row count it used to carry now lives in the
             footer, where the users table already puts it. */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-4 py-2">
           <div className="relative w-fit">
             <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
             <input
@@ -975,13 +1157,6 @@ export function UsersClient({
                   onToggle={toggleOrgSort}
                 />
                 <SortableTableHead
-                  column="mailboxes"
-                  label="Stakeholder mailboxes"
-                  sortKey={orgSortKey}
-                  sortDirection={orgSortDirection}
-                  onToggle={toggleOrgSort}
-                />
-                <SortableTableHead
                   column="users"
                   label="Users"
                   sortKey={orgSortKey}
@@ -995,7 +1170,7 @@ export function UsersClient({
               {visibleOrgs.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={4}
                     className="py-10 text-center text-[13px] text-neutral-500"
                   >
                     {orgs.length === 0
@@ -1017,7 +1192,7 @@ export function UsersClient({
           </Table>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-1.5">
           <div className="flex items-center gap-3 text-[13px] text-neutral-500">
             <div className="flex items-center gap-2">
               <span>Rows per page</span>
@@ -1054,6 +1229,7 @@ export function UsersClient({
           </div>
         </div>
       </Panel>
+      )}
     </div>
   );
 }

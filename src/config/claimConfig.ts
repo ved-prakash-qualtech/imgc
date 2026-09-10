@@ -293,3 +293,21 @@ export function flowPosition(
   const anchor = fallback[status];
   return { flow, index: anchor ? flow.indexOf(anchor) : 0 };
 }
+
+/**
+ * Translate a claim's status into the vocabulary `Account.claimStatus` uses.
+ *
+ * The two entities name the same event differently: the claim says `QUERY_RAISED`, the account
+ * says `QUERIED` (see the note on `ClaimStatus` — the account field predates the Claim entity
+ * and kept its own word). Everything that copies a claim status onto an account goes through
+ * here.
+ *
+ * It exists because the seed applied this mapping and `advance()` did not, so any claim that hit
+ * a query at runtime wrote `QUERY_RAISED` onto its account — a value no account-side reader
+ * matches. Those accounts then dropped out of the Claims grid's "Under progress" filter and out
+ * of the Dashboard's "Queried" count, while the Claims Overview band, which reads the claim
+ * itself, still counted them. That was the gap between the tile and the table.
+ */
+export function toAccountClaimStatus(status: ClaimStatus): ClaimStatus {
+  return status === "QUERY_RAISED" ? "QUERIED" : status;
+}
