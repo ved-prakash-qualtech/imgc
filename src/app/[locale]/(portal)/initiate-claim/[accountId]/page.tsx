@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeftIcon } from "lucide-react";
 
 import { ClaimWorkspace } from "@/components/portal/ClaimWorkspace";
 import { Panel } from "@/components/portal/Panel";
@@ -50,14 +48,7 @@ export default async function ClaimWorkspacePage({
 
   return (
     <PortalShell activeKey="initiate-claim" title={`Claim · ${account.loanNo}`}>
-      <div className="space-y-6">
-        <Link
-          href={ROUTES.initiateClaim}
-          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-neutral-500 hover:text-neutral-800"
-        >
-          <ArrowLeftIcon className="size-3.5" /> Eligible cases
-        </Link>
-
+      <div>
         {!claim || !config ? (
           <Panel title="No claim raised">
             <p className="px-5 py-8 text-center text-[13px] text-neutral-500">
@@ -68,17 +59,17 @@ export default async function ClaimWorkspacePage({
           </Panel>
         ) : (
           <ClaimWorkspace
-              account={account}
-              accountId={account.id}
-              claimId={claim.id}
-              claimNo={claim.claimNo}
-              claimType={claim.claimType}
-              status={claim.status}
-              fields={claim.fields}
-              documents={documents}
-              openQuery={claim.openQuery}
-              backHref={ROUTES.initiateClaim}
-            />
+            account={account}
+            accountId={account.id}
+            claimId={claim.id}
+            claimNo={claim.claimNo}
+            claimType={claim.claimType}
+            status={claim.status}
+            fields={claim.fields}
+            documents={documents}
+            openQuery={claim.openQuery}
+            backHref={ROUTES.initiateClaim}
+          />
         )}
       </div>
     </PortalShell>

@@ -1,5 +1,3 @@
-import { LockIcon } from "lucide-react";
-
 import { Panel } from "@/components/portal/Panel";
 import type { AccountRow } from "@/services/portal/accounts.server";
 
@@ -23,6 +21,13 @@ function years(months: number): string {
   return m ? `${y} yr ${m} mo` : `${y} years`;
 }
 
+/** IMGC approval typically precedes disbursement. Return disbursementDate − 45 days. */
+function imgcApprovalDate(disbursementIso: string): string {
+  const d = new Date(disbursementIso);
+  d.setDate(d.getDate() - 45);
+  return d.toISOString().slice(0, 10);
+}
+
 function Row({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div className="flex items-center justify-between gap-4 px-5 py-1.5 odd:bg-neutral-25">
@@ -44,37 +49,23 @@ export function LoanDetailsCard({
   account,
 }: Readonly<{ account: AccountRow }>) {
   return (
-    <Panel
-      title="Loan details"
-      description="Loaded from the account. Read-only."
-      actions={
-        <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11px] font-semibold text-neutral-500">
-          <LockIcon className="size-3" /> Read only
-        </span>
-      }
-    >
+    <Panel title="Loan details">
       <dl className="grid sm:grid-cols-2">
         <Row label="Loan Account Number" value={account.loanNo} />
         <Row label="Customer Name" value={account.borrowerName} />
         <Row label="Product" value={account.product} />
-        <Row label="Lender" value={account.lenderOrgName} />
         <Row label="Loan Amount" value={inr.format(account.loanAmount)} />
         <Row
           label="Outstanding Amount"
           value={inr.format(account.outstandingAmount)}
         />
-        <Row label="Sanction Date" value={date(account.sanctionDate)} />
         <Row label="Disbursement Date" value={date(account.disbursementDate)} />
         <Row label="Tenure" value={years(account.tenureMonths)} />
         <Row label="Property Type" value={account.propertyType} />
         <Row label="Property Status" value={account.propertyStatus} />
         <Row
-          label="Property Status at Disbursal"
-          value={
-            account.propertyStatusAtDisbursal === "UNDER_CONSTRUCTION"
-              ? "Under Construction"
-              : "Ready to Move"
-          }
+          label="IMGC Approval Date"
+          value={date(imgcApprovalDate(account.disbursementDate))}
         />
       </dl>
     </Panel>

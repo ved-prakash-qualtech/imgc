@@ -757,8 +757,11 @@ export async function submitClaim(
           open.respondedById = session.userId;
           open.respondedByName = session.name;
           open.responseRemarks =
-            fields.__queryResponse ?? "Documents resubmitted.";
+            fields.__queryResponse ??
+            claim.fields.__queryResponse ??
+            "Documents resubmitted.";
         }
+        delete claim.fields.__queryResponse;
         // Rule: a resubmission goes straight back into review.
         advance(db, claim, "UNDER_REVIEW", session, "Resubmission received");
       }

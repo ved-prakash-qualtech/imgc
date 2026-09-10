@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-
 import { AddLenderDocumentDialog } from "@/components/portal/AddLenderDocumentDialog";
 import { Panel } from "@/components/portal/Panel";
 import { UploadDialog } from "@/components/portal/UploadDialog";
@@ -45,10 +44,12 @@ function StatusChip({ status }: Readonly<{ status: DocStatus }>) {
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold",
+        // eslint-disable-next-line security/detect-object-injection
         STATUS_TONE[status]
       )}
     >
       <span className="size-1.5 rounded-full bg-current opacity-70" />
+      {/* eslint-disable-next-line security/detect-object-injection */}
       {STATUS_LABEL[status]}
     </span>
   );
@@ -110,10 +111,13 @@ export function ClaimDocuments({
   const onDelete = useCallback(
     (accountId: string, documentId: string, fileId: string) => {
       startDelete(async () => {
-        const { deleteDocumentFileAction } = await import(
-          "@/app/[locale]/(portal)/additional-documents/actions"
+        const { deleteDocumentFileAction } =
+          await import("@/app/[locale]/(portal)/additional-documents/actions");
+        const result = await deleteDocumentFileAction(
+          accountId,
+          documentId,
+          fileId
         );
-        const result = await deleteDocumentFileAction(accountId, documentId, fileId);
         if (!result.ok) {
           toast.error(result.error ?? "Could not delete that file.");
           return;
@@ -128,6 +132,17 @@ export function ClaimDocuments({
   const applicable = required.filter((d) => d.required && d.active);
   const done = applicable.filter(isIn).length;
 
+  const requiredActions =
+    done === applicable.length && applicable.length > 0 ? (
+      <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-success-700">
+        <CheckCircle2Icon className="size-3.5" /> All in
+      </span>
+    ) : null;
+
+  const additionalActions = !locked ? (
+    <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
+  ) : null;
+
   return (
     <>
       {/* ── Required documents ───────────────────────────────── */}
@@ -135,13 +150,7 @@ export function ClaimDocuments({
         title="Required documents"
         description={`${done} / ${applicable.length} required complete`}
         className={bare ? "border-neutral-200 shadow-none" : undefined}
-        actions={
-          done === applicable.length && applicable.length > 0 ? (
-            <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-success-700">
-              <CheckCircle2Icon className="size-3.5" /> All in
-            </span>
-          ) : null
-        }
+        actions={requiredActions}
       >
         <ol className="divide-y divide-neutral-100">
           {required.map((doc, i) => (
@@ -163,16 +172,11 @@ export function ClaimDocuments({
 
       <Panel
         title="Additional documents"
-        description="Anything beyond the required list. User-defined, added one at a time — no limit."
         className={bare ? "mt-6 border-neutral-200 shadow-none" : undefined}
-        actions={
-          !locked ? (
-            <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
-          ) : null
-        }
+        actions={additionalActions}
       >
         {additional.length === 0 ? (
-          <p className="px-5 py-8 text-center text-[13px] text-neutral-500">
+          <p className="px-5 py-4 text-center text-[13px] text-neutral-500">
             No additional documents added.
           </p>
         ) : (
@@ -199,6 +203,7 @@ export function ClaimDocuments({
         mode={uploadTarget?.mode}
         replaceFileId={uploadTarget?.replaceFileId}
         open={uploadTarget !== null}
+        // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
         onOpenChange={(next) => !next && setUploadTarget(null)}
       />
     </>
@@ -239,7 +244,8 @@ function DocAccordionItem({
   // Pre-seeded docs are now treated the same as any other multi-upload document:
   // the lender can add more files on top of the seeded one and can delete individual files.
   // The old guard (blocking Add File for seeded docs) is intentionally removed.
-  const imgcRejected = doc.status === "REJECTED";
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _imgcRejected = doc.status === "REJECTED";
   const action =
     !locked && doc.status !== "APPROVED"
       ? !hasFiles
@@ -253,6 +259,7 @@ function DocAccordionItem({
       <div className="flex items-center gap-2 px-4 py-2">
         <button
           type="button"
+          // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
           onClick={() => onToggle(doc.id)}
           aria-expanded={open}
           aria-controls={bodyId}
@@ -300,6 +307,7 @@ function DocAccordionItem({
           <Button
             size="xs"
             variant={action.mode === "upload" ? "default" : "outline"}
+            // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
             onClick={() => onUpload({ row: doc, mode: action.mode })}
           >
             {action.icon}
@@ -309,12 +317,11 @@ function DocAccordionItem({
       </div>
 
       {/* ── Body ───────────────────────────────────────────── */}
-      <div
-        id={bodyId}
-        className={cn("px-4 pb-2.5 pl-10", !open && "hidden")}
-      >
+      <div id={bodyId} className={cn("px-4 pb-2.5 pl-10", !open && "hidden")}>
         {doc.description && (
-          <p className="truncate text-[12px] text-neutral-500">{doc.description}</p>
+          <p className="truncate text-[12px] text-neutral-500">
+            {doc.description}
+          </p>
         )}
         {doc.conditional && doc.conditionReason && (
           <p className="mt-0.5 text-[11.5px] italic text-neutral-500">
@@ -324,26 +331,43 @@ function DocAccordionItem({
         )}
 
         {hasFiles ? (
-          <ul className="mt-2 space-y-2">
+          <ul className="mt-1.5 space-y-1.5">
             {doc.files.map((f) => {
-              const uploadedAt = new Date(f.uploadedAt).toLocaleString("en-IN", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              });
-              
-              const isRejected = doc.status === "REJECTED" && f.version === doc.review?.version;
-              const isReuploadReq = doc.status === "REUPLOAD_REQUIRED" && f.version === doc.review?.version;
+              const uploadedAt = new Date(f.uploadedAt).toLocaleString(
+                "en-IN",
+                {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }
+              );
+
+              const isRejected =
+                doc.status === "REJECTED" && f.version === doc.review?.version;
+              const isReuploadReq =
+                doc.status === "REUPLOAD_REQUIRED" &&
+                f.version === doc.review?.version;
               const needsFix = isRejected || isReuploadReq;
-              const borderTheme = isRejected ? "border-destructive/40 bg-destructive/5" : isReuploadReq ? "border-warning/40 bg-warning/5" : "border-neutral-200/60 bg-white";
-              const textTheme = isRejected ? "text-destructive" : isReuploadReq ? "text-warning-700" : "text-brand-primary";
-              
+              const borderTheme = isRejected
+                ? "border-destructive/40 bg-destructive/5"
+                : isReuploadReq
+                  ? "border-warning/40 bg-warning/5"
+                  : "border-neutral-200/60 bg-white";
+              const textTheme = isRejected
+                ? "text-destructive"
+                : isReuploadReq
+                  ? "text-warning-700"
+                  : "text-brand-primary";
+
               return (
                 <li
                   key={f.id}
-                  className={cn("flex flex-col gap-2 rounded-md border px-3 py-2 shadow-sm", borderTheme)}
+                  className={cn(
+                    "flex flex-col gap-2 rounded-md border px-3 py-2 shadow-sm",
+                    borderTheme
+                  )}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex min-w-0 flex-1 items-center gap-2.5">
@@ -351,10 +375,24 @@ function DocAccordionItem({
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[12.5px] font-medium text-neutral-900">
                           {f.originalName}
-                          {isRejected && <span className="ml-2 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-destructive">Rejected</span>}
+                          {isRejected && (
+                            <span className="ml-2 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-destructive">
+                              Rejected
+                            </span>
+                          )}
                         </p>
-                        <p className={cn("truncate text-[11px]", needsFix ? (isRejected ? "text-destructive/80" : "text-warning-700/80") : "text-neutral-500")}>
-                          {(f.size / 1024).toFixed(0)} KB · {f.uploadedByName}, {uploadedAt}
+                        <p
+                          className={cn(
+                            "truncate text-[11px]",
+                            needsFix
+                              ? isRejected
+                                ? "text-destructive/80"
+                                : "text-warning-700/80"
+                              : "text-neutral-500"
+                          )}
+                        >
+                          {(f.size / 1024).toFixed(0)} KB · {f.uploadedByName},{" "}
+                          {uploadedAt}
                         </p>
                       </div>
                     </div>
@@ -362,7 +400,14 @@ function DocAccordionItem({
                       {needsFix && !locked && (
                         <button
                           type="button"
-                          onClick={() => onUpload({ row: doc, mode: "replace", replaceFileId: f.id })}
+                          // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                          onClick={() =>
+                            onUpload({
+                              row: doc,
+                              mode: "replace",
+                              replaceFileId: f.id,
+                            })
+                          }
                           className={cn(
                             "inline-flex h-7 items-center justify-center gap-1.5 rounded-md border bg-white px-3 text-[11.5px] font-medium transition-colors focus:outline-none focus:ring-2",
                             isRejected
@@ -381,7 +426,7 @@ function DocAccordionItem({
                         className={cn(
                           "shrink-0 inline-flex h-7 items-center justify-center rounded-md border px-3 text-[11.5px] font-medium transition-colors focus:outline-none focus:ring-2",
                           needsFix
-                            ? isRejected 
+                            ? isRejected
                               ? "border-destructive/30 bg-white text-destructive hover:bg-destructive/10 focus:ring-destructive/20"
                               : "border-warning/30 bg-white text-warning-700 hover:bg-warning/10 focus:ring-warning/20"
                             : "border-neutral-200 bg-white text-brand-dark hover:bg-neutral-50 hover:text-brand-primary focus:ring-brand-primary/20"
@@ -392,6 +437,7 @@ function DocAccordionItem({
                       {!locked && doc.status !== "APPROVED" && (
                         <button
                           type="button"
+                          // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                           onClick={() => onDelete(doc.accountId, doc.id, f.id)}
                           title="Delete this file"
                           className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-400 transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive focus:outline-none focus:ring-2 focus:ring-destructive/20"
@@ -402,11 +448,17 @@ function DocAccordionItem({
                     </div>
                   </div>
                   {needsFix && doc.review?.remarks && (
-                    <p className={cn(
-                      "rounded-md border px-2.5 py-1.5 text-[12px] text-neutral-700",
-                      isRejected ? "border-destructive/15 bg-white/60" : "border-warning/15 bg-white/60"
-                    )}>
-                      <span className="font-semibold">{isRejected ? "Reason: " : "Query: "}</span>
+                    <p
+                      className={cn(
+                        "rounded-md border px-2.5 py-1.5 text-[12px] text-neutral-700",
+                        isRejected
+                          ? "border-destructive/15 bg-white/60"
+                          : "border-warning/15 bg-white/60"
+                      )}
+                    >
+                      <span className="font-semibold">
+                        {isRejected ? "Reason: " : "Query: "}
+                      </span>
                       {doc.review.remarks}
                     </p>
                   )}
@@ -419,8 +471,6 @@ function DocAccordionItem({
             <FileIcon className="size-3.5" /> Nothing uploaded yet.
           </p>
         )}
-
-
       </div>
     </li>
   );
