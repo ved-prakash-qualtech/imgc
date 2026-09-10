@@ -262,7 +262,6 @@ function QueryTrailTab({
       ) : (
         <Panel
           title="Processing outcome"
-          description="Processing itself happens in PAS. Record the outcome here so the lender can see it."
           className="flex h-full min-h-0 flex-col overflow-hidden"
         >
           <div className="shrink-0">{imgcComposer}</div>

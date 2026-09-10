@@ -76,10 +76,12 @@ export default async function ClaimDashboardPage({
 
   // Same band the Claims grid used to show, over the same eligible-accounts set (`dpd > 90`) both
   // roles' Claims pages already filter to — `summariseClaimOverview` is the one classifier, so
-  // the band here and the grid there can never disagree.
+  // the band here and the grid there can never disagree. Narrowed to the hero-banner's selected
+  // lender when one is picked, so the tiles track the dropdown the same way the widgets do.
   const claimByAccountId = new Map(claims.map((c) => [c.accountId, c]));
   const eligible = accounts
     .filter((a) => (a.dpd ?? 0) > 90)
+    .filter((a) => !lenderOrgId || a.lenderOrgId === lenderOrgId)
     .map((a) => ({ claim: claimByAccountId.get(a.id) ?? null }));
   const counts = summariseClaimOverview(eligible);
 
