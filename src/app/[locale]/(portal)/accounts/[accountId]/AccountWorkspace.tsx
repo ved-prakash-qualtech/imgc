@@ -18,7 +18,7 @@ import type { AccountRow } from "@/services/portal/accounts.server";
 import type { DocumentRow } from "@/services/portal/claims.server";
 import type { ClaimRow } from "@/services/portal/claimFlow.server";
 import type { RequirementRow } from "@/services/portal/requirements.server";
-import type { AuditEvent, ClaimQuery, Role } from "@/server/mock/types";
+import type { AuditEvent, ClaimQuery, Remark, Role } from "@/server/mock/types";
 
 const TABS = [
   "Loan Details",
@@ -47,6 +47,7 @@ type Props = Readonly<{
   events: AuditEvent[];
   claim: ClaimRow | null;
   queries: ClaimQuery[];
+  remarks: Remark[];
   claimDocuments: RequirementRow[];
   canSubmit: boolean;
   retentionDays: number;
@@ -62,6 +63,7 @@ export function AccountWorkspace({
   events,
   claim,
   queries,
+  remarks,
   claimDocuments,
   canSubmit,
   retentionDays,
@@ -106,12 +108,19 @@ export function AccountWorkspace({
               <span
                 className={cn(
                   "ml-1.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold",
-                  claimDocs.filter((d) => d.required && d.status === "PENDING_UPLOAD").length > 0
+                  claimDocs.filter(
+                    (d) => d.required && d.status === "PENDING_UPLOAD"
+                  ).length > 0
                     ? "bg-warning/15 text-warning"
                     : "bg-success/15 text-success-700"
                 )}
               >
-                {claimDocs.filter((d) => d.status === "UNDER_REVIEW" || d.status === "APPROVED").length}
+                {
+                  claimDocs.filter(
+                    (d) =>
+                      d.status === "UNDER_REVIEW" || d.status === "APPROVED"
+                  ).length
+                }
                 /{claimDocs.length}
               </span>
             )}
@@ -119,11 +128,7 @@ export function AccountWorkspace({
         ))}
       </div>
 
-      {tab === "Loan Details" && (
-        <OverviewTab
-          account={account}
-        />
-      )}
+      {tab === "Loan Details" && <OverviewTab account={account} />}
 
       {tab === "Query Trail" && (
         <QueryTrailTab
@@ -131,6 +136,7 @@ export function AccountWorkspace({
           role={role}
           claim={claim}
           queries={queries}
+          remarks={remarks}
           claimDocuments={claimDocuments}
         />
       )}
@@ -157,12 +163,14 @@ function QueryTrailTab({
   role,
   claim,
   queries,
+  remarks,
   claimDocuments,
 }: Readonly<{
   account: AccountRow;
   role: Role;
   claim: ClaimRow | null;
   queries: ClaimQuery[];
+  remarks: Remark[];
   claimDocuments: RequirementRow[];
 }>) {
   const router = useRouter();
@@ -252,6 +260,9 @@ function QueryTrailTab({
           claimStatus={claim.status}
           openQuery={claim.openQuery ?? null}
           queries={queries}
+          claimRemarks={remarks.filter(
+            (remark) => remark.source === "CLAIM_INITIATION"
+          )}
           savedResponse={claim.fields.__queryResponse ?? ""}
           documents={claimDocuments}
           isLender={false}
@@ -274,7 +285,10 @@ function QueryTrailTab({
 
 /* ── Overview ──────────────────────────────────────────────────────── */
 
-function Fact({ label, value }: Readonly<{ label: string; value: React.ReactNode }>) {
+function Fact({
+  label,
+  value,
+}: Readonly<{ label: string; value: React.ReactNode }>) {
   return (
     <div className="px-5 py-3.5">
       <p className="text-[11.5px] font-medium uppercase tracking-wide text-neutral-400">
@@ -298,8 +312,14 @@ function OverviewTab({
           <Fact label="Borrower" value={account.borrowerName} />
           <Fact label="Lender" value={account.lenderOrgName} />
           <Fact label="Product" value={account.product} />
-          <Fact label="Processing bucket" value={<StatusPill status={account.bucket} />} />
-          <Fact label="Claim status" value={<StatusPill status={account.claimStatus} />} />
+          <Fact
+            label="Processing bucket"
+            value={<StatusPill status={account.bucket} />}
+          />
+          <Fact
+            label="Claim status"
+            value={<StatusPill status={account.claimStatus} />}
+          />
           <Fact label="Stage" value={account.stage} />
           <Fact
             label="Documents in"

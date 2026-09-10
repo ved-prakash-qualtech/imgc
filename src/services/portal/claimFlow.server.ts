@@ -192,7 +192,6 @@ const UNDER_PROGRESS_STATUSES = new Set<ClaimStatus>([
   "DOCUMENTS_RESUBMITTED",
 ]);
 
-
 export interface ClaimOverviewCounts {
   total: number;
   initiation: number;
@@ -731,60 +730,88 @@ export async function submitClaim(
     return { ok: false, error: `Still outstanding — ${parts.join("; ")}.` };
   }
 
-  const { claimNo, bucketChangedFrom, accountId, account } = await writeDb(
-    (db) => {
-      const claim = db.claims.find((c) => c.id === claimId);
-      if (!claim)
-        return {
-          claimNo: "",
-          bucketChangedFrom: null,
-          accountId: "",
-          account: null,
-        };
-      // Answering a query resubmits; a first submission submits. Both land with IMGC.
-      const resubmitting = claim.status === "QUERY_RAISED";
-      advance(
-        db,
-        claim,
-        resubmitting ? "DOCUMENTS_RESUBMITTED" : "SUBMITTED",
-        session
-      );
-      if (!claim.submittedAt) claim.submittedAt = nowIso();
-      claim.bucket = "IMGC";
-
-      if (resubmitting) {
-        const open = db.claimQueries
-          .filter((q) => q.claimId === claimId && !q.respondedAt)
-          .sort((a, b) => b.raisedAt.localeCompare(a.raisedAt))[0];
-        if (open) {
-          open.respondedAt = nowIso();
-          open.respondedById = session.userId;
-          open.respondedByName = session.name;
-          open.responseRemarks =
-            fields.__queryResponse ??
-            claim.fields.__queryResponse ??
-            "Documents resubmitted.";
-        }
-        delete claim.fields.__queryResponse;
-        // Rule: a resubmission goes straight back into review.
-        advance(db, claim, "UNDER_REVIEW", session, "Resubmission received");
-      }
-
-      let bucketChangedFrom = null;
-      const account = db.accounts.find((a) => a.id === claim.accountId);
-      if (account && account.bucket !== "IMGC") {
-        bucketChangedFrom = account.bucket;
-        account.bucket = "IMGC";
-      }
-
+  const {
+    claimNo,
+    bucketChangedFrom,
+    accountId,
+    account,
+    initiationRemarkAdded,
+  } = await writeDb((db) => {
+    const claim = db.claims.find((c) => c.id === claimId);
+    if (!claim)
       return {
-        claimNo: claim.claimNo,
-        bucketChangedFrom,
-        accountId: claim.accountId,
-        account: account ? { ...account } : null,
+        claimNo: "",
+        bucketChangedFrom: null,
+        accountId: "",
+        account: null,
+        initiationRemarkAdded: false,
       };
+    // Answering a query resubmits; a first submission submits. Both land with IMGC.
+    const resubmitting = claim.status === "QUERY_RAISED";
+    advance(
+      db,
+      claim,
+      resubmitting ? "DOCUMENTS_RESUBMITTED" : "SUBMITTED",
+      session
+    );
+    if (!claim.submittedAt) claim.submittedAt = nowIso();
+    claim.bucket = "IMGC";
+
+    if (resubmitting) {
+      const open = db.claimQueries
+        .filter((q) => q.claimId === claimId && !q.respondedAt)
+        .sort((a, b) => b.raisedAt.localeCompare(a.raisedAt))[0];
+      if (open) {
+        open.respondedAt = nowIso();
+        open.respondedById = session.userId;
+        open.respondedByName = session.name;
+        open.responseRemarks =
+          fields.__queryResponse ??
+          claim.fields.__queryResponse ??
+          "Documents resubmitted.";
+      }
+      delete claim.fields.__queryResponse;
+      // Rule: a resubmission goes straight back into review.
+      advance(db, claim, "UNDER_REVIEW", session, "Resubmission received");
     }
-  );
+
+    let bucketChangedFrom = null;
+    const account = db.accounts.find((a) => a.id === claim.accountId);
+    if (account && account.bucket !== "IMGC") {
+      bucketChangedFrom = account.bucket;
+      account.bucket = "IMGC";
+    }
+
+    const initiationRemark = claim.fields.__initiationRemark?.trim();
+    const initiationRemarkAdded =
+      !resubmitting &&
+      Boolean(initiationRemark) &&
+      !db.remarks.some(
+        (remark) =>
+          remark.claimId === claim.id && remark.source === "CLAIM_INITIATION"
+      );
+    if (initiationRemarkAdded) {
+      db.remarks.unshift({
+        id: newId("rmk"),
+        accountId: claim.accountId,
+        claimId: claim.id,
+        source: "CLAIM_INITIATION",
+        authorId: session.userId,
+        authorName: session.name,
+        authorRole: session.role,
+        body: initiationRemark!,
+        createdAt: nowIso(),
+      });
+    }
+
+    return {
+      claimNo: claim.claimNo,
+      bucketChangedFrom,
+      accountId: claim.accountId,
+      account: account ? { ...account } : null,
+      initiationRemarkAdded,
+    };
+  });
 
   await recordEvent({
     accountId: guard.accountId!,
@@ -793,6 +820,16 @@ export async function submitClaim(
     summary: `Claim ${claimNo} submitted to IMGC`,
     meta: { claimId },
   });
+
+  if (initiationRemarkAdded) {
+    await recordEvent({
+      accountId: guard.accountId!,
+      actor: session,
+      type: "REMARK_ADDED",
+      summary: "Lender added an initiation remark",
+      meta: { claimId, source: "CLAIM_INITIATION" },
+    });
+  }
 
   if (bucketChangedFrom) {
     await recordEvent({

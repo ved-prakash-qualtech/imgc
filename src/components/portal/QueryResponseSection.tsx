@@ -17,7 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { RequirementRow } from "@/services/portal/requirements.server";
-import type { ClaimQuery, ClaimStatus } from "@/server/mock/types";
+import type { ClaimQuery, ClaimStatus, Remark } from "@/server/mock/types";
 
 const RESPONSE_MAX = 2000;
 
@@ -63,6 +63,7 @@ export function QueryResponseSection({
   claimStatus,
   openQuery,
   queries,
+  claimRemarks,
   savedResponse,
   documents,
   isLender,
@@ -76,6 +77,7 @@ export function QueryResponseSection({
   claimStatus: ClaimStatus;
   openQuery: ClaimQuery | null;
   queries: ClaimQuery[];
+  claimRemarks: Remark[];
   savedResponse: string;
   documents: RequirementRow[];
   isLender: boolean;
@@ -117,7 +119,7 @@ export function QueryResponseSection({
     });
   }, [accountId, claimId, response, router]);
 
-  if (queries.length === 0) {
+  if (queries.length === 0 && claimRemarks.length === 0) {
     if (!isLender && imgcComposer) {
       return (
         <Panel
@@ -170,6 +172,25 @@ export function QueryResponseSection({
             : "flex-1 min-h-0 overflow-y-auto space-y-3 px-4 py-4 custom-scrollbar"
         }
       >
+        {claimRemarks
+          .slice()
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+          .map((remark) => (
+            <div key={remark.id} className="flex justify-start">
+              <div className="w-full max-w-2xl rounded-lg rounded-tl-sm border border-neutral-200 bg-neutral-50 px-3 py-2 shadow-sm">
+                <div className="mb-1 flex flex-wrap items-baseline gap-1.5 text-[11.5px] text-neutral-500">
+                  <span className="font-semibold text-brand-primary">
+                    Lender
+                  </span>
+                  <span>&middot; {remark.authorName}</span>
+                  <span>&middot; {when(remark.createdAt)}</span>
+                </div>
+                <p className="whitespace-pre-wrap text-[12px] font-semibold text-neutral-800">
+                  {remark.body}
+                </p>
+              </div>
+            </div>
+          ))}
         {/* Sort ascending so the oldest message is at top and the latest is at the bottom */}
         {[...queries]
           .sort((a, b) => a.raisedAt.localeCompare(b.raisedAt))

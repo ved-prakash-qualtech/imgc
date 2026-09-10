@@ -9,7 +9,11 @@ import { requireSession } from "@/lib/auth/appSession";
 import { RETENTION_DAYS } from "@/server/mock/retention";
 import { getAccount } from "@/services/portal/accounts.server";
 import { listAuditForAccount } from "@/services/portal/audit.server";
-import { getClaimForAccount, listQueries } from "@/services/portal/claimFlow.server";
+import {
+  getClaimForAccount,
+  listQueries,
+} from "@/services/portal/claimFlow.server";
+import { listRemarks } from "@/services/portal/remarks.server";
 import { canSubmit, listDocuments } from "@/services/portal/claims.server";
 import { listClaimDocuments } from "@/services/portal/requirements.server";
 
@@ -34,9 +38,10 @@ export default async function AccountPage({
     getClaimForAccount(session, accountId),
   ]);
 
-  const [queries, claimDocuments] = await Promise.all([
+  const [queries, claimDocuments, remarks] = await Promise.all([
     claim ? listQueries(claim.id) : Promise.resolve([]),
     claim ? listClaimDocuments(session, claim.id) : Promise.resolve([]),
+    listRemarks(accountId),
   ]);
 
   // Which rejected documents already have an open query naming them — so a fresh rejection
@@ -62,6 +67,7 @@ export default async function AccountPage({
           account={account}
           claim={claim}
           queries={queries}
+          remarks={remarks.filter((remark) => remark.claimId === claim?.id)}
           claimDocuments={claimDocuments}
           role={session.role}
           docs={docs}

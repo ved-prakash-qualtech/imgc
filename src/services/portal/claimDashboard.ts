@@ -8,18 +8,18 @@ import type { ClaimStatus } from "@/server/mock/types";
 
 /** In-flight — submitted but not yet decided. Same set `summariseClaimOverview` counts as
  *  "Under Progress" and the Claims grid filters on, so the widgets and the band agree. */
-export const IN_PROGRESS_STATUSES: ReadonlySet<ClaimStatus> = new Set<ClaimStatus>(
-  ["SUBMITTED", "UNDER_REVIEW", "QUERY_RAISED", "DOCUMENTS_RESUBMITTED"]
-);
+export const IN_PROGRESS_STATUSES: ReadonlySet<ClaimStatus> =
+  new Set<ClaimStatus>([
+    "SUBMITTED",
+    "UNDER_REVIEW",
+    "QUERY_RAISED",
+    "DOCUMENTS_RESUBMITTED",
+  ]);
 
 /** The statuses the month-on-month widget can chart. "INITIATED" is not a real `ClaimStatus` —
  *  it means "the claim was created", dated from `createdAt` rather than a status-history entry. */
 export type MonthlyStatusKey =
-  | "INITIATED"
-  | "SUBMITTED"
-  | "UNDER_REVIEW"
-  | "APPROVED"
-  | "REJECTED";
+  "INITIATED" | "SUBMITTED" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 
 export const MONTHLY_STATUS_OPTIONS: ReadonlyArray<{
   key: MonthlyStatusKey;
@@ -51,9 +51,18 @@ export interface LenderProgressRow {
   total: number;
 }
 
+export interface LenderUnderProgressRow {
+  claimId: string;
+  loanId: string;
+  applicant: string;
+  latestQueryDate: string | null;
+}
+
 export interface ClaimDashboardData {
   monthly: MonthlyPoint[];
   byLender: LenderProgressRow[];
+  lenderUnderProgress: LenderUnderProgressRow[];
+  isLender: boolean;
   /** Whether this session may narrow the widgets to one lender (IMGC only). */
   canFilterByLender: boolean;
   lenders: { id: string; name: string }[];

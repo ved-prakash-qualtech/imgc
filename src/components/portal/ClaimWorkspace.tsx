@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars, security/detect-object-injection, react-perf/jsx-no-jsx-as-prop, react-perf/jsx-no-new-function-as-prop */
+/* eslint-disable security/detect-object-injection, react-perf/jsx-no-jsx-as-prop, react-perf/jsx-no-new-function-as-prop */
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
@@ -41,6 +41,7 @@ import type {
 } from "@/server/mock/types";
 
 type WorkspaceTab = "loan-details" | "initiate-claim";
+const INITIATION_REMARK_MAX = 2000;
 
 /** A required document is still outstanding until it is with IMGC or approved. */
 function outstanding(doc: RequirementRow): boolean {
@@ -212,47 +213,72 @@ export function ClaimWorkspace({
         >
           {/* ── LEFT: Claim Type (fixed width, self-contained) ── */}
           <div className="w-72 shrink-0">
-            <Panel
-              title="Claim type"
-              description="Determines which documents are required."
-              actions={<StatusPill status={status} />}
-            >
-              <div className="flex flex-col gap-2 px-4 py-3">
-                {CLAIM_TYPE_KEYS.map((key) => {
-                  const t = CLAIM_TYPES[key];
-                  const active = key === claimType;
-                  const isLocked = key === "SUBSEQUENT";
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      disabled={status !== "DRAFT" || pending || isLocked}
-                      aria-pressed={active}
-                      onClick={() => onChangeType(key)}
-                      className={cn(
-                        "w-full rounded-lg border-2 px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-60",
-                        active
-                          ? "border-brand-primary bg-brand-light/50"
-                          : "border-neutral-200 hover:border-brand-primary/40 hover:bg-neutral-50"
-                      )}
-                    >
-                      <span className="block text-[12.5px] font-semibold text-neutral-900">
-                        {t.label}
-                      </span>
-                      <span className="mt-0.5 block text-[11px] text-neutral-500">
-                        {t.documents.filter((d) => d.required).length} required
-                        docs
-                      </span>
-                    </button>
-                  );
-                })}
-                {status !== "DRAFT" && (
-                  <p className="pt-1 text-[11px] text-neutral-400">
-                    The claim type is fixed once the claim leaves draft.
+            <div className="space-y-3">
+              <Panel
+                title="Claim type"
+                description="Determines which documents are required."
+                actions={<StatusPill status={status} />}
+              >
+                <div className="flex flex-col gap-2 px-4 py-3">
+                  {CLAIM_TYPE_KEYS.map((key) => {
+                    const t = CLAIM_TYPES[key];
+                    const active = key === claimType;
+                    const isLocked = key === "SUBSEQUENT";
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        disabled={status !== "DRAFT" || pending || isLocked}
+                        aria-pressed={active}
+                        onClick={() => onChangeType(key)}
+                        className={cn(
+                          "w-full rounded-lg border-2 px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-60",
+                          active
+                            ? "border-brand-primary bg-brand-light/50"
+                            : "border-neutral-200 hover:border-brand-primary/40 hover:bg-neutral-50"
+                        )}
+                      >
+                        <span className="block text-[12.5px] font-semibold text-neutral-900">
+                          {t.label}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] text-neutral-500">
+                          {t.documents.filter((d) => d.required).length}{" "}
+                          required docs
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {status !== "DRAFT" && (
+                    <p className="pt-1 text-[11px] text-neutral-400">
+                      The claim type is fixed once the claim leaves draft.
+                    </p>
+                  )}
+                </div>
+              </Panel>
+
+              <Panel
+                title="Add Remarks"
+                description="Optional note for IMGC about this claim."
+              >
+                <div className="px-4 py-3">
+                  <textarea
+                    value={values.__initiationRemark ?? ""}
+                    maxLength={INITIATION_REMARK_MAX}
+                    disabled={locked || pending}
+                    onChange={(event) =>
+                      onFieldChange("__initiationRemark", event.target.value)
+                    }
+                    rows={4}
+                    placeholder="Add a remark about this claim..."
+                    className="w-full resize-y rounded-lg border border-neutral-200 px-3 py-2 text-[13px] outline-none transition-colors focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 disabled:bg-neutral-50 disabled:text-neutral-400"
+                  />
+                  <p className="mt-1 text-right text-[11px] text-neutral-400">
+                    {(values.__initiationRemark ?? "").length}/
+                    {INITIATION_REMARK_MAX}
                   </p>
-                )}
-              </div>
-            </Panel>
+                </div>
+              </Panel>
+            </div>
           </div>
 
           {/* ── RIGHT: Documents + action bar (scrollable internally) ── */}

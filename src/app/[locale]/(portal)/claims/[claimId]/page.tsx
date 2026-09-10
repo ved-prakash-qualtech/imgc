@@ -26,6 +26,7 @@ import { requireSession } from "@/lib/auth/appSession";
 import { getAccount } from "@/services/portal/accounts.server";
 import { getClaim, listQueries } from "@/services/portal/claimFlow.server";
 import { listClaimDocuments } from "@/services/portal/requirements.server";
+import { listRemarks } from "@/services/portal/remarks.server";
 
 export const dynamic = "force-dynamic";
 
@@ -51,10 +52,11 @@ export default async function ClaimDetailsPage({
   const claim = await getClaim(session, claimId);
   if (!claim) notFound();
 
-  const [documents, queries, account] = await Promise.all([
+  const [documents, queries, account, remarks] = await Promise.all([
     listClaimDocuments(session, claim.id),
     listQueries(claim.id),
     getAccount(session, claim.accountId),
+    listRemarks(claim.accountId),
   ]);
   const config = claimConfig(claim.claimType);
   const isLender = session.role === "LENDER";
@@ -131,6 +133,9 @@ export default async function ClaimDetailsPage({
                   openQuery={claim.openQuery}
                   queries={queries.sort((a, b) =>
                     a.raisedAt.localeCompare(b.raisedAt)
+                  )}
+                  claimRemarks={remarks.filter(
+                    (remark) => remark.claimId === claim.id
                   )}
                   savedResponse={claim.fields.__queryResponse ?? ""}
                   documents={documents}

@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDownIcon } from "lucide-react";
 
 import { Panel } from "@/components/portal/Panel";
+import { ROUTES } from "@/constants/route";
 import {
   MONTH_WINDOWS,
   MONTHLY_STATUS_OPTIONS,
@@ -48,7 +49,9 @@ function FilterSelect({
 
 /* ── Widget 1: month-on-month claim status ─────────────────────────── */
 
-function MonthlyBars({ data }: Readonly<{ data: ClaimDashboardData["monthly"] }>) {
+function MonthlyBars({
+  data,
+}: Readonly<{ data: ClaimDashboardData["monthly"] }>) {
   const max = Math.max(1, ...data.map((d) => d.count));
   const W = 640;
   const H = 200;
@@ -161,7 +164,9 @@ function LenderProgressBars({
             />
           </div>
           <span className="w-24 shrink-0 text-right text-[11.5px] tabular-nums text-neutral-600">
-            <span className="font-semibold text-neutral-900">{r.inProgress}</span>
+            <span className="font-semibold text-neutral-900">
+              {r.inProgress}
+            </span>
             <span className="text-neutral-400"> / {r.total}</span>
           </span>
         </li>
@@ -170,9 +175,82 @@ function LenderProgressBars({
   );
 }
 
+function formatQueryDate(iso: string | null): string {
+  return iso
+    ? new Date(iso).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
+}
+
+function LenderUnderProgressTable({
+  rows,
+  onSelect,
+}: Readonly<{
+  rows: ClaimDashboardData["lenderUnderProgress"];
+  onSelect: (claimId: string) => void;
+}>) {
+  if (rows.length === 0) {
+    return (
+      <p className="px-1 py-6 text-center text-[12.5px] text-neutral-500">
+        No claims for this selection.
+      </p>
+    );
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[430px] text-left text-[12px]">
+        <thead className="border-b border-neutral-200 text-[11px] uppercase tracking-wide text-neutral-400">
+          <tr>
+            <th className="px-1 py-2 font-medium">Loan ID</th>
+            <th className="px-1 py-2 font-medium">Applicant</th>
+            <th className="px-1 py-2 text-right font-medium">
+              Latest Query Date
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neutral-100">
+          {rows.map((row) => (
+            <tr
+              key={row.claimId}
+              className="cursor-pointer text-neutral-700 transition-colors hover:bg-neutral-50"
+              onClick={() => onSelect(row.claimId)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(row.claimId);
+                }
+              }}
+              tabIndex={0}
+              role="link"
+            >
+              <td className="px-1 py-3 font-medium text-neutral-900">
+                {row.loanId}
+              </td>
+              <td className="px-1 py-3">{row.applicant}</td>
+              <td className="px-1 py-3 text-right tabular-nums">
+                {formatQueryDate(row.latestQueryDate)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /* ── the view ─────────────────────────────────────────────────────── */
 
-export function ClaimDashboardView({ data, status, months, lenderOrgId }: Props) {
+export function ClaimDashboardView({
+  data,
+  status,
+  months,
+  lenderOrgId,
+}: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -184,9 +262,14 @@ export function ClaimDashboardView({ data, status, months, lenderOrgId }: Props)
   }
 
   const statusLabel =
-    MONTHLY_STATUS_OPTIONS.find((o) => o.key === status)?.label ?? "Claim initiated";
+    MONTHLY_STATUS_OPTIONS.find((o) => o.key === status)?.label ??
+    "Claim initiated";
   const selectedLenderName =
     data.lenders.find((l) => l.id === lenderOrgId)?.name ?? "All lenders";
+
+  function openClaim(claimId: string) {
+    router.push(`${ROUTES.claimDetails(claimId)}?tab=status`);
+  }
 
   // The lender lens itself lives in the hero band (`ClaimDashboardLenderPicker`), same slot the
   // main Dashboard uses; it writes the same `?lender=` param this component reads back to label
@@ -236,15 +319,24 @@ export function ClaimDashboardView({ data, status, months, lenderOrgId }: Props)
         size="compact"
         title="Under Progress"
         description={
-          data.canFilterByLender
-            ? `Claims currently submitted but not yet decided${
-                lenderOrgId ? ` — ${selectedLenderName}` : ", by lender"
-              }.`
-            : "Your claims currently submitted but not yet decided."
+          data.isLender
+            ? "Claims currently awaiting your query response."
+            : data.canFilterByLender
+              ? `Claims currently submitted but not yet decided${
+                  lenderOrgId ? ` — ${selectedLenderName}` : ", by lender"
+                }.`
+              : "Your claims currently submitted but not yet decided."
         }
       >
         <div className="max-h-[280px] overflow-auto px-4 py-3">
-          <LenderProgressBars rows={data.byLender} />
+          {data.isLender ? (
+            <LenderUnderProgressTable
+              rows={data.lenderUnderProgress}
+              onSelect={openClaim}
+            />
+          ) : (
+            <LenderProgressBars rows={data.byLender} />
+          )}
         </div>
       </Panel>
     </div>

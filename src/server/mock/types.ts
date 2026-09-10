@@ -281,6 +281,8 @@ export interface DocumentFile {
 export interface Remark {
   id: string;
   accountId: string;
+  claimId?: string;
+  source?: "CLAIM_INITIATION";
   /** Present for a per-document remark; absent for an account-level one. */
   documentId?: string;
   authorId: string;

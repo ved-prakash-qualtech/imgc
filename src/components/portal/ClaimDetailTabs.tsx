@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import React from "react";
 
 import { cn } from "@/lib/utils/twMergeUtils";
@@ -38,7 +39,10 @@ export function ClaimDetailTabs({
   /** Optional ← Back link rendered on the left of the tab bar row (server-supplied). */
   backLink?: ReactNode;
 }>) {
-  const [tab, setTab] = useState<TabKey>("loan-details");
+  const searchParams = useSearchParams();
+  const initialTab =
+    searchParams.get("tab") === "status" ? "status" : "loan-details";
+  const [tab, setTab] = useState<TabKey>(initialTab);
 
   const handleTabClick = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {

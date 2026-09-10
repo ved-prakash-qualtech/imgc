@@ -5,6 +5,7 @@ import {
   IN_PROGRESS_STATUSES,
   type ClaimDashboardData,
   type LenderProgressRow,
+  type LenderUnderProgressRow,
   type MonthlyPoint,
   type MonthWindow,
   type MonthlyStatusKey,
@@ -40,7 +41,8 @@ function scopedAccountIds(
   return new Set(
     accounts
       .filter((a) => {
-        if (session.role !== "IMGC") return a.lenderOrgId === session.lenderOrgId;
+        if (session.role !== "IMGC")
+          return a.lenderOrgId === session.lenderOrgId;
         return lenderOrgId ? a.lenderOrgId === lenderOrgId : true;
       })
       .map((a) => a.id)
@@ -59,8 +61,18 @@ function monthKey(iso: string): string {
 }
 
 const MONTH_LABELS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
 ];
 
 /** The last `n` calendar months ending with the current one, oldest first. */
@@ -103,6 +115,30 @@ export async function getClaimDashboard(
       .map((a) => a.id)
   );
   const claims = db.claims.filter((c) => eligibleIds.has(c.accountId));
+
+  const lenderUnderProgress: LenderUnderProgressRow[] =
+    session.role === "LENDER"
+      ? claims
+          .filter((claim) => claim.status === "QUERY_RAISED")
+          .map((claim) => {
+            const account = db.accounts.find((a) => a.id === claim.accountId);
+            const latestQuery = db.claimQueries
+              .filter((query) => query.claimId === claim.id)
+              .sort((a, b) => b.raisedAt.localeCompare(a.raisedAt))[0];
+            return {
+              claimId: claim.id,
+              loanId: account?.loanNo ?? "—",
+              applicant: account?.borrowerName ?? "—",
+              latestQueryDate: latestQuery?.raisedAt ?? null,
+            };
+          })
+          .sort(
+            (a, b) =>
+              (b.latestQueryDate ?? "").localeCompare(
+                a.latestQueryDate ?? ""
+              ) || a.loanId.localeCompare(b.loanId)
+          )
+      : [];
 
   // ── Widget 1: month-on-month, how many claims reached `status` in each month ──
   const buckets = new Map<string, number>();
@@ -158,6 +194,8 @@ export async function getClaimDashboard(
   return {
     monthly,
     byLender,
+    lenderUnderProgress,
+    isLender: session.role === "LENDER",
     canFilterByLender: session.role === "IMGC",
     lenders:
       session.role === "IMGC"
