@@ -151,13 +151,13 @@ function LenderProgressBars({
     );
   }
   return (
-    <ul className="space-y-2">
+    <ul className="space-y-1">
       {rows.map((r) => (
-        <li key={r.lenderOrgId} className="flex items-center gap-3">
+        <li key={r.lenderOrgId} className="flex items-center gap-2">
           <span className="w-40 shrink-0 truncate text-[12px] text-neutral-700">
             {r.lenderName}
           </span>
-          <div className="relative h-5 flex-1 overflow-hidden rounded bg-neutral-100">
+          <div className="relative h-4 flex-1 overflow-hidden rounded bg-neutral-100">
             <div
               className="h-full rounded bg-info/70"
               style={{ width: `${(r.inProgress / max) * 100}%` }}
@@ -310,7 +310,7 @@ export function ClaimDashboardView({
           </div>
         }
       >
-        <div className="max-h-[280px] overflow-auto px-4 py-3">
+        <div className="max-h-[280px] overflow-auto px-4 py-2">
           <MonthlyBars data={data.monthly} />
         </div>
       </Panel>

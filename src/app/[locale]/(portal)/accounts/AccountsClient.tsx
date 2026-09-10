@@ -165,7 +165,7 @@ function statusFromParam(value: string | null): (typeof STATUSES)[number] {
 }
 
 function statusDisplay(v: (typeof STATUSES)[number]): string {
-  if (v === "ALL") return "All Loan Status";
+  if (v === "ALL") return "All Claim Status";
   if (v === "UNDER_PROGRESS") return "Under progress";
   return v
     .toLowerCase()
@@ -523,7 +523,7 @@ export function AccountsClient({
                 title="DPD = Days Past Due"
               />
               <SortableTableHead column="bucket" label="Owner" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              <SortableTableHead column="status" label="Claim" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <SortableTableHead column="status" label="Claim Status" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
             </TableRow>
           </TableHeader>
           <TableBody>

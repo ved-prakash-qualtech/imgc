@@ -124,7 +124,6 @@ export function QueryResponseSection({
       return (
         <Panel
           title="Processing outcome"
-          description="Processing itself happens in PAS. Record the outcome here so the lender can see it."
           className={
             constrainedLayout || fillLayout
               ? "flex h-full min-h-0 flex-col overflow-hidden"
