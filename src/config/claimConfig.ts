@@ -145,7 +145,7 @@ export const CLAIM_TYPES: Readonly<Record<ClaimTypeKey, ClaimTypeConfig>> = {
         description:
           "Latest legal opinion and collections feedback on the account.",
         required: true,
-        multiple: false,
+        multiple: true,
       },
       {
         slug: "origination-field-investigation",
@@ -153,7 +153,7 @@ export const CLAIM_TYPES: Readonly<Record<ClaimTypeKey, ClaimTypeConfig>> = {
         category: "Legal Document",
         description: "FI report captured at loan origination.",
         required: true,
-        multiple: false,
+        multiple: true,
       },
       {
         slug: "latest-technical-report",
@@ -161,7 +161,7 @@ export const CLAIM_TYPES: Readonly<Record<ClaimTypeKey, ClaimTypeConfig>> = {
         category: "Property Document",
         description: "Current technical / valuation report for the property.",
         required: true,
-        multiple: false,
+        multiple: true,
         condition: {
           field: "propertyStatusAtDisbursal",
           operator: "equals",

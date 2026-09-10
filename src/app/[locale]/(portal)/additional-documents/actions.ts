@@ -7,6 +7,7 @@ import { requireSession } from "@/lib/auth/appSession";
 import {
   addRequirement,
   decideDocument,
+  deleteDocumentFile,
   setRequirementActive,
   updateRequirement,
   uploadDocument,
@@ -125,6 +126,18 @@ export async function uploadRequirementAction(
     file,
     meta
   );
+  if (result.ok) refreshAll(accountId);
+  return result;
+}
+
+/** Lender only — soft-delete a single uploaded file from a document category. */
+export async function deleteDocumentFileAction(
+  accountId: string,
+  documentId: string,
+  fileId: string
+): Promise<Result> {
+  const session = await requireSession();
+  const result = await deleteDocumentFile(session, accountId, documentId, fileId);
   if (result.ok) refreshAll(accountId);
   return result;
 }

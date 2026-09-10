@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeftIcon } from "lucide-react";
 
-import { ClaimStatusGraph } from "@/components/portal/ClaimStatusGraph";
 import { ClaimWorkspace } from "@/components/portal/ClaimWorkspace";
 import { Panel } from "@/components/portal/Panel";
 import { PortalShell } from "@/components/portal/PortalShell";
@@ -68,17 +67,7 @@ export default async function ClaimWorkspacePage({
             </p>
           </Panel>
         ) : (
-          <>
-            <Panel title="Progress">
-              <div className="px-5 py-4">
-                <ClaimStatusGraph
-                  claimType={claim.claimType}
-                  status={claim.status}
-                />
-              </div>
-            </Panel>
-
-            <ClaimWorkspace
+          <ClaimWorkspace
               account={account}
               accountId={account.id}
               claimId={claim.id}
@@ -90,7 +79,6 @@ export default async function ClaimWorkspacePage({
               openQuery={claim.openQuery}
               backHref={ROUTES.initiateClaim}
             />
-          </>
         )}
       </div>
     </PortalShell>
