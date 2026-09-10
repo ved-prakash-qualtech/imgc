@@ -4,6 +4,7 @@ import "server-only";
 import { readDb } from "@/server/mock/db";
 import { ROUTES } from "@/constants/route";
 import { listClaims } from "@/services/portal/claimFlow.server";
+import { toAccountClaimStatus } from "@/config/claimConfig";
 import type { AppSession } from "@/lib/auth/appSession";
 import type { Claim, ClaimDocument } from "@/server/mock/types";
 
@@ -356,9 +357,13 @@ export async function buildDashboardSummary(
 ): Promise<DashboardSummary> {
   const db = await readDb();
 
-  let accounts = db.accounts.filter(
-    (a) => session.role === "IMGC" || a.lenderOrgId === session.lenderOrgId
-  );
+  // Normalised on the way in, because this file reads `db.accounts` directly rather than through
+  // `listAccounts` — so it does not get the same repair `decorate()` applies. Without it, an
+  // account written before `toAccountClaimStatus` existed still holds the claim's `QUERY_RAISED`
+  // where the account vocabulary says `QUERIED`, and `byStatus("QUERIED")` silently skips it.
+  let accounts = db.accounts
+    .filter((a) => session.role === "IMGC" || a.lenderOrgId === session.lenderOrgId)
+    .map((a) => ({ ...a, claimStatus: toAccountClaimStatus(a.claimStatus) }));
   const selectedLenderOrgId =
     session.role === "IMGC" ? (options?.lenderOrgId ?? undefined) : undefined;
   if (selectedLenderOrgId) {

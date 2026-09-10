@@ -10,6 +10,7 @@ import { addRemark } from "@/services/portal/remarks.server";
 import { getClaimForAccount, syncClaimForAccountDecision } from "@/services/portal/claimFlow.server";
 import { listDocuments, summariseDocs } from "@/services/portal/claims.server";
 import { listClaimDocuments } from "@/services/portal/requirements.server";
+import { toAccountClaimStatus } from "@/config/claimConfig";
 import type { AppSession } from "@/lib/auth/appSession";
 import type {
   Account,
@@ -106,6 +107,11 @@ function decorate(
 
   return {
     ...account,
+    // Repairs rows stored before `advance()` applied `toAccountClaimStatus`: those accounts hold
+    // the claim's own `QUERY_RAISED` where the account vocabulary says `QUERIED`, which no
+    // account-side reader matches. Normalising here means the existing data reads correctly
+    // without a migration; the write side no longer produces it.
+    claimStatus: toAccountClaimStatus(account.claimStatus),
     loanStatus: classifyLoanStatus(account, claim, queries),
     lenderOrgName: orgs.find((o) => o.id === account.lenderOrgId)?.name ?? "—",
     requiredDocs: own.filter((d) => d.required && d.active !== false).length,
