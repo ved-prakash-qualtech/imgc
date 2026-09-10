@@ -158,12 +158,7 @@ export function DashboardView({
       {/* ── In progress claim cases — same band, both roles: a lender's own book, every
           lender's for IMGC ─────────────────────────────────────────────────────────── */}
       <CommandBand
-        title={
-          isLender
-            ? "In progress claim cases"
-            : `In progress claim cases — ${selectedLenderName ?? "every lender"}`
-        }
-        subtitle="Where every account currently stands"
+        title={isLender ? "" : (selectedLenderName ?? "Every lender")}
         stats={[]}
         action={
           !isLender && lenderOrgs.length > 0 ? (
@@ -324,7 +319,7 @@ export function DashboardView({
                 size="compact"
                 title="Priority Accounts"
                 description="Top 5 critical loan accounts"
-                className="flex h-full flex-col overflow-hidden border-t-4 border-t-brand-primary bg-white shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
+                className="flex h-full flex-col overflow-hidden border-t-4 border-t-brand-primary bg-white py-px shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
               >
                 {summary.priorityAccounts.length > 0 ? (
                   <div className="flex-1 overflow-x-auto">
@@ -337,7 +332,7 @@ export function DashboardView({
                       </TableHeader>
                       <TableBody>
                         {summary.priorityAccounts.map((account) => (
-                          <TableRow 
+                          <TableRow
                             key={account.id}
                             className="cursor-pointer hover:bg-neutral-50 transition-colors"
                             onClick={() => router.push(`/dpd?query=${encodeURIComponent(account.loanNo)}`)}

@@ -17,7 +17,7 @@ export function CommandBand({
   children,
 }: Readonly<{
   title: string;
-  subtitle: string;
+  subtitle?: ReactNode;
   stats: readonly BandStatProps[];
   action?: ReactNode;
   /** Overrides the default translucent stat grid with custom content — used where a band's KPIs
@@ -26,22 +26,28 @@ export function CommandBand({
 }>) {
   return (
     <section className="rounded-2xl bg-[linear-gradient(115deg,#2b1d12_0%,#8a4310_55%,#3a2415_100%)] p-3 shadow-lg shadow-[#2b1d12]/25">
-      <header
-        className={cn(
-          "flex flex-wrap items-start justify-between gap-3",
-          (stats.length > 0 || children) && "mb-3"
-        )}
-      >
-        <div className="min-w-0">
-          <h2 className="font-outfit text-[17px] font-bold text-white">
-            {title}
-          </h2>
-          <p className="text-[12.5px] text-white/55">{subtitle}</p>
-        </div>
-        {action && (
-          <div className="flex shrink-0 items-center gap-2">{action}</div>
-        )}
-      </header>
+      {(title || subtitle || action) && (
+        <header
+          className={cn(
+            "flex flex-wrap items-start justify-between gap-3",
+            (stats.length > 0 || children) && "mb-3"
+          )}
+        >
+          <div className="min-w-0">
+            {title && (
+              <h2 className="font-outfit text-[17px] font-bold text-white">
+                {title}
+              </h2>
+            )}
+            {subtitle && (
+              <p className="text-[12.5px] text-white/55">{subtitle}</p>
+            )}
+          </div>
+          {action && (
+            <div className="flex shrink-0 items-center gap-2">{action}</div>
+          )}
+        </header>
+      )}
 
       {children ??
         (stats.length > 0 && (

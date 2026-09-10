@@ -264,9 +264,9 @@ function OrgForm({
       // instead of keeping whatever the previously-open row put there.
       key={org?.id ?? "create"}
       onSubmit={onSubmit}
-      className="border-b border-neutral-100 bg-neutral-25 px-5 py-3"
+      className="border-b border-neutral-100 bg-neutral-25 px-5 py-2"
     >
-      <p className="mb-3 flex items-center gap-1.5 text-[12.5px] font-semibold text-neutral-800">
+      <p className="mb-2 flex items-center gap-1.5 text-[12.5px] font-semibold text-neutral-800">
         <Building2Icon className="size-3.5 text-brand-primary" />
         {editing ? `Edit ${org?.name}` : "Add a lender organisation"}
       </p>
@@ -340,7 +340,7 @@ export function UsersClient({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(6);
+  const [pageSize, setPageSize] = useState(5);
 
   /**
    * This table lists everyone who can sign in — lender users *and* IMGC staff — while the band
@@ -419,7 +419,7 @@ export function UsersClient({
     []
   );
   const handlePageSizeChange = useCallback((val: string | null) => {
-    setPageSize(Number(val ?? "10"));
+    setPageSize(Number(val ?? "5"));
     setPage(1);
   }, []);
 
@@ -657,7 +657,7 @@ export function UsersClient({
   // Paged the same way the users table above is, rather than scrolled — one pagination idiom
   // across the page (and the app), so neither table asks the reader to learn a second one.
   const [orgPage, setOrgPage] = useState(1);
-  const [orgPageSize, setOrgPageSize] = useState(6);
+  const [orgPageSize, setOrgPageSize] = useState(5);
   const orgPageCount = Math.ceil(visibleOrgs.length / orgPageSize) || 1;
   const currentOrgPage = Math.min(orgPage, orgPageCount);
   const currentOrgs = visibleOrgs.slice(
@@ -666,7 +666,7 @@ export function UsersClient({
   );
 
   function handleOrgPageSizeChange(val: string | null) {
-    setOrgPageSize(Number(val ?? "6"));
+    setOrgPageSize(Number(val ?? "5"));
     setOrgPage(1);
   }
 
@@ -770,7 +770,7 @@ export function UsersClient({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {/* Same tab treatment the account workspace uses (Overview / Initial Claims / Audit
           Trail), so this screen doesn't introduce a second idiom for the same job. Counts sit on
           the tabs because they are the one thing you'd otherwise switch tabs to find out. */}
@@ -785,7 +785,7 @@ export function UsersClient({
           aria-selected={tab === "users"}
           onClick={showUsers}
           className={cn(
-            "-mb-px border-b-2 px-3.5 py-2 text-[13px] font-medium transition-colors",
+            "-mb-px border-b-2 px-3.5 py-1.5 text-[13px] font-medium transition-colors",
             tab === "users"
               ? "border-brand-primary text-brand-primary"
               : "border-transparent text-neutral-500 hover:text-neutral-800"
@@ -802,7 +802,7 @@ export function UsersClient({
           aria-selected={tab === "organisations"}
           onClick={showOrganisations}
           className={cn(
-            "-mb-px border-b-2 px-3.5 py-2 text-[13px] font-medium transition-colors",
+            "-mb-px border-b-2 px-3.5 py-1.5 text-[13px] font-medium transition-colors",
             tab === "organisations"
               ? "border-brand-primary text-brand-primary"
               : "border-transparent text-neutral-500 hover:text-neutral-800"
@@ -837,9 +837,9 @@ export function UsersClient({
         {open && (
           <form
             onSubmit={onGrant}
-            className="border-b border-neutral-100 bg-neutral-25 px-5 py-3"
+            className="border-b border-neutral-100 bg-neutral-25 px-5 py-2"
           >
-            <div className="grid gap-x-3 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
             <label className="block">
               <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
                 Full name
@@ -925,7 +925,7 @@ export function UsersClient({
             </label>
             </div>
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
               <p className="text-[11.5px] text-neutral-500">
                 {selectedGrantOrg
                   ? `They will see only ${selectedGrantOrg.name}'s accounts.`
@@ -1047,7 +1047,7 @@ export function UsersClient({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="6">6</SelectItem>
+                  <SelectItem value="5">5</SelectItem>
                   <SelectItem value="10">10</SelectItem>
                   <SelectItem value="20">20</SelectItem>
                   <SelectItem value="50">50</SelectItem>
@@ -1204,7 +1204,7 @@ export function UsersClient({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="6">6</SelectItem>
+                  <SelectItem value="5">5</SelectItem>
                   <SelectItem value="10">10</SelectItem>
                   <SelectItem value="20">20</SelectItem>
                   <SelectItem value="50">50</SelectItem>

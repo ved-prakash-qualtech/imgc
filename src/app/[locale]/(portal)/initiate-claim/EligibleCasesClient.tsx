@@ -87,7 +87,6 @@ const STATUS_OPTIONS = [
   "SUBMITTED",
   "UNDER_REVIEW",
   "QUERY_RAISED",
-  "DOCUMENTS_RESUBMITTED",
   "APPROVED",
   "REJECTED",
   "CLOSED",
@@ -140,11 +139,11 @@ function statusLabel(v: (typeof STATUS_OPTIONS)[number]): string {
 }
 
 function purposeDisplay(v: string): string {
-  return v === "ALL" ? "All purposes" : v;
+  return v === "ALL" ? "All Loan Types" : v;
 }
 
 function bucketDisplay(v: (typeof BUCKETS)[number]): string {
-  return v === "ALL" ? "All buckets" : v.toLowerCase();
+  return v === "ALL" ? "All Owners" : v.toLowerCase();
 }
 
 /** A claim record exists the moment the lender opens the workspace — that's a plumbing detail
@@ -166,11 +165,11 @@ function downloadCsv(rows: EligibleRow[]): void {
     "Loan ID",
     "Claim No",
     "Applicant",
-    "Purpose",
+    "Loan Type",
     "Amount",
     "DPD",
     "Status",
-    "Bucket",
+    "Owner",
     "Last Updated",
   ];
   const lines = rows.map((a) =>
@@ -318,7 +317,7 @@ export function EligibleCasesClient({
     initialSort.dir
   );
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(10);
 
   // A Claims Overview tile navigates here client-side (same route, new `?status=`) — this
   // component doesn't remount for that, so the lazy useState initializer above only ran once on
@@ -405,7 +404,7 @@ export function EligibleCasesClient({
   }, []);
 
   const handlePageSizeChange = useCallback((val: string | null) => {
-    setPageSize(Number(val ?? "5"));
+    setPageSize(Number(val ?? "10"));
     setPage(1);
   }, []);
 
@@ -552,7 +551,7 @@ export function EligibleCasesClient({
           display={purposeDisplay}
         />
         <FilterSelect
-          label="Bucket"
+          label="Owner"
           options={BUCKETS}
           value={bucket}
           onChange={handleBucketChange}
@@ -611,7 +610,7 @@ export function EligibleCasesClient({
                 onToggle={toggleSort}
               />
               <SortableTableHead column="status" label="Status" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              <SortableTableHead column="bucket" label="Bucket" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <SortableTableHead column="bucket" label="Owner" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               <SortableTableHead
                 column="lastUpdatedAt"
                 label="Last Updated"
@@ -714,7 +713,6 @@ export function EligibleCasesClient({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="5">5</SelectItem>
                 <SelectItem value="10">10</SelectItem>
                 <SelectItem value="20">20</SelectItem>
                 <SelectItem value="50">50</SelectItem>

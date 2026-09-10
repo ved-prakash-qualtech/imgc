@@ -10,6 +10,7 @@ import {
   ChevronDownIcon,
   ChevronsLeftIcon,
   ChevronsRightIcon,
+  ChartColumnIcon,
   CircleDotIcon,
   FileCheck2Icon,
   FolderOpenIcon,
@@ -41,6 +42,7 @@ import { cn } from "@/lib/utils/twMergeUtils";
  */
 const ICONS = new Map<NavKey, typeof LayoutDashboardIcon>([
   ["dashboard", LayoutDashboardIcon],
+  ["claim-dashboard", ChartColumnIcon],
   ["accounts", FolderOpenIcon],
   ["dpd", CalendarClockIcon],
   ["initiate-claim", FilePlusIcon],

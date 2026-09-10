@@ -45,7 +45,8 @@ export function ClaimOverviewBand({
   counts,
   hrefs,
   title = "Claims Overview",
-  subtitle = "Where every claim currently stands",
+  subtitle,
+  action,
 }: Readonly<{
   counts: ClaimOverviewCounts;
   /** Where each tile drills into — the grid below reads the same `?status=` value back out
@@ -53,9 +54,12 @@ export function ClaimOverviewBand({
   hrefs?: Partial<Record<keyof ClaimOverviewCounts, string>>;
   title?: string;
   subtitle?: string;
+  /** Top-right of the band, on the gradient — the Claim Dashboard's lender lens goes here, same
+   *  slot the main Dashboard's lender filter uses. Unused by the Claims-grid callers. */
+  action?: React.ReactNode;
 }>) {
   return (
-    <CommandBand title={title} subtitle={subtitle} stats={[]}>
+    <CommandBand title={title} subtitle={subtitle} stats={[]} action={action}>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {TILES.map((tile) => {
           const tone = TONE[tile.tone];

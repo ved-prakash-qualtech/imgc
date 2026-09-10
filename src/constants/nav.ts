@@ -10,6 +10,7 @@ import type { Role } from "@/server/mock/types";
  */
 export type NavKey =
   | "dashboard"
+  | "claim-dashboard"
   | "accounts"
   | "dpd"
   | "additional-documents"
@@ -39,6 +40,12 @@ const DASHBOARD: NavItem = {
   key: "dashboard",
   label: "Dashboard",
   href: ROUTES.dashboard,
+};
+
+const CLAIM_DASHBOARD: NavItem = {
+  key: "claim-dashboard",
+  label: "Claim Dashboard",
+  href: ROUTES.claimDashboard,
 };
 
 const ACCOUNTS: NavItem = {
@@ -90,6 +97,6 @@ const ALL_LOANS: NavItem = {
 
 export function navFor(role: Role): NavItem[] {
   return role === "IMGC"
-    ? [DASHBOARD, ACCOUNTS, ALL_LOANS, ADMINISTRATION]
-    : [DASHBOARD, CLAIM, DPD, AUDIT_TRAIL];
+    ? [DASHBOARD, CLAIM_DASHBOARD, ACCOUNTS, ALL_LOANS, ADMINISTRATION]
+    : [DASHBOARD, CLAIM_DASHBOARD, CLAIM, DPD, AUDIT_TRAIL];
 }

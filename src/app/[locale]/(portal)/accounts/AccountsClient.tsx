@@ -49,7 +49,6 @@ const STATUSES = [
   "SUBMITTED",
   "UNDER_REVIEW",
   "QUERIED",
-  "DOCUMENTS_RESUBMITTED",
   "UNDER_PROGRESS",
   "APPROVED",
   "REJECTED",
@@ -88,9 +87,8 @@ type SortKey =
   | "purpose"
   | "loanAmount"
   | "outstandingAmount"
-  | "disbursementDate"
+  | "submittedAt"
   | "dpd"
-  | "assetClass"
   | "bucket"
   | "status";
 type SortDirection = "asc" | "desc" | null;
@@ -117,13 +115,12 @@ function downloadCsv(rows: AccountRow[], role: Role): void {
     "Loan No",
     "Borrower",
     ...(role === "IMGC" ? ["Lender"] : []),
-    "Product",
+    "Loan Type",
     "Principal",
     "Outstanding",
-    "Disbursed",
+    "Claim Initiation Date",
     "DPD",
-    "Asset Class",
-    "Bucket",
+    "Owner",
     "Claim Status",
   ];
   const lines = rows.map((a) =>
@@ -134,9 +131,8 @@ function downloadCsv(rows: AccountRow[], role: Role): void {
       a.product,
       a.loanAmount,
       a.outstandingAmount,
-      a.disbursementDate.slice(0, 10),
+      a.submittedAt ? a.submittedAt.slice(0, 10) : "",
       a.dpd ?? "",
-      ASSET_CLASS_LABEL[assetClassOf(a)],
       a.bucket,
       a.claimStatus,
     ]
@@ -179,11 +175,11 @@ function statusDisplay(v: (typeof STATUSES)[number]): string {
 }
 
 function purposeDisplay(v: string): string {
-  return v === "ALL" ? "All purposes" : v;
+  return v === "ALL" ? "All Loan Types" : v;
 }
 
 function bucketDisplay(v: (typeof BUCKETS)[number]): string {
-  return v === "ALL" ? "All buckets" : v.toLowerCase();
+  return v === "ALL" ? "All Owners" : v.toLowerCase();
 }
 
 function dpdBandDisplay(v: DpdBand): string {
@@ -267,7 +263,7 @@ export function AccountsClient({
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(10);
 
   // A Claims Overview tile navigates here client-side (same route, new `?status=`) — this
   // component doesn't remount for that, so the lazy useState initializer above only ran once on
@@ -361,9 +357,9 @@ export function AccountsClient({
             valA = a.outstandingAmount;
             valB = b.outstandingAmount;
             break;
-          case "disbursementDate":
-            valA = a.disbursementDate;
-            valB = b.disbursementDate;
+          case "submittedAt":
+            valA = a.submittedAt ?? "";
+            valB = b.submittedAt ?? "";
             break;
           case "dpd":
             // Numeric, never string — a missing DPD sorts as the lowest value rather than
@@ -378,10 +374,6 @@ export function AccountsClient({
           case "purpose":
             valA = a.product;
             valB = b.product;
-            break;
-          case "assetClass":
-            valA = assetClassOf(a);
-            valB = assetClassOf(b);
             break;
           case "bucket":
             valA = a.bucket;
@@ -422,7 +414,7 @@ export function AccountsClient({
   );
 
   const handlePageSizeChange = useCallback((val: string | null) => {
-    setPageSize(Number(val ?? "5"));
+    setPageSize(Number(val ?? "10"));
     setPage(1);
   }, []);
   const handleExport = useCallback(
@@ -480,21 +472,14 @@ export function AccountsClient({
           onChange={handleStatusChange}
         />
         <FilterSelect
-          label="Class"
-          options={ASSET_CLASSES}
-          display={assetClassDisplay}
-          value={assetClass}
-          onChange={handleAssetClassChange}
-        />
-        <FilterSelect
-          label="Purpose"
+          label="Loan Type"
           options={["ALL", ...products] as const}
           display={purposeDisplay}
           value={product}
           onChange={handleProductChange}
         />
         <FilterSelect
-          label="Bucket"
+          label="Owner"
           options={BUCKETS}
           display={bucketDisplay}
           value={bucket}
@@ -526,9 +511,9 @@ export function AccountsClient({
               <SortableTableHead column="loanNo" label="Loan no." sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               <SortableTableHead column="borrowerName" label="Borrower" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               {role === "IMGC" && <SortableTableHead column="lender" label="Lender" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />}
-              <SortableTableHead column="purpose" label="Purpose" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <SortableTableHead column="purpose" label="Loan Type" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               <SortableTableHead column="loanAmount" label="Principal" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              <SortableTableHead column="disbursementDate" label="Disbursed" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <SortableTableHead column="submittedAt" label="Claim Initiation Date" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               <SortableTableHead
                 column="dpd"
                 label="DPD"
@@ -537,8 +522,7 @@ export function AccountsClient({
                 onToggle={toggleSort}
                 title="DPD = Days Past Due"
               />
-              <SortableTableHead column="assetClass" label="Asset Class" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              <SortableTableHead column="bucket" label="Bucket" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <SortableTableHead column="bucket" label="Owner" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               <SortableTableHead column="status" label="Claim" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
             </TableRow>
           </TableHeader>
@@ -546,7 +530,7 @@ export function AccountsClient({
             {currentRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={role === "IMGC" ? 10 : 9}
+                  colSpan={role === "IMGC" ? 9 : 8}
                   className="py-12 text-center text-[13px] text-neutral-500"
                 >
                   No accounts match those filters.
@@ -579,27 +563,13 @@ export function AccountsClient({
                       {inr.format(a.loanAmount)}
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
-                      {date(a.disbursementDate)}
+                      {a.submittedAt ? date(a.submittedAt) : "—"}
                     </TableCell>
                     <TableCell
                       title="DPD = Days Past Due"
                       className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-700"
                     >
                       {formatDpd(a.dpd)}
-                    </TableCell>
-                    <TableCell className="px-1.5 py-1.5">
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-medium whitespace-nowrap",
-                          cls === "NPA"
-                            ? "bg-danger-50 text-danger-700"
-                            : cls === "WRITE_OFF"
-                              ? "bg-warning-50 text-warning-700"
-                              : "bg-success-50 text-success-700"
-                        )}
-                      >
-                        {ASSET_CLASS_LABEL[cls]}
-                      </span>
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5">
                       <StatusPill status={a.bucket} className="px-1.5 py-0.5 text-[10.5px]" />
@@ -627,7 +597,6 @@ export function AccountsClient({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="5">5</SelectItem>
                 <SelectItem value="10">10</SelectItem>
                 <SelectItem value="20">20</SelectItem>
                 <SelectItem value="50">50</SelectItem>

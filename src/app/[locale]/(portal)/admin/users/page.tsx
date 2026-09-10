@@ -101,12 +101,8 @@ export default async function AdminUsersPage() {
 
   return (
     <PortalShell activeKey="admin-users" title="Lender Access">
-      <div className="space-y-3">
-        <CommandBand
-          title="Lender Access Overview"
-          subtitle="Who can sign in, and which lender they are scoped to"
-          stats={[]}
-        >
+      <div className="space-y-2">
+        <CommandBand title="" stats={[]}>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-5">
             <StatTile
               value={orgs.length}

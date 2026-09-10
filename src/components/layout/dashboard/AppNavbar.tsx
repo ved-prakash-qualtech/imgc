@@ -73,33 +73,7 @@ export function AppNavbar({
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-neutral-100 bg-white px-5">
       {/* Left: optional hamburger + workspace + page title */}
       <div className="flex items-center gap-3 text-sm">
-        {onMenuClick && (
-          <button
-            type="button"
-            onClick={onMenuClick}
-            aria-label="Open navigation"
-            className="cursor-pointer text-neutral-500 hover:text-neutral-800 md:hidden"
-          >
-            <MenuIcon className="size-5" />
-          </button>
-        )}
         <div className="flex items-center gap-2">
-          <Image
-            src="/assets/icons/imgc-mark.svg"
-            alt=""
-            width={22}
-            height={22}
-            aria-hidden
-            className="hidden sm:block"
-          />
-          {workspace && (
-            <>
-              <span className="font-semibold text-neutral-950">
-                {workspace}
-              </span>
-              <span className="text-neutral-300">|</span>
-            </>
-          )}
           <span className="font-outfit text-[20px] font-semibold leading-6 tracking-[1%] align-middle text-neutral-900">
             {title}
           </span>

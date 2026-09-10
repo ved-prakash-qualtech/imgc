@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 
 import { Panel } from "@/components/portal/Panel";
-import { Button } from "@/components/ui/button";
 import { PaginationNumbers } from "@/components/ui/pagination";
 import {
   Select,
@@ -33,7 +32,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DPD_BANDS, DPD_BAND_LABEL, dpdInBand, formatDpd, type DpdBand } from "@/lib/dpd";
-import { cn } from "@/lib/utils/twMergeUtils";
 import type { EligibleRow } from "@/app/[locale]/(portal)/initiate-claim/page";
 import type { Role } from "@/server/mock/types";
 
@@ -52,7 +50,7 @@ function dpdBandDisplay(v: DpdBand): string {
   return v === "ALL" ? "All DPD" : DPD_BAND_LABEL[v];
 }
 
-type SortKey = "loanNo" | "borrowerName" | "lender" | "loanAmount" | "outstandingAmount" | "dpd" | "product" | "npa" | "loanStatus" | "lastUpdatedAt";
+type SortKey = "loanNo" | "borrowerName" | "lender" | "loanAmount" | "outstandingAmount" | "dpd" | "product" | "npa" | "loanStatus" | "lastUpdatedAt" | "tat";
 type SortDirection = "asc" | "desc" | null;
 
 const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
@@ -64,6 +62,26 @@ function date(iso?: string): string {
     month: "short",
     year: "numeric",
   });
+}
+
+const TAT_TERMINAL = new Set(["APPROVED", "REJECTED", "CLOSED"]);
+
+/**
+ * Turn Around Time, in whole days: from when the claim was submitted (or, lacking that, opened)
+ * up to its decision — or, for a claim still in flight, up to today. `null` when there is no
+ * claim yet, so the column renders "—" rather than a misleading 0.
+ */
+function claimTatDays(claim: EligibleRow["claim"]): number | null {
+  if (!claim) return null;
+  const start = claim.submittedAt ?? claim.createdAt;
+  if (!start) return null;
+  const decided = [...claim.statusHistory]
+    .reverse()
+    .find((h) => TAT_TERMINAL.has(h.status));
+  const endMs = decided ? Date.parse(decided.at) : Date.now();
+  const ms = endMs - Date.parse(start);
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  return Math.round(ms / 86_400_000);
 }
 
 function csvField(value: string | number): string {
@@ -83,6 +101,7 @@ function downloadCsv(rows: EligibleRow[], role: Role): void {
     "NPA",
     "Claim Status",
     "Last Updated",
+    "TAT (days)",
   ];
   const lines = rows.map((a) =>
     [
@@ -96,6 +115,7 @@ function downloadCsv(rows: EligibleRow[], role: Role): void {
       a.npa ? "Yes" : "No",
       isNotStarted(a) ? "NOT_STARTED" : (a.claim as NonNullable<EligibleRow["claim"]>).status,
       a.claim?.lastUpdatedAt.slice(0, 10) ?? "",
+      claimTatDays(a.claim) ?? "",
     ]
       .map(csvField)
       .join(",")
@@ -197,7 +217,7 @@ export function DpdClient({
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(6);
+  const [pageSize, setPageSize] = useState(10);
 
   const products = useMemo(
     () => Array.from(new Set(accounts.map((a) => a.product))).sort(),
@@ -317,6 +337,11 @@ export function DpdClient({
             valA = a.claim?.lastUpdatedAt ?? "";
             valB = b.claim?.lastUpdatedAt ?? "";
             break;
+          case "tat":
+            // Numeric — rows with no claim sort as -1 so they cluster at one end.
+            valA = claimTatDays(a.claim) ?? -1;
+            valB = claimTatDays(b.claim) ?? -1;
+            break;
         }
         if (typeof valA === "string" && typeof valB === "string") {
           valA = valA.toLowerCase();
@@ -381,15 +406,7 @@ export function DpdClient({
 
   return (
     <div className="space-y-4">
-      <Panel
-        title={`${rows.length} account${rows.length === 1 ? "" : "s"}`}
-        description="View and manage all the loans"
-        actions={
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <DownloadIcon /> Export CSV
-          </Button>
-        }
-      >
+      <Panel>
         <div className="flex flex-wrap items-center gap-1.5 border-b border-neutral-100 px-4 py-2">
           <div className="relative">
             <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
@@ -438,9 +455,23 @@ export function DpdClient({
               display={(v) => (v === "ALL" ? "All Lenders" : (lenderNameById.get(v) ?? v))}
             />
           )}
-          <Button variant="outline" size="sm" onClick={handleReset}>
-            <RotateCcwIcon /> Reset Filters
-          </Button>
+          <button
+            type="button"
+            onClick={handleReset}
+            className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-[11.5px] font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+          >
+            <RotateCcwIcon className="size-3" /> Reset Filters
+          </button>
+          {/* Export sits at the end of the filter row now that the panel has no header — same
+              pill as the other Claims/Accounts grids, `ml-auto` pinning it to the right edge
+              however many filters land in front of it. */}
+          <button
+            type="button"
+            onClick={handleExport}
+            className="ml-auto inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-[11.5px] font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+          >
+            <DownloadIcon className="size-3" /> Export CSV
+          </button>
         </div>
 
         <div className="max-h-[65vh] overflow-auto">
@@ -456,9 +487,9 @@ export function DpdClient({
                 <SortableTableHead column="loanAmount" label="Loan Amount" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                 <SortableTableHead column="outstandingAmount" label="Outstanding" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                 <SortableTableHead column="dpd" label="DPD" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} title="DPD = Days Past Due" />
-                <SortableTableHead column="npa" label="NPA" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                 <SortableTableHead column="loanStatus" label="Loan Status" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                 <SortableTableHead column="lastUpdatedAt" label="Last Updated" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                <SortableTableHead column="tat" label="TAT" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} title="TAT = Turn Around Time (claim submitted → decision; running for claims still open)" />
 
               </TableRow>
             </TableHeader>
@@ -502,23 +533,14 @@ export function DpdClient({
                     >
                       {formatDpd(a.dpd)}
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5">
-                      <span
-                        className={cn(
-                          "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10.5px] font-medium whitespace-nowrap",
-                          a.npa
-                            ? "bg-danger-50 text-danger-700"
-                            : "bg-success-50 text-success-700"
-                        )}
-                      >
-                        {a.npa ? "Yes" : "No"}
-                      </span>
-                    </TableCell>
                     <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-700">
                       {a.loanStatus}
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
                       {date(a.claim?.lastUpdatedAt)}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-700">
+                      {claimTatDays(a.claim) === null ? "—" : `${claimTatDays(a.claim)}d`}
                     </TableCell>
                   </TableRow>
                 ))
@@ -536,7 +558,6 @@ export function DpdClient({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="6">6</SelectItem>
                   <SelectItem value="10">10</SelectItem>
                   <SelectItem value="20">20</SelectItem>
                   <SelectItem value="50">50</SelectItem>

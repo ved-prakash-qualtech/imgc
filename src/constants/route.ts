@@ -7,6 +7,8 @@ export const ROUTES = {
 
   /* ── IMGC Lender Portal ─────────────────────────────────────────── */
   accounts: "/accounts",
+  /** Claim-status trends + in-progress by lender. Both roles; IMGC gets a lender lens. */
+  claimDashboard: "/claim-dashboard",
   /** One account's claim workspace (Overview / Accounting / Documents / Audit). */
   account: (accountId: string) => `/accounts/${accountId}`,
   /** All lender-eligible accounts by Days Past Due — not restricted to NPA, unlike the claim
