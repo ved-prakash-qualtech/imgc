@@ -842,6 +842,159 @@ export function buildSeed(): MockDb {
     accounts.push(account);
   }
 
+  // A guaranteed block of "Query Raised" claims for the demo lender (HDFC Bank), so signing in
+  // through "Demo as Lender" always has claims sitting on a lender response — the Query Trail /
+  // "Awaiting Lender Response" demo. Like EXTRA_INITIATE_ELIGIBLE above, these are hand-built
+  // rather than left to fall out of CLAIM_STATUS_PATTERN, which promises no per-lender count.
+  const EXTRA_QUERY_RAISED = 10;
+  const qrConfig = CLAIM_TYPES.INITIAL;
+  for (let e = 0; e < EXTRA_QUERY_RAISED; e += 1) {
+    const i = TOTAL_ACCOUNTS + EXTRA_INITIATE_ELIGIBLE + e;
+    const account = buildAccount(i, LENDER_DEFS[0]!, ["usr_emp1", "Meera Nair"]);
+    account.npa = true;
+    account.writeOff = false;
+    account.dpd = DPD_PATTERN[19 + (e % (DPD_PATTERN.length - 19))]!; // always one of the >90 entries
+
+    const amounts: Record<string, number> = {
+      sanctionedAmount: account.loanAmount,
+      outstandingPrincipal: account.outstandingAmount,
+      overdueAmount: Math.round(account.outstandingAmount * 0.11),
+      emiAmount: Math.round(account.loanAmount / account.tenureMonths),
+      sumInsured: Math.round(account.loanAmount * 0.9),
+      claimAmount: account.outstandingAmount,
+    };
+    PAS_TEMPLATE.forEach((t) => {
+      pasValues.push({
+        id: `pas_${account.id}_${t.key}`,
+        accountId: account.id,
+        key: t.key,
+        label: t.label,
+        value: inr(amounts[t.key] ?? 0),
+        source: "PAS",
+        updatedAt: ago(2),
+        updatedBy: "PAS",
+      });
+    });
+
+    claimCountByPrefix[qrConfig.prefix] = (claimCountByPrefix[qrConfig.prefix] ?? 0) + 1;
+    const claimId = `clm_${String(i + 1).padStart(4, "0")}`;
+    const claimNo = `${qrConfig.prefix}-2026-${String(claimCountByPrefix[qrConfig.prefix]).padStart(5, "0")}`;
+
+    const daysAgo = 14 + e * 3;
+    const steps = ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "QUERY_RAISED"] as const;
+    const statusHistory = steps.map((s, si) => {
+      const imgcSide = s === "UNDER_REVIEW" || s === "QUERY_RAISED";
+      return {
+        status: s,
+        at: ago(Math.max(0, daysAgo - si * (daysAgo / (steps.length + 1)))),
+        byId: imgcSide ? "usr_emp1" : "usr_len1",
+        byName: imgcSide ? "Meera Nair" : "Arjun Mehta",
+        byRole: (imgcSide ? "IMGC" : "LENDER") as "IMGC" | "LENDER",
+      };
+    });
+    const queryRaisedAt = statusHistory[steps.length - 1]!.at;
+
+    claims.push({
+      id: claimId,
+      claimNo,
+      accountId: account.id,
+      claimType: "INITIAL",
+      status: "QUERY_RAISED",
+      fields: Object.fromEntries(qrConfig.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""])),
+      statusHistory,
+      createdById: "usr_len1",
+      createdByName: "Arjun Mehta",
+      createdAt: ago(daysAgo),
+      submittedAt: ago(daysAgo - 1),
+      lastUpdatedAt: queryRaisedAt,
+      draftSaved: true,
+      bucket: "LENDER",
+    });
+
+    account.claimStatus = toAccountClaimStatus("QUERY_RAISED");
+    account.stage = "Query raised with the lender";
+    account.submittedAt = ago(daysAgo - 1);
+
+    // Checklist documents — index 0 is the one the query asks to be re-uploaded.
+    qrConfig.documents.forEach((spec, di) => {
+      if (spec.condition) return; // skip conditional docs — keep the demo checklist simple
+      const docId = `${claimId}_doc${di}`;
+      const currentFileId = `${docId}_f1`;
+      documentFiles.push({
+        id: currentFileId,
+        documentId: docId,
+        accountId: account.id,
+        originalName: `${spec.name}.pdf`,
+        storedPath: "",
+        size: 200_000 + di * 7_000,
+        mime: "application/pdf",
+        uploadedBy: "usr_len1",
+        uploadedByName: "Arjun Mehta",
+        uploadedAt: ago(daysAgo - 1),
+        version: 1,
+      });
+      claimDocuments.push({
+        id: docId,
+        accountId: account.id,
+        claimId,
+        slug: spec.slug,
+        name: spec.name,
+        category: spec.category,
+        description: spec.description,
+        required: spec.required,
+        multiple: spec.multiple ?? false,
+        conditional: false,
+        addedBy: "SYSTEM",
+        status: di === 0 ? "REUPLOAD_REQUIRED" : "UNDER_REVIEW",
+        version: 1,
+        currentFileId,
+        active: true,
+        createdAt: ago(daysAgo),
+      });
+    });
+
+    const q = QUERY_REASONS[e % QUERY_REASONS.length]!;
+    claimQueries.push({
+      id: `qry_${claimId}`,
+      claimId,
+      reason: q.reason,
+      remarks: q.remarks,
+      requestedDocuments: [qrConfig.documents[0]!.name],
+      raisedById: "usr_emp1",
+      raisedByName: "Meera Nair",
+      raisedAt: queryRaisedAt,
+      // Alternate overdue / still-open so the "Expired" vs "Queried" split has demo coverage.
+      dueDate: e % 2 === 0 ? ago(3) : ahead(4),
+      respondedAt: undefined,
+    });
+
+    // Audit trail — the transitions this claim actually went through.
+    statusHistory.forEach((h, hi) => {
+      if (hi === 0) return;
+      auditEvents.push({
+        accountId: account.id,
+        at: h.at,
+        actorId: h.byId,
+        actorName: h.byName,
+        actorRole: h.byRole,
+        type: "CLAIM_STATUS_CHANGED",
+        summary: `Claim ${h.status.toLowerCase().replace(/_/g, " ")}`,
+        meta: { status: h.status },
+      });
+    });
+    auditEvents.push({
+      accountId: account.id,
+      at: ago(daysAgo - 1),
+      actorId: "usr_len1",
+      actorName: "Arjun Mehta",
+      actorRole: "LENDER",
+      type: "CLAIM_SUBMITTED",
+      summary: `Claim ${claimNo} submitted`,
+    });
+
+    accounts.push(account);
+  }
+
   // One document-decision audit entry per document that has actually been decided.
   claimDocuments.forEach((d) => {
     if (!d.review) return;
