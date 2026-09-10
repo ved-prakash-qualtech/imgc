@@ -93,7 +93,16 @@ export async function getClaimDashboard(
   const months: MonthWindow = options.months ?? 6;
 
   const ids = scopedAccountIds(db.accounts, session, lenderOrgId);
-  const claims = db.claims.filter((c) => ids.has(c.accountId));
+  // Same eligibility gate the Claims Overview band and the Claims grid apply: a claim only
+  // counts once its account is DPD > 90. Without this the widgets counted every claim regardless
+  // of DPD, so this page's "Under Progress" widget disagreed with the "Under Progress" tile in
+  // the band directly above it (`summariseClaimOverview` over `dpd > 90` in page.tsx).
+  const eligibleIds = new Set(
+    db.accounts
+      .filter((a) => ids.has(a.id) && (a.dpd ?? 0) > 90)
+      .map((a) => a.id)
+  );
+  const claims = db.claims.filter((c) => eligibleIds.has(c.accountId));
 
   // ── Widget 1: month-on-month, how many claims reached `status` in each month ──
   const buckets = new Map<string, number>();

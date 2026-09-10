@@ -234,7 +234,7 @@ export function ClaimDashboardView({ data, status, months, lenderOrgId }: Props)
 
       <Panel
         size="compact"
-        title="In progress — lender-wise, as on date"
+        title="Under Progress"
         description={
           data.canFilterByLender
             ? `Claims currently submitted but not yet decided${

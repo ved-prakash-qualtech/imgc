@@ -127,7 +127,7 @@ function dateOrDash(iso?: string): string {
 }
 
 function statusLabel(v: (typeof STATUS_OPTIONS)[number]): string {
-  if (v === "ALL") return "All Claim Statuses";
+  if (v === "ALL") return "All Claim Status";
   if (v === "NOT_STARTED") return "Not started";
   if (v === "INITIATION") return "Claim initiation";
   if (v === "UNDER_PROGRESS") return "Under progress";
