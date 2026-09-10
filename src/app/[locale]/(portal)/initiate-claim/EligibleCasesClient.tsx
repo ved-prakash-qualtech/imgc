@@ -43,6 +43,9 @@ type SortKey =
   | "dpd"
   | "status"
   | "bucket"
+  | "submittedAt"
+  // Not a visible column — the post-submit redirect (ClaimWorkspace) still lands here with
+  // `?sort=lastUpdatedAt_desc` to float the just-submitted claim to row 1.
   | "lastUpdatedAt";
 type SortDirection = "asc" | "desc" | null;
 
@@ -67,6 +70,7 @@ function sortFromParam(value: string | null): {
     "dpd",
     "status",
     "bucket",
+    "submittedAt",
     "lastUpdatedAt",
   ];
   const key = validKeys.includes(rawKey as SortKey)
@@ -170,7 +174,7 @@ function downloadCsv(rows: EligibleRow[]): void {
     "DPD",
     "Status",
     "Owner",
-    "Last Updated",
+    "Claim Initiation Date",
   ];
   const lines = rows.map((a) =>
     [
@@ -184,7 +188,7 @@ function downloadCsv(rows: EligibleRow[]): void {
         ? "NOT_STARTED"
         : (a.claim as NonNullable<EligibleRow["claim"]>).status,
       a.claim?.bucket ?? "",
-      a.claim?.lastUpdatedAt.slice(0, 10) ?? "",
+      a.submittedAt?.slice(0, 10) ?? "",
     ]
       .map(csvField)
       .join(",")
@@ -496,6 +500,10 @@ export function EligibleCasesClient({
             valA = a.claim?.bucket ?? "";
             valB = b.claim?.bucket ?? "";
             break;
+          case "submittedAt":
+            valA = a.submittedAt ?? "";
+            valB = b.submittedAt ?? "";
+            break;
           case "lastUpdatedAt":
             valA = a.claim?.lastUpdatedAt ?? "";
             valB = b.claim?.lastUpdatedAt ?? "";
@@ -612,8 +620,8 @@ export function EligibleCasesClient({
               <SortableTableHead column="status" label="Status" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               <SortableTableHead column="bucket" label="Owner" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
               <SortableTableHead
-                column="lastUpdatedAt"
-                label="Last Updated"
+                column="submittedAt"
+                label="Claim Initiation Date"
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
@@ -682,7 +690,7 @@ export function EligibleCasesClient({
                     )}
                   </TableCell>
                   <TableCell className="px-1 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
-                    {dateOrDash(a.claim?.lastUpdatedAt)}
+                    {dateOrDash(a.submittedAt)}
                   </TableCell>
                   <TableCell className="px-1 py-1.5 text-right">
                     <ClaimRowActions

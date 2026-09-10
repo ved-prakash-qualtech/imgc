@@ -165,7 +165,7 @@ function statusFromParam(value: string | null): (typeof STATUSES)[number] {
 }
 
 function statusDisplay(v: (typeof STATUSES)[number]): string {
-  if (v === "ALL") return "All Loan Statuses";
+  if (v === "ALL") return "All Loan Status";
   if (v === "UNDER_PROGRESS") return "Under progress";
   return v
     .toLowerCase()
