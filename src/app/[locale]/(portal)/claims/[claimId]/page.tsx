@@ -98,7 +98,10 @@ export default async function ClaimDetailsPage({
             <>
               <Panel title="Claim Status" className="shrink-0">
                 <div className="px-5 py-4">
-                  <ClaimStatusHistoryGraph history={claim.statusHistory} />
+                  <ClaimStatusHistoryGraph
+                    history={claim.statusHistory}
+                    currentStatus={claim.status}
+                  />
                 </div>
               </Panel>
 
@@ -132,6 +135,7 @@ export default async function ClaimDetailsPage({
                   savedResponse={claim.fields.__queryResponse ?? ""}
                   documents={documents}
                   isLender={isLender}
+                  fillLayout
                 />
               </div>
             </>

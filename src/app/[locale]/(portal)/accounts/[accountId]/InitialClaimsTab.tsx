@@ -167,15 +167,7 @@ export function InitialClaimsTab({
 
   return (
     <div className="space-y-4">
-      <Panel
-        title="Initial claim documents"
-        description={
-          isLender
-            ? "Upload each mandatory document. Submit becomes available once they are all in."
-            : "Accept or reject what the lender has uploaded."
-        }
-      >
-
+      <Panel>
         <ul className="divide-y divide-neutral-100">
           {(isLender || !submitted
             ? docs

@@ -67,6 +67,9 @@ export function QueryResponseSection({
   documents,
   isLender,
   imgcComposer,
+  title = "Query Response",
+  constrainedLayout = false,
+  fillLayout = false,
 }: Readonly<{
   accountId: string;
   claimId: string;
@@ -77,6 +80,9 @@ export function QueryResponseSection({
   documents: RequirementRow[];
   isLender: boolean;
   imgcComposer?: React.ReactNode;
+  title?: string;
+  constrainedLayout?: boolean;
+  fillLayout?: boolean;
 }>) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -117,18 +123,30 @@ export function QueryResponseSection({
         <Panel
           title="Processing outcome"
           description="Processing itself happens in PAS. Record the outcome here so the lender can see it."
+          className={
+            constrainedLayout || fillLayout
+              ? "flex h-full min-h-0 flex-col overflow-hidden"
+              : undefined
+          }
         >
-          {imgcComposer}
+          <div className={constrainedLayout ? "shrink-0" : undefined}>
+            {imgcComposer}
+          </div>
         </Panel>
       );
     }
 
     return (
       <Panel
-        title="Query Response"
+        title={title}
         description="Only actionable while IMGC has an open query on this claim."
+        className={
+          constrainedLayout || fillLayout
+            ? "flex h-full min-h-0 flex-col overflow-hidden"
+            : undefined
+        }
       >
-        <p className="px-5 py-8 text-center text-[13px] text-neutral-500">
+        <p className="flex flex-1 items-center justify-center px-5 py-8 text-center text-[13px] text-neutral-500">
           {noQueryMessage(claimStatus)}
         </p>
       </Panel>
@@ -137,11 +155,21 @@ export function QueryResponseSection({
 
   return (
     <Panel
-      title="Query Response"
+      title={title}
       description="Communication between IMGC and the Lender regarding this claim."
-      className="flex h-full flex-col overflow-hidden"
+      className={
+        constrainedLayout || fillLayout
+          ? "flex h-full min-h-0 flex-col overflow-hidden"
+          : undefined
+      }
     >
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-3 px-4 py-4 custom-scrollbar">
+      <div
+        className={
+          constrainedLayout
+            ? "min-h-0 flex-1 overflow-y-auto space-y-3 px-4 py-4 custom-scrollbar max-h-[300px]"
+            : "flex-1 min-h-0 overflow-y-auto space-y-3 px-4 py-4 custom-scrollbar"
+        }
+      >
         {/* Sort ascending so the oldest message is at top and the latest is at the bottom */}
         {[...queries]
           .sort((a, b) => a.raisedAt.localeCompare(b.raisedAt))

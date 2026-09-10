@@ -639,15 +639,9 @@ export async function saveClaimDraft(
     claim.lastUpdatedAt = nowIso();
     claim.draftSaved = true;
 
-    // Saving a query response is a real, visible event on the claim's own record — not just an
-    // audit-log line — so Claim History shows it. Status is untouched: `advance()` to the same
-    // status only appends the history entry, exactly what "save without resolving" needs.
-    if (
-      fields.__queryResponse !== undefined &&
-      claim.status === "QUERY_RAISED"
-    ) {
-      advance(db, claim, claim.status, session, "Response saved as draft");
-    }
+    // A query response draft is not a workflow transition. In particular, submitClaim calls this
+    // helper before it records the successful QUERY_RAISED -> UNDER_REVIEW transition, so adding a
+    // same-status history entry here would create a duplicate QUERY_RAISED event.
   });
 
   await recordEvent({

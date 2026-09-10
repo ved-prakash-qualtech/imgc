@@ -1,7 +1,11 @@
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 
 import { CLAIM_STATUS_LABELS } from "@/config/claimConfig";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { ClaimStatusEntry } from "@/server/mock/types";
 
@@ -15,33 +19,108 @@ function when(iso: string): string {
   });
 }
 
-/** Collapses a run of consecutive same-status entries (e.g. a query bounced back and forth
- *  between IMGC and the lender a few times) into just the latest one — the step is "query
- *  raised", not "query raised, again, again". */
-function collapseConsecutive(
-  history: readonly ClaimStatusEntry[]
-): ClaimStatusEntry[] {
-  const out: ClaimStatusEntry[] = [];
-  for (const entry of history) {
-    const last = out[out.length - 1];
-    if (last && last.status === entry.status) {
-      out[out.length - 1] = entry;
-    } else {
-      out.push(entry);
-    }
-  }
-  return out;
+function syntheticEntry(
+  status: ClaimStatusEntry["status"],
+  at: string,
+  template?: ClaimStatusEntry
+): ClaimStatusEntry {
+  return {
+    status,
+    at,
+    byId: template?.byId ?? "system",
+    byName: template?.byName ?? "System",
+    byRole: template?.byRole ?? "SYSTEM",
+  };
 }
 
 /**
- * The claim's status progression, generated only from what actually happened.
- *
- * Deliberately not the same rail as `ClaimStatusGraph`/`ClaimTimeline` (used on the Initiate Claim
- * workspace): that one shows the type's whole configured pipeline, future steps included, because
- * a lender filling out a form benefits from seeing what's still ahead. Track Claim asks for the
- * opposite — only stages present in `statusHistory`, growing as events happen and never
- * hallucinating a step that hasn't occurred — so this reads the history directly instead of
- * comparing it against `claimConfig`'s flow.
+ * Builds the known lifecycle while retaining each real occurrence in history. `SUBMITTED` is the
+ * lender action that hands the claim to IMGC, so the first review stage is derived immediately
+ * after it; `DOCUMENTS_RESUBMITTED` is an implementation marker, not a separate timeline stage.
+ */
+function timelineEntries(
+  history: readonly ClaimStatusEntry[],
+  currentStatus: ClaimStatusEntry["status"]
+): ClaimStatusEntry[] {
+  const visualCurrentStatus =
+    currentStatus === "DOCUMENTS_RESUBMITTED" ? "UNDER_REVIEW" : currentStatus;
+  const entries: ClaimStatusEntry[] = [];
+  const lastAt = history[history.length - 1]?.at ?? new Date().toISOString();
+  const add = (entry: ClaimStatusEntry) => entries.push(entry);
+
+  for (const entry of history) {
+    if (entry.status === "DOCUMENTS_RESUBMITTED") continue;
+    if (
+      entry.status === "QUERY_RAISED" &&
+      entries[entries.length - 1]?.status === "QUERY_RAISED"
+    ) {
+      continue;
+    }
+
+    if (
+      entry.status === "QUERY_RAISED" &&
+      entries[entries.length - 1]?.status !== "UNDER_REVIEW"
+    ) {
+      add(syntheticEntry("UNDER_REVIEW", entry.at, entry));
+    }
+    add(entry);
+  }
+
+  if (entries.length === 0 && visualCurrentStatus === "DRAFT") {
+    add(syntheticEntry("DRAFT", lastAt));
+  }
+
+  const ensureAfter = (
+    status: ClaimStatusEntry["status"],
+    after: ClaimStatusEntry["status"],
+    template?: ClaimStatusEntry
+  ) => {
+    if (entries[entries.length - 1]?.status !== after) return;
+    add(
+      syntheticEntry(status, lastAt, template ?? entries[entries.length - 1])
+    );
+  };
+
+  if (visualCurrentStatus === "SUBMITTED") {
+    ensureAfter("UNDER_REVIEW", "SUBMITTED");
+  } else if (visualCurrentStatus === "UNDER_REVIEW") {
+    ensureAfter("UNDER_REVIEW", "QUERY_RAISED");
+    ensureAfter("UNDER_REVIEW", "SUBMITTED");
+  } else if (visualCurrentStatus === "APPROVED") {
+    ensureAfter("APPROVED", "UNDER_REVIEW");
+  } else if (
+    visualCurrentStatus === "REJECTED" ||
+    visualCurrentStatus === "CLOSED" ||
+    visualCurrentStatus === "QUERIED" ||
+    visualCurrentStatus === "ACTIVE"
+  ) {
+    if (entries[entries.length - 1]?.status !== visualCurrentStatus) {
+      add(syntheticEntry(visualCurrentStatus, lastAt));
+    }
+  }
+
+  const addFuture = (status: ClaimStatusEntry["status"]) => {
+    add(syntheticEntry(status, lastAt));
+  };
+
+  if (visualCurrentStatus === "DRAFT") {
+    addFuture("SUBMITTED");
+    addFuture("UNDER_REVIEW");
+    addFuture("APPROVED");
+  } else if (visualCurrentStatus === "SUBMITTED") {
+    addFuture("APPROVED");
+  } else if (visualCurrentStatus === "UNDER_REVIEW") {
+    addFuture("APPROVED");
+  } else if (visualCurrentStatus === "QUERY_RAISED") {
+    addFuture("UNDER_REVIEW");
+    addFuture("APPROVED");
+  }
+
+  return entries;
+}
+
+/**
+ * The claim's status progression, generated from the canonical lifecycle and real history.
  *
  * Each step is a self-contained pill with a chevron between them, not fixed-width columns joined
  * by a connecting line — that earlier design either had to scroll horizontally forever, or wrap
@@ -54,8 +133,12 @@ function collapseConsecutive(
  */
 export function ClaimStatusHistoryGraph({
   history,
-}: Readonly<{ history: readonly ClaimStatusEntry[] }>) {
-  const entries = collapseConsecutive(history);
+  currentStatus,
+}: Readonly<{
+  history: readonly ClaimStatusEntry[];
+  currentStatus: ClaimStatusEntry["status"];
+}>) {
+  const entries = timelineEntries(history, currentStatus);
 
   if (entries.length === 0) {
     return (
@@ -68,7 +151,18 @@ export function ClaimStatusHistoryGraph({
   return (
     <ol className="flex flex-wrap items-center gap-y-2">
       {entries.map((entry, i) => {
-        const isCurrent = i === entries.length - 1;
+        const currentIndex =
+          currentStatus === "APPROVED"
+            ? entries.length
+            : entries.findLastIndex(
+                (item) =>
+                  item.status ===
+                  (currentStatus === "DOCUMENTS_RESUBMITTED"
+                    ? "UNDER_REVIEW"
+                    : currentStatus)
+              );
+        const isCurrent = i === currentIndex;
+        const isFuture = i > currentIndex;
         return (
           <li
             key={`${entry.status}-${entry.at}-${i}`}
@@ -82,13 +176,19 @@ export function ClaimStatusHistoryGraph({
                       "flex items-center gap-1.5 rounded-full border px-2 py-1",
                       isCurrent
                         ? "border-brand-primary/50 bg-brand-light/70"
-                        : "border-neutral-200 bg-neutral-100"
+                        : isFuture
+                          ? "border-neutral-200 bg-neutral-100 opacity-60"
+                          : "border-neutral-200 bg-neutral-100"
                     )}
                   >
                     <span
                       className={cn(
                         "relative grid size-4 shrink-0 place-items-center rounded-full text-white",
-                        isCurrent ? "bg-brand-primary" : "bg-success-500"
+                        isCurrent
+                          ? "bg-brand-primary"
+                          : isFuture
+                            ? "bg-neutral-300"
+                            : "bg-success-500"
                       )}
                     >
                       {isCurrent ? (
@@ -96,7 +196,13 @@ export function ClaimStatusHistoryGraph({
                       ) : null}
                       <span className="relative grid place-items-center leading-none">
                         {isCurrent ? (
-                          <span className="text-[8px] leading-none font-bold">{i + 1}</span>
+                          <span className="text-[8px] leading-none font-bold">
+                            {i + 1}
+                          </span>
+                        ) : isFuture ? (
+                          <span className="text-[8px] leading-none font-bold">
+                            {i + 1}
+                          </span>
                         ) : (
                           <CheckIcon className="size-2.5" strokeWidth={3} />
                         )}
@@ -105,7 +211,11 @@ export function ClaimStatusHistoryGraph({
                     <p
                       className={cn(
                         "text-[11px] leading-tight font-semibold whitespace-nowrap",
-                        isCurrent ? "text-brand-primary" : "text-neutral-900"
+                        isCurrent
+                          ? "text-brand-primary"
+                          : isFuture
+                            ? "text-neutral-500"
+                            : "text-neutral-900"
                       )}
                     >
                       {CLAIM_STATUS_LABELS[entry.status]}
