@@ -38,6 +38,8 @@ import type {
   ClaimTypeKey,
 } from "@/server/mock/types";
 
+type WorkspaceTab = "loan-details" | "initiate-claim";
+
 /** A required document is still outstanding until it is with IMGC or approved. */
 function outstanding(doc: RequirementRow): boolean {
   return doc.status !== "UNDER_REVIEW" && doc.status !== "APPROVED";
@@ -76,6 +78,7 @@ export function ClaimWorkspace({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [values, setValues] = useState<Record<string, string>>(fields);
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("initiate-claim");
 
   const config = claimConfig(claimType);
   const onFieldChange = useCallback((id: string, value: string) => {
@@ -166,115 +169,142 @@ export function ClaimWorkspace({
   }, [backHref, router]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {openQuery && <QueryBanner query={openQuery} />}
 
-      <LoanDetailsCard account={account} />
-
-      {/* ── Claim type — picks the document set, no data entry ── */}
-      <Panel
-        title="Claim type"
-        description="Determines which documents are required."
-        actions={<StatusPill status={status} />}
-      >
-        <div className="flex flex-wrap gap-2 px-5 py-4">
-          {CLAIM_TYPE_KEYS.map((key) => {
-            const t = CLAIM_TYPES[key];
-            const active = key === claimType;
-            const locked = key === "SUBSEQUENT";
-            return (
-              <button
-                key={key}
-                type="button"
-                disabled={status !== "DRAFT" || pending || locked}
-                aria-pressed={active}
-                onClick={() => onChangeType(key)}
-                className={cn(
-                  "rounded-xl border-2 px-4 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-60",
-                  active
-                    ? "border-brand-primary bg-brand-light/50"
-                    : "border-neutral-200 hover:border-brand-primary/40 hover:bg-neutral-50"
-                )}
-              >
-                <span className="block text-[13px] font-semibold text-neutral-900">
-                  {t.label}
-                </span>
-                <span className="mt-0.5 block text-[11px] text-neutral-500">
-                  {t.documents.filter((d) => d.required).length} required
-                  documents
-                </span>
-              </button>
-            );
-          })}
-          {status !== "DRAFT" && (
-            <p className="w-full pt-1 text-[11.5px] text-neutral-400">
-              The claim type is fixed once the claim leaves draft.
-            </p>
-          )}
-        </div>
-      </Panel>
-
-      {/* ── Documents: required + additional ─────────────────── */}
-      <ClaimDocuments
-        accountId={accountId}
-        claimId={claimId}
-        documents={documents}
-        locked={locked}
-      />
-
-      {/* ── Save / Save & Submit / Cancel ────────────────────── */}
-      {!locked && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-100 bg-white px-5 py-3.5 shadow-sm">
-          <div className="min-w-0 text-[12.5px]">
-            {canSubmit ? (
-              <p className="flex items-center gap-1.5 font-medium text-success-700">
-                <CheckCircle2Icon className="size-4" />
-                Every mandatory document is in — you can{" "}
-                {resubmitting ? "resubmit" : "submit"} this claim.
-              </p>
-            ) : (
-              <p className="text-neutral-500">
-                <span className="font-medium text-neutral-700">
-                  {resubmitting ? "Resubmit" : "Save & Submit"} unlocks once
-                  these are in:
-                </span>{" "}
-                {[...missingFieldLabels, ...missingDocs].slice(0, 4).join(", ")}
-                {missingFieldLabels.length + missingDocs.length > 4
-                  ? `, +${missingFieldLabels.length + missingDocs.length - 4} more`
-                  : ""}
-              </p>
+      {/* ── Compact tab navigation ──────────────────────────── */}
+      <div className="flex gap-1 rounded-lg border border-neutral-200 bg-neutral-100 p-1 w-fit">
+        {(["loan-details", "initiate-claim"] as WorkspaceTab[]).map((id) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveTab(id)}
+            className={cn(
+              "rounded-md px-4 py-1.5 text-[13px] font-medium transition-colors",
+              activeTab === id
+                ? "bg-white text-neutral-900 shadow-sm"
+                : "text-neutral-500 hover:text-neutral-700"
             )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onCancel}
-              disabled={pending}
-            >
-              <XIcon /> Cancel
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onSave}
-              disabled={pending}
-            >
-              <SaveIcon /> Save
-            </Button>
-            <Button
-              size="sm"
-              onClick={onSubmit}
-              disabled={pending || !canSubmit}
-              title={
-                canSubmit
-                  ? undefined
-                  : "Upload the outstanding mandatory documents first."
-              }
-            >
-              <SendIcon /> {resubmitting ? "Save & Resubmit" : "Save & Submit"}
-            </Button>
-          </div>
+          >
+            {id === "loan-details" ? "Loan Details" : "Initiate Claim"}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Loan Details tab ────────────────────────────────── */}
+      {activeTab === "loan-details" && (
+        <LoanDetailsCard account={account} />
+      )}
+
+      {/* ── Initiate Claim tab ──────────────────────────────── */}
+      {activeTab === "initiate-claim" && (
+        <div className="space-y-4">
+          {/* ── Claim type — picks the document set, no data entry ── */}
+          <Panel
+            title="Claim type"
+            description="Determines which documents are required."
+            actions={<StatusPill status={status} />}
+          >
+            <div className="flex flex-wrap gap-2 px-5 py-4">
+              {CLAIM_TYPE_KEYS.map((key) => {
+                const t = CLAIM_TYPES[key];
+                const active = key === claimType;
+                const isLocked = key === "SUBSEQUENT";
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={status !== "DRAFT" || pending || isLocked}
+                    aria-pressed={active}
+                    onClick={() => onChangeType(key)}
+                    className={cn(
+                      "rounded-xl border-2 px-4 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-60",
+                      active
+                        ? "border-brand-primary bg-brand-light/50"
+                        : "border-neutral-200 hover:border-brand-primary/40 hover:bg-neutral-50"
+                    )}
+                  >
+                    <span className="block text-[13px] font-semibold text-neutral-900">
+                      {t.label}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] text-neutral-500">
+                      {t.documents.filter((d) => d.required).length} required
+                      documents
+                    </span>
+                  </button>
+                );
+              })}
+              {status !== "DRAFT" && (
+                <p className="w-full pt-1 text-[11.5px] text-neutral-400">
+                  The claim type is fixed once the claim leaves draft.
+                </p>
+              )}
+            </div>
+          </Panel>
+
+          {/* ── Documents: required + additional ─────────────────── */}
+          <ClaimDocuments
+            accountId={accountId}
+            claimId={claimId}
+            documents={documents}
+            locked={locked}
+          />
+
+          {/* ── Save / Save & Submit / Cancel ────────────────────── */}
+          {!locked && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-100 bg-white px-5 py-3.5 shadow-sm">
+              <div className="min-w-0 text-[12.5px]">
+                {canSubmit ? (
+                  <p className="flex items-center gap-1.5 font-medium text-success-700">
+                    <CheckCircle2Icon className="size-4" />
+                    Every mandatory document is in — you can{" "}
+                    {resubmitting ? "resubmit" : "submit"} this claim.
+                  </p>
+                ) : (
+                  <p className="text-neutral-500">
+                    <span className="font-medium text-neutral-700">
+                      {resubmitting ? "Resubmit" : "Save & Submit"} unlocks once
+                      these are in:
+                    </span>{" "}
+                    {[...missingFieldLabels, ...missingDocs].slice(0, 4).join(", ")}
+                    {missingFieldLabels.length + missingDocs.length > 4
+                      ? `, +${missingFieldLabels.length + missingDocs.length - 4} more`
+                      : ""}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onCancel}
+                  disabled={pending}
+                >
+                  <XIcon /> Cancel
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onSave}
+                  disabled={pending}
+                >
+                  <SaveIcon /> Save
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={onSubmit}
+                  disabled={pending || !canSubmit}
+                  title={
+                    canSubmit
+                      ? undefined
+                      : "Upload the outstanding mandatory documents first."
+                  }
+                >
+                  <SendIcon /> {resubmitting ? "Save & Resubmit" : "Save & Submit"}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

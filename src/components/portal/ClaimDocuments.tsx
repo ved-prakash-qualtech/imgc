@@ -1,13 +1,16 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   CheckCircle2Icon,
   ChevronDownIcon,
   FileIcon,
   PlusIcon,
+  TrashIcon,
   UploadIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 
 
 import { AddLenderDocumentDialog } from "@/components/portal/AddLenderDocumentDialog";
@@ -96,9 +99,30 @@ export function ClaimDocuments({
     replaceFileId?: string;
   } | null>(null);
 
+  const router = useRouter();
+  const [, startDelete] = useTransition();
+
   const toggle = useCallback(
     (id: string) => setOpenId((cur) => (cur === id ? undefined : id)),
     []
+  );
+
+  const onDelete = useCallback(
+    (accountId: string, documentId: string, fileId: string) => {
+      startDelete(async () => {
+        const { deleteDocumentFileAction } = await import(
+          "@/app/[locale]/(portal)/additional-documents/actions"
+        );
+        const result = await deleteDocumentFileAction(accountId, documentId, fileId);
+        if (!result.ok) {
+          toast.error(result.error ?? "Could not delete that file.");
+          return;
+        }
+        toast.success("File removed.");
+        router.refresh();
+      });
+    },
+    [router]
   );
 
   const applicable = required.filter((d) => d.required && d.active);
@@ -131,6 +155,7 @@ export function ClaimDocuments({
               open={openId === doc.id}
               onToggle={toggle}
               onUpload={setUploadTarget}
+              onDelete={onDelete}
             />
           ))}
         </ol>
@@ -162,6 +187,7 @@ export function ClaimDocuments({
                 open={openId === doc.id}
                 onToggle={toggle}
                 onUpload={setUploadTarget}
+                onDelete={onDelete}
               />
             ))}
           </ol>
@@ -190,6 +216,7 @@ function DocAccordionItem({
   open,
   onToggle,
   onUpload,
+  onDelete,
 }: Readonly<{
   doc: RequirementRow;
   index?: number;
@@ -203,18 +230,18 @@ function DocAccordionItem({
     mode: "upload" | "add" | "replace";
     replaceFileId?: string;
   }) => void;
+  onDelete: (accountId: string, documentId: string, fileId: string) => void;
 }>) {
   const hasFiles = doc.files.length > 0;
   const conditionalNotRequired = doc.conditional && !doc.required;
   const bodyId = `docbody-${doc.id}`;
 
-  const isPreSeeded = doc.files.some((f) => f.uploadedBy === "system");
-  // A pre-seeded document is normally locked to prevent casual replacement. However, if IMGC
-  // has explicitly rejected it, the lender must be able to supply a replacement — the rejection
-  // is the only signal that a change is actually needed, so the guard is lifted for that case.
+  // Pre-seeded docs are now treated the same as any other multi-upload document:
+  // the lender can add more files on top of the seeded one and can delete individual files.
+  // The old guard (blocking Add File for seeded docs) is intentionally removed.
   const imgcRejected = doc.status === "REJECTED";
   const action =
-    !locked && doc.status !== "APPROVED" && (!isPreSeeded || imgcRejected)
+    !locked && doc.status !== "APPROVED"
       ? !hasFiles
         ? { mode: "upload" as const, label: "Upload", icon: <UploadIcon /> }
         : { mode: "add" as const, label: "Add File", icon: <PlusIcon /> }
@@ -362,6 +389,16 @@ function DocAccordionItem({
                       >
                         View Document
                       </a>
+                      {!locked && doc.status !== "APPROVED" && (
+                        <button
+                          type="button"
+                          onClick={() => onDelete(doc.accountId, doc.id, f.id)}
+                          title="Delete this file"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-400 transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive focus:outline-none focus:ring-2 focus:ring-destructive/20"
+                        >
+                          <TrashIcon className="size-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   {needsFix && doc.review?.remarks && (

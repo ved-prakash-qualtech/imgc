@@ -314,7 +314,87 @@ export async function uploadDocument(
   return { ok: true };
 }
 
+/**
+ * Remove a single uploaded file from a document category.
+ *
+ * The file is soft-deleted by setting `supersededAt`, preserving the audit trail. If the
+ * deleted file was the `currentFileId`, the row's pointer advances to the most-recently-uploaded
+ * remaining active file, or clears if there are none left (putting the category back to
+ * PENDING_UPLOAD so the lender can upload again).
+ *
+ * Only the document's owning lender may call this; IMGC cannot delete on their behalf.
+ */
+export async function deleteDocumentFile(
+  session: AppSession,
+  accountId: string,
+  documentId: string,
+  fileId: string
+): Promise<Outcome> {
+  if (session.role !== "LENDER") {
+    return { ok: false, error: "Only the lender may delete uploaded files." };
+  }
+
+  const access = await assertAccess(session, accountId);
+  if (!access.ok) return access;
+
+  const db = await readDb();
+  const doc = db.claimDocuments.find((d) => d.id === documentId);
+  if (!doc) return { ok: false, error: "Document not found." };
+
+  const fileRow = db.documentFiles.find(
+    (f) => f.id === fileId && f.documentId === documentId
+  );
+  if (!fileRow) return { ok: false, error: "File not found." };
+  if (fileRow.supersededAt) return { ok: false, error: "File already removed." };
+
+  const fileName = fileRow.originalName;
+  const docName = doc.name;
+
+  await writeDb((fresh) => {
+    const row = fresh.claimDocuments.find((d) => d.id === documentId);
+    if (!row) return;
+    const target = fresh.documentFiles.find(
+      (f) => f.id === fileId && f.documentId === documentId
+    );
+    if (!target || target.supersededAt) return;
+
+    // Soft-delete: stamp supersededAt so it falls out of `files` (active-only view).
+    target.supersededAt = nowIso();
+    target.supersededReason = "Deleted by lender.";
+
+    // Advance the document pointer to the next-newest remaining active file, if any.
+    const remaining = fresh.documentFiles
+      .filter((f) => f.documentId === documentId && !f.supersededAt)
+      .sort((a, b) => b.version - a.version);
+
+    if (remaining.length > 0) {
+      const [first] = remaining;
+      row.currentFileId = first!.id;
+      row.version = first!.version;
+      // Keep the status as UNDER_REVIEW if there are still files awaiting review.
+      if (row.status !== "APPROVED") row.status = "UNDER_REVIEW";
+    } else {
+      // No remaining files — reset to pending so lender can re-upload.
+      row.currentFileId = undefined;
+      row.version = 0;
+      row.status = "PENDING_UPLOAD";
+      row.review = undefined;
+    }
+  });
+
+  await recordEvent({
+    accountId,
+    actor: session,
+    type: "DOC_UPLOADED",
+    summary: `\"${docName}\" — file deleted: ${fileName}`,
+    meta: { document: docName, file: fileName, fileId, action: "deleted" },
+  });
+
+  return { ok: true };
+}
+
 export type ReviewDecision = "APPROVED" | "REJECTED" | "REUPLOAD_REQUESTED";
+
 
 /**
  * The review engine: the single place a document's status changes as a result of an IMGC

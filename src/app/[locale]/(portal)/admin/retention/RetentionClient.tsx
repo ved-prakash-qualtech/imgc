@@ -120,7 +120,7 @@ export function RetentionClient({
   const [pending, startTransition] = useTransition();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
@@ -150,7 +150,7 @@ export function RetentionClient({
   );
 
   const handlePageSizeChange = useCallback((val: string | null) => {
-    setPageSize(Number(val ?? "10"));
+    setPageSize(Number(val ?? "5"));
     setPage(1);
   }, []);
 
@@ -380,6 +380,7 @@ export function RetentionClient({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="5">5</SelectItem>
                     <SelectItem value="10">10</SelectItem>
                     <SelectItem value="20">20</SelectItem>
                     <SelectItem value="50">50</SelectItem>
