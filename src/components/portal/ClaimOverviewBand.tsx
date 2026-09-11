@@ -22,9 +22,15 @@ type Tone = "blue" | "amber" | "violet" | "green" | "rose" | "gold";
 const TONE: Record<Tone, { bg: string; icon: string }> = {
   blue: { bg: "border-info/30", icon: "bg-info/10 text-info" },
   amber: { bg: "border-warning/30", icon: "bg-warning/10 text-warning" },
-  violet: { bg: "border-brand-primary/30", icon: "bg-brand-primary/10 text-brand-primary" },
+  violet: {
+    bg: "border-brand-primary/30",
+    icon: "bg-brand-primary/10 text-brand-primary",
+  },
   green: { bg: "border-success/30", icon: "bg-success/10 text-success-600" },
-  rose: { bg: "border-destructive/30", icon: "bg-destructive/10 text-destructive" },
+  rose: {
+    bg: "border-destructive/30",
+    icon: "bg-destructive/10 text-destructive",
+  },
   gold: { bg: "border-[#ffc48a]/50", icon: "bg-[#ffc48a]/20 text-[#d9860f]" },
 };
 
@@ -34,12 +40,39 @@ const TILES: ReadonlyArray<{
   icon: React.ReactNode;
   tone: Tone;
 }> = [
-  { key: "total", label: "Total NPA Accounts", icon: <LayersIcon className="size-4" />, tone: "blue" },
-  { key: "initiation", label: "Claim to be Initiated", icon: <FilePlus2Icon className="size-4" />, tone: "rose" },
-  { key: "underProgress", label: "Under Progress", icon: <ClipboardListIcon className="size-4" />, tone: "amber" },
-  { key: "approved", label: "Claim Approved", icon: <CheckCircle2Icon className="size-4" />, tone: "violet" },
-  { key: "rejected", label: "Claim Rejected", icon: <XCircleIcon className="size-4" />, tone: "gold" },
+  {
+    key: "total",
+    label: "Total Active NPA Accounts",
+    icon: <LayersIcon className="size-4" />,
+    tone: "blue",
+  },
+  {
+    key: "initiation",
+    label: "Claim to be Initiated",
+    icon: <FilePlus2Icon className="size-4" />,
+    tone: "rose",
+  },
+  {
+    key: "underProgress",
+    label: "Under Progress",
+    icon: <ClipboardListIcon className="size-4" />,
+    tone: "amber",
+  },
+  {
+    key: "approved",
+    label: "Claim Approved",
+    icon: <CheckCircle2Icon className="size-4" />,
+    tone: "violet",
+  },
+  {
+    key: "rejected",
+    label: "Claim Rejected",
+    icon: <XCircleIcon className="size-4" />,
+    tone: "gold",
+  },
 ];
+
+const EMPTY_STATS: never[] = [];
 
 export function ClaimOverviewBand({
   counts,
@@ -59,7 +92,12 @@ export function ClaimOverviewBand({
   action?: React.ReactNode;
 }>) {
   return (
-    <CommandBand title={title} subtitle={subtitle} stats={[]} action={action}>
+    <CommandBand
+      title={title}
+      subtitle={subtitle}
+      stats={EMPTY_STATS}
+      action={action}
+    >
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {TILES.map((tile) => {
           const tone = TONE[tile.tone];
@@ -67,7 +105,8 @@ export function ClaimOverviewBand({
           const className = cn(
             "flex flex-col rounded-xl border bg-white px-3.5 py-2 shadow-sm transition-all duration-300",
             tone.bg,
-            href && "hover:-translate-y-1 hover:shadow-md hover:bg-neutral-50 cursor-pointer"
+            href &&
+              "hover:-translate-y-1 hover:shadow-md hover:bg-neutral-50 cursor-pointer"
           );
           const content = (
             <>
@@ -90,7 +129,12 @@ export function ClaimOverviewBand({
             </>
           );
           return href ? (
-            <Link key={tile.key} href={href} className={className} title={tile.label}>
+            <Link
+              key={tile.key}
+              href={href}
+              className={className}
+              title={tile.label}
+            >
               {content}
             </Link>
           ) : (

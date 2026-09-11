@@ -317,15 +317,13 @@ export function ClaimDashboardView({
 
       <Panel
         size="compact"
-        title="Under Progress"
+        title="Query Raised"
         description={
-          data.isLender
-            ? "Claims currently awaiting your query response."
-            : data.canFilterByLender
-              ? `Claims currently submitted but not yet decided${
-                  lenderOrgId ? ` — ${selectedLenderName}` : ", by lender"
-                }.`
-              : "Your claims currently submitted but not yet decided."
+          data.canFilterByLender
+            ? `Claims currently submitted but not yet decided${
+                lenderOrgId ? ` — ${selectedLenderName}` : ", by lender"
+              }.`
+            : "Your claims currently submitted but not yet decided."
         }
       >
         <div className="max-h-[280px] overflow-auto px-4 py-3">
