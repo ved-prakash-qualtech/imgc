@@ -27,6 +27,9 @@ export const ROUTES = {
   /** One claim's detail + timeline, reachable by both roles. */
   claimDetails: (claimId: string) => `/claims/${claimId}`,
 
+  /** Single-page Track Claim landing page. */
+  trackClaim: "/track-claim",
+
   auditTrail: "/audit-trail",
   auditTrailWorkspace: (accountId: string) => `/audit-trail/${accountId}`,
 

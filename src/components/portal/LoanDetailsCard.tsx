@@ -47,26 +47,63 @@ function Row({ label, value }: Readonly<{ label: string; value: string }>) {
  */
 export function LoanDetailsCard({
   account,
-}: Readonly<{ account: AccountRow }>) {
+  isLenderTrackClaim,
+}: Readonly<{ account: AccountRow; isLenderTrackClaim?: boolean }>) {
+  const lenderTrackClaimOrder = (
+    <>
+      <Row label="Loan Account Number" value={account.loanNo} />
+      <Row label="Tenure" value={years(account.tenureMonths)} />
+      <Row
+        label="IMGC Approval Date"
+        value={date(imgcApprovalDate(account.disbursementDate))}
+      />
+      <Row label="Property Status" value={account.propertyStatus} />
+      <Row label="Property Type" value={account.propertyType} />
+      <Row label="Loan Amount" value={inr.format(account.loanAmount)} />
+      <Row
+        label="Outstanding Amount"
+        value={inr.format(account.outstandingAmount)}
+      />
+      <Row
+        label="EMI Amount"
+        value={inr.format(25000 + (account.loanAmount % 5000))}
+      />
+      <Row
+        label="DPD"
+        value={account.dpd !== undefined ? String(account.dpd) : "—"}
+      />
+      <Row label="NPA" value="Yes" />
+      <Row label="Customer Name" value={account.borrowerName} />
+      <Row label="Product" value={account.product} />
+      <Row label="Disbursement Date" value={date(account.disbursementDate)} />
+    </>
+  );
+
+  const defaultOrder = (
+    <>
+      <Row label="Loan Account Number" value={account.loanNo} />
+      <Row label="Customer Name" value={account.borrowerName} />
+      <Row label="Product" value={account.product} />
+      <Row label="Loan Amount" value={inr.format(account.loanAmount)} />
+      <Row
+        label="Outstanding Amount"
+        value={inr.format(account.outstandingAmount)}
+      />
+      <Row label="Disbursement Date" value={date(account.disbursementDate)} />
+      <Row label="Tenure" value={years(account.tenureMonths)} />
+      <Row label="Property Type" value={account.propertyType} />
+      <Row label="Property Status" value={account.propertyStatus} />
+      <Row
+        label="IMGC Approval Date"
+        value={date(imgcApprovalDate(account.disbursementDate))}
+      />
+    </>
+  );
+
   return (
     <Panel title="Loan details">
       <dl className="grid sm:grid-cols-2">
-        <Row label="Loan Account Number" value={account.loanNo} />
-        <Row label="Customer Name" value={account.borrowerName} />
-        <Row label="Product" value={account.product} />
-        <Row label="Loan Amount" value={inr.format(account.loanAmount)} />
-        <Row
-          label="Outstanding Amount"
-          value={inr.format(account.outstandingAmount)}
-        />
-        <Row label="Disbursement Date" value={date(account.disbursementDate)} />
-        <Row label="Tenure" value={years(account.tenureMonths)} />
-        <Row label="Property Type" value={account.propertyType} />
-        <Row label="Property Status" value={account.propertyStatus} />
-        <Row
-          label="IMGC Approval Date"
-          value={date(imgcApprovalDate(account.disbursementDate))}
-        />
+        {isLenderTrackClaim ? lenderTrackClaimOrder : defaultOrder}
       </dl>
     </Panel>
   );

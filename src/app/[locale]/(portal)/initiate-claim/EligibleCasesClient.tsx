@@ -375,7 +375,8 @@ function statusFromParam(value: string | null): StatusFilter[] {
 
 export function EligibleCasesClient({
   accounts,
-}: Readonly<{ accounts: EligibleRow[] }>) {
+  trackView,
+}: Readonly<{ accounts: EligibleRow[]; trackView?: "tabs" | "single" }>) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
@@ -780,6 +781,7 @@ export function EligibleCasesClient({
                       action={a.claimAction}
                       reason={a.claimReason}
                       hasProgress={a.claim?.hasProgress}
+                      trackView={trackView}
                     />
                   </TableCell>
                 </TableRow>

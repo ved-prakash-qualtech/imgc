@@ -33,6 +33,7 @@ export function ClaimRowActions({
   action,
   reason,
   hasProgress,
+  trackView,
 }: Readonly<{
   accountId: string;
   claimId?: string;
@@ -42,6 +43,8 @@ export function ClaimRowActions({
   reason?: string;
   /** Has the lender explicitly saved/submitted this claim at least once? Governs the label only. */
   hasProgress?: boolean;
+  /** Whether to open the track claim view as tabs (default) or single page. */
+  trackView?: "tabs" | "single";
 }>) {
   const initiateActive = action === "INITIATE";
   const resumable = initiateActive && Boolean(claimId) && Boolean(hasProgress);
@@ -67,7 +70,12 @@ export function ClaimRowActions({
       />
       <ActionPill
         active={trackActive}
-        href={trackActive ? ROUTES.claimDetails(claimId as string) : "#"}
+        href={
+          trackActive
+            ? ROUTES.claimDetails(claimId as string) +
+              (trackView === "single" ? "?view=single" : "")
+            : "#"
+        }
         icon={<RadarIcon />}
         label="Track"
         title={claimNo}

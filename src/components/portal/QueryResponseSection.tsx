@@ -70,7 +70,7 @@ export function QueryResponseSection({
   documents,
   isLender,
   imgcComposer,
-  title = "Query Response",
+  title = "Query Management",
   constrainedLayout = false,
   fillLayout = false,
 }: Readonly<{
@@ -142,6 +142,7 @@ export function QueryResponseSection({
     return (
       <Panel
         title={title}
+        size="compact"
         description="Only actionable while IMGC has an open query on this claim."
         className={
           constrainedLayout || fillLayout
@@ -159,7 +160,7 @@ export function QueryResponseSection({
   return (
     <Panel
       title={title}
-      description="Communication between IMGC and the Lender regarding this claim."
+      size="compact"
       className={
         constrainedLayout || fillLayout
           ? "flex h-full min-h-0 flex-col overflow-hidden"
@@ -178,7 +179,7 @@ export function QueryResponseSection({
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
           .map((remark) => (
             <div key={remark.id} className="flex justify-start">
-              <div className="w-full max-w-2xl rounded-lg rounded-tl-sm border border-neutral-200 bg-neutral-50 px-3 py-2 shadow-sm">
+              <div className="w-full max-w-2xl rounded-lg rounded-tl-sm border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 shadow-sm">
                 <div className="mb-1 flex flex-wrap items-baseline gap-1.5 text-[11.5px] text-neutral-500">
                   <span className="font-semibold text-brand-primary">
                     Lender
@@ -218,7 +219,7 @@ export function QueryResponseSection({
               <div key={q.id} className="space-y-3">
                 {/* ── IMGC Query (Left) ── */}
                 <div className="flex justify-start">
-                  <div className="w-full max-w-2xl rounded-lg rounded-tl-sm border border-neutral-200 bg-neutral-50 px-3 py-2 shadow-sm">
+                  <div className="w-full max-w-2xl rounded-lg rounded-tl-sm border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 shadow-sm">
                     <div className="mb-1 flex flex-wrap items-start justify-between gap-2">
                       <div className="flex flex-wrap items-baseline gap-1.5 text-[11.5px] text-neutral-500">
                         <span className="font-semibold text-brand-primary">
@@ -254,7 +255,7 @@ export function QueryResponseSection({
                 {/* ── Lender Response (Right) ── */}
                 {q.respondedAt && (
                   <div className="flex justify-end">
-                    <div className="w-full max-w-2xl rounded-lg rounded-tr-sm border border-brand-primary/10 bg-brand-primary/5 px-3 py-2 shadow-sm">
+                    <div className="w-full max-w-2xl rounded-lg rounded-tr-sm border border-brand-primary/10 bg-brand-primary/5 px-2.5 py-1.5 shadow-sm">
                       <div className="mb-1 flex flex-wrap items-baseline justify-end gap-1.5 text-[11.5px] text-neutral-500">
                         <span>{when(q.respondedAt)}</span>
                         {q.respondedByName && (

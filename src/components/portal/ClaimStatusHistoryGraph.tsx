@@ -1,3 +1,4 @@
+/* eslint-disable react-perf/jsx-no-jsx-as-prop */
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 
 import { CLAIM_STATUS_LABELS } from "@/config/claimConfig";
@@ -38,7 +39,7 @@ function syntheticEntry(
  * lender action that hands the claim to IMGC, so the first review stage is derived immediately
  * after it; `DOCUMENTS_RESUBMITTED` is an implementation marker, not a separate timeline stage.
  */
-function timelineEntries(
+export function timelineEntries(
   history: readonly ClaimStatusEntry[],
   currentStatus: ClaimStatusEntry["status"]
 ): ClaimStatusEntry[] {

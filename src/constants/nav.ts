@@ -16,6 +16,8 @@ export type NavKey =
   | "additional-documents"
   | "notifications"
   | "initiate-claim"
+  | "track-claim"
+  | "claims"
   | "audit-trail"
   | "administration"
   | "admin-users"
@@ -65,9 +67,12 @@ const DPD: NavItem = {
 /** Initiating a claim and tracking one used to be two tabs; one grid now does both, so there is
  *  only one nav entry for it. */
 const CLAIM: NavItem = {
-  key: "initiate-claim",
-  label: "Claim",
-  href: ROUTES.initiateClaim,
+  key: "claims",
+  label: "Claims",
+  children: [
+    { key: "initiate-claim", label: "Claims", href: ROUTES.initiateClaim },
+    { key: "track-claim", label: "Track Claim", href: ROUTES.trackClaim },
+  ],
 };
 
 const AUDIT_TRAIL: NavItem = {
