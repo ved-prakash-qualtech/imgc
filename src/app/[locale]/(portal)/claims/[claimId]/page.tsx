@@ -167,7 +167,8 @@ export default async function ClaimDetailsPage({
           }
           documents={
             <Panel title="Documents">
-              <div className="custom-scrollbar max-h-[267px] overflow-y-auto overflow-x-auto">
+              {/* 7 rows visible (32px header + 7 × ~46.5px row) before it scrolls. */}
+              <div className="custom-scrollbar max-h-[358px] overflow-y-auto overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

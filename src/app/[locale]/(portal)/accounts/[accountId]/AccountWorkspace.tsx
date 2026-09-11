@@ -225,6 +225,14 @@ function QueryTrailTab({
 
   if (role !== "IMGC") return null;
 
+  // "Mark approved" only makes sense before a decision exists — once the claim is approved, its
+  // slot in this row is taken over by "Refund Received" (a further confirmation on the same
+  // approval, not a second decision), which in turn gives way to a plain confirmation pill once
+  // that's recorded. "Raise a query" stays put throughout, only going dead once the refund is in
+  // and there is nothing left to query.
+  const isApproved = claim?.status === "APPROVED";
+  const refundReceived = claim?.status === "REFUND_RECEIVED_BY_IMGC";
+
   const imgcComposer = (
     <div className="flex flex-col gap-0.5 px-2 py-1">
       <div className="flex flex-wrap items-end gap-1">
@@ -246,48 +254,44 @@ function QueryTrailTab({
             }`}
           />
         </label>
-        <Button
-          size="sm"
-          variant="success"
-          onClick={() => decide("APPROVED")}
-          disabled={pending}
-        >
-          Mark approved
-        </Button>
+        {refundReceived ? (
+          <StatusPill status="REFUND_RECEIVED_BY_IMGC" />
+        ) : isApproved ? (
+          <Button
+            size="sm"
+            variant="default"
+            onClick={markRefund}
+            disabled={refundPending}
+            title="Confirms the refund for this claim has reached IMGC."
+          >
+            Refund Received
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="success"
+            onClick={() => decide("APPROVED")}
+            disabled={pending}
+          >
+            Mark approved
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"
           onClick={() => decide("QUERIED")}
-          disabled={pending}
+          disabled={pending || refundReceived}
+          title={
+            refundReceived
+              ? "The refund has been received — this claim is closed out."
+              : undefined
+          }
         >
           Raise a query
         </Button>
       </div>
       {noteError && (
         <p className="text-[12.5px] font-medium text-red-500">{noteError}</p>
-      )}
-      {/* Refund Received — only once the claim is actually approved, and only until it's been
-          recorded once. Hidden the rest of the time, per the requirement, rather than shown
-          disabled with no context for why. */}
-      {claim?.status === "APPROVED" && (
-        <div className="mt-1 flex items-center gap-2 border-t border-neutral-100 pt-1.5">
-          <Button
-            size="sm"
-            variant="default"
-            onClick={markRefund}
-            disabled={refundPending}
-          >
-            Refund Received
-          </Button>
-          <span className="text-[11.5px] text-neutral-500">
-            Confirms the refund for this claim has reached IMGC.
-          </span>
-        </div>
-      )}
-      {claim?.status === "REFUND_RECEIVED_BY_IMGC" && (
-        <div className="mt-1 flex items-center gap-1.5 border-t border-neutral-100 pt-1.5">
-          <StatusPill status="REFUND_RECEIVED_BY_IMGC" />
-        </div>
       )}
     </div>
   );
