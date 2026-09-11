@@ -19,7 +19,12 @@ export const IN_PROGRESS_STATUSES: ReadonlySet<ClaimStatus> =
 /** The statuses the month-on-month widget can chart. "INITIATED" is not a real `ClaimStatus` —
  *  it means "the claim was created", dated from `createdAt` rather than a status-history entry. */
 export type MonthlyStatusKey =
-  "INITIATED" | "SUBMITTED" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+  | "INITIATED"
+  | "SUBMITTED"
+  | "UNDER_REVIEW"
+  | "APPROVED"
+  | "REJECTED"
+  | "REFUND_RECEIVED_BY_IMGC";
 
 export const MONTHLY_STATUS_OPTIONS: ReadonlyArray<{
   key: MonthlyStatusKey;
@@ -30,6 +35,7 @@ export const MONTHLY_STATUS_OPTIONS: ReadonlyArray<{
   { key: "UNDER_REVIEW", label: "Under review" },
   { key: "APPROVED", label: "Approved" },
   { key: "REJECTED", label: "Rejected" },
+  { key: "REFUND_RECEIVED_BY_IMGC", label: "Refunded" },
 ];
 
 export const MONTH_WINDOWS = [3, 6, 12] as const;
