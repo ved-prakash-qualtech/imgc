@@ -183,7 +183,7 @@ export async function updatePasValueAction(
 
 export async function setClaimStatusAction(
   accountId: string,
-  status: "APPROVED" | "QUERIED",
+  status: "APPROVED" | "QUERIED" | "REJECTED",
   note: string
 ): Promise<Result> {
   const session = await requireSession();

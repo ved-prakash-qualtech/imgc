@@ -181,7 +181,7 @@ function downloadCsv(rows: EligibleRow[]): void {
     "DPD",
     "Status",
     "Owner",
-    "Claim Initiation Date",
+    "Initiation Date",
   ];
   const lines = rows.map((a) =>
     [
@@ -701,7 +701,7 @@ export function EligibleCasesClient({
               />
               <SortableTableHead
                 column="submittedAt"
-                label="Claim Initiation Date"
+                label="Initiation Date"
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}

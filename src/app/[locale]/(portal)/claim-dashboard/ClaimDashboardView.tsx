@@ -321,7 +321,7 @@ export function ClaimDashboardView({
 
       <Panel
         size="compact"
-        title="Query Raised"
+        title={data.isLender ? "Query Raised · Not Responded" : "Query Raised"}
         description={
           !data.isLender
             ? data.canFilterByLender

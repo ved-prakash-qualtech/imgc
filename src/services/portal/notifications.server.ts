@@ -164,7 +164,7 @@ export async function listNotifications(session: AppSession): Promise<Notificati
  */
 export async function notifyClaimDecision(
   account: Account,
-  status: "APPROVED" | "QUERIED",
+  status: "APPROVED" | "QUERIED" | "REJECTED",
   note: string,
   actor: AppSession
 ): Promise<void> {
