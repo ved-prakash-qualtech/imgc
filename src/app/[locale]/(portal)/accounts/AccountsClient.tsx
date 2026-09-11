@@ -14,6 +14,12 @@ import {
 
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -31,30 +37,41 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ROUTES } from "@/constants/route";
-import { DPD_BANDS, DPD_BAND_LABEL, dpdInBand, formatDpd, type DpdBand } from "@/lib/dpd";
+import {
+  DPD_BANDS,
+  DPD_BAND_LABEL,
+  dpdInBand,
+  formatDpd,
+  type DpdBand,
+} from "@/lib/dpd";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
 import type { Role } from "@/server/mock/types";
 
 const BUCKETS = ["ALL", "IMGC", "LENDER"] as const;
-// "UNDER_PROGRESS" and "ACTIVE" are composites (not real `claimStatus` values): "UNDER_PROGRESS"
-// is the same grouping the Claims Overview band's own "Under Progress" tile counts, so a click on
-// that tile and this filter always agree; "ACTIVE" reads the account's own `isActive` flag
-// (not-closed and touched within 8 days — same definition the Dashboard's "Active" ring and
-// DpdClient's own "Active" filter use). "APPROVED" also matches a "CLOSED" account below, for the
-// same reason "UNDER_PROGRESS" exists.
+// "UNDER_PROGRESS" and "ACTIVE_NPA" are composites (not real `claimStatus` values): both use
+// the same groupings the Claims Overview band's tiles count, so a click on a tile and this filter
+// always agree. "APPROVED" also matches a "CLOSED" account below, for the same reason
+// "UNDER_PROGRESS" exists.
 const STATUSES = [
-  "ALL",
+  "NOT_STARTED",
   "DRAFT",
   "SUBMITTED",
   "UNDER_REVIEW",
   "QUERIED",
-  "UNDER_PROGRESS",
+  "ACTIVE",
   "APPROVED",
+  "REFUND_RECEIVED_BY_IMGC",
   "REJECTED",
   "CLOSED",
-  "ACTIVE",
 ] as const;
+type StatusOption = (typeof STATUSES)[number];
+type StatusFilter = StatusOption | "UNDER_PROGRESS" | "ACTIVE_NPA";
+const URL_STATUS_VALUES = new Set<string>([
+  ...STATUSES,
+  "UNDER_PROGRESS",
+  "ACTIVE_NPA",
+]);
 /** Same four in-flight statuses `summariseClaimOverview`'s own "Under Progress" bucket counts. */
 const UNDER_PROGRESS_STATUSES = new Set<string>([
   "SUBMITTED",
@@ -158,15 +175,15 @@ function assetClassDisplay(v: (typeof ASSET_CLASSES)[number]): string {
 /** Which `?status=` values are real filter options — the Claims Overview band links here with
  *  one of these; anything else (or none) falls back to "ALL" rather than silently filtering
  *  wrong. */
-function statusFromParam(value: string | null): (typeof STATUSES)[number] {
-  return (STATUSES as readonly string[]).includes(value ?? "")
-    ? (value as (typeof STATUSES)[number])
-    : "ALL";
+function statusFromParam(value: string | null): StatusFilter[] {
+  if (!value) return [];
+  return [
+    ...new Set(value.split(",").filter((item) => URL_STATUS_VALUES.has(item))),
+  ] as StatusFilter[];
 }
 
-function statusDisplay(v: (typeof STATUSES)[number]): string {
-  if (v === "ALL") return "All Claim Status";
-  if (v === "UNDER_PROGRESS") return "Under progress";
+function statusDisplay(v: StatusOption): string {
+  if (v === "REFUND_RECEIVED_BY_IMGC") return "Refund";
   return v
     .toLowerCase()
     .split("_")
@@ -174,12 +191,83 @@ function statusDisplay(v: (typeof STATUSES)[number]): string {
     .join(" ");
 }
 
+function StatusMultiSelect({
+  value,
+  onChange,
+}: Readonly<{
+  value: StatusFilter[];
+  onChange: (next: StatusFilter[]) => void;
+}>) {
+  const [open, setOpen] = useState(false);
+  const selected = new Set(value);
+  const label =
+    value.length === 0
+      ? "All Claim Status"
+      : value.length === 1
+        ? value[0] === "ACTIVE_NPA"
+          ? "Active NPA"
+          : value[0] === "UNDER_PROGRESS"
+            ? "Under progress"
+            : statusDisplay(value[0] as StatusOption)
+        : `${value.length} statuses selected`;
+
+  const toggle = (option: StatusOption) => {
+    const next = new Set(
+      value.filter(
+        (item): item is StatusOption =>
+          item !== "ACTIVE_NPA" && item !== "UNDER_PROGRESS"
+      )
+    );
+    if (next.has(option)) next.delete(option);
+    else next.add(option);
+    onChange(STATUSES.filter((item) => next.has(item)));
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        aria-label="All Claim Status"
+        className="inline-flex h-8 max-w-[190px] items-center gap-2 rounded-full border border-neutral-200 bg-white px-3.5 text-[12.5px] font-medium text-neutral-700 outline-none transition-colors hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDownIcon className="size-3.5 shrink-0 text-neutral-400" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56 gap-1 p-2">
+        {STATUSES.map((option) => (
+          <label
+            key={option}
+            htmlFor={`account-status-${option}`}
+            className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-neutral-900 hover:bg-neutral-50"
+          >
+            <Checkbox
+              id={`account-status-${option}`}
+              checked={selected.has(option)}
+              onCheckedChange={() => toggle(option)}
+            />
+            {statusDisplay(option)}
+          </label>
+        ))}
+        {value.length > 0 && (
+          <button
+            type="button"
+            className="mt-1 border-t border-neutral-100 px-2 pt-2 text-left text-xs font-medium text-neutral-500 hover:text-neutral-900"
+            onClick={() => onChange([])}
+          >
+            Clear status filter
+          </button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function purposeDisplay(v: string): string {
   return v === "ALL" ? "All Loan Types" : v;
 }
 
 function bucketDisplay(v: (typeof BUCKETS)[number]): string {
-  return v === "ALL" ? "All Owners" : v.toLowerCase();
+  if (v === "ALL") return "All Owners";
+  return v === "IMGC" ? "IMGC" : "Lender";
 }
 
 function dpdBandDisplay(v: DpdBand): string {
@@ -196,7 +284,9 @@ const SortIcon = ({
   sortDirection: SortDirection;
 }) => {
   if (sortKey !== column)
-    return <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />;
+    return (
+      <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />
+    );
   return sortDirection === "asc" ? (
     <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
   ) : (
@@ -251,7 +341,7 @@ export function AccountsClient({
   const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>(
     (searchParams.get("bucket") as (typeof BUCKETS)[number] | null) ?? "ALL"
   );
-  const [status, setStatus] = useState<(typeof STATUSES)[number]>(() =>
+  const [status, setStatus] = useState<StatusFilter[]>(() =>
     statusFromParam(searchParams.get("status"))
   );
   const [assetClass, setAssetClass] = useState<(typeof ASSET_CLASSES)[number]>(
@@ -310,26 +400,35 @@ export function AccountsClient({
     const q = query.trim().toLowerCase();
     let result = accounts.filter((a) => {
       if (bucket !== "ALL" && a.bucket !== bucket) return false;
-      if (status === "UNDER_PROGRESS") {
-        if (!UNDER_PROGRESS_STATUSES.has(a.claimStatus)) return false;
-      } else if (status === "APPROVED") {
-        // Folds "CLOSED" and "REFUND_RECEIVED_BY_IMGC" in too — same fold `summariseClaimOverview`'s
-        // own "approved" bucket applies (closest terminal-success bucket, and a refund confirmation
-        // on top of an approval, not a fourth outcome), so this filter's rows always match what the
-        // "Claim Approved" tile counted.
-        if (
-          a.claimStatus !== "APPROVED" &&
-          a.claimStatus !== "CLOSED" &&
-          a.claimStatus !== "REFUND_RECEIVED_BY_IMGC"
-        )
-          return false;
-      } else if (status === "ACTIVE") {
-        // Not a `claimStatus` value — reads the account's own `isActive` flag (not closed, and
-        // touched within the last 8 days), same definition the Dashboard's "Active" ring and
-        // DpdClient's own "Active" filter use.
-        if (!a.isActive) return false;
-      } else if (status !== "ALL" && a.claimStatus !== status) {
-        return false;
+      if (status.length > 0) {
+        if (status.includes("ACTIVE_NPA")) {
+          if (
+            a.claimStatus !== "DRAFT" &&
+            !UNDER_PROGRESS_STATUSES.has(a.claimStatus)
+          )
+            return false;
+        } else if (status.includes("UNDER_PROGRESS")) {
+          if (!UNDER_PROGRESS_STATUSES.has(a.claimStatus)) return false;
+        } else {
+          const matchesNotStarted =
+            status.includes("NOT_STARTED") && a.claimStatus === "DRAFT";
+          const matchesActive = status.includes("ACTIVE") && a.isActive;
+          const matchesApproved =
+            status.includes("APPROVED") &&
+            (a.claimStatus === "APPROVED" ||
+              a.claimStatus === "CLOSED" ||
+              a.claimStatus === "REFUND_RECEIVED_BY_IMGC");
+          const matchesClaimStatus = status.includes(
+            a.claimStatus as StatusFilter
+          );
+          if (
+            !matchesNotStarted &&
+            !matchesActive &&
+            !matchesApproved &&
+            !matchesClaimStatus
+          )
+            return false;
+        }
       }
       if (assetClass !== "ALL" && assetClassOf(a) !== assetClass) return false;
       if (product !== "ALL" && a.product !== product) return false;
@@ -434,10 +533,17 @@ export function AccountsClient({
     },
     []
   );
-  const handleStatusChange = useCallback((v: (typeof STATUSES)[number]) => {
-    setStatus(v);
-    setPage(1);
-  }, []);
+  const handleStatusChange = useCallback(
+    (v: StatusFilter[]) => {
+      setStatus(v);
+      const nextParams = new URLSearchParams(searchParams.toString());
+      if (v.length === 0) nextParams.delete("status");
+      else nextParams.set("status", v.join(","));
+      router.replace(`?${nextParams.toString()}`, { scroll: false });
+      setPage(1);
+    },
+    [router, searchParams]
+  );
   const handleAssetClassChange = useCallback(
     (v: (typeof ASSET_CLASSES)[number]) => {
       setAssetClass(v);
@@ -470,13 +576,7 @@ export function AccountsClient({
             className="h-8 w-[190px] rounded-full border border-neutral-200 bg-white pl-8 pr-2.5 text-[12px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           />
         </div>
-        <FilterSelect
-          label="Status"
-          options={STATUSES}
-          display={statusDisplay}
-          value={status}
-          onChange={handleStatusChange}
-        />
+        <StatusMultiSelect value={status} onChange={handleStatusChange} />
         <FilterSelect
           label="Loan Type"
           options={["ALL", ...products] as const}
@@ -514,12 +614,50 @@ export function AccountsClient({
         <Table>
           <TableHeader>
             <TableRow>
-              <SortableTableHead column="loanNo" label="Loan no." sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              <SortableTableHead column="borrowerName" label="Borrower" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              {role === "IMGC" && <SortableTableHead column="lender" label="Lender" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />}
-              <SortableTableHead column="purpose" label="Loan Type" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              <SortableTableHead column="loanAmount" label="Principal" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              <SortableTableHead column="submittedAt" label="Claim Initiation Date" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <SortableTableHead
+                column="loanNo"
+                label="Loan no."
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="borrowerName"
+                label="Borrower"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              {role === "IMGC" && (
+                <SortableTableHead
+                  column="lender"
+                  label="Lender"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+              )}
+              <SortableTableHead
+                column="purpose"
+                label="Loan Type"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="loanAmount"
+                label="Principal"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="submittedAt"
+                label="Claim Initiation Date"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
               <SortableTableHead
                 column="dpd"
                 label="DPD"
@@ -528,8 +666,20 @@ export function AccountsClient({
                 onToggle={toggleSort}
                 title="DPD = Days Past Due"
               />
-              <SortableTableHead column="bucket" label="Owner" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              <SortableTableHead column="status" label="Claim Status" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <SortableTableHead
+                column="bucket"
+                label="Owner"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="status"
+                label="Claim Status"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -578,10 +728,16 @@ export function AccountsClient({
                       {formatDpd(a.dpd)}
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5">
-                      <StatusPill status={a.bucket} className="px-1.5 py-0.5 text-[10.5px]" />
+                      <StatusPill
+                        status={a.bucket}
+                        className="px-1.5 py-0.5 text-[10.5px]"
+                      />
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5">
-                      <StatusPill status={a.claimStatus} className="px-1.5 py-0.5 text-[10.5px]" />
+                      <StatusPill
+                        status={a.claimStatus}
+                        className="px-1.5 py-0.5 text-[10.5px]"
+                      />
                     </TableCell>
                   </TableRow>
                 );

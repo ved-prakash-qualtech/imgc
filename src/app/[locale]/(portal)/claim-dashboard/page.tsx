@@ -17,6 +17,7 @@ import {
   summariseClaimOverview,
   type ClaimOverviewCounts,
 } from "@/services/portal/claimFlow.server";
+import type { ClaimStatus } from "@/server/mock/types";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +28,15 @@ function overviewHrefs(
   base: string
 ): Record<keyof ClaimOverviewCounts, string> {
   return {
-    total: base,
-    initiation: `${base}?status=${base === ROUTES.accounts ? "DRAFT" : "INITIATION"}`,
-    underProgress: `${base}?status=UNDER_PROGRESS`,
+    total:
+      base === ROUTES.initiateClaim
+        ? `${base}?status=NOT_STARTED,SUBMITTED,UNDER_REVIEW,QUERY_RAISED`
+        : `${base}?status=NOT_STARTED,SUBMITTED,UNDER_REVIEW,DOCUMENTS_RESUBMITTED,QUERIED`,
+    initiation: `${base}?status=NOT_STARTED`,
+    underProgress:
+      base === ROUTES.initiateClaim
+        ? `${base}?status=SUBMITTED,UNDER_REVIEW,QUERY_RAISED`
+        : `${base}?status=SUBMITTED,UNDER_REVIEW,DOCUMENTS_RESUBMITTED,QUERIED`,
     approved: `${base}?status=APPROVED`,
     rejected: `${base}?status=REJECTED`,
   };
@@ -84,17 +91,19 @@ export default async function ClaimDashboardPage({
   const eligible = accounts
     .filter((a) => (a.dpd ?? 0) > 90)
     .filter((a) => !lenderOrgId || a.lenderOrgId === lenderOrgId)
-    .map((a) => ({ claim: claimByAccountId.get(a.id) ?? null }));
+    .filter(
+      (a) => claimByAccountId.get(a.id)?.status !== "DOCUMENTS_RESUBMITTED"
+    )
+    .map((a) => {
+      if (session.role !== "IMGC") {
+        return { claim: claimByAccountId.get(a.id) ?? null };
+      }
+
+      const status =
+        a.claimStatus === "QUERIED" ? "QUERY_RAISED" : a.claimStatus;
+      return { claim: { status: status as ClaimStatus } };
+    });
   const counts = summariseClaimOverview(eligible);
-  const lenderCounts =
-    session.role === "LENDER"
-      ? {
-          ...counts,
-          underProgress: eligible.filter(
-            ({ claim }) => claim?.status === "QUERY_RAISED"
-          ).length,
-        }
-      : counts;
 
   const gridBase =
     session.role === "IMGC" ? ROUTES.accounts : ROUTES.initiateClaim;
@@ -106,7 +115,7 @@ export default async function ClaimDashboardPage({
     <PortalShell activeKey="claim-dashboard" title="Claim Dashboard">
       <div className="space-y-4">
         <ClaimOverviewBand
-          counts={lenderCounts}
+          counts={counts}
           hrefs={overviewHrefs(gridBase)}
           title={
             data.canFilterByLender
