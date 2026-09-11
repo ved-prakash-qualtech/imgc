@@ -90,7 +90,8 @@ export function ClaimHistory({
   }
 
   return (
-    <div className="custom-scrollbar max-h-[220px] overflow-y-auto overflow-x-auto">
+    // 10 rows visible (32px header + 10 × ~30px row) before it scrolls.
+    <div className="custom-scrollbar max-h-[334px] overflow-y-auto overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
