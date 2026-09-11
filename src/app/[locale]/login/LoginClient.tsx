@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
   ArrowRightIcon,
   BadgeCheckIcon,
-  CheckCircle2Icon,
   EyeIcon,
   EyeOffIcon,
   KeyRoundIcon,
@@ -49,14 +48,14 @@ const SECURITY_BADGES = [
 
 function FieldLabel({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <label className="mb-1.5 block text-[13px] font-semibold text-slate-800">
+    <label className="mb-2 block text-[13.5px] font-medium text-slate-700">
       {children}
     </label>
   );
 }
 
 const INPUT_CLASS =
-  "h-11 w-full rounded-lg border border-neutral-200 bg-white/80 pl-10 pr-10 text-[14px] text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-[#f26e22] focus:bg-white focus:ring-2 focus:ring-[#f26e22]/20";
+  "h-11 w-full rounded-xl border border-neutral-200/80 bg-white/90 pl-10 pr-10 text-[14px] text-slate-900 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-[#f26e22] focus:bg-white focus:ring-4 focus:ring-[#f26e22]/10 hover:border-neutral-300 shadow-sm";
 
 export function LoginClient({
   returnTo,
@@ -187,22 +186,16 @@ export function LoginClient({
         className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(115deg,rgba(253,235,211,0.84)_0%,rgba(247,175,108,0.68)_32%,rgba(238,101,25,0.8)_100%)]"
       />
 
-      <div className="relative z-10 mx-auto flex h-dvh w-full max-w-[1440px] flex-col overflow-y-auto px-6 py-4 lg:px-10 lg:py-5">
+      <div className="relative z-10 mx-auto flex h-dvh w-full max-w-[1440px] flex-col overflow-hidden px-6 py-3 lg:px-10 lg:py-4">
         {/* ── Masthead ─────────────────────────────────────────────── */}
         <header className="imgc-rise flex items-start gap-4">
           <div className="flex items-center gap-3">
-            {/* logo.png's own baked-in "IMGC / Defining Tomorrow" text was illegible at the
-                previous 44px — the file is square (80×80), so sizing it up while keeping
-                width===height (no stretching) is what actually fixes it, not swapping assets.
-                A white card behind it (same idea as the sidebar's logo mount) is what actually
-                gives it contrast against the warm cream/orange backdrop — the logo's own colors
-                (orange mark, grey wordmark) read faintly straight on top of that gradient. */}
-            <div className="grid size-20 shrink-0 place-items-center rounded-2xl bg-white p-2 shadow-sm">
+            <div className="grid size-16 shrink-0 place-items-center rounded-2xl bg-white p-2 shadow-sm">
               <Image
                 src="/assets/icons/logo.png"
                 alt="IMGC"
-                width={80}
-                height={80}
+                width={64}
+                height={64}
                 className="h-auto w-auto max-h-full max-w-full object-contain"
               />
             </div>
@@ -218,7 +211,7 @@ export function LoginClient({
         </header>
 
         {/* ── Body ─────────────────────────────────────────────────── */}
-        <div className="flex flex-1 flex-col gap-6 py-4 lg:flex-row lg:items-center lg:gap-12 lg:py-2">
+        <div className="flex flex-1 flex-col gap-4 py-2 lg:flex-row lg:items-center lg:gap-10 lg:py-0 lg:-mt-3">
           {/* Left: the proposition */}
           <section className="imgc-rise min-w-0 flex-1">
             <h1 className="font-outfit max-w-[620px] text-[34px] font-bold leading-[1.12] tracking-tight text-slate-900 sm:text-[44px]">
@@ -227,12 +220,11 @@ export function LoginClient({
                 for every lender.
               </span>
             </h1>
-            <p className="mt-4 max-w-[540px] text-[15px] leading-relaxed text-slate-800">
-              Collect once, review everywhere — documents, PAS values and a
-              complete audit trail on a single account.
+            <p className="font-display mt-3.5 max-w-[520px] text-[34px] font-bold leading-[1.12] tracking-tight text-slate-800/90 [text-shadow:_0_0_15px_rgb(255_255_255_/_100%),_0_1px_2px_rgb(255_255_255_/_80%)] sm:text-[44px]">
+              Initiate, track and manage claims with complete visibility, all in one place.
             </p>
 
-            <ul className="mt-5 flex max-w-[620px] flex-wrap gap-2">
+            {/* <ul className="mt-5 flex max-w-[620px] flex-wrap gap-2">
               {FEATURE_PILLS.map((pill) => (
                 <li
                   key={pill}
@@ -242,21 +234,21 @@ export function LoginClient({
                   {pill}
                 </li>
               ))}
-            </ul>
+            </ul> */}
 
             {/* Squarer chips with an icon tile, deliberately unlike the rounded-full benefit
                 pills above — these are assurances about the platform, not things it does. */}
-            <div className="mt-6 max-w-[560px]">
-              <p className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-slate-900">
+            <div className="mt-5 max-w-[560px]">
+              <p className="text-[12px] font-bold uppercase tracking-[0.15em] text-slate-800">
                 Security &amp; compliance
               </p>
-              <ul className="mt-2.5 flex flex-wrap gap-2">
+              <ul className="mt-2.5 flex flex-wrap gap-2.5">
                 {SECURITY_BADGES.map((badge) => (
                   <li
                     key={badge.label}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-900/10 bg-white/80 px-2.5 py-1.5 text-[12.5px] font-semibold text-slate-800 shadow-sm backdrop-blur-sm"
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/60 bg-white/70 px-3 py-2 text-[13px] font-semibold text-slate-800 shadow-sm backdrop-blur-md"
                   >
-                    <span className="grid size-5 shrink-0 place-items-center rounded-md bg-[#f26e22]/12 text-[#f26e22]">
+                    <span className="grid size-6 shrink-0 place-items-center rounded-md bg-white shadow-sm text-[#f26e22]">
                       {badge.icon}
                     </span>
                     {badge.label}
@@ -268,24 +260,24 @@ export function LoginClient({
 
           {/* Right: sign-in card */}
           <section className="imgc-rise w-full shrink-0 lg:w-[420px]">
-            <div className="rounded-2xl border border-white/60 bg-white/95 backdrop-blur-xl p-6 shadow-2xl shadow-[#f26e22]/25">
-              <h2 className="font-outfit text-center text-[22px] font-bold tracking-tight text-slate-900">
+            <div className="rounded-2xl border border-white/80 bg-white/90 backdrop-blur-2xl p-6 shadow-2xl shadow-black/5 sm:p-7">
+              <h2 className="font-outfit text-center text-[24px] font-bold tracking-tight text-slate-900">
                 Welcome Back
               </h2>
-              <p className="mt-1 mb-4 text-center text-[13px] text-slate-700">
+              <p className="mt-1 mb-4 text-center text-[13px] text-slate-500">
                 Sign in to your IMGC Lender Portal account
               </p>
 
               {error && (
                 <p
                   role="alert"
-                  className="mb-4 rounded-lg border border-red-500/30 bg-red-50 px-3 py-2 text-[12.5px] text-red-700"
+                  className="mb-4 rounded-xl border border-red-500/30 bg-red-50/80 px-4 py-3 text-[13px] font-medium text-red-800 shadow-sm"
                 >
                   {error}
                 </p>
               )}
               {!error && notice && (
-                <p className="mb-4 rounded-lg border border-blue-500/30 bg-blue-50 px-3 py-2 text-[12.5px] text-blue-700">
+                <p className="mb-4 rounded-xl border border-blue-500/30 bg-blue-50/80 px-4 py-3 text-[13px] font-medium text-blue-800 shadow-sm">
                   {notice}
                 </p>
               )}
@@ -304,7 +296,7 @@ export function LoginClient({
                       className={INPUT_CLASS}
                     />
                   </div>
-                  <p className="mt-2 text-[12px] leading-relaxed text-slate-600">
+                  <p className="mt-3 text-[12.5px] leading-relaxed text-slate-500">
                     IMGC staff sign in with an Employee ID and password. Lender
                     users sign in with their work email — we send a one-time code.
                   </p>
@@ -346,18 +338,18 @@ export function LoginClient({
                     </button>
                   </div>
 
-                  <div className="mt-3.5 flex items-center justify-between">
-                    <label className="flex cursor-pointer items-center gap-2 text-[13px] text-slate-700">
+                  <div className="mt-4 flex items-center justify-between">
+                    <label className="flex cursor-pointer items-center gap-2.5 text-[13.5px] font-medium text-slate-700 hover:text-slate-900 transition-colors">
                       <input
                         type="checkbox"
                         defaultChecked
-                        className="size-4 accent-[#f37819]"
+                        className="size-4 rounded border-slate-300 accent-[#f26e22] transition-all hover:accent-[#d85811]"
                       />
                       Remember me
                     </label>
-                    <span className="text-[13px] font-medium text-slate-600">
+                    <button type="button" className="text-[13.5px] font-semibold text-[#f26e22] hover:text-[#d85811] transition-colors">
                       Forgot password?
-                    </span>
+                    </button>
                   </div>
 
                   <SubmitButton pending={pending} label="Sign In" />
@@ -381,7 +373,7 @@ export function LoginClient({
                     onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                     placeholder="••••••"
                     autoComplete="one-time-code"
-                    className="h-12 w-full rounded-lg border border-neutral-200 bg-white/80 text-center font-mono text-[22px] tracking-[0.5em] text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-[#f26e22] focus:bg-white focus:ring-2 focus:ring-[#f26e22]/20"
+                    className="h-12 w-full rounded-xl border border-neutral-200/80 bg-white/90 text-center font-mono text-[22px] tracking-[0.4em] text-slate-900 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-[#f26e22] focus:bg-white focus:ring-4 focus:ring-[#f26e22]/10 hover:border-neutral-300 shadow-sm"
                   />
                   {step.devCode && (
                     <p className="mt-2 rounded-md border border-[#f26e22]/20 bg-orange-50 px-2.5 py-1.5 text-[11.5px] text-slate-700">
@@ -392,12 +384,12 @@ export function LoginClient({
                       .
                     </p>
                   )}
-                  <div className="mt-3 text-right">
+                  <div className="mt-4 text-right">
                     <button
                       type="button"
                       onClick={onResend}
                       disabled={pending}
-                      className="text-[12.5px] font-medium text-[#d85811] hover:text-[#f26e22] disabled:opacity-50"
+                      className="text-[13px] font-semibold text-[#f26e22] transition-colors hover:text-[#d85811] disabled:opacity-50"
                     >
                       Send a new code
                     </button>
@@ -406,19 +398,19 @@ export function LoginClient({
                 </form>
               )}
 
-              <div className="mt-5 border-t border-[#f26e22]/20 pt-4 text-center">
-                <p className="text-[12.5px] text-slate-600">
+              <div className="mt-5 border-t border-slate-200 pt-4 text-center">
+                <p className="text-[13px] text-slate-500">
                   Need demo access?{" "}
-                  <span className="font-semibold text-slate-900">
+                  <span className="font-semibold text-slate-800">
                     Enter Demo Mode
                   </span>
                 </p>
-                <div className="mt-2.5 grid grid-cols-2 gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     disabled={pending}
                     onClick={() => onDemo("IMGC")}
-                    className="cursor-pointer rounded-lg border border-neutral-200 bg-white/50 px-3 py-2 text-[12.5px] font-semibold text-slate-700 transition hover:border-[#f26e22]/50 hover:bg-white hover:text-[#f26e22] hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    className="cursor-pointer rounded-xl border border-neutral-200/80 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-700 shadow-sm transition hover:border-[#f26e22]/40 hover:bg-[#f26e22]/5 hover:text-[#f26e22] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Demo as IMGC
                   </button>
@@ -426,7 +418,7 @@ export function LoginClient({
                     type="button"
                     disabled={pending}
                     onClick={() => onDemo("LENDER")}
-                    className="cursor-pointer rounded-lg border border-neutral-200 bg-white/50 px-3 py-2 text-[12.5px] font-semibold text-slate-700 transition hover:border-[#f26e22]/50 hover:bg-white hover:text-[#f26e22] hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    className="cursor-pointer rounded-xl border border-neutral-200/80 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-700 shadow-sm transition hover:border-[#f26e22]/40 hover:bg-[#f26e22]/5 hover:text-[#f26e22] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Demo as Lender
                   </button>
@@ -434,9 +426,12 @@ export function LoginClient({
               </div>
             </div>
 
-            <p className="mx-auto mt-4 w-fit rounded-full bg-white/80 px-3 py-1 text-center text-[12px] text-slate-700 shadow-sm backdrop-blur-sm">
-              Protected workspace · access is granted by IMGC
-            </p>
+            <div className="mt-3 flex justify-center">
+              <p className="inline-flex items-center rounded-full border border-white/60 bg-white/60 px-4 py-1.5 text-center text-[12.5px] font-medium text-slate-700 shadow-sm backdrop-blur-md">
+                <LockIcon className="mr-1.5 size-3.5 text-slate-500" />
+                Protected workspace · access is granted by IMGC
+              </p>
+            </div>
           </section>
         </div>
       </div>
@@ -452,7 +447,7 @@ function SubmitButton({
     <button
       type="submit"
       disabled={pending}
-      className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#f26e22] text-[14px] font-semibold text-white transition hover:bg-[#d85811] disabled:cursor-not-allowed disabled:opacity-60"
+      className="mt-3.5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#f26e22] text-[14px] font-semibold text-white shadow-md shadow-[#f26e22]/20 transition hover:bg-[#d85811] hover:shadow-lg hover:shadow-[#f26e22]/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? "Please wait…" : label}
       {!pending && <ArrowRightIcon className="size-4" />}
@@ -466,15 +461,15 @@ function IdentityChip({
   onChange,
 }: Readonly<{ icon: React.ReactNode; text: string; onChange: () => void }>) {
   return (
-    <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white/60 px-3 py-2">
-      <span className="flex min-w-0 items-center gap-2 text-[12.5px] text-slate-800">
-        <span className="text-slate-500">{icon}</span>
+    <div className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-neutral-200/80 bg-white/60 px-4 py-3 shadow-sm backdrop-blur-sm">
+      <span className="flex min-w-0 items-center gap-2.5 text-[13px] font-medium text-slate-800">
+        <span className="grid size-6 shrink-0 place-items-center rounded-md bg-white text-slate-500 shadow-sm">{icon}</span>
         <span className="truncate">{text}</span>
       </span>
       <button
         type="button"
         onClick={onChange}
-        className="shrink-0 text-[12px] font-medium text-[#f26e22] hover:text-[#d85811]"
+        className="shrink-0 text-[12.5px] font-semibold text-[#f26e22] hover:text-[#d85811] transition-colors"
       >
         Change
       </button>

@@ -39,6 +39,7 @@ function overviewHrefs(
         : `${base}?status=SUBMITTED,UNDER_REVIEW,DOCUMENTS_RESUBMITTED,QUERIED`,
     approved: `${base}?status=APPROVED`,
     rejected: `${base}?status=REJECTED`,
+    refunded: `${base}?status=REFUND_RECEIVED_BY_IMGC`,
   };
 }
 

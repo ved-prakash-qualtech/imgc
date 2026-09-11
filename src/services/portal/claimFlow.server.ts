@@ -198,6 +198,9 @@ export interface ClaimOverviewCounts {
   underProgress: number;
   approved: number;
   rejected: number;
+  /** Claims IMGC has confirmed the refund for (`REFUND_RECEIVED_BY_IMGC`) — a subset of
+   *  `approved`, not a sixth mutually-exclusive outcome, so it stays counted there too. */
+  refunded: number;
 }
 
 /**
@@ -220,6 +223,7 @@ export function summariseClaimOverview(
   let underProgress = 0;
   let approved = 0;
   let rejected = 0;
+  let refunded = 0;
 
   for (const row of rows) {
     const status = row.claim?.status;
@@ -227,14 +231,17 @@ export function summariseClaimOverview(
     else if (UNDER_PROGRESS_STATUSES.has(status)) underProgress += 1;
     // "Refund received" is a confirmation on top of an already-approved claim, not a fourth
     // outcome — it stays counted as "approved" here, same as CLOSED above, so this tile doesn't
-    // drop a claim the moment IMGC confirms the refund for it.
+    // drop a claim the moment IMGC confirms the refund for it. It also gets its own tally below,
+    // for the "Claim Refunded" tile — a subset count, same idea as `underProgress` above still
+    // including `QUERY_RAISED` even where a dedicated "Awaiting Lender Response" filter exists.
     else if (
       status === "APPROVED" ||
       status === "CLOSED" ||
       status === "REFUND_RECEIVED_BY_IMGC"
-    )
+    ) {
       approved += 1;
-    else if (status === "REJECTED") rejected += 1;
+      if (status === "REFUND_RECEIVED_BY_IMGC") refunded += 1;
+    } else if (status === "REJECTED") rejected += 1;
   }
 
   return {
@@ -243,6 +250,7 @@ export function summariseClaimOverview(
     underProgress,
     approved,
     rejected,
+    refunded,
   };
 }
 
