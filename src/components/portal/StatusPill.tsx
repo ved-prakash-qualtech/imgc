@@ -22,6 +22,7 @@ const TONES = new Map<string, string>([
   ["QUERY_RAISED", "bg-warning/15 text-warning"],
   ["DOCUMENTS_RESUBMITTED", "bg-brand-muted text-brand-dark"],
   ["CLOSED", "bg-neutral-200 text-neutral-700"],
+  ["REFUND_RECEIVED_BY_IMGC", "bg-brand-muted text-brand-dark"],
   // case document completion
   ["COMPLETE", "bg-success/15 text-success-700"],
   ["INCOMPLETE", "bg-warning/15 text-warning"],
@@ -51,6 +52,7 @@ const LABELS = new Map<string, string>([
   ["QUERY_RAISED", "Query raised"],
   ["DOCUMENTS_RESUBMITTED", "Docs resubmitted"],
   ["CLOSED", "Closed"],
+  ["REFUND_RECEIVED_BY_IMGC", "Refund Received by IMGC"],
   ["COMPLETE", "Documents complete"],
   ["INCOMPLETE", "Documents incomplete"],
   ["URGENT", "Urgent"],

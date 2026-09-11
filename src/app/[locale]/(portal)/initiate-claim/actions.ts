@@ -8,6 +8,7 @@ import {
   addLenderDocument,
   askClaimQuestion,
   createClaim,
+  markRefundReceived,
   raiseQuery,
   saveClaimDraft,
   submitClaim,
@@ -151,6 +152,17 @@ export async function updateClaimStatusAction(
 ): Promise<Outcome> {
   const session = await requireSession();
   const result = await updateClaimStatus(session, claimId, status, remarks);
+  if (result.ok) refreshAll(result.accountId, claimId);
+  return result;
+}
+
+/** IMGC only — confirm the refund for an already-approved claim has been received. Recording and
+ *  displaying that confirmation is all this does; see `markRefundReceived`. */
+export async function markRefundReceivedAction(
+  claimId: string
+): Promise<Outcome> {
+  const session = await requireSession();
+  const result = await markRefundReceived(session, claimId);
   if (result.ok) refreshAll(result.accountId, claimId);
   return result;
 }

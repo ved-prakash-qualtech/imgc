@@ -42,6 +42,8 @@ function noQueryMessage(status: ClaimStatus): string {
     case "REJECTED":
     case "CLOSED":
       return "No active query. This claim has been decided.";
+    case "REFUND_RECEIVED_BY_IMGC":
+      return "No active query. This claim has been decided, and the refund has been received by IMGC.";
     default:
       return "No active query.";
   }

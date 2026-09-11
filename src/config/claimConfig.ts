@@ -252,6 +252,7 @@ export const CLAIM_STATUS_LABELS: Readonly<Record<ClaimStatus, string>> = {
   APPROVED: "Approved",
   REJECTED: "Rejected",
   CLOSED: "Closed",
+  REFUND_RECEIVED_BY_IMGC: "Refund Received by IMGC",
   QUERIED: "Queried",
   ACTIVE: "Active",
 };
@@ -267,7 +268,7 @@ export const LENDER_ACTIONABLE: ReadonlySet<ClaimStatus> = new Set<ClaimStatus>(
 
 /** Terminal statuses — nothing further happens to the claim. */
 export const TERMINAL_STATUSES: ReadonlySet<ClaimStatus> = new Set<ClaimStatus>(
-  ["APPROVED", "REJECTED", "CLOSED"]
+  ["APPROVED", "REJECTED", "CLOSED", "REFUND_RECEIVED_BY_IMGC"]
 );
 
 /**

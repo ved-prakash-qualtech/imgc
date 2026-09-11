@@ -225,7 +225,15 @@ export function summariseClaimOverview(
     const status = row.claim?.status;
     if (!status || status === "DRAFT") initiation += 1;
     else if (UNDER_PROGRESS_STATUSES.has(status)) underProgress += 1;
-    else if (status === "APPROVED" || status === "CLOSED") approved += 1;
+    // "Refund received" is a confirmation on top of an already-approved claim, not a fourth
+    // outcome — it stays counted as "approved" here, same as CLOSED above, so this tile doesn't
+    // drop a claim the moment IMGC confirms the refund for it.
+    else if (
+      status === "APPROVED" ||
+      status === "CLOSED" ||
+      status === "REFUND_RECEIVED_BY_IMGC"
+    )
+      approved += 1;
     else if (status === "REJECTED") rejected += 1;
   }
 
@@ -284,6 +292,8 @@ function advance(
       account.stage = "Claim closed";
     } else if (status === "QUERY_RAISED") {
       account.stage = "Query raised with the lender";
+    } else if (status === "REFUND_RECEIVED_BY_IMGC") {
+      account.stage = "Refund received by IMGC";
     }
   }
 }
@@ -893,6 +903,64 @@ export async function updateClaimStatus(
   await notify(outcome.accountId, {
     subject: `Claim ${outcome.claimNo} is now ${status.replace(/_/g, " ").toLowerCase()}`,
     body: `${session.name} moved claim ${outcome.claimNo} to ${status}.${remarks ? ` Remarks: ${remarks}` : ""}`,
+    event: "CLAIM_STATUS_CHANGED",
+    unreadFor: ["LENDER"],
+  });
+  return { ok: true, claimId, accountId: outcome.accountId };
+}
+
+/**
+ * "Refund Received" — IMGC recording that money for an already-approved claim has actually
+ * reached them. Nothing more: no refund initiation, no invoice, no lender-side processing, no
+ * payment gateway, no second decision. `claim.decision` (the original APPROVED outcome) is left
+ * exactly as it was; this only appends one more real entry to `statusHistory`.
+ *
+ * The guard on `claim.status !== "APPROVED"` is what makes duplicate clicks and duplicate status
+ * updates impossible server-side (requirement, not just a disabled button): the first successful
+ * call moves the claim to REFUND_RECEIVED_BY_IMGC, so every call after that — a second click that
+ * slipped past the disabled button, two tabs open, a replayed request — fails this check instead
+ * of writing a second entry.
+ */
+export async function markRefundReceived(
+  session: AppSession,
+  claimId: string
+): Promise<Outcome> {
+  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+
+  const outcome = await writeDb((db) => {
+    const claim = db.claims.find((c) => c.id === claimId);
+    if (!claim) return { ok: false as const, error: "Claim not found." };
+    if (claim.status !== "APPROVED") {
+      return {
+        ok: false as const,
+        error:
+          claim.status === "REFUND_RECEIVED_BY_IMGC"
+            ? "The refund for this claim has already been recorded."
+            : "Only an approved claim can be marked as refund received.",
+      };
+    }
+    advance(db, claim, "REFUND_RECEIVED_BY_IMGC", session);
+    return {
+      ok: true as const,
+      accountId: claim.accountId,
+      claimNo: claim.claimNo,
+    };
+  });
+  if (!outcome.ok) return outcome;
+
+  await recordEvent({
+    accountId: outcome.accountId,
+    actor: session,
+    type: "CLAIM_STATUS_CHANGED",
+    summary: `Refund received by IMGC for claim ${outcome.claimNo}`,
+    meta: { claimId, status: "REFUND_RECEIVED_BY_IMGC" },
+  });
+  // The lender sees this everywhere the claim's status already renders (Track Claim, their own
+  // claim workspace, the Claims grid) — this notification is the push on top of that, same
+  // pattern `updateClaimStatus` uses for every other decision.
+  await notify(outcome.accountId, {
+    subject: `Claim ${outcome.claimNo} — refund received by IMGC`,
+    body: `${session.name} confirmed the refund for claim ${outcome.claimNo} has been received by IMGC.`,
     event: "CLAIM_STATUS_CHANGED",
     unreadFor: ["LENDER"],
   });

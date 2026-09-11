@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { setClaimStatusAction } from "@/app/[locale]/(portal)/accounts/[accountId]/actions";
+import { markRefundReceivedAction } from "@/app/[locale]/(portal)/initiate-claim/actions";
 
 import { AuditTrailTab } from "@/app/[locale]/(portal)/accounts/[accountId]/AuditTrailTab";
 import { InitialClaimsTab } from "@/app/[locale]/(portal)/accounts/[accountId]/InitialClaimsTab";
@@ -177,6 +178,10 @@ function QueryTrailTab({
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState("");
   const [noteError, setNoteError] = useState("");
+  // Its own transition, separate from the note composer's — clicking "Refund Received" doesn't
+  // need a note and shouldn't wait on (or be blocked by) whatever the Approve/Query composer is
+  // doing, and vice versa.
+  const [refundPending, startRefundTransition] = useTransition();
 
   const decide = useCallback(
     (status: "APPROVED" | "QUERIED") => {
@@ -204,6 +209,19 @@ function QueryTrailTab({
     },
     [account.id, note, router]
   );
+
+  const markRefund = useCallback(() => {
+    if (!claim) return;
+    startRefundTransition(async () => {
+      const result = await markRefundReceivedAction(claim.id);
+      if (!result.ok) {
+        toast.error(result.error ?? "The refund could not be recorded.");
+        return;
+      }
+      toast.success("Refund marked as received by IMGC.");
+      router.refresh();
+    });
+  }, [claim, router]);
 
   if (role !== "IMGC") return null;
 
@@ -247,6 +265,29 @@ function QueryTrailTab({
       </div>
       {noteError && (
         <p className="text-[12.5px] font-medium text-red-500">{noteError}</p>
+      )}
+      {/* Refund Received — only once the claim is actually approved, and only until it's been
+          recorded once. Hidden the rest of the time, per the requirement, rather than shown
+          disabled with no context for why. */}
+      {claim?.status === "APPROVED" && (
+        <div className="mt-1 flex items-center gap-2 border-t border-neutral-100 pt-1.5">
+          <Button
+            size="sm"
+            variant="default"
+            onClick={markRefund}
+            disabled={refundPending}
+          >
+            Refund Received
+          </Button>
+          <span className="text-[11.5px] text-neutral-500">
+            Confirms the refund for this claim has reached IMGC.
+          </span>
+        </div>
+      )}
+      {claim?.status === "REFUND_RECEIVED_BY_IMGC" && (
+        <div className="mt-1 flex items-center gap-1.5 border-t border-neutral-100 pt-1.5">
+          <StatusPill status="REFUND_RECEIVED_BY_IMGC" />
+        </div>
       )}
     </div>
   );

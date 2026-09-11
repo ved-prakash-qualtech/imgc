@@ -78,6 +78,7 @@ function classifyLoanStatus(
       return "Rejected";
     case "APPROVED":
     case "CLOSED":
+    case "REFUND_RECEIVED_BY_IMGC":
       return "Approved";
     default:
       return "New";

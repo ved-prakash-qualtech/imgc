@@ -92,7 +92,11 @@ function timelineEntries(
     visualCurrentStatus === "REJECTED" ||
     visualCurrentStatus === "CLOSED" ||
     visualCurrentStatus === "QUERIED" ||
-    visualCurrentStatus === "ACTIVE"
+    visualCurrentStatus === "ACTIVE" ||
+    // A safety net, same as the other terminal-ish statuses above — in the ordinary path this
+    // entry already came through as a real one in the `for` loop, since `markRefundReceived`
+    // always appends a genuine statusHistory entry when it advances the claim.
+    visualCurrentStatus === "REFUND_RECEIVED_BY_IMGC"
   ) {
     if (entries[entries.length - 1]?.status !== visualCurrentStatus) {
       add(syntheticEntry(visualCurrentStatus, lastAt));
@@ -114,6 +118,11 @@ function timelineEntries(
   } else if (visualCurrentStatus === "QUERY_RAISED") {
     addFuture("UNDER_REVIEW");
     addFuture("APPROVED");
+  } else if (visualCurrentStatus === "APPROVED") {
+    // Sequence the requirement asks for: Approved → Refund Received by IMGC. Previewed here the
+    // same way every other in-flight status previews its own next step, so the pill is visible
+    // (greyed, pending) the moment a claim is approved — before anyone has clicked the button.
+    addFuture("REFUND_RECEIVED_BY_IMGC");
   }
 
   return entries;
@@ -151,16 +160,18 @@ export function ClaimStatusHistoryGraph({
   return (
     <ol className="flex flex-wrap items-center gap-y-2">
       {entries.map((entry, i) => {
-        const currentIndex =
-          currentStatus === "APPROVED"
-            ? entries.length
-            : entries.findLastIndex(
-                (item) =>
-                  item.status ===
-                  (currentStatus === "DOCUMENTS_RESUBMITTED"
-                    ? "UNDER_REVIEW"
-                    : currentStatus)
-              );
+        // APPROVED used to be a dead end here (no step came after it), so it was pinned one past
+        // the last index to render every entry as done rather than "still in progress". Now that
+        // Refund Received can follow it, APPROVED is found like any other status: the claim
+        // really is currently there, and the newly-added future entry renders as pending instead
+        // of also reading as already-approved.
+        const currentIndex = entries.findLastIndex(
+          (item) =>
+            item.status ===
+            (currentStatus === "DOCUMENTS_RESUBMITTED"
+              ? "UNDER_REVIEW"
+              : currentStatus)
+        );
         const isCurrent = i === currentIndex;
         const isFuture = i > currentIndex;
         return (

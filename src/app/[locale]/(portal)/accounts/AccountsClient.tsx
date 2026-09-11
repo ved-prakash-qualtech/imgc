@@ -313,10 +313,16 @@ export function AccountsClient({
       if (status === "UNDER_PROGRESS") {
         if (!UNDER_PROGRESS_STATUSES.has(a.claimStatus)) return false;
       } else if (status === "APPROVED") {
-        // Folds "CLOSED" in too — same fold `summariseClaimOverview`'s own "approved" bucket
-        // applies (closest terminal-success bucket), so this filter's rows always match what the
+        // Folds "CLOSED" and "REFUND_RECEIVED_BY_IMGC" in too — same fold `summariseClaimOverview`'s
+        // own "approved" bucket applies (closest terminal-success bucket, and a refund confirmation
+        // on top of an approval, not a fourth outcome), so this filter's rows always match what the
         // "Claim Approved" tile counted.
-        if (a.claimStatus !== "APPROVED" && a.claimStatus !== "CLOSED") return false;
+        if (
+          a.claimStatus !== "APPROVED" &&
+          a.claimStatus !== "CLOSED" &&
+          a.claimStatus !== "REFUND_RECEIVED_BY_IMGC"
+        )
+          return false;
       } else if (status === "ACTIVE") {
         // Not a `claimStatus` value — reads the account's own `isActive` flag (not closed, and
         // touched within the last 8 days), same definition the Dashboard's "Active" ring and

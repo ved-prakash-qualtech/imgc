@@ -441,10 +441,14 @@ export async function buildDashboardSummary(
   // against what `/dpd?loanStatus=Queried` actually lists.
   const queriedCount =
     claimStatusCount("QUERY_RAISED") + claimStatusCount("DOCUMENTS_RESUBMITTED");
-  // "Approved" folds in CLOSED too — same fold `classifyLoanStatus` in accounts.server.ts applies
-  // (closest terminal-success bucket) — so this tile's count doesn't undercount against what
-  // `/dpd?loanStatus=Approved` actually lists.
-  const approvedCount = claimStatusCount("APPROVED") + claimStatusCount("CLOSED");
+  // "Approved" folds in CLOSED and REFUND_RECEIVED_BY_IMGC too — same fold `classifyLoanStatus`
+  // in accounts.server.ts applies (closest terminal-success bucket, and a refund confirmation on
+  // top of an approval rather than a fourth outcome) — so this tile's count doesn't undercount
+  // against what `/dpd?loanStatus=Approved` actually lists.
+  const approvedCount =
+    claimStatusCount("APPROVED") +
+    claimStatusCount("CLOSED") +
+    claimStatusCount("REFUND_RECEIVED_BY_IMGC");
 
   // Computed once, up here, so both the funnel band and the pipeline-health KPIs (further below)
   // read the same "overdue queries" number instead of two copies quietly drifting apart. No

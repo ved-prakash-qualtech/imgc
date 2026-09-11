@@ -432,13 +432,16 @@ export function EligibleCasesClient({
             )
           );
         }
-        // "APPROVED" also matches CLOSED — same fold `summariseClaimOverview` applies to its own
-        // "approved" tile (closest terminal-success bucket), so this filter's rows always match
-        // what the "Claim Approved" tile counted.
+        // "APPROVED" also matches CLOSED and REFUND_RECEIVED_BY_IMGC — same fold
+        // `summariseClaimOverview` applies to its own "approved" tile (closest terminal-success
+        // bucket, and a refund confirmation on top of an approval, not a fourth outcome), so this
+        // filter's rows always match what the "Claim Approved" tile counted.
         if (status === "APPROVED") {
           return (
             !isNotStarted(a) &&
-            (a.claim?.status === "APPROVED" || a.claim?.status === "CLOSED")
+            (a.claim?.status === "APPROVED" ||
+              a.claim?.status === "CLOSED" ||
+              a.claim?.status === "REFUND_RECEIVED_BY_IMGC")
           );
         }
         return !isNotStarted(a) && a.claim?.status === (status as ClaimStatus);

@@ -63,7 +63,18 @@ export default async function ClaimDetailsPage({
   const terminal =
     claim.status === "APPROVED" ||
     claim.status === "REJECTED" ||
-    claim.status === "CLOSED";
+    claim.status === "CLOSED" ||
+    claim.status === "REFUND_RECEIVED_BY_IMGC";
+  // The confirmation IMGC recorded via "Refund Received" — read straight off the claim's own
+  // history rather than a second field, so there is exactly one place this can ever disagree
+  // with itself. Both roles land on this page (see the file doc comment), so this is how the
+  // lender sees it too.
+  const refundReceivedEntry =
+    claim.status === "REFUND_RECEIVED_BY_IMGC"
+      ? [...claim.statusHistory]
+          .reverse()
+          .find((h) => h.status === "REFUND_RECEIVED_BY_IMGC")
+      : undefined;
 
   return (
     <PortalShell
@@ -119,6 +130,15 @@ export default async function ClaimDetailsPage({
                     {claim.decision.remarks && (
                       <p className="mt-2 rounded-md bg-neutral-50 px-3 py-2 text-[13px] text-neutral-700">
                         {claim.decision.remarks}
+                      </p>
+                    )}
+                    {refundReceivedEntry && (
+                      <p className="mt-2 flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-2 text-[13.5px]">
+                        <StatusPill status="REFUND_RECEIVED_BY_IMGC" />
+                        <span className="text-neutral-700">
+                          by {refundReceivedEntry.byName} ·{" "}
+                          {when(refundReceivedEntry.at)}
+                        </span>
                       </p>
                     )}
                   </div>

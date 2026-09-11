@@ -16,6 +16,13 @@ export type Bucket = "IMGC" | "LENDER";
  * DRAFT and SUBMITTED are the lender's; everything after is IMGC's, except
  * DOCUMENTS_RESUBMITTED which is how the lender answers a query. CLOSED is terminal and
  * distinct from APPROVED/REJECTED: a decided claim can still be open for settlement.
+ *
+ * REFUND_RECEIVED_BY_IMGC is a lightweight follow-up IMGC records once money for an already
+ * APPROVED claim has actually reached them — recording and displaying that confirmation only.
+ * It carries no processing/payment logic of its own (see `markRefundReceived` in
+ * claimFlow.server.ts): no refund-initiation, no invoice generation, no lender-side settlement,
+ * no second decision. `claim.decision` (the APPROVED outcome, who approved it, when) is left
+ * untouched — this is a status past it, not a replacement for it.
  */
 export type ClaimStatus =
   | "DRAFT"
@@ -26,6 +33,7 @@ export type ClaimStatus =
   | "APPROVED"
   | "REJECTED"
   | "CLOSED"
+  | "REFUND_RECEIVED_BY_IMGC"
   // Retained: `Account.claimStatus` predates the Claim entity and still uses it.
   | "QUERIED"
   | "ACTIVE";

@@ -112,7 +112,10 @@ export function ClaimWorkspace({
 
   const resubmitting = status === "QUERY_RAISED";
   const locked =
-    status === "APPROVED" || status === "REJECTED" || status === "CLOSED";
+    status === "APPROVED" ||
+    status === "REJECTED" ||
+    status === "CLOSED" ||
+    status === "REFUND_RECEIVED_BY_IMGC";
 
   const onSave = useCallback(() => {
     startTransition(async () => {
