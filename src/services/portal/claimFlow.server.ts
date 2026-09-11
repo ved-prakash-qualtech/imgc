@@ -238,7 +238,7 @@ export function summariseClaimOverview(
   }
 
   return {
-    total: rows.length,
+    total: initiation + underProgress,
     initiation,
     underProgress,
     approved,

@@ -280,9 +280,13 @@ export function ClaimDashboardView({
       <Panel
         size="compact"
         title="Month-on-month claim status"
-        description={`Claims that reached "${statusLabel}" in each of the last ${months} months${
-          data.canFilterByLender ? ` — ${selectedLenderName}` : ""
-        }.`}
+        description={
+          data.isLender
+            ? undefined
+            : `Claims that reached "${statusLabel}" in each of the last ${months} months${
+                data.canFilterByLender ? ` — ${selectedLenderName}` : ""
+              }.`
+        }
         actions={
           <div className="flex items-center gap-2">
             <FilterSelect
@@ -319,11 +323,13 @@ export function ClaimDashboardView({
         size="compact"
         title="Query Raised"
         description={
-          data.canFilterByLender
-            ? `Claims currently submitted but not yet decided${
-                lenderOrgId ? ` — ${selectedLenderName}` : ", by lender"
-              }.`
-            : "Your claims currently submitted but not yet decided."
+          !data.isLender
+            ? data.canFilterByLender
+              ? `Claims currently submitted but not yet decided${
+                  lenderOrgId ? ` — ${selectedLenderName}` : ", by lender"
+                }.`
+              : "Your claims currently submitted but not yet decided."
+            : undefined
         }
       >
         <div className="max-h-[280px] overflow-auto px-4 py-3">

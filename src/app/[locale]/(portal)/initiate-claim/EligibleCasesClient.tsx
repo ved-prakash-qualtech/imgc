@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -15,6 +15,12 @@ import {
 import { ClaimRowActions } from "@/components/portal/ClaimRowActions";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -85,21 +91,23 @@ function sortFromParam(value: string | null): {
  *  of a claim, so it needs a value of its own alongside the real ones. Covers the full status
  *  range (this grid is now Initiate Claim and Track Claim combined, not just the former). */
 const STATUS_OPTIONS = [
-  "ALL",
   "NOT_STARTED",
   "DRAFT",
   "SUBMITTED",
   "UNDER_REVIEW",
   "QUERY_RAISED",
   "APPROVED",
+  "REFUND_RECEIVED_BY_IMGC",
   "REJECTED",
   "CLOSED",
-  // Composite buckets — not a real ClaimStatus, a grouping of several. Exists so the Claims
-  // Overview KPI tiles (whose buckets don't map 1:1 to a single status) can deep-link into a
-  // filter that actually matches what the tile counted.
-  "INITIATION",
-  "UNDER_PROGRESS",
 ] as const;
+type StatusOption = (typeof STATUS_OPTIONS)[number];
+type StatusFilter = StatusOption | "DOCUMENTS_RESUBMITTED" | "ACTIVE_NPA";
+const URL_STATUS_VALUES = new Set<string>([
+  ...STATUS_OPTIONS,
+  "DOCUMENTS_RESUBMITTED",
+  "ACTIVE_NPA",
+]);
 
 /** Which side currently holds the claim. Same two values (and the same "ALL") the Accounts grid
  *  filters on, so the two screens never disagree about what a bucket is. A row with no claim yet
@@ -130,11 +138,9 @@ function dateOrDash(iso?: string): string {
   return iso ? date(iso) : "—";
 }
 
-function statusLabel(v: (typeof STATUS_OPTIONS)[number]): string {
-  if (v === "ALL") return "All Claim Status";
+function statusLabel(v: StatusOption): string {
   if (v === "NOT_STARTED") return "Not started";
-  if (v === "INITIATION") return "Claim initiation";
-  if (v === "UNDER_PROGRESS") return "Under progress";
+  if (v === "REFUND_RECEIVED_BY_IMGC") return "Refund";
   return v
     .toLowerCase()
     .split("_")
@@ -147,7 +153,8 @@ function purposeDisplay(v: string): string {
 }
 
 function bucketDisplay(v: (typeof BUCKETS)[number]): string {
-  return v === "ALL" ? "All Owners" : v.toLowerCase();
+  if (v === "ALL") return "All Owners";
+  return v === "IMGC" ? "IMGC" : "Lender";
 }
 
 /** A claim record exists the moment the lender opens the workspace — that's a plumbing detail
@@ -292,22 +299,87 @@ function FilterSelect<T extends string>({
   );
 }
 
+function StatusMultiSelect({
+  value,
+  onChange,
+}: Readonly<{
+  value: StatusFilter[];
+  onChange: (next: StatusFilter[]) => void;
+}>) {
+  const [open, setOpen] = useState(false);
+  const selected = new Set(value);
+  const label =
+    value.length === 0
+      ? "All Claim Status"
+      : value.length === 1
+        ? value[0] === "ACTIVE_NPA"
+          ? "Active NPA"
+          : statusLabel(value[0] as StatusOption)
+        : `${value.length} statuses selected`;
+
+  const toggle = (option: StatusOption) => {
+    const next = new Set(
+      value.filter((item): item is StatusOption => item !== "ACTIVE_NPA")
+    );
+    if (next.has(option)) next.delete(option);
+    else next.add(option);
+    onChange(STATUS_OPTIONS.filter((item) => next.has(item)));
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        aria-label="All Claim Status"
+        className="inline-flex h-8 max-w-[190px] items-center gap-2 rounded-full border border-neutral-200 bg-white px-3.5 text-[12.5px] font-medium text-neutral-700 outline-none transition-colors hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDownIcon className="size-3.5 shrink-0 text-neutral-400" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56 gap-1 p-2">
+        {STATUS_OPTIONS.map((option) => (
+          <label
+            key={option}
+            htmlFor={`claim-status-${option}`}
+            className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-neutral-900 hover:bg-neutral-50"
+          >
+            <Checkbox
+              id={`claim-status-${option}`}
+              checked={selected.has(option)}
+              onCheckedChange={() => toggle(option)}
+            />
+            {statusLabel(option)}
+          </label>
+        ))}
+        {value.length > 0 && (
+          <button
+            type="button"
+            className="mt-1 border-t border-neutral-100 px-2 pt-2 text-left text-xs font-medium text-neutral-500 hover:text-neutral-900"
+            onClick={() => onChange([])}
+          >
+            Clear status filter
+          </button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /** Which `?status=` values are real filter options — a Claims Overview tile links here with one
  *  of these; anything else (or none) falls back to "ALL" rather than silently filtering wrong. */
-function statusFromParam(
-  value: string | null
-): (typeof STATUS_OPTIONS)[number] {
-  return (STATUS_OPTIONS as readonly string[]).includes(value ?? "")
-    ? (value as (typeof STATUS_OPTIONS)[number])
-    : "ALL";
+function statusFromParam(value: string | null): StatusFilter[] {
+  if (!value) return [];
+  return [
+    ...new Set(value.split(",").filter((item) => URL_STATUS_VALUES.has(item))),
+  ] as StatusFilter[];
 }
 
 export function EligibleCasesClient({
   accounts,
 }: Readonly<{ accounts: EligibleRow[] }>) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<(typeof STATUS_OPTIONS)[number]>(() =>
+  const [status, setStatus] = useState<StatusFilter[]>(() =>
     statusFromParam(searchParams.get("status"))
   );
   const [product, setProduct] = useState("ALL");
@@ -390,11 +462,15 @@ export function EligibleCasesClient({
   );
 
   const handleStatusChange = useCallback(
-    (v: (typeof STATUS_OPTIONS)[number]) => {
+    (v: StatusFilter[]) => {
       setStatus(v);
+      const nextParams = new URLSearchParams(searchParams.toString());
+      if (v.length === 0) nextParams.delete("status");
+      else nextParams.set("status", v.join(","));
+      router.replace(`?${nextParams.toString()}`, { scroll: false });
       setPage(1);
     },
-    []
+    [router, searchParams]
   );
 
   const handleProductChange = useCallback((v: string) => {
@@ -415,36 +491,25 @@ export function EligibleCasesClient({
   const rows = useMemo(() => {
     // Eligibility (NPA, or an existing claim) is already decided server-side — every row here is
     // meant to be shown.
-    let result = accounts;
+    let result = accounts.filter(
+      (account) => account.claim?.status !== "DOCUMENTS_RESUBMITTED"
+    );
 
-    if (status !== "ALL") {
+    if (status.length > 0) {
       result = result.filter((a) => {
-        if (status === "NOT_STARTED") return isNotStarted(a);
-        // Same buckets the Claims Overview KPI tiles count — see initiate-claim/page.tsx.
-        if (status === "INITIATION") {
-          return isNotStarted(a) || a.claim?.status === "DRAFT";
-        }
-        if (status === "UNDER_PROGRESS") {
+        if (status.includes("ACTIVE_NPA")) {
           return (
-            !isNotStarted(a) &&
+            isNotStarted(a) ||
+            a.claim?.status === "DRAFT" ||
             UNDER_PROGRESS_STATUSES.has(
               (a.claim as NonNullable<EligibleRow["claim"]>).status
             )
           );
         }
-        // "APPROVED" also matches CLOSED and REFUND_RECEIVED_BY_IMGC — same fold
-        // `summariseClaimOverview` applies to its own "approved" tile (closest terminal-success
-        // bucket, and a refund confirmation on top of an approval, not a fourth outcome), so this
-        // filter's rows always match what the "Claim Approved" tile counted.
-        if (status === "APPROVED") {
-          return (
-            !isNotStarted(a) &&
-            (a.claim?.status === "APPROVED" ||
-              a.claim?.status === "CLOSED" ||
-              a.claim?.status === "REFUND_RECEIVED_BY_IMGC")
-          );
-        }
-        return !isNotStarted(a) && a.claim?.status === (status as ClaimStatus);
+        if (status.includes("NOT_STARTED") && isNotStarted(a)) return true;
+        return (
+          !isNotStarted(a) && status.includes(a.claim?.status as StatusFilter)
+        );
       });
     }
     if (product !== "ALL") {
@@ -496,8 +561,8 @@ export function EligibleCasesClient({
             valB = b.product;
             break;
           case "status":
-            valA = isNotStarted(a) ? "NOT_STARTED" : a.claim?.status ?? "";
-            valB = isNotStarted(b) ? "NOT_STARTED" : b.claim?.status ?? "";
+            valA = isNotStarted(a) ? "NOT_STARTED" : (a.claim?.status ?? "");
+            valB = isNotStarted(b) ? "NOT_STARTED" : (b.claim?.status ?? "");
             break;
           case "bucket":
             valA = a.claim?.bucket ?? "";
@@ -547,13 +612,7 @@ export function EligibleCasesClient({
             className="h-8 w-[230px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           />
         </div>
-        <FilterSelect
-          label="Status"
-          options={STATUS_OPTIONS}
-          value={status}
-          onChange={handleStatusChange}
-          display={statusLabel}
-        />
+        <StatusMultiSelect value={status} onChange={handleStatusChange} />
         <FilterSelect
           label="Purpose"
           options={["ALL", ...products] as const}
@@ -605,7 +664,13 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <SortableTableHead column="purpose" label="Purpose" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <SortableTableHead
+                column="purpose"
+                label="Purpose"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
               <SortableTableHead
                 column="loanAmount"
                 label="Amount"
@@ -620,8 +685,20 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <SortableTableHead column="status" label="Status" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-              <SortableTableHead column="bucket" label="Owner" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+              <SortableTableHead
+                column="status"
+                label="Status"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="bucket"
+                label="Owner"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
               <SortableTableHead
                 column="submittedAt"
                 label="Claim Initiation Date"
