@@ -1191,6 +1191,201 @@ export function buildSeed(): MockDb {
     });
   });
 
+  // Dedicated claims in April, May, and June so "Month-on-month claim status" has 2 and 3 claims
+  // per month across the 6-month window (2 in April, 3 in May, 3 in June).
+  const SPRING_MONTH_SPECS: ReadonlyArray<{
+    outcome: "APPROVED" | "REJECTED";
+    daysAgo: number;
+    lenderIndex: number;
+  }> = [
+    // April (2 claims)
+    { outcome: "APPROVED", daysAgo: 145, lenderIndex: 0 },
+    { outcome: "REJECTED", daysAgo: 140, lenderIndex: 1 },
+    // May (3 claims)
+    { outcome: "APPROVED", daysAgo: 115, lenderIndex: 0 },
+    { outcome: "APPROVED", daysAgo: 110, lenderIndex: 1 },
+    { outcome: "REJECTED", daysAgo: 105, lenderIndex: 2 },
+    // June (3 claims)
+    { outcome: "APPROVED", daysAgo: 85, lenderIndex: 0 },
+    { outcome: "APPROVED", daysAgo: 80, lenderIndex: 1 },
+    { outcome: "REJECTED", daysAgo: 75, lenderIndex: 2 },
+  ];
+
+  SPRING_MONTH_SPECS.forEach((spec, e) => {
+    const lender = LENDER_DEFS[spec.lenderIndex]!;
+    const lenderUser = lenderUsersByOrg.get(lender.id)?.[0];
+    const actorId = lenderUser?.id ?? "usr_len1";
+    const actorName = lenderUser?.name ?? "Arjun Mehta";
+    const [imgcId, imgcName] =
+      spec.lenderIndex % 3 === 0
+        ? ["usr_emp1", "Meera Nair"]
+        : spec.lenderIndex % 3 === 1
+          ? ["usr_emp2", "Rohit Sharma"]
+          : ["usr_emp3", "Anita Desai"];
+
+    const i =
+      TOTAL_ACCOUNTS +
+      EXTRA_INITIATE_ELIGIBLE +
+      EXTRA_QUERY_RAISED +
+      LENDER_DEFS.length * DASHBOARD_BALANCE_SPECS.length +
+      e;
+
+    const account = buildAccount(i, lender, [imgcId, imgcName]);
+    account.npa = true;
+    account.writeOff = false;
+    account.dpd = DPD_PATTERN[19 + (e % (DPD_PATTERN.length - 19))]!;
+
+    const amounts: Record<string, number> = {
+      sanctionedAmount: account.loanAmount,
+      outstandingPrincipal: account.outstandingAmount,
+      overdueAmount: Math.round(account.outstandingAmount * 0.11),
+      emiAmount: Math.round(account.loanAmount / account.tenureMonths),
+      sumInsured: Math.round(account.loanAmount * 0.9),
+      claimAmount: account.outstandingAmount,
+    };
+    PAS_TEMPLATE.forEach((t) => {
+      pasValues.push({
+        id: `pas_${account.id}_${t.key}`,
+        accountId: account.id,
+        key: t.key,
+        label: t.label,
+        value: inr(amounts[t.key] ?? 0),
+        source: "PAS",
+        updatedAt: ago(2),
+        updatedBy: "PAS",
+      });
+    });
+
+    claimCountByPrefix[dbConfig.prefix] = (claimCountByPrefix[dbConfig.prefix] ?? 0) + 1;
+    const claimId = `clm_${String(i + 1).padStart(4, "0")}`;
+    const claimNo = `${dbConfig.prefix}-2026-${String(claimCountByPrefix[dbConfig.prefix]).padStart(5, "0")}`;
+
+    const { outcome, daysAgo } = spec;
+    const steps = ["DRAFT", "SUBMITTED", "UNDER_REVIEW", outcome] as const;
+    const statusHistory = steps.map((s, si) => {
+      const imgcSide = s === "UNDER_REVIEW" || s === outcome;
+      return {
+        status: s,
+        at: ago(Math.max(0, daysAgo - si * (daysAgo / (steps.length + 1)))),
+        byId: imgcSide ? imgcId : actorId,
+        byName: imgcSide ? imgcName : actorName,
+        byRole: (imgcSide ? "IMGC" : "LENDER") as "IMGC" | "LENDER",
+      };
+    });
+    const decidedAt = statusHistory[steps.length - 1]!.at;
+
+    claims.push({
+      id: claimId,
+      claimNo,
+      accountId: account.id,
+      claimType: "INITIAL",
+      status: outcome,
+      fields: Object.fromEntries(dbConfig.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""])),
+      statusHistory,
+      createdById: actorId,
+      createdByName: actorName,
+      createdAt: ago(daysAgo),
+      submittedAt: ago(Math.max(0, daysAgo - 1)),
+      lastUpdatedAt: decidedAt,
+      draftSaved: true,
+      bucket: "IMGC",
+      decision: {
+        outcome,
+        byId: imgcId,
+        byName: imgcName,
+        at: decidedAt,
+        remarks:
+          outcome === "APPROVED"
+            ? "Settlement verified. Claim payable in full."
+            : "Recovery already completed independently of IMGC — no further claim payable.",
+      },
+    });
+
+    account.claimStatus = toAccountClaimStatus(outcome);
+    account.stage = outcome === "APPROVED" ? "Claim approved" : "Claim rejected";
+    account.submittedAt = ago(Math.max(0, daysAgo - 1));
+
+    dbConfig.documents.forEach((docSpec, di) => {
+      if (docSpec.condition) return;
+      const docId = `${claimId}_doc${di}`;
+      const currentFileId = `${docId}_f1`;
+      const rejected = outcome === "REJECTED" && di === 0;
+      documentFiles.push({
+        id: currentFileId,
+        documentId: docId,
+        accountId: account.id,
+        originalName: `${docSpec.name}.pdf`,
+        storedPath: "",
+        size: 200_000 + di * 7_000,
+        mime: "application/pdf",
+        uploadedBy: actorId,
+        uploadedByName: actorName,
+        uploadedAt: ago(Math.max(0, daysAgo - 1)),
+        version: 1,
+      });
+      claimDocuments.push({
+        id: docId,
+        accountId: account.id,
+        claimId,
+        slug: docSpec.slug,
+        name: docSpec.name,
+        category: docSpec.category,
+        description: docSpec.description,
+        required: docSpec.required,
+        multiple: docSpec.multiple ?? false,
+        conditional: false,
+        addedBy: "SYSTEM",
+        status: rejected ? "REJECTED" : "APPROVED",
+        version: 1,
+        currentFileId,
+        rejection: rejected
+          ? {
+              at: decidedAt,
+              by: imgcName,
+              reason: REJECTION_REASONS[e % REJECTION_REASONS.length]!,
+            }
+          : undefined,
+        review: {
+          decision: rejected ? "REJECTED" : "APPROVED",
+          by: imgcId,
+          byName: imgcName,
+          at: decidedAt,
+          remarks: rejected
+            ? REJECTION_REASONS[e % REJECTION_REASONS.length]!
+            : "Verified.",
+          version: 1,
+        },
+        active: true,
+        createdAt: ago(daysAgo),
+      });
+    });
+
+    statusHistory.forEach((h, hi) => {
+      if (hi === 0) return;
+      auditEvents.push({
+        accountId: account.id,
+        at: h.at,
+        actorId: h.byId,
+        actorName: h.byName,
+        actorRole: h.byRole,
+        type: "CLAIM_STATUS_CHANGED",
+        summary: `Claim ${h.status.toLowerCase().replace(/_/g, " ")}`,
+        meta: { status: h.status },
+      });
+    });
+    auditEvents.push({
+      accountId: account.id,
+      at: ago(Math.max(0, daysAgo - 1)),
+      actorId,
+      actorName,
+      actorRole: "LENDER",
+      type: "CLAIM_SUBMITTED",
+      summary: `Claim ${claimNo} submitted`,
+    });
+
+    accounts.push(account);
+  });
+
   // One document-decision audit entry per document that has actually been decided.
   claimDocuments.forEach((d) => {
     if (!d.review) return;

@@ -261,12 +261,6 @@ export function ClaimDashboardView({
     router.push(`?${next.toString()}`, { scroll: false });
   }
 
-  const statusLabel =
-    MONTHLY_STATUS_OPTIONS.find((o) => o.key === status)?.label ??
-    "Claim initiated";
-  const selectedLenderName =
-    data.lenders.find((l) => l.id === lenderOrgId)?.name ?? "All lenders";
-
   function openClaim(claimId: string) {
     router.push(`${ROUTES.claimDetails(claimId)}?tab=status`);
   }
@@ -280,13 +274,6 @@ export function ClaimDashboardView({
       <Panel
         size="compact"
         title="Month-on-month claim status"
-        description={
-          data.isLender
-            ? undefined
-            : `Claims that reached "${statusLabel}" in each of the last ${months} months${
-                data.canFilterByLender ? ` — ${selectedLenderName}` : ""
-              }.`
-        }
         actions={
           <div className="flex items-center gap-2">
             <FilterSelect
@@ -321,16 +308,7 @@ export function ClaimDashboardView({
 
       <Panel
         size="compact"
-        title={data.isLender ? "Query Raised · Not Responded" : "Query Raised"}
-        description={
-          !data.isLender
-            ? data.canFilterByLender
-              ? `Claims currently submitted but not yet decided${
-                  lenderOrgId ? ` — ${selectedLenderName}` : ", by lender"
-                }.`
-              : "Your claims currently submitted but not yet decided."
-            : undefined
-        }
+        title="Query Raised · Not Responded"
       >
         <div className="max-h-[280px] overflow-auto px-4 py-3">
           {data.isLender ? (

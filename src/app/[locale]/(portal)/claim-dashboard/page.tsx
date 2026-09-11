@@ -53,7 +53,7 @@ function parseMonths(v: string | undefined): MonthWindow {
   const n = Number(v);
   return (MONTH_WINDOWS as readonly number[]).includes(n)
     ? (n as MonthWindow)
-    : 3;
+    : 6;
 }
 
 export default async function ClaimDashboardPage({

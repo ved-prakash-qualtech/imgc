@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
   ArrowRightIcon,
   BadgeCheckIcon,
-  CheckCircle2Icon,
   EyeIcon,
   EyeOffIcon,
   KeyRoundIcon,
@@ -221,9 +220,8 @@ export function LoginClient({
                 for every lender.
               </span>
             </h1>
-            <p className="mt-3.5 max-w-[520px] text-[15.5px] leading-relaxed text-slate-800/90">
-              Collect once, review everywhere — documents, PAS values and a
-              complete audit trail on a single account.
+            <p className="font-display mt-3.5 max-w-[520px] text-[34px] font-bold leading-[1.12] tracking-tight text-slate-800/90 [text-shadow:_0_0_15px_rgb(255_255_255_/_100%),_0_1px_2px_rgb(255_255_255_/_80%)] sm:text-[44px]">
+              Initiate, track and manage claims with complete visibility, all in one place.
             </p>
 
             {/* <ul className="mt-5 flex max-w-[620px] flex-wrap gap-2">
@@ -237,30 +235,6 @@ export function LoginClient({
                 </li>
               ))}
             </ul> */}
-
-            {/* Sourced from imgc.com's own "Home Buyer Benefits" page — the one photograph on
-                the real site that already carries this exact warm orange duotone, so it drops
-                into the gradient here without a second treatment. A home-loan couple checking
-                their phone together is closer to what this portal is actually for than an
-                abstract icon would be. */}
-            <div className="relative mt-5 h-[104px] w-full max-w-[560px] overflow-hidden rounded-2xl shadow-md shadow-black/10">
-              <Image
-                src="/assets/images/login-hero.jpg"
-                alt="A home loan couple reviewing their account together"
-                fill
-                sizes="560px"
-                className="object-cover object-[30%_center]"
-                priority
-              />
-              {/* The claims-perspective line this portal is actually for — laid over the photo
-                  rather than as a separate line beneath it, so it costs no extra vertical space
-                  in an already viewport-tight layout. */}
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3.5 pt-6 pb-2">
-                <p className="text-[12px] font-medium text-white [text-shadow:_0_1px_2px_rgb(0_0_0_/_40%)]">
-                  Every claim, tracked start to finish — for the families behind it.
-                </p>
-              </div>
-            </div>
 
             {/* Squarer chips with an icon tile, deliberately unlike the rounded-full benefit
                 pills above — these are assurances about the platform, not things it does. */}
