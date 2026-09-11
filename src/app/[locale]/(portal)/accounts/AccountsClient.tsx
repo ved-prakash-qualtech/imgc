@@ -653,7 +653,7 @@ export function AccountsClient({
               />
               <SortableTableHead
                 column="submittedAt"
-                label="Claim Initiation Date"
+                label="Initiation Date"
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}

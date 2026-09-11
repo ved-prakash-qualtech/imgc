@@ -23,7 +23,7 @@ import type { AuditEvent, ClaimQuery, Remark, Role } from "@/server/mock/types";
 
 const TABS = [
   "Loan Details",
-  "Query Trail",
+  "Query/Decision",
   "Documents",
   "Audit Trail",
 ] as const;
@@ -32,7 +32,7 @@ const TABS = [
  *  actually shows what it's about (see notifications/page.tsx's `tabSlugForEvent`). */
 const TAB_SLUGS: Record<(typeof TABS)[number], string> = {
   "Loan Details": "overview",
-  "Query Trail": "query-trail",
+  "Query/Decision": "query-trail",
   Documents: "initial-claims",
   "Audit Trail": "audit-trail",
 };
@@ -131,7 +131,7 @@ export function AccountWorkspace({
 
       {tab === "Loan Details" && <OverviewTab account={account} />}
 
-      {tab === "Query Trail" && (
+      {tab === "Query/Decision" && (
         <QueryTrailTab
           account={account}
           role={role}
@@ -184,12 +184,14 @@ function QueryTrailTab({
   const [refundPending, startRefundTransition] = useTransition();
 
   const decide = useCallback(
-    (status: "APPROVED" | "QUERIED") => {
+    (status: "APPROVED" | "QUERIED" | "REJECTED") => {
       const trimmedNote = note.trim();
       if (!trimmedNote) {
         setNoteError(
           status === "APPROVED"
             ? "Please enter a note before marking the case as approved."
+            : status === "REJECTED"
+            ? "Please enter a note before rejecting the case."
             : "Please enter a note before raising a query."
         );
         return;
@@ -256,6 +258,14 @@ function QueryTrailTab({
         </Button>
         <Button
           size="sm"
+          variant="destructive"
+          onClick={() => decide("REJECTED")}
+          disabled={pending}
+        >
+          Reject
+        </Button>
+        <Button
+          size="sm"
           variant="outline"
           onClick={() => decide("QUERIED")}
           disabled={pending}
@@ -308,7 +318,7 @@ function QueryTrailTab({
           documents={claimDocuments}
           isLender={false}
           imgcComposer={imgcComposer}
-          title="Query Trail"
+          title="Query/Decision"
           constrainedLayout
         />
       ) : (

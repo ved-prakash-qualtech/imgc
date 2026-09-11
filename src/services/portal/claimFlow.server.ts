@@ -313,7 +313,7 @@ function advance(
 export async function syncClaimForAccountDecision(
   session: AppSession,
   accountId: string,
-  status: Extract<ClaimStatus, "APPROVED" | "QUERIED">,
+  status: Extract<ClaimStatus, "APPROVED" | "QUERIED" | "REJECTED">,
   note: string
 ): Promise<void> {
   await writeDb((db) => {
@@ -326,6 +326,18 @@ export async function syncClaimForAccountDecision(
       advance(db, claim, "APPROVED", session, note || undefined);
       claim.decision = {
         outcome: "APPROVED",
+        byId: session.userId,
+        byName: session.name,
+        at: nowIso(),
+        remarks: note,
+      };
+      return;
+    }
+
+    if (status === "REJECTED") {
+      advance(db, claim, "REJECTED", session, note || undefined);
+      claim.decision = {
+        outcome: "REJECTED",
         byId: session.userId,
         byName: session.name,
         at: nowIso(),
@@ -764,7 +776,11 @@ export async function submitClaim(
       resubmitting ? "DOCUMENTS_RESUBMITTED" : "SUBMITTED",
       session
     );
-    if (!claim.submittedAt) claim.submittedAt = nowIso();
+    if (!claim.submittedAt) {
+      claim.submittedAt = nowIso();
+      const acc = db.accounts.find((a) => a.id === claim.accountId);
+      if (acc && !acc.submittedAt) acc.submittedAt = claim.submittedAt;
+    }
     claim.bucket = "IMGC";
 
     if (resubmitting) {

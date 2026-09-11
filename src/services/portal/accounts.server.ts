@@ -188,7 +188,7 @@ export async function shiftBucket(
 export async function setClaimStatus(
   session: AppSession,
   accountId: string,
-  status: Extract<ClaimStatus, "APPROVED" | "QUERIED">,
+  status: Extract<ClaimStatus, "APPROVED" | "QUERIED" | "REJECTED">,
   note: string
 ): Promise<{ ok: boolean; error?: string }> {
   if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
@@ -238,7 +238,7 @@ export async function setClaimStatus(
     account.claimStatus = status;
     // The processing itself happened in PAS; the portal records the outcome and the stage the
     // lender now sees against the account.
-    account.stage = status === "APPROVED" ? "Claim approved" : "Query raised with the lender";
+    account.stage = status === "APPROVED" ? "Claim approved" : status === "REJECTED" ? "Claim rejected" : "Query raised with the lender";
     return { ok: true as const, from: outcome.from, bucketChangedFrom, account: { ...account } };
   });
   if (!updateOutcome.ok) return updateOutcome;
