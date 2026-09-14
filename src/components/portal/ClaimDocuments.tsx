@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useMemo,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2Icon,
@@ -73,6 +79,7 @@ export function ClaimDocuments({
   documents,
   locked,
   bare = false,
+  variant = "accordion",
 }: Readonly<{
   accountId: string;
   claimId: string;
@@ -81,6 +88,9 @@ export function ClaimDocuments({
   /** Drop the card's own border/shadow — for when it's already nested inside another panel
    *  (Query Response's Attachments), where the default chrome reads as a card inside a card. */
   bare?: boolean;
+  /** "table" renders each section as a flat table (one row per file, like the IMGC review
+   *  screen) instead of the collapsible accordion — used by the Initiate Claim workspace. */
+  variant?: "accordion" | "table";
 }>) {
   const required = useMemo(
     () => documents.filter((d) => d.addedBy !== "LENDER"),
@@ -152,22 +162,32 @@ export function ClaimDocuments({
         className={bare ? "border-neutral-200 shadow-none" : undefined}
         actions={requiredActions}
       >
-        <ol className="divide-y divide-neutral-100">
-          {required.map((doc, i) => (
-            <DocAccordionItem
-              key={doc.id}
-              index={i + 1}
-              doc={doc}
-              accountId={accountId}
-              claimId={claimId}
-              locked={locked}
-              open={openId === doc.id}
-              onToggle={toggle}
-              onUpload={setUploadTarget}
-              onDelete={onDelete}
-            />
-          ))}
-        </ol>
+        {variant === "table" ? (
+          <DocumentsTable
+            docs={required}
+            indexed
+            locked={locked}
+            onUpload={setUploadTarget}
+            onDelete={onDelete}
+          />
+        ) : (
+          <ol className="divide-y divide-neutral-100">
+            {required.map((doc, i) => (
+              <DocAccordionItem
+                key={doc.id}
+                index={i + 1}
+                doc={doc}
+                accountId={accountId}
+                claimId={claimId}
+                locked={locked}
+                open={openId === doc.id}
+                onToggle={toggle}
+                onUpload={setUploadTarget}
+                onDelete={onDelete}
+              />
+            ))}
+          </ol>
+        )}
       </Panel>
 
       <Panel
@@ -179,6 +199,13 @@ export function ClaimDocuments({
           <p className="px-5 py-4 text-center text-[13px] text-neutral-500">
             No additional documents added.
           </p>
+        ) : variant === "table" ? (
+          <DocumentsTable
+            docs={additional}
+            locked={locked}
+            onUpload={setUploadTarget}
+            onDelete={onDelete}
+          />
         ) : (
           <ol className="divide-y divide-neutral-100">
             {additional.map((doc) => (
@@ -473,5 +500,281 @@ function DocAccordionItem({
         )}
       </div>
     </li>
+  );
+}
+
+function bytes(n: number): string {
+  return `${(n / 1024).toFixed(0)} KB`;
+}
+
+function when(iso: string): string {
+  return new Date(iso).toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * The flat-table rendering of a document list — one row per file (or one placeholder row for a
+ * document with nothing uploaded yet), matching the table the IMGC review screen already uses.
+ * Used by the Initiate Claim workspace in place of the accordion.
+ */
+function DocumentsTable({
+  docs,
+  indexed = false,
+  locked,
+  onUpload,
+  onDelete,
+}: Readonly<{
+  docs: RequirementRow[];
+  /** Number the rows 1., 2., 3. — only the required-documents list does this. */
+  indexed?: boolean;
+  locked: boolean;
+  onUpload: (t: {
+    row: RequirementRow;
+    mode: "upload" | "add" | "replace";
+    replaceFileId?: string;
+  }) => void;
+  onDelete: (accountId: string, documentId: string, fileId: string) => void;
+}>) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[760px] text-left text-[12.5px]">
+        <thead className="bg-neutral-50 text-[11px] font-medium text-neutral-500">
+          <tr>
+            <th className="px-4 py-2.5">Document</th>
+            <th className="px-4 py-2.5">Status</th>
+            <th className="px-4 py-2.5">File Name</th>
+            <th className="px-4 py-2.5">Size</th>
+            <th className="px-4 py-2.5">Date/Time</th>
+            <th className="px-4 py-2.5 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neutral-100">
+          {docs.map((doc, i) => (
+            <DocTableRows
+              key={doc.id}
+              index={indexed ? i + 1 : undefined}
+              doc={doc}
+              locked={locked}
+              onUpload={onUpload}
+              onDelete={onDelete}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DocTableRows({
+  doc,
+  index,
+  locked,
+  onUpload,
+  onDelete,
+}: Readonly<{
+  doc: RequirementRow;
+  index?: number;
+  locked: boolean;
+  onUpload: (t: {
+    row: RequirementRow;
+    mode: "upload" | "add" | "replace";
+    replaceFileId?: string;
+  }) => void;
+  onDelete: (accountId: string, documentId: string, fileId: string) => void;
+}>) {
+  const hasFiles = doc.files.length > 0;
+  const canAddMore = !locked && doc.status !== "APPROVED";
+  const rowSpan = hasFiles ? doc.files.length : 1;
+
+  const nameCell = (
+    <td rowSpan={rowSpan} className="px-4 py-3 align-top">
+      <span className="font-semibold text-neutral-950">
+        {index ? `${index}. ` : ""}
+        {doc.name}
+        {doc.required && <span className="text-destructive">*</span>}
+      </span>
+      {doc.refNo && (
+        <div className="mt-1">
+          <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-semibold text-neutral-500">
+            {doc.refNo}
+          </span>
+        </div>
+      )}
+    </td>
+  );
+
+  const statusCell = (
+    <td rowSpan={rowSpan} className="px-4 py-3 align-top">
+      <StatusChip status={doc.status} />
+    </td>
+  );
+
+  const actionsCell = (extra?: ReactNode) => (
+    <td className="px-4 py-3 text-right align-top">
+      <div className="flex flex-wrap justify-end gap-1.5">
+        {extra}
+        {canAddMore && (
+          <Button
+            size="xs"
+            variant={hasFiles ? "outline" : "default"}
+            // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+            onClick={() =>
+              onUpload({ row: doc, mode: hasFiles ? "add" : "upload" })
+            }
+          >
+            {hasFiles ? <PlusIcon /> : <UploadIcon />}
+            {hasFiles ? "Add File" : "Upload"}
+          </Button>
+        )}
+      </div>
+    </td>
+  );
+
+  if (!hasFiles) {
+    return (
+      <tr>
+        {nameCell}
+        {statusCell}
+        <td className="px-4 py-3 text-neutral-400" colSpan={2}>
+          Nothing uploaded yet.
+        </td>
+        {actionsCell()}
+      </tr>
+    );
+  }
+
+  return (
+    <>
+      {doc.files.map((f, i) => {
+        const isRejected =
+          doc.status === "REJECTED" && f.version === doc.review?.version;
+        const isReuploadReq =
+          doc.status === "REUPLOAD_REQUIRED" &&
+          f.version === doc.review?.version;
+        const needsFix = isRejected || isReuploadReq;
+
+        return (
+          <tr key={f.id}>
+            {i === 0 && nameCell}
+            {i === 0 && statusCell}
+            <td className="px-4 py-3 align-top">
+              <a
+                href={`/api/portal/files/${f.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(
+                  "font-medium hover:underline",
+                  isRejected
+                    ? "text-destructive"
+                    : isReuploadReq
+                      ? "text-warning-700"
+                      : "text-brand-dark"
+                )}
+              >
+                {f.originalName}
+              </a>
+              {needsFix && doc.review?.remarks && (
+                <p className="mt-0.5 max-w-[240px] truncate text-[11px] text-neutral-500">
+                  {isRejected ? "Reason: " : "Query: "}
+                  {doc.review.remarks}
+                </p>
+              )}
+            </td>
+            <td className="px-4 py-3 align-top text-neutral-500">
+              {bytes(f.size)}
+            </td>
+            <td className="px-4 py-3 align-top text-neutral-500">
+              {when(f.uploadedAt)}
+            </td>
+            {i === 0
+              ? actionsCell(
+                  <>
+                    {needsFix && !locked && (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                        onClick={() =>
+                          onUpload({
+                            row: doc,
+                            mode: "replace",
+                            replaceFileId: f.id,
+                          })
+                        }
+                        className={
+                          isRejected
+                            ? "border-destructive/30 text-destructive hover:bg-destructive/10"
+                            : "border-warning/30 text-warning-700 hover:bg-warning/10"
+                        }
+                      >
+                        <UploadIcon /> Re-upload
+                      </Button>
+                    )}
+                    {!locked && doc.status !== "APPROVED" && (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                        onClick={() => onDelete(doc.accountId, doc.id, f.id)}
+                        title="Delete this file"
+                        className="size-7 p-0 text-neutral-400 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
+                      >
+                        <TrashIcon className="size-3.5" />
+                      </Button>
+                    )}
+                  </>
+                )
+              : (() => {
+                  const cell = (
+                    <td className="px-4 py-3 text-right align-top">
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        {needsFix && !locked && (
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                            onClick={() =>
+                              onUpload({
+                                row: doc,
+                                mode: "replace",
+                                replaceFileId: f.id,
+                              })
+                            }
+                            className={
+                              isRejected
+                                ? "border-destructive/30 text-destructive hover:bg-destructive/10"
+                                : "border-warning/30 text-warning-700 hover:bg-warning/10"
+                            }
+                          >
+                            <UploadIcon /> Re-upload
+                          </Button>
+                        )}
+                        {!locked && doc.status !== "APPROVED" && (
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                            onClick={() =>
+                              onDelete(doc.accountId, doc.id, f.id)
+                            }
+                            title="Delete this file"
+                            className="size-7 p-0 text-neutral-400 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
+                          >
+                            <TrashIcon className="size-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  );
+                  return cell;
+                })()}
+          </tr>
+        );
+      })}
+    </>
   );
 }

@@ -1,4 +1,4 @@
-/* eslint-disable security/detect-object-injection, react-perf/jsx-no-jsx-as-prop, react-perf/jsx-no-new-function-as-prop */
+/* eslint-disable react-perf/jsx-no-new-function-as-prop */
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
@@ -17,7 +17,6 @@ import { toast } from "sonner";
 import {
   saveDraftAction,
   submitClaimAction,
-  switchClaimTypeAction,
 } from "@/app/[locale]/(portal)/initiate-claim/actions";
 import { ClaimDocuments } from "@/components/portal/ClaimDocuments";
 
@@ -25,12 +24,7 @@ import { LoanDetailsCard } from "@/components/portal/LoanDetailsCard";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
-import {
-  claimConfig,
-  CLAIM_TYPE_KEYS,
-  CLAIM_TYPES,
-  fieldVisible,
-} from "@/config/claimConfig";
+import { claimConfig, fieldVisible } from "@/config/claimConfig";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
 import type { RequirementRow } from "@/services/portal/requirements.server";
@@ -154,22 +148,6 @@ export function ClaimWorkspace({
     });
   }, [accountId, backHref, claimId, claimNo, resubmitting, router, values]);
 
-  const onChangeType = useCallback(
-    (next: ClaimTypeKey) => {
-      if (next === claimType) return;
-      startTransition(async () => {
-        const result = await switchClaimTypeAction(accountId, claimId, next);
-        if (!result.ok) {
-          toast.error(result.error ?? "The claim type could not be changed.");
-          return;
-        }
-        toast.success(`Switched to ${CLAIM_TYPES[next].label}.`);
-        router.refresh();
-      });
-    },
-    [claimType, accountId, claimId, router]
-  );
-
   const onCancel = useCallback(() => {
     router.push(backHref);
   }, [backHref, router]);
@@ -178,177 +156,129 @@ export function ClaimWorkspace({
     <div className="space-y-2">
       {openQuery && <QueryBanner query={openQuery} />}
 
-      {/* ── Tab bar row: Back link + tab pills on one line ───── */}
-      <div className="flex items-center gap-3">
+      {/* ── Tab bar row: Back link + underline tabs on one line ── */}
+      <div className="flex items-center gap-3 border-b border-neutral-200">
         <Link
           href={backHref}
-          className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
+          className="-mb-px inline-flex shrink-0 items-center gap-1 border-b-2 border-transparent py-2.5 text-[12.5px] font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
         >
           <ArrowLeftIcon className="size-3" /> Back
         </Link>
-        <div className="flex gap-1 rounded-lg border border-neutral-200 bg-neutral-100 p-1">
+        <div
+          className="flex flex-wrap gap-1"
+          role="tablist"
+          aria-label="Claim sections"
+        >
           {(["loan-details", "initiate-claim"] as WorkspaceTab[]).map((id) => (
             <button
               key={id}
               type="button"
+              role="tab"
+              aria-selected={activeTab === id}
               onClick={() => setActiveTab(id)}
               className={cn(
-                "rounded-md px-4 py-1.5 text-[13px] font-medium transition-colors",
+                "-mb-px border-b-2 px-3.5 py-2.5 text-[13.5px] font-medium transition-colors",
                 activeTab === id
-                  ? "bg-white text-neutral-900 shadow-sm"
-                  : "text-neutral-500 hover:text-neutral-700"
+                  ? "border-brand-primary text-brand-primary"
+                  : "border-transparent text-neutral-500 hover:text-neutral-800"
               )}
             >
               {id === "loan-details" ? "Loan Details" : "Initiate Claim"}
             </button>
           ))}
         </div>
+        {activeTab === "initiate-claim" && <StatusPill status={status} />}
       </div>
 
       {/* ── Loan Details tab ────────────────────────────────── */}
       {activeTab === "loan-details" && <LoanDetailsCard account={account} />}
 
-      {/* ── Initiate Claim tab — 2-column, viewport-fit ─────── */}
+      {/* ── Initiate Claim tab — single column, viewport-fit ── */}
       {activeTab === "initiate-claim" && (
         <div
-          className="flex gap-3 overflow-hidden"
+          className="flex flex-col gap-3 overflow-hidden"
           style={{ height: "calc(100vh - 8.5rem)" }}
         >
-          {/* ── LEFT: Claim Type (fixed width, self-contained) ── */}
-          <div className="w-72 shrink-0">
-            <div className="space-y-3">
-              <Panel
-                title="Claim type"
-                description="Determines which documents are required."
-                actions={<StatusPill status={status} />}
-              >
-                <div className="flex flex-col gap-2 px-4 py-3">
-                  {CLAIM_TYPE_KEYS.map((key) => {
-                    const t = CLAIM_TYPES[key];
-                    const active = key === claimType;
-                    const isLocked = key === "SUBSEQUENT";
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        disabled={status !== "DRAFT" || pending || isLocked}
-                        aria-pressed={active}
-                        onClick={() => onChangeType(key)}
-                        className={cn(
-                          "w-full rounded-lg border-2 px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-60",
-                          active
-                            ? "border-brand-primary bg-brand-light/50"
-                            : "border-neutral-200 hover:border-brand-primary/40 hover:bg-neutral-50"
-                        )}
-                      >
-                        <span className="block text-[12.5px] font-semibold text-neutral-900">
-                          {t.label}
-                        </span>
-                        <span className="mt-0.5 block text-[11px] text-neutral-500">
-                          {/* The active type's count comes from this claim's own materialised
-                              checklist, not the static config — a lender with a saved Document
-                              Configuration can have a different required count than the type's
-                              own default. The other (locked) type has no materialised checklist
-                              to read, so it still shows what its default would produce. */}
-                          {active
-                            ? documents.filter((d) => d.required).length
-                            : t.documents.filter((d) => d.required).length}{" "}
-                          required docs
-                        </span>
-                      </button>
-                    );
-                  })}
-                  {status !== "DRAFT" && (
-                    <p className="pt-1 text-[11px] text-neutral-400">
-                      The claim type is fixed once the claim leaves draft.
-                    </p>
-                  )}
-                </div>
-              </Panel>
+          {/* Scrollable document + remarks area */}
+          <div className="flex-1 overflow-y-auto pr-0.5">
+            <ClaimDocuments
+              accountId={accountId}
+              claimId={claimId}
+              documents={documents}
+              locked={locked}
+              variant="table"
+            />
 
-              <Panel
-                title="Add Remarks"
-                description="Optional note for IMGC about this claim."
-              >
-                <div className="px-4 py-3">
-                  <textarea
-                    value={values.__initiationRemark ?? ""}
-                    maxLength={INITIATION_REMARK_MAX}
-                    disabled={locked || pending}
-                    onChange={(event) =>
-                      onFieldChange("__initiationRemark", event.target.value)
-                    }
-                    rows={4}
-                    placeholder="Add a remark about this claim..."
-                    className="w-full resize-y rounded-lg border border-neutral-200 px-3 py-2 text-[13px] outline-none transition-colors focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 disabled:bg-neutral-50 disabled:text-neutral-400"
-                  />
-                  <p className="mt-1 text-right text-[11px] text-neutral-400">
-                    {(values.__initiationRemark ?? "").length}/
-                    {INITIATION_REMARK_MAX}
-                  </p>
-                </div>
-              </Panel>
-            </div>
-          </div>
-
-          {/* ── RIGHT: Documents + action bar (scrollable internally) ── */}
-          <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-hidden">
-            {/* Scrollable document area */}
-            <div className="flex-1 overflow-y-auto pr-0.5">
-              <ClaimDocuments
-                accountId={accountId}
-                claimId={claimId}
-                documents={documents}
-                locked={locked}
-              />
-            </div>
-
-            {/* Pinned action bar */}
-            {!locked && (
-              <div className="flex shrink-0 items-center justify-between gap-3 rounded-xl border border-neutral-100 bg-white px-5 py-2.5 shadow-sm">
-                <div className="min-w-0 text-[12.5px]">
-                  {canSubmit && (
-                    <p className="flex items-center gap-1.5 font-medium text-success-700">
-                      <CheckCircle2Icon className="size-4" />
-                      Every mandatory document is in — you can{" "}
-                      {resubmitting ? "resubmit" : "submit"} this claim.
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onCancel}
-                    disabled={pending}
-                  >
-                    <XIcon /> Cancel
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onSave}
-                    disabled={pending}
-                  >
-                    <SaveIcon /> Save
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={onSubmit}
-                    disabled={pending || !canSubmit}
-                    title={
-                      canSubmit
-                        ? undefined
-                        : "Upload the outstanding mandatory documents first."
-                    }
-                  >
-                    <SendIcon />{" "}
-                    {resubmitting ? "Save & Resubmit" : "Save & Submit"}
-                  </Button>
-                </div>
+            <Panel
+              title="Add Remarks"
+              description="Optional note for IMGC about this claim."
+              className="mt-3"
+            >
+              <div className="px-4 py-3">
+                <textarea
+                  value={values.__initiationRemark ?? ""}
+                  maxLength={INITIATION_REMARK_MAX}
+                  disabled={locked || pending}
+                  onChange={(event) =>
+                    onFieldChange("__initiationRemark", event.target.value)
+                  }
+                  rows={2}
+                  placeholder="Add a remark about this claim..."
+                  className="w-full resize-y rounded-lg border border-neutral-200 px-3 py-2 text-[13px] outline-none transition-colors focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 disabled:bg-neutral-50 disabled:text-neutral-400"
+                />
+                <p className="mt-1 text-right text-[11px] text-neutral-400">
+                  {(values.__initiationRemark ?? "").length}/
+                  {INITIATION_REMARK_MAX}
+                </p>
               </div>
-            )}
+            </Panel>
           </div>
+
+          {/* Pinned action bar */}
+          {!locked && (
+            <div className="flex shrink-0 items-center justify-between gap-3 rounded-xl border border-neutral-100 bg-white px-5 py-2.5 shadow-sm">
+              <div className="min-w-0 text-[12.5px]">
+                {canSubmit && (
+                  <p className="flex items-center gap-1.5 font-medium text-success-700">
+                    <CheckCircle2Icon className="size-4" />
+                    Every mandatory document is in — you can{" "}
+                    {resubmitting ? "resubmit" : "submit"} this claim.
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onCancel}
+                  disabled={pending}
+                >
+                  <XIcon /> Cancel
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onSave}
+                  disabled={pending}
+                >
+                  <SaveIcon /> Save
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={onSubmit}
+                  disabled={pending || !canSubmit}
+                  title={
+                    canSubmit
+                      ? undefined
+                      : "Upload the outstanding mandatory documents first."
+                  }
+                >
+                  <SendIcon />{" "}
+                  {resubmitting ? "Save & Resubmit" : "Save & Submit"}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

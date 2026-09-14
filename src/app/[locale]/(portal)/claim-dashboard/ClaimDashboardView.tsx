@@ -206,9 +206,9 @@ function LenderUnderProgressTable({
       <table className="w-full min-w-[430px] text-left text-[12px]">
         <thead className="border-b border-neutral-200 text-[11px] uppercase tracking-wide text-neutral-400">
           <tr>
-            <th className="px-1 py-2 font-medium">Loan ID</th>
-            <th className="px-1 py-2 font-medium">Applicant</th>
-            <th className="px-1 py-2 text-right font-medium">
+            <th className="px-1 py-1.5 font-medium">Loan ID</th>
+            <th className="px-1 py-1.5 font-medium">Applicant</th>
+            <th className="px-1 py-1.5 text-right font-medium">
               Latest Query Date
             </th>
           </tr>
@@ -228,11 +228,11 @@ function LenderUnderProgressTable({
               tabIndex={0}
               role="link"
             >
-              <td className="px-1 py-3 font-medium text-neutral-900">
+              <td className="px-1 py-1.5 font-medium text-neutral-900">
                 {row.loanId}
               </td>
-              <td className="px-1 py-3">{row.applicant}</td>
-              <td className="px-1 py-3 text-right tabular-nums">
+              <td className="px-1 py-1.5">{row.applicant}</td>
+              <td className="px-1 py-1.5 text-right tabular-nums">
                 {formatQueryDate(row.latestQueryDate)}
               </td>
             </tr>
