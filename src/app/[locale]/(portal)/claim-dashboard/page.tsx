@@ -1,3 +1,4 @@
+/* eslint-disable react-perf/jsx-no-jsx-as-prop */
 import { ClaimDashboardLenderPicker } from "@/app/[locale]/(portal)/claim-dashboard/ClaimDashboardLenderPicker";
 import { ClaimDashboardView } from "@/app/[locale]/(portal)/claim-dashboard/ClaimDashboardView";
 import { ClaimOverviewBand } from "@/components/portal/ClaimOverviewBand";
@@ -26,7 +27,7 @@ export const dynamic = "force-dynamic";
  *  below rather than baked in here. */
 function overviewHrefs(
   base: string
-): Record<keyof ClaimOverviewCounts, string> {
+): Partial<Record<keyof ClaimOverviewCounts, string>> {
   return {
     total:
       base === ROUTES.initiateClaim
@@ -36,6 +37,8 @@ function overviewHrefs(
     underProgress: `${base}?status=UNDER_PROGRESS`,
     approved: `${base}?status=APPROVED`,
     rejected: `${base}?status=REJECTED`,
+    draft: `${base}?status=DRAFT`,
+    queryRaised: `${base}?status=QUERY_RAISED`,
     refunded: `${base}?status=REFUND_RECEIVED_BY_IMGC`,
   };
 }
@@ -101,7 +104,12 @@ export default async function ClaimDashboardPage({
     })
     .map((a) => {
       if (session.role !== "IMGC") {
-        return { claim: claimByAccountId.get(a.id) ?? null };
+        const claim = claimByAccountId.get(a.id);
+        return {
+          claim: claim
+            ? { status: claim.status, hasProgress: claim.hasProgress }
+            : null,
+        };
       }
 
       const status =
@@ -122,6 +130,7 @@ export default async function ClaimDashboardPage({
         <ClaimOverviewBand
           counts={counts}
           hrefs={overviewHrefs(gridBase)}
+          showLenderKpis={session.role === "LENDER"}
           title={
             data.canFilterByLender
               ? (selectedLenderName ?? "Every Lender")

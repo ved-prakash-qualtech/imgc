@@ -70,6 +70,7 @@ const EMPTY_STATS: never[] = [];
 export function ClaimOverviewBand({
   counts,
   hrefs,
+  showLenderKpis,
   title = "Claims Overview",
   subtitle,
   action,
@@ -78,12 +79,31 @@ export function ClaimOverviewBand({
   /** Where each tile drills into — the grid below reads the same `?status=` value back out
    *  (see EligibleCasesClient's `statusFromParam`), so the click and the count always agree. */
   hrefs?: Partial<Record<keyof ClaimOverviewCounts, string>>;
+  showLenderKpis?: boolean;
   title?: string;
   subtitle?: string;
   /** Top-right of the band, on the gradient — the Claim Dashboard's lender lens goes here, same
    *  slot the main Dashboard's lender filter uses. Unused by the Claims-grid callers. */
   action?: React.ReactNode;
 }>) {
+  const activeTiles = showLenderKpis
+    ? ([
+        ...TILES,
+        {
+          key: "draft",
+          label: "Draft",
+          icon: <FilePlus2Icon className="size-4" />,
+          tone: "blue",
+        },
+        {
+          key: "queryRaised",
+          label: "Query Raised",
+          icon: <ClipboardListIcon className="size-4" />,
+          tone: "amber",
+        },
+      ] as const)
+    : TILES;
+
   return (
     <CommandBand
       title={title}
@@ -91,32 +111,49 @@ export function ClaimOverviewBand({
       stats={EMPTY_STATS}
       action={action}
     >
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-        {TILES.map((tile) => {
+      <div
+        className={cn(
+          "grid grid-cols-2 gap-2 sm:grid-cols-3",
+          activeTiles.length >= 6 ? "xl:grid-cols-6" : "xl:grid-cols-4"
+        )}
+      >
+        {activeTiles.map((tile) => {
           const tone = TONE[tile.tone];
           const href = hrefs?.[tile.key];
           const className = cn(
-            "flex flex-col rounded-xl border bg-white px-3.5 py-2 shadow-sm transition-all duration-300",
+            "flex flex-col rounded-xl border bg-white shadow-sm transition-all duration-300",
+            activeTiles.length >= 6 ? "px-2.5 py-1.5" : "px-3.5 py-2",
             tone.bg,
             href &&
               "hover:-translate-y-1 hover:shadow-md hover:bg-neutral-50 cursor-pointer"
           );
           const content = (
             <>
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-outfit text-[20px] font-bold leading-none text-neutral-900">
+              <div className="flex items-center justify-between gap-1.5">
+                <span
+                  className={cn(
+                    "font-outfit font-bold leading-none text-neutral-900",
+                    activeTiles.length >= 6 ? "text-[18px]" : "text-[20px]"
+                  )}
+                >
                   {String(counts[tile.key]).padStart(2, "0")}
                 </span>
                 <span
                   className={cn(
-                    "grid size-7 shrink-0 place-items-center rounded-lg",
+                    "grid shrink-0 place-items-center rounded-lg",
+                    activeTiles.length >= 6 ? "size-6" : "size-7",
                     tone.icon
                   )}
                 >
                   {tile.icon}
                 </span>
               </div>
-              <p className="mt-1 truncate text-[12px] font-medium text-neutral-500">
+              <p
+                className={cn(
+                  "mt-0.5 truncate font-medium text-neutral-500",
+                  activeTiles.length >= 6 ? "text-[11px]" : "text-[12px]"
+                )}
+              >
                 {tile.label}
               </p>
             </>

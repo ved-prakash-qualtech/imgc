@@ -202,6 +202,8 @@ export interface ClaimOverviewCounts {
   underProgress: number;
   approved: number;
   rejected: number;
+  draft: number;
+  queryRaised: number;
   /** Claims IMGC has confirmed the refund for (`REFUND_RECEIVED_BY_IMGC`) — a subset of
    *  `approved`, not a sixth mutually-exclusive outcome, so it stays counted there too. */
   refunded: number;
@@ -221,16 +223,22 @@ export interface ClaimOverviewCounts {
  * silently undercounted against "total" whenever any claim had actually reached CLOSED.
  */
 export function summariseClaimOverview(
-  rows: ReadonlyArray<{ claim: { status: ClaimStatus } | null }>
+  rows: ReadonlyArray<{
+    claim: { status: ClaimStatus; hasProgress?: boolean } | null;
+  }>
 ): ClaimOverviewCounts {
   let initiation = 0;
   let underProgress = 0;
   let approved = 0;
   let rejected = 0;
+  let draft = 0;
+  let queryRaised = 0;
   let refunded = 0;
 
   for (const row of rows) {
     const status = row.claim?.status;
+    const isNotStarted = !row.claim || !row.claim.hasProgress;
+
     if (!status || status === "DRAFT") initiation += 1;
     else if (UNDER_PROGRESS_STATUSES.has(status)) underProgress += 1;
     // "Refund received" is a confirmation on top of an already-approved claim, not a fourth
@@ -246,14 +254,21 @@ export function summariseClaimOverview(
       approved += 1;
       if (status === "REFUND_RECEIVED_BY_IMGC") refunded += 1;
     } else if (status === "REJECTED") rejected += 1;
+
+    if (!isNotStarted) {
+      if (status === "DRAFT") draft += 1;
+      if (status === "QUERY_RAISED") queryRaised += 1;
+    }
   }
 
   return {
-    total: initiation + underProgress,
+    total: initiation + underProgress + approved + rejected,
     initiation,
     underProgress,
     approved,
     rejected,
+    draft,
+    queryRaised,
     refunded,
   };
 }
