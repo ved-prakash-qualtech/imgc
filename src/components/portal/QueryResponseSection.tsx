@@ -125,7 +125,7 @@ export function QueryResponseSection({
     if (!isLender && imgcComposer) {
       return (
         <Panel
-          title="Processing outcome"
+          title={title ?? "Query Management"}
           className={
             constrainedLayout || fillLayout
               ? "flex h-full min-h-0 flex-col overflow-hidden"

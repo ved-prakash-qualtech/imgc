@@ -168,30 +168,55 @@ export function InitialClaimsTab({
   return (
     <div className="space-y-4">
       <Panel>
-        <ul className="divide-y divide-neutral-100">
-          {(isLender || !submitted
-            ? docs
-            : docs.filter(
-                (d) => d.status !== "PENDING_UPLOAD" || d.addedBy === "IMGC"
-              )
-          ).map((doc) => (
-            <DocumentRowItem
-              key={doc.id}
-              doc={doc}
-              accountId={accountId}
-              role={role}
-              submitted={submitted}
-              pending={pending}
-              draft={drafts[doc.id] ?? ""}
-              onDraftChange={setDraft}
-              onToggleActive={onToggleActive}
-              retentionDays={retentionDays}
-              hasOpenQuery={queriedDocNames.includes(doc.name)}
-              expanded={Boolean(expandedIds[doc.id])}
-              onToggleExpanded={toggleExpanded}
-            />
-          ))}
-        </ul>
+        {role === "IMGC" ? (
+          <div className="overflow-x-auto">
+            <div className="flex min-w-[900px] flex-col divide-y divide-neutral-100 text-left text-[13px]">
+              <div className="flex items-center gap-4 bg-neutral-50 px-4 py-2.5 text-[11.5px] font-medium text-neutral-500">
+                <div className="w-[200px] shrink-0">Document</div>
+                <div className="w-[110px] shrink-0">Status</div>
+                <div className="min-w-[150px] flex-1">File Name</div>
+                <div className="w-[60px] shrink-0">Size</div>
+                <div className="w-[110px] shrink-0">Uploaded By</div>
+                <div className="w-[140px] shrink-0">Date/Time</div>
+                <div className="w-[160px] shrink-0 text-right">Actions</div>
+              </div>
+              {docs
+                .filter((d) => d.status !== "PENDING_UPLOAD" || d.addedBy === "IMGC")
+                .map((doc) => (
+                  <ImgcDocumentRowItem
+                    key={doc.id}
+                    doc={doc}
+                    accountId={accountId}
+                    retentionDays={retentionDays}
+                    hasOpenQuery={queriedDocNames.includes(doc.name)}
+                  />
+                ))}
+            </div>
+          </div>
+        ) : (
+          <ul className="divide-y divide-neutral-100">
+            {(isLender || !submitted
+              ? docs
+              : docs.filter((d) => d.status !== "PENDING_UPLOAD" || d.addedBy === "IMGC")
+            ).map((doc) => (
+              <DocumentRowItem
+                key={doc.id}
+                doc={doc}
+                accountId={accountId}
+                role={role}
+                submitted={submitted}
+                pending={pending}
+                draft={drafts[doc.id] ?? ""}
+                onDraftChange={setDraft}
+                onToggleActive={onToggleActive}
+                retentionDays={retentionDays}
+                hasOpenQuery={queriedDocNames.includes(doc.name)}
+                expanded={Boolean(expandedIds[doc.id])}
+                onToggleExpanded={toggleExpanded}
+              />
+            ))}
+          </ul>
+        )}
       </Panel>
 
       {isLender && (
@@ -730,6 +755,236 @@ function DocumentRowItem({
         onOpenChange={(open) => !open && setPreviewingFileId(null)}
       />
     </li>
+  );
+}
+
+function ImgcDocumentRowItem({
+  doc, accountId, retentionDays, hasOpenQuery
+}: Readonly<{
+  doc: DocumentRow;
+  accountId: string;
+  retentionDays: number;
+  hasOpenQuery: boolean;
+}>) {
+  const router = useRouter();
+  const [busy, startTransition] = useTransition();
+  const [rejecting, setRejecting] = useState(false);
+  const [previewingFileId, setPreviewingFileId] = useState<string | null>(null);
+  
+  const working = busy;
+
+  const decide = useCallback(
+    (decision: "APPROVED" | "REJECTED", reason: string) => {
+      startTransition(async () => {
+        const result = await decideDocumentAction(
+          accountId,
+          doc.id,
+          decision,
+          reason
+        );
+        if (!result.ok) {
+          toast.error(result.error ?? "That decision could not be recorded.");
+          return;
+        }
+        toast.success(`"${doc.name}" ${decision.toLowerCase()}.`);
+        setRejecting(false);
+        router.refresh();
+      });
+    },
+    [accountId, doc.id, doc.name, router]
+  );
+
+  const onReactivate = useCallback(() => {
+    startTransition(async () => {
+      const result = await reactivateDocumentAction(accountId, doc.id);
+      if (!result.ok) {
+        toast.error(result.error ?? "That could not be undone.");
+        return;
+      }
+      toast.success(`"${doc.name}" is back under review.`);
+      router.refresh();
+    });
+  }, [accountId, doc.id, doc.name, router]);
+
+  const onRaiseQuery = useCallback(() => {
+    startTransition(async () => {
+      const result = await raiseQueryForRejectedDocumentAction(accountId, doc.id);
+      if (!result.ok) {
+        toast.error(result.error ?? "That query could not be raised.");
+        return;
+      }
+      toast.success(`Query raised for "${doc.name}".`);
+      router.refresh();
+    });
+  }, [accountId, doc.id, doc.name, router]);
+
+  const onToggleActive = useCallback(
+    (active: boolean) => {
+      startTransition(async () => {
+        const result = await setRequirementActiveAction(accountId, doc.id, active);
+        if (!result.ok) {
+          toast.error(result.error ?? "That requirement could not be updated.");
+          return;
+        }
+        toast.success(active ? "Requirement reactivated." : "Requirement withdrawn.");
+        router.refresh();
+      });
+    },
+    [accountId, doc.id, router]
+  );
+
+  const onReinstateDecision = useCallback(
+    (approve: boolean) => {
+      startTransition(async () => {
+        const result = await decideReinstateAction(accountId, doc.id, approve, "");
+        if (!result.ok) {
+          toast.error(result.error ?? "That decision could not be recorded.");
+          return;
+        }
+        toast.success(approve ? "Reinstated." : "Reinstatement denied.");
+        router.refresh();
+      });
+    },
+    [accountId, doc.id, router]
+  );
+
+  const reinstate = doc.rejection?.reinstate;
+  const inactive = doc.active === false;
+  
+  return (
+    <div className={cn("flex flex-col border-b border-neutral-100 last:border-b-0", inactive && "bg-neutral-25/60 opacity-70")}>
+      {doc.files.length === 0 && (
+        <div className="flex items-center gap-4 px-4 py-3">
+          <div className="flex w-[200px] shrink-0 flex-col items-start gap-1.5">
+            <span className="line-clamp-2 font-semibold leading-tight text-neutral-950" title={doc.name}>{doc.name}</span>
+            {inactive && <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">Withdrawn</span>}
+          </div>
+          <div className="w-[110px] shrink-0">
+            <StatusPill status={doc.status === "APPROVED" ? "ACCEPTED" : doc.status} />
+          </div>
+          <div className="min-w-[150px] flex-1 text-[12px] text-neutral-400">Nothing uploaded yet.</div>
+          <div className="flex w-[160px] shrink-0 flex-wrap justify-end gap-2">
+            {doc.addedBy === "IMGC" && (
+               <Button size="xs" variant="outline" onClick={() => onToggleActive(inactive)} disabled={working} className="h-7 px-2.5 text-[11px]">
+                 {inactive ? <RotateCcwIcon className="mr-1 size-3" /> : <BanIcon className="mr-1 size-3" />}
+                 {inactive ? "Reactivate" : "Withdraw"}
+               </Button>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {doc.files.length > 0 && doc.files.map((f, i) => (
+        <div key={f.id} className={cn("flex items-center gap-4 px-4 py-3", i > 0 && "border-t border-dashed border-neutral-100")}>
+          <div className="flex w-[200px] shrink-0 flex-col items-start gap-1.5">
+            {i === 0 && (
+              <>
+                <span className="line-clamp-2 font-semibold leading-tight text-neutral-950" title={doc.name}>{doc.name}</span>
+                {inactive && <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">Withdrawn</span>}
+              </>
+            )}
+          </div>
+          
+          <div className="w-[110px] shrink-0">
+            {i === 0 && <StatusPill status={doc.status === "APPROVED" ? "ACCEPTED" : doc.status} />}
+          </div>
+          
+          <div className="min-w-[150px] flex-1 truncate text-[12.5px] font-medium text-neutral-700" title={f.originalName}>
+            {f.storedPath ? (
+              <a href={`/api/portal/files/${f.id}`} target="_blank" rel="noopener noreferrer" className="hover:text-brand-primary hover:underline">{f.originalName}</a>
+            ) : (
+              <button type="button" onClick={() => setPreviewingFileId(f.id)} className="w-full truncate text-left hover:text-brand-primary hover:underline">{f.originalName}</button>
+            )}
+          </div>
+          <div className="w-[60px] shrink-0 text-[11.5px] text-neutral-500">{bytes(f.size)}</div>
+          <div className="w-[110px] shrink-0 truncate text-[11.5px] text-neutral-500" title={f.uploadedByName}>{f.uploadedByName}</div>
+          <div className="w-[140px] shrink-0 text-[11.5px] text-neutral-500">{when(f.uploadedAt)}</div>
+          
+          <div className="flex w-[160px] shrink-0 flex-wrap justify-end gap-1.5">
+            {/* Document actions only on the first file row */}
+            {i === 0 && (
+              <>
+                {doc.status === "UNDER_REVIEW" && !rejecting && (
+                  <>
+                    <Button size="xs" variant="success" onClick={() => decide("APPROVED", "")} disabled={working} className="size-7 p-0" title="Accept"><CheckIcon className="size-4" /></Button>
+                    <Button size="xs" variant="outline" onClick={() => setRejecting(true)} disabled={working} className="size-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30" title="Reject"><XIcon className="size-4" /></Button>
+                  </>
+                )}
+                
+                {doc.status === "REJECTED" && (
+                  <>
+                    <Button size="xs" variant="outline" onClick={onReactivate} disabled={working} title="Undo the rejection" className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
+                    {!hasOpenQuery && (
+                      <Button size="xs" variant="outline" onClick={onRaiseQuery} disabled={working} className="h-7 px-2.5 text-[11px]"><MessageSquareWarningIcon className="mr-1 size-3" /> Query</Button>
+                    )}
+                  </>
+                )}
+
+                {doc.addedBy === "IMGC" && (
+                  <Button size="xs" variant="outline" onClick={() => onToggleActive(inactive)} disabled={working} className="h-7 px-2.5 text-[11px]">
+                    {inactive ? <RotateCcwIcon className="mr-1 size-3" /> : <BanIcon className="mr-1 size-3" />}
+                    {inactive ? "Reactivate" : "Withdraw"}
+                  </Button>
+                )}
+
+                {reinstate?.status === "REQUESTED" && (
+                   <>
+                     <Button size="xs" variant="success" onClick={() => onReinstateDecision(true)} disabled={working} className="h-7 px-2.5 text-[11px]">Approve Reinstatement</Button>
+                     <Button size="xs" variant="outline" onClick={() => onReinstateDecision(false)} disabled={working} className="h-7 px-2.5 text-[11px]">Deny</Button>
+                   </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      ))}
+      
+      {rejecting && (
+        <form
+          className="m-3 flex flex-wrap items-end gap-2 rounded-lg border border-neutral-200 bg-neutral-25 p-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const reason = String(new FormData(e.currentTarget).get("reason") ?? "");
+            decide("REJECTED", reason);
+          }}
+        >
+          <label className="min-w-[260px] flex-1">
+            <span className="mb-1 block text-[12px] font-medium text-neutral-700">
+              Reason for rejection
+            </span>
+            <input
+              name="reason"
+              required
+              // eslint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus
+              placeholder="e.g. Valuation report is older than 6 months"
+              className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            />
+          </label>
+          <Button type="submit" size="sm" variant="destructive" disabled={working}>
+            Reject document
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => setRejecting(false)}>
+            Cancel
+          </Button>
+        </form>
+      )}
+
+      {/* Show rejection reason inline if rejected, to preserve info */}
+      {doc.rejection && doc.status === "REJECTED" && (
+        <div className="mx-4 mb-3 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2">
+           <p className="text-[12px] text-destructive">
+             <span className="font-semibold">Rejected</span> by {doc.rejection.by} on {when(doc.rejection.at)} — {doc.rejection.reason}
+           </p>
+        </div>
+      )}
+
+      <DocumentPreviewDialog
+        file={doc.files.find(f => f.id === previewingFileId) ?? undefined}
+        open={previewingFileId !== null}
+        onOpenChange={(open) => !open && setPreviewingFileId(null)}
+      />
+    </div>
   );
 }
 

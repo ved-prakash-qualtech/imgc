@@ -16,6 +16,7 @@ const TONES = new Map<string, string>([
   ["DRAFT", "bg-neutral-100 text-neutral-600"],
   ["SUBMITTED", "bg-info/12 text-info"],
   ["APPROVED", "bg-success/15 text-success-700"],
+  ["ACCEPTED", "bg-success/15 text-success-700"],
   ["QUERIED", "bg-warning/15 text-warning"],
   // claim lifecycle
   ["UNDER_REVIEW", "bg-info/12 text-info"],
@@ -48,6 +49,7 @@ const LABELS = new Map<string, string>([
   ["DRAFT", "Draft"],
   ["SUBMITTED", "Submitted"],
   ["APPROVED", "Approved"],
+  ["ACCEPTED", "Accepted"],
   ["QUERIED", "Queried"],
   ["QUERY_RAISED", "Query raised"],
   ["DOCUMENTS_RESUBMITTED", "Docs resubmitted"],
