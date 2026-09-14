@@ -62,12 +62,9 @@ const DPD: NavItem = {
 /** Initiating a claim and tracking one used to be two tabs; one grid now does both, so there is
  *  only one nav entry for it. */
 const CLAIM: NavItem = {
-  key: "claims",
+  key: "initiate-claim",
   label: "Claims",
-  children: [
-    { key: "initiate-claim", label: "Claims", href: ROUTES.initiateClaim },
-    { key: "track-claim", label: "Track Claim", href: ROUTES.trackClaim },
-  ],
+  href: ROUTES.initiateClaim,
 };
 
 const AUDIT_TRAIL: NavItem = {
@@ -102,6 +99,6 @@ const ALL_LOANS: NavItem = {
 
 export function navFor(role: Role): NavItem[] {
   return role === "IMGC"
-    ? [CLAIM_DASHBOARD, ACCOUNTS, ALL_LOANS, ADMINISTRATION]
-    : [CLAIM_DASHBOARD, CLAIM, DPD, AUDIT_TRAIL];
+    ? [CLAIM_DASHBOARD, ACCOUNTS, ADMINISTRATION]
+    : [CLAIM_DASHBOARD, CLAIM, AUDIT_TRAIL];
 }

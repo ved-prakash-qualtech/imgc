@@ -93,7 +93,6 @@ function sortFromParam(value: string | null): {
 const STATUS_OPTIONS = [
   "NOT_STARTED",
   "DRAFT",
-  "SUBMITTED",
   "UNDER_REVIEW",
   "APPROVED",
   "REFUND_RECEIVED_BY_IMGC",
@@ -116,7 +115,6 @@ const BUCKETS = ["ALL", "IMGC", "LENDER"] as const;
 /** In-flight — submitted but not yet decided one way or the other. Same set the Claims Overview
  *  band uses to compute its own "Under Progress" tile (see initiate-claim/page.tsx). */
 const UNDER_PROGRESS_STATUSES = new Set<ClaimStatus>([
-  "SUBMITTED",
   "UNDER_REVIEW",
   "QUERY_RAISED",
   "DOCUMENTS_RESUBMITTED",

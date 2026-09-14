@@ -187,7 +187,6 @@ export async function listQueries(claimId: string): Promise<ClaimQuery[]> {
 
 /** In-flight — submitted but not yet decided one way or the other. */
 const UNDER_PROGRESS_STATUSES = new Set<ClaimStatus>([
-  "SUBMITTED",
   "UNDER_REVIEW",
   "QUERY_RAISED",
   "DOCUMENTS_RESUBMITTED",
@@ -288,7 +287,6 @@ function advance(
   if (account) {
     account.claimStatus = toAccountClaimStatus(status);
     if (
-      status === "SUBMITTED" ||
       status === "DOCUMENTS_RESUBMITTED" ||
       status === "UNDER_REVIEW"
     ) {
@@ -604,7 +602,7 @@ export async function createClaim(
   await writeDb((fresh) => {
     fresh.claims.push({
       id: claimId,
-      claimNo: nextClaimNo(fresh, claimType),
+      claimNo: "",
       accountId,
       claimType,
       status: "DRAFT",
@@ -667,7 +665,7 @@ export async function switchClaimType(
     claim.claimType = newType;
     // The claim has never left draft, so no one has referenced its number yet — reissue it
     // with the new type's prefix so CLM/CLS/CLA matches the type on screen.
-    claim.claimNo = nextClaimNo(db, newType);
+    claim.claimNo = "";
     claim.fields = Object.fromEntries(
       Object.entries(claim.fields).filter(([k]) => validIds.has(k))
     );
@@ -814,9 +812,12 @@ export async function submitClaim(
     advance(
       db,
       claim,
-      resubmitting ? "DOCUMENTS_RESUBMITTED" : "SUBMITTED",
+      resubmitting ? "DOCUMENTS_RESUBMITTED" : "UNDER_REVIEW",
       session
     );
+    if (!claim.claimNo) {
+      claim.claimNo = nextClaimNo(db, claim.claimType);
+    }
     if (!claim.submittedAt) {
       claim.submittedAt = nowIso();
       const acc = db.accounts.find((a) => a.id === claim.accountId);

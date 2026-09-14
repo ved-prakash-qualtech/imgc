@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 
 import { ClaimDetailSinglePage } from "@/components/portal/ClaimDetailSinglePage";
 import { ClaimDetailTabs } from "@/components/portal/ClaimDetailTabs";
+import { ClaimDocuments } from "@/components/portal/ClaimDocuments";
+import { ClaimDocumentsTable } from "@/components/portal/ClaimDocumentsTable";
 import { ClaimHistory } from "@/components/portal/ClaimHistory";
 import { ClaimQueryDialog } from "@/components/portal/ClaimQueryDialog";
 import { ClaimStatusHistoryGraph } from "@/components/portal/ClaimStatusHistoryGraph";
@@ -175,80 +177,93 @@ export default async function ClaimDetailsPage({
         </>
       }
       documents={
-        <Panel title="Documents">
-          {/* 7 rows visible (32px header + 7 × ~46.5px row) before it scrolls. */}
-          <div className="custom-scrollbar max-h-[358px] overflow-y-auto overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
-                    Document
-                  </TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
-                    Required
-                  </TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
-                    Version
-                  </TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
-                    Status
-                  </TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10 text-right">
-                    Actions
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {documents.map((d) => (
-                  <TableRow key={d.id}>
-                    <TableCell className="px-1.5 py-1.5">
-                      <span className="text-[12px] font-medium whitespace-nowrap text-neutral-900">
-                        {d.name}
-                      </span>
-                      <span className="block text-[10.5px] whitespace-nowrap text-neutral-500">
-                        {d.category}
-                      </span>
-                    </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-600">
-                      {d.required ? "Required" : "Optional"}
-                    </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-600">
-                      {d.version > 0 ? `v${d.version}` : "—"}
-                    </TableCell>
-                    <TableCell className="px-1.5 py-1.5">
-                      <StatusPill
-                        status={d.status}
-                        className="px-1.5 py-0.5 text-[10.5px]"
-                      />
-                    </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-right">
-                      {d.file || d.files?.[0] ? (
-                        <a
-                          href={`/api/portal/files/${(d.file || (d.files && d.files[0]))?.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
-                        >
-                          <EyeIcon className="size-3" /> View
-                        </a>
-                      ) : (
-                        <span className="text-[11px] text-neutral-400">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        isLender ? (
+          <div className="flex flex-col gap-6">
+            <ClaimDocumentsTable
+              accountId={claim.accountId}
+              claimId={claim.id}
+              documents={documents}
+              locked={terminal}
+            />
           </div>
-        </Panel>
+        ) : (
+          <Panel title="Documents">
+            {/* 7 rows visible (32px header + 7 × ~46.5px row) before it scrolls. */}
+            <div className="custom-scrollbar max-h-[358px] overflow-y-auto overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                      Document
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                      Required
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                      Version
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                      Status
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10 text-right">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {documents.map((d) => (
+                    <TableRow key={d.id}>
+                      <TableCell className="px-1.5 py-1.5">
+                        <span className="text-[12px] font-medium whitespace-nowrap text-neutral-900">
+                          {d.name}
+                        </span>
+                        <span className="block text-[10.5px] whitespace-nowrap text-neutral-500">
+                          {d.category}
+                        </span>
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-600">
+                        {d.required ? "Required" : "Optional"}
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-600">
+                        {d.version > 0 ? `v${d.version}` : "—"}
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5">
+                        <StatusPill
+                          status={d.status}
+                          className="px-1.5 py-0.5 text-[10.5px]"
+                        />
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5 text-right">
+                        {d.file || d.files?.[0] ? (
+                          <a
+                            href={`/api/portal/files/${(d.file || (d.files && d.files[0]))?.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                          >
+                            <EyeIcon className="size-3" /> View
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-neutral-400">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Panel>
+        )
       }
       history={
-        <Panel
-          title="Claim History"
-          description="Every status change and query on this claim, in order."
-        >
-          <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
-        </Panel>
+        !isLender ? (
+          <Panel
+            title="Claim History"
+            description="Every status change and query on this claim, in order."
+          >
+            <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
+          </Panel>
+        ) : null
       }
     />
   ) : (
@@ -344,87 +359,100 @@ export default async function ClaimDetailsPage({
         </>
       }
       documents={
-        <Panel title="Documents">
-          {/* 7 rows visible (32px header + 7 × ~46.5px row) before it scrolls. */}
-          <div className="custom-scrollbar max-h-[358px] overflow-y-auto overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
-                    Document
-                  </TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
-                    Required
-                  </TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
-                    Version
-                  </TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
-                    Status
-                  </TableHead>
-                  <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10 text-right">
-                    Actions
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {documents.map((d) => (
-                  <TableRow key={d.id}>
-                    <TableCell className="px-1.5 py-1.5">
-                      <span className="text-[12px] font-medium whitespace-nowrap text-neutral-900">
-                        {d.name}
-                      </span>
-                      <span className="block text-[10.5px] whitespace-nowrap text-neutral-500">
-                        {d.category}
-                      </span>
-                    </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-600">
-                      {d.required ? "Required" : "Optional"}
-                    </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-600">
-                      {d.version > 0 ? `v${d.version}` : "—"}
-                    </TableCell>
-                    <TableCell className="px-1.5 py-1.5">
-                      <StatusPill
-                        status={d.status}
-                        className="px-1.5 py-0.5 text-[10.5px]"
-                      />
-                    </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-right">
-                      {d.file || d.files?.[0] ? (
-                        <a
-                          href={`/api/portal/files/${(d.file || (d.files && d.files[0]))?.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
-                        >
-                          <EyeIcon className="size-3" /> View
-                        </a>
-                      ) : (
-                        <span className="text-[11px] text-neutral-400">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        isLender ? (
+          <div className="flex flex-col gap-6">
+            <ClaimDocumentsTable
+              accountId={claim.accountId}
+              claimId={claim.id}
+              documents={documents}
+              locked={terminal}
+            />
           </div>
-        </Panel>
+        ) : (
+          <Panel title="Documents">
+            {/* 7 rows visible (32px header + 7 × ~46.5px row) before it scrolls. */}
+            <div className="custom-scrollbar max-h-[358px] overflow-y-auto overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                      Document
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                      Required
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                      Version
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                      Status
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10 text-right">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {documents.map((d) => (
+                    <TableRow key={d.id}>
+                      <TableCell className="px-1.5 py-1.5">
+                        <span className="text-[12px] font-medium whitespace-nowrap text-neutral-900">
+                          {d.name}
+                        </span>
+                        <span className="block text-[10.5px] whitespace-nowrap text-neutral-500">
+                          {d.category}
+                        </span>
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-600">
+                        {d.required ? "Required" : "Optional"}
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-600">
+                        {d.version > 0 ? `v${d.version}` : "—"}
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5">
+                        <StatusPill
+                          status={d.status}
+                          className="px-1.5 py-0.5 text-[10.5px]"
+                        />
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5 text-right">
+                        {d.file || d.files?.[0] ? (
+                          <a
+                            href={`/api/portal/files/${(d.file || (d.files && d.files[0]))?.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                          >
+                            <EyeIcon className="size-3" /> View
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-neutral-400">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Panel>
+        )
       }
       history={
-        <Panel
-          title="Claim History"
-          description="Every status change and query on this claim, in order."
-        >
-          <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
-        </Panel>
+        !isLender ? (
+          <Panel
+            title="Claim History"
+            description="Every status change and query on this claim, in order."
+          >
+            <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
+          </Panel>
+        ) : null
       }
     />
   );
 
   return (
     <PortalShell
-      activeKey={isSingleView ? "track-claim" : "initiate-claim"}
+      activeKey="initiate-claim"
       title={`Track Claim · ${claim.customerName} · ${claim.claimNo}`}
     >
       <div

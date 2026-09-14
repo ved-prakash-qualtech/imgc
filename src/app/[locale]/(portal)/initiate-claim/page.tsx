@@ -46,7 +46,7 @@ export default async function InitiateClaimPage() {
 
   return (
     <PortalShell activeKey="initiate-claim" title="Claim">
-      <EligibleCasesClient accounts={rows} />
+      <EligibleCasesClient accounts={rows} trackView="single" />
     </PortalShell>
   );
 }

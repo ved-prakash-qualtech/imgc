@@ -10,7 +10,7 @@ const TABS = [
   { key: "loan-details", label: "Loan Details" },
   { key: "status", label: "Status & Query" },
   { key: "documents", label: "Documents" },
-  { key: "history", label: "History" },
+  { key: "history", label: "Audit Trail" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -56,20 +56,26 @@ export function ClaimDetailTabs({
     { key: "loan-details", content: loanDetails },
     { key: "status", content: statusAndQuery },
     { key: "documents", content: documents },
-    { key: "history", content: history },
+    ...(history ? [{ key: "history" as TabKey, content: history }] : []),
   ];
+
+  const activeTabs = TABS.filter(t => t.key !== "history" || history);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* ── Tab bar row: optional Back link + pill switcher ── */}
-      <div className="mb-4 flex shrink-0 items-center gap-3">
-        {backLink}
+      {/* ── Tab bar row ── */}
+      <div className="mb-4 flex shrink-0 flex-wrap items-end gap-8 border-b border-neutral-200 px-1 pt-1">
+        {backLink && (
+          <div className="pb-2">
+            {backLink}
+          </div>
+        )}
         <div
-          className="flex gap-1 rounded-lg border border-neutral-200 bg-neutral-100 p-1"
+          className="flex gap-6"
           role="tablist"
           aria-label="Claim sections"
         >
-          {TABS.map((t) => (
+          {activeTabs.map((t) => (
             <button
               key={t.key}
               id={`claim-tab-${t.key}`}
@@ -80,10 +86,10 @@ export function ClaimDetailTabs({
               onClick={handleTabClick}
               data-tab-key={t.key}
               className={cn(
-                "rounded-md px-4 py-1.5 text-[13px] font-medium transition-colors",
+                "pb-2 text-[14px] font-medium transition-colors border-b-2",
                 tab === t.key
-                  ? "bg-white text-neutral-900 shadow-sm"
-                  : "text-neutral-500 hover:text-neutral-700"
+                  ? "border-brand-primary text-brand-primary"
+                  : "border-transparent text-neutral-500 hover:text-neutral-700"
               )}
             >
               {t.label}

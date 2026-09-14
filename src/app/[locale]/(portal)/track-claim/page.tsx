@@ -44,7 +44,7 @@ export default async function TrackClaimPage() {
     .filter((r) => r.claimAction === "TRACK" || r.claimAction === "VIEW");
 
   return (
-    <PortalShell activeKey="track-claim" title="Track Claim">
+    <PortalShell activeKey="initiate-claim" title="Track Claim">
       <EligibleCasesClient accounts={rows} trackView="single" />
     </PortalShell>
   );

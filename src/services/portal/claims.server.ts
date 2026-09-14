@@ -615,7 +615,7 @@ export async function submitClaim(
       account.bucket = "IMGC";
     }
     
-    account.claimStatus = "SUBMITTED";
+    account.claimStatus = "UNDER_REVIEW";
     account.submittedAt = nowIso();
     account.stage = "Submitted to IMGC";
     

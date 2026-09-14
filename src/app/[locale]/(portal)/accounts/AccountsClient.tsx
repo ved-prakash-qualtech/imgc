@@ -56,7 +56,6 @@ const BUCKETS = ["ALL", "IMGC", "LENDER"] as const;
 const STATUSES = [
   "NOT_STARTED",
   "DRAFT",
-  "SUBMITTED",
   "UNDER_REVIEW",
   "ACTIVE",
   "APPROVED",
@@ -73,7 +72,6 @@ const URL_STATUS_VALUES = new Set<string>([
 ]);
 /** Same four in-flight statuses `summariseClaimOverview`'s own "Under Progress" bucket counts. */
 const UNDER_PROGRESS_STATUSES = new Set<string>([
-  "SUBMITTED",
   "UNDER_REVIEW",
   "QUERIED",
   "DOCUMENTS_RESUBMITTED",
