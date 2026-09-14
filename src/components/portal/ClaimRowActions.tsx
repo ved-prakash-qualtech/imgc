@@ -56,36 +56,37 @@ export function ClaimRowActions({
       aria-label="Claim actions"
       className="flex items-center justify-end gap-1"
     >
-      <ActionPill
-        active={initiateActive}
-        href={ROUTES.initiateClaimWorkspace(accountId)}
-        icon={<FilePlus2Icon />}
-        label={resumable ? "Continue" : "Initiate"}
-        disabledHint={
-          reason ??
-          (action === "VIEW"
-            ? "This claim has already been decided."
-            : "This claim has already been submitted to IMGC.")
-        }
-      />
-      <ActionPill
-        active={trackActive}
-        href={
-          trackActive
-            ? ROUTES.claimDetails(claimId as string) +
-              (trackView === "single" ? "?view=single" : "")
-            : "#"
-        }
-        icon={<RadarIcon />}
-        label="Track"
-        title={claimNo}
-        disabledHint={
-          claimId
-            ? "Finish the claim on the left before tracking it."
-            : "Raise a claim first — there is nothing to track yet."
-        }
-        variant="outline"
-      />
+      {initiateActive && (
+        <ActionPill
+          active={initiateActive}
+          href={ROUTES.initiateClaimWorkspace(accountId)}
+          icon={<FilePlus2Icon />}
+          label={resumable ? "Continue" : "Initiate"}
+          disabledHint={
+            reason ?? "This claim has already been submitted to IMGC."
+          }
+        />
+      )}
+      {trackActive && (
+        <ActionPill
+          active={trackActive}
+          href={
+            trackActive
+              ? ROUTES.claimDetails(claimId as string) +
+                (trackView === "single" ? "?view=single" : "")
+              : "#"
+          }
+          icon={<RadarIcon />}
+          label="Track"
+          title={claimNo}
+          disabledHint={
+            claimId
+              ? "Finish the claim on the left before tracking it."
+              : "Raise a claim first — there is nothing to track yet."
+          }
+          variant="outline"
+        />
+      )}
     </div>
   );
 }
