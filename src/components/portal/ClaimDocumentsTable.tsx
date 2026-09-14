@@ -84,12 +84,12 @@ function TableLayout({ children }: { children: React.ReactNode }) {
       <Table>
         <TableHeader className="sticky top-0 bg-white shadow-sm z-10">
           <TableRow>
-            <TableHead className="h-9 px-4 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Document</TableHead>
-            <TableHead className="h-9 px-4 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Status</TableHead>
-            <TableHead className="h-9 px-4 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">File Name</TableHead>
-            <TableHead className="h-9 px-4 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Size</TableHead>
-            <TableHead className="h-9 px-4 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Date/Time</TableHead>
-            <TableHead className="h-9 px-4 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50 text-right">Actions</TableHead>
+            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Document</TableHead>
+            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Status</TableHead>
+            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">File Name</TableHead>
+            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Size</TableHead>
+            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Date/Time</TableHead>
+            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50 text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -186,11 +186,6 @@ export function ClaimDocumentsTable({
                 {doc.addedBy === "LENDER" ? "Additional" : "Optional"}
               </span>
             )}
-            {doc.multiple && (
-              <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-medium text-neutral-500">
-                Multiple
-              </span>
-            )}
           </div>
         </div>
       );
@@ -275,11 +270,13 @@ export function ClaimDocumentsTable({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                     // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                     onClick={() => onDelete(accountId, doc.id, file.id)}
+                    aria-label="Delete file"
+                    title="Delete file"
                   >
-                    <TrashIcon className="mr-1.5 size-3" /> Delete
+                    <TrashIcon className="size-3.5" />
                   </Button>
                 )}
                 {isFirst && mainAction && (

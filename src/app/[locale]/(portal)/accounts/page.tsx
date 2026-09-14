@@ -17,7 +17,13 @@ export default async function AccountsPage() {
   // the Claims screen once its account is actually eligible. `All Loans` (/dpd) is the
   // unrestricted view of every account regardless of DPD — this page is not that. `>` is
   // deliberate — exactly 90 does not qualify, only 91+.
-  const accounts = allAccounts.filter((a) => (a.dpd ?? 0) > 90);
+  const accounts = allAccounts.filter(
+    (a) =>
+      (a.dpd ?? 0) > 90 &&
+      (session.role !== "IMGC" ||
+        (a.claimStatus !== "CLOSED" &&
+          a.claimStatus !== "DOCUMENTS_RESUBMITTED"))
+  );
 
   return (
     <PortalShell activeKey="accounts" title="Claims">
