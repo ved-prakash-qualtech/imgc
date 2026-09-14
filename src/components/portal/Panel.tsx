@@ -32,7 +32,7 @@ export function Panel({
   className,
   size = "default",
 }: Readonly<{
-  title?: string;
+  title?: ReactNode;
   description?: string;
   actions?: ReactNode;
   children: ReactNode;

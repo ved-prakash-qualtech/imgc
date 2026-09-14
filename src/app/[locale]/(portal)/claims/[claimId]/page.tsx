@@ -157,24 +157,6 @@ export default async function ClaimDetailsPage({
               </div>
             </Panel>
           )}
-
-          <div key="query-response" className="flex flex-col">
-            <QueryResponseSection
-              accountId={claim.accountId}
-              claimId={claim.id}
-              claimStatus={claim.status}
-              openQuery={claim.openQuery}
-              queries={queries.sort((a, b) =>
-                a.raisedAt.localeCompare(b.raisedAt)
-              )}
-              claimRemarks={remarks.filter(
-                (remark) => remark.claimId === claim.id
-              )}
-              savedResponse={claim.fields.__queryResponse ?? ""}
-              documents={documents}
-              isLender={isLender}
-            />
-          </div>
         </>
       }
       documents={
@@ -186,6 +168,23 @@ export default async function ClaimDetailsPage({
               documents={documents}
               locked={terminal}
             />
+            <div key="query-response" className="flex flex-col">
+              <QueryResponseSection
+                accountId={claim.accountId}
+                claimId={claim.id}
+                claimStatus={claim.status}
+                openQuery={claim.openQuery}
+                queries={queries.sort((a, b) =>
+                  a.raisedAt.localeCompare(b.raisedAt)
+                )}
+                claimRemarks={remarks.filter(
+                  (remark) => remark.claimId === claim.id
+                )}
+                savedResponse={claim.fields.__queryResponse ?? ""}
+                documents={documents}
+                isLender={isLender}
+              />
+            </div>
           </div>
         ) : (
           <Panel title="Documents">

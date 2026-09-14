@@ -132,7 +132,6 @@ export function QueryResponseSection({
       <Panel
         title={title}
         size="compact"
-        description="Only actionable while IMGC has an open query on this claim."
         className={
           constrainedLayout || fillLayout
             ? "flex h-full min-h-0 flex-col overflow-hidden"

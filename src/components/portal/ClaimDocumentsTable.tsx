@@ -181,11 +181,6 @@ export function ClaimDocumentsTable({
                 {doc.refNo}
               </span>
             )}
-            {!doc.required && (
-              <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-500">
-                {doc.addedBy === "LENDER" ? "Additional" : "Optional"}
-              </span>
-            )}
           </div>
         </div>
       );
@@ -223,9 +218,9 @@ export function ClaimDocumentsTable({
           <TableRow key={doc.id} className={rowStyle}>
             <TableCell className="w-[30%] py-3 align-top">{docNameCell}</TableCell>
             <TableCell className="py-3 align-top">{statusCell}</TableCell>
-            <TableCell className="py-3 text-[12.5px] text-neutral-400 align-top">—</TableCell>
-            <TableCell className="py-3 text-[12.5px] text-neutral-400 align-top">—</TableCell>
-            <TableCell className="py-3 text-[12.5px] text-neutral-400 align-top">—</TableCell>
+            <TableCell className="py-3 text-[12px] text-neutral-400 align-top">Nothing uploaded yet.</TableCell>
+            <TableCell className="py-3 text-[12px] text-neutral-400 align-top">—</TableCell>
+            <TableCell className="py-3 text-[12px] text-neutral-400 align-top">—</TableCell>
             <TableCell className="py-3 text-right align-top">{mainAction}</TableCell>
           </TableRow>
         ];
@@ -296,8 +291,14 @@ export function ClaimDocumentsTable({
     <div className="flex flex-col gap-6">
       {/* ── Required documents ───────────────────────────────── */}
       <Panel
-        title="Required documents"
-        description={`${done} / ${applicable.length} required complete`}
+        title={
+          <div className="flex items-baseline gap-2">
+            Required documents
+            <span className="text-[12.5px] font-normal text-neutral-500">
+              {done} / {applicable.length} required complete
+            </span>
+          </div>
+        }
         className={bare ? "border-neutral-200 shadow-none" : undefined}
         actions={requiredActions}
       >

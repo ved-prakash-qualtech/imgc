@@ -100,5 +100,5 @@ const ALL_LOANS: NavItem = {
 export function navFor(role: Role): NavItem[] {
   return role === "IMGC"
     ? [CLAIM_DASHBOARD, ACCOUNTS, ADMINISTRATION]
-    : [CLAIM_DASHBOARD, CLAIM, AUDIT_TRAIL];
+    : [CLAIM_DASHBOARD, CLAIM];
 }

@@ -173,12 +173,12 @@ export function InitialClaimsTab({
             <div className="flex min-w-[900px] flex-col divide-y divide-neutral-100 text-left text-[13px]">
               <div className="flex items-center gap-4 bg-neutral-50 px-4 py-2.5 text-[11.5px] font-medium text-neutral-500">
                 <div className="w-[200px] shrink-0">Document</div>
-                <div className="w-[110px] shrink-0">Status</div>
+                <div className="w-[140px] shrink-0">Status</div>
                 <div className="min-w-[150px] flex-1">File Name</div>
                 <div className="w-[60px] shrink-0">Size</div>
                 <div className="w-[110px] shrink-0">Uploaded By</div>
-                <div className="w-[140px] shrink-0">Date/Time</div>
-                <div className="w-[160px] shrink-0 text-right">Actions</div>
+                <div className="w-[120px] shrink-0">Date/Time</div>
+                <div className="w-[90px] shrink-0 pr-4 text-right">Actions</div>
               </div>
               {docs
                 .filter((d) => d.status !== "PENDING_UPLOAD" || d.addedBy === "IMGC")
@@ -859,11 +859,11 @@ function ImgcDocumentRowItem({
             <span className="line-clamp-2 font-semibold leading-tight text-neutral-950" title={doc.name}>{doc.name}</span>
             {inactive && <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">Withdrawn</span>}
           </div>
-          <div className="w-[110px] shrink-0">
+          <div className="w-[140px] shrink-0">
             <StatusPill status={doc.status === "APPROVED" ? "ACCEPTED" : doc.status} />
           </div>
           <div className="min-w-[150px] flex-1 text-[12px] text-neutral-400">Nothing uploaded yet.</div>
-          <div className="flex w-[160px] shrink-0 flex-wrap justify-end gap-2">
+          <div className="flex w-[90px] shrink-0 flex-wrap justify-end gap-2 pr-4">
             {doc.addedBy === "IMGC" && (
                <Button size="xs" variant="outline" onClick={() => onToggleActive(inactive)} disabled={working} className="h-7 px-2.5 text-[11px]">
                  {inactive ? <RotateCcwIcon className="mr-1 size-3" /> : <BanIcon className="mr-1 size-3" />}
@@ -885,7 +885,7 @@ function ImgcDocumentRowItem({
             )}
           </div>
           
-          <div className="w-[110px] shrink-0">
+          <div className="w-[140px] shrink-0">
             {i === 0 && <StatusPill status={doc.status === "APPROVED" ? "ACCEPTED" : doc.status} />}
           </div>
           
@@ -898,9 +898,9 @@ function ImgcDocumentRowItem({
           </div>
           <div className="w-[60px] shrink-0 text-[11.5px] text-neutral-500">{bytes(f.size)}</div>
           <div className="w-[110px] shrink-0 truncate text-[11.5px] text-neutral-500" title={f.uploadedByName}>{f.uploadedByName}</div>
-          <div className="w-[140px] shrink-0 text-[11.5px] text-neutral-500">{when(f.uploadedAt)}</div>
+          <div className="w-[120px] shrink-0 text-[11.5px] text-neutral-500">{when(f.uploadedAt)}</div>
           
-          <div className="flex w-[160px] shrink-0 flex-wrap justify-end gap-1.5">
+          <div className="flex w-[90px] shrink-0 flex-wrap justify-end gap-1.5 pr-4">
             {/* Document actions only on the first file row */}
             {i === 0 && (
               <>

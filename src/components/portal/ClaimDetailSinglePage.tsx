@@ -31,7 +31,6 @@ export function ClaimDetailSinglePage({
   const navItems = [
     { id: "loan-details", label: "Loan Details" },
     { id: "status-query", label: "Status & Query" },
-    { id: "documents", label: "Documents" },
   ];
   if (history) {
     navItems.push({ id: "history", label: "Audit Trail" });
@@ -90,9 +89,9 @@ export function ClaimDetailSinglePage({
         )}
       </div>
 
-      <div className="space-y-8 pr-2 pb-4">
+      <div className="pr-2 pb-4">
         {/* Loan Details Section */}
-        <section id="loan-details" className="scroll-mt-4">
+        <section id="loan-details" className="scroll-mt-4 mb-8">
           <h2 className="mb-3 text-lg font-semibold text-neutral-900 border-b border-neutral-200 pb-2">
             Loan Details
           </h2>
@@ -100,7 +99,7 @@ export function ClaimDetailSinglePage({
         </section>
 
         {/* Status & Query Section */}
-        <section id="status-query" className="scroll-mt-4">
+        <section id="status-query" className="scroll-mt-4 mb-4">
           <h2 className="mb-3 text-lg font-semibold text-neutral-900 border-b border-neutral-200 pb-2">
             Status & Query
           </h2>
@@ -108,10 +107,7 @@ export function ClaimDetailSinglePage({
         </section>
 
         {/* Documents Section */}
-        <section id="documents" className="scroll-mt-4">
-          <h2 className="mb-3 text-lg font-semibold text-neutral-900 border-b border-neutral-200 pb-2">
-            Documents
-          </h2>
+        <section id="documents" className="scroll-mt-4 mb-8">
           {documents}
         </section>
 
