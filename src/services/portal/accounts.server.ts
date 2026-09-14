@@ -1,3 +1,4 @@
+"use client";
 import "server-only";
 
 import { readDb, writeDb } from "@/server/mock/db";
@@ -7,7 +8,10 @@ import {
   notifyClaimDecision,
 } from "@/services/portal/notifications.server";
 import { addRemark } from "@/services/portal/remarks.server";
-import { getClaimForAccount, syncClaimForAccountDecision } from "@/services/portal/claimFlow.server";
+import {
+  getClaimForAccount,
+  syncClaimForAccountDecision,
+} from "@/services/portal/claimFlow.server";
 import { listDocuments, summariseDocs } from "@/services/portal/claims.server";
 import { listClaimDocuments } from "@/services/portal/requirements.server";
 import { toAccountClaimStatus } from "@/config/claimConfig";
@@ -89,7 +93,12 @@ function classifyLoanStatus(
 function decorate(
   account: Account,
   orgs: LenderOrg[],
-  docs: { accountId: string; required: boolean; status: string; active?: boolean }[],
+  docs: {
+    accountId: string;
+    required: boolean;
+    status: string;
+    active?: boolean;
+  }[],
   claims: Claim[],
   queries: ClaimQuery[],
   events: AuditEvent[]
@@ -102,14 +111,19 @@ function decorate(
   for (const e of accountEvents) {
     if (e.at > lastTouch) lastTouch = e.at;
   }
-  
-  const isClosed = account.writeOff || claim?.status === "APPROVED" || claim?.status === "REJECTED";
-  const daysSince = Math.floor((Date.now() - Date.parse(lastTouch)) / (1000 * 60 * 60 * 24));
+
+  const isClosed =
+    account.writeOff ||
+    claim?.status === "APPROVED" ||
+    claim?.status === "REJECTED";
+  const daysSince = Math.floor(
+    (Date.now() - Date.parse(lastTouch)) / (1000 * 60 * 60 * 24)
+  );
   const isActive = !isClosed && daysSince <= 8;
 
   return {
     ...account,
-    claimNo: claim?.claimNo ?? "",
+    claimNo: claim && claim.status !== "DRAFT" ? claim.claimNo : "",
     // Repairs rows stored before `advance()` applied `toAccountClaimStatus`: those accounts hold
     // the claim's own `QUERY_RAISED` where the account vocabulary says `QUERIED`, which no
     // account-side reader matches. Normalising here means the existing data reads correctly
@@ -118,7 +132,13 @@ function decorate(
     loanStatus: classifyLoanStatus(account, claim, queries),
     lenderOrgName: orgs.find((o) => o.id === account.lenderOrgId)?.name ?? "—",
     requiredDocs: own.filter((d) => d.required && d.active !== false).length,
-    pendingDocs: own.filter((d) => d.required && d.active !== false && d.status !== "UNDER_REVIEW" && d.status !== "APPROVED").length,
+    pendingDocs: own.filter(
+      (d) =>
+        d.required &&
+        d.active !== false &&
+        d.status !== "UNDER_REVIEW" &&
+        d.status !== "APPROVED"
+    ).length,
     isActive,
   };
 }
@@ -127,7 +147,16 @@ export async function listAccounts(session: AppSession): Promise<AccountRow[]> {
   const db = await readDb();
   return db.accounts
     .filter((a) => inScope(session, a))
-    .map((a) => decorate(a, db.lenderOrgs, db.claimDocuments, db.claims, db.claimQueries, db.auditEvents))
+    .map((a) =>
+      decorate(
+        a,
+        db.lenderOrgs,
+        db.claimDocuments,
+        db.claims,
+        db.claimQueries,
+        db.auditEvents
+      )
+    )
     .sort((a, b) => a.loanNo.localeCompare(b.loanNo));
 }
 
@@ -138,10 +167,19 @@ export async function getAccount(
   const db = await readDb();
   const a = db.accounts.find((x) => x.id === accountId);
   if (!a || !inScope(session, a)) return null;
-  return decorate(a, db.lenderOrgs, db.claimDocuments, db.claims, db.claimQueries, db.auditEvents);
+  return decorate(
+    a,
+    db.lenderOrgs,
+    db.claimDocuments,
+    db.claims,
+    db.claimQueries,
+    db.auditEvents
+  );
 }
 
-export async function listAccessibleAccountIds(session: AppSession): Promise<string[]> {
+export async function listAccessibleAccountIds(
+  session: AppSession
+): Promise<string[]> {
   const db = await readDb();
   return db.accounts.filter((a) => inScope(session, a)).map((a) => a.id);
 }
@@ -165,11 +203,15 @@ export async function shiftBucket(
     const account = db.accounts.find((a) => a.id === accountId);
     if (!account) return { ok: false as const, error: "Account not found." };
     const from = account.bucket;
-    if (from === to) return { ok: false as const, error: `Already in the ${to} bucket.` };
+    if (from === to)
+      return { ok: false as const, error: `Already in the ${to} bucket.` };
     account.bucket = to;
     account.stage = to === "IMGC" ? "Under IMGC review" : "Document collection";
     account.pushRecipients = Array.from(
-      new Set([...account.pushRecipients, ...extraRecipients.map((e) => e.trim()).filter(Boolean)])
+      new Set([
+        ...account.pushRecipients,
+        ...extraRecipients.map((e) => e.trim()).filter(Boolean),
+      ])
     );
     return { ok: true as const, from, account: { ...account } };
   });
@@ -222,7 +264,8 @@ export async function setClaimStatus(
     if (!summary.complete) {
       return {
         ok: false,
-        error: "Please approve all required documents before marking the claim approved.",
+        error:
+          "Please approve all required documents before marking the claim approved.",
       };
     }
   }
@@ -230,7 +273,7 @@ export async function setClaimStatus(
   const updateOutcome = await writeDb((db) => {
     const account = db.accounts.find((a) => a.id === accountId);
     if (!account) return { ok: false as const, error: "Account not found." };
-    
+
     let bucketChangedFrom = null;
     if (status === "QUERIED" && account.bucket !== "LENDER") {
       bucketChangedFrom = account.bucket;
@@ -240,8 +283,18 @@ export async function setClaimStatus(
     account.claimStatus = status;
     // The processing itself happened in PAS; the portal records the outcome and the stage the
     // lender now sees against the account.
-    account.stage = status === "APPROVED" ? "Claim approved" : status === "REJECTED" ? "Claim rejected" : "Query raised with the lender";
-    return { ok: true as const, from: outcome.from, bucketChangedFrom, account: { ...account } };
+    account.stage =
+      status === "APPROVED"
+        ? "Claim approved"
+        : status === "REJECTED"
+          ? "Claim rejected"
+          : "Query raised with the lender";
+    return {
+      ok: true as const,
+      from: outcome.from,
+      bucketChangedFrom,
+      account: { ...account },
+    };
   });
   if (!updateOutcome.ok) return updateOutcome;
 
@@ -253,7 +306,12 @@ export async function setClaimStatus(
       summary: `Account moved from the ${updateOutcome.bucketChangedFrom} bucket to the LENDER bucket`,
       meta: { from: updateOutcome.bucketChangedFrom, to: "LENDER" },
     });
-    await notifyBucketShift(updateOutcome.account, updateOutcome.bucketChangedFrom, "LENDER", session);
+    await notifyBucketShift(
+      updateOutcome.account,
+      updateOutcome.bucketChangedFrom,
+      "LENDER",
+      session
+    );
   }
 
   // The Overview tab only ever wrote this account's own claimStatus; the Claim entity — what
@@ -280,7 +338,12 @@ export async function setClaimStatus(
     );
   }
 
-  await notifyClaimDecision(updateOutcome.account, status, trimmedNote, session);
+  await notifyClaimDecision(
+    updateOutcome.account,
+    status,
+    trimmedNote,
+    session
+  );
   return { ok: true };
 }
 

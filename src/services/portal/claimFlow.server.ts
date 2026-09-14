@@ -1,4 +1,4 @@
-/* eslint-disable use-client/browser-api, security/detect-object-injection */
+/* eslint-disable use-client/browser-api */
 import "server-only";
 
 import path from "node:path";
@@ -133,6 +133,10 @@ function decorate(claim: Claim, db: MockDb): ClaimRow {
   const required = docs.filter((d) => d.required && d.active !== false);
   return {
     ...claim,
+    // A draft claim is only the workspace's attachment point. Claim numbers are issued at
+    // Save & Submit, so clear any stale number left by an older mock snapshot before it reaches
+    // the lender grid.
+    claimNo: claim.status === "DRAFT" ? "" : claim.claimNo,
     caseId: account?.loanNo ?? "—",
     customerName: account?.borrowerName ?? "—",
     lenderName: org?.name ?? "—",
@@ -286,10 +290,7 @@ function advance(
   const account = db.accounts.find((a) => a.id === claim.accountId);
   if (account) {
     account.claimStatus = toAccountClaimStatus(status);
-    if (
-      status === "DOCUMENTS_RESUBMITTED" ||
-      status === "UNDER_REVIEW"
-    ) {
+    if (status === "DOCUMENTS_RESUBMITTED" || status === "UNDER_REVIEW") {
       account.stage = "Under IMGC review";
     } else if (status === "APPROVED") {
       account.stage = "Claim approved";
@@ -515,60 +516,63 @@ function materialiseChecklist(
     },
   };
 
-  documentSpecsFor(fresh, claimType, account?.lenderOrgId).forEach((spec, i) => {
-    const applies = docConditionMet(spec.condition, loan);
-    const docId = `${claimId}_doc${i}`;
+  documentSpecsFor(fresh, claimType, account?.lenderOrgId).forEach(
+    (spec, i) => {
+      const applies = docConditionMet(spec.condition, loan);
+      const docId = `${claimId}_doc${i}`;
 
-    // For INITIAL claims, the first two documents are pre-existing: they were submitted by the
-    // customer during loan sourcing. We seed them as UNDER_REVIEW with a real DocumentFile so
-    // the existing ClaimDocuments UI naturally shows View / Replace, and summariseDocs() counts
-    // them as satisfied without any change to validation logic.
-    const demoEntry = claimType === "INITIAL" ? DEMO_FILES[spec.slug] : undefined;
-    const fileId = demoEntry ? `${docId}_f1` : undefined;
+      // For INITIAL claims, the first two documents are pre-existing: they were submitted by the
+      // customer during loan sourcing. We seed them as UNDER_REVIEW with a real DocumentFile so
+      // the existing ClaimDocuments UI naturally shows View / Replace, and summariseDocs() counts
+      // them as satisfied without any change to validation logic.
+      const demoEntry =
+        claimType === "INITIAL" ? DEMO_FILES[spec.slug] : undefined;
+      const fileId = demoEntry ? `${docId}_f1` : undefined;
 
-    if (demoEntry && fileId) {
-      fresh.documentFiles.push({
-        id: fileId,
-        documentId: docId,
+      if (demoEntry && fileId) {
+        fresh.documentFiles.push({
+          id: fileId,
+          documentId: docId,
+          accountId,
+          originalName: demoEntry.name,
+          storedPath: demoEntry.file,
+          size: demoEntry.size,
+          mime: "application/pdf",
+          // Uploaded by "system" to represent a customer-sourced document, not the current lender.
+          uploadedBy: "system",
+          uploadedByName: "Customer (Pre-Loaded)",
+          // Dated 7 days before claim creation to signal pre-existence.
+          uploadedAt: new Date(Date.now() - 7 * 86_400_000).toISOString(),
+          version: 1,
+        });
+      }
+
+      fresh.claimDocuments.push({
+        id: docId,
         accountId,
-        originalName: demoEntry.name,
-        storedPath: demoEntry.file,
-        size: demoEntry.size,
-        mime: "application/pdf",
-        // Uploaded by "system" to represent a customer-sourced document, not the current lender.
-        uploadedBy: "system",
-        uploadedByName: "Customer (Pre-Loaded)",
-        // Dated 7 days before claim creation to signal pre-existence.
-        uploadedAt: new Date(Date.now() - 7 * 86_400_000).toISOString(),
-        version: 1,
+        claimId,
+        slug: spec.slug,
+        name: spec.name,
+        category: spec.category,
+        description: spec.description,
+        required: spec.required && applies,
+        multiple: spec.multiple ?? false,
+        conditional: Boolean(spec.condition),
+        conditionReason: spec.condition
+          ? conditionReason(spec.condition)
+          : undefined,
+        addedBy: "SYSTEM",
+        // Pre-seeded docs land in UNDER_REVIEW (uploaded, awaiting IMGC approval) — the same state
+        // a normal upload produces (see uploadDocument()), so validation and UI treat them
+        // identically to a document the lender uploaded themselves.
+        status: demoEntry ? "UNDER_REVIEW" : "PENDING_UPLOAD",
+        version: demoEntry ? 1 : 0,
+        currentFileId: fileId,
+        active: true,
+        createdAt: nowIso(),
       });
     }
-
-    fresh.claimDocuments.push({
-      id: docId,
-      accountId,
-      claimId,
-      slug: spec.slug,
-      name: spec.name,
-      category: spec.category,
-      description: spec.description,
-      required: spec.required && applies,
-      multiple: spec.multiple ?? false,
-      conditional: Boolean(spec.condition),
-      conditionReason: spec.condition
-        ? conditionReason(spec.condition)
-        : undefined,
-      addedBy: "SYSTEM",
-      // Pre-seeded docs land in UNDER_REVIEW (uploaded, awaiting IMGC approval) — the same state
-      // a normal upload produces (see uploadDocument()), so validation and UI treat them
-      // identically to a document the lender uploaded themselves.
-      status: demoEntry ? "UNDER_REVIEW" : "PENDING_UPLOAD",
-      version: demoEntry ? 1 : 0,
-      currentFileId: fileId,
-      active: true,
-      createdAt: nowIso(),
-    });
-  });
+  );
 }
 
 export async function createClaim(
