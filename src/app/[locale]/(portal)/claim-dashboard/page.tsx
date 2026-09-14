@@ -114,7 +114,12 @@ export default async function ClaimDashboardPage({
 
       const status =
         a.claimStatus === "QUERIED" ? "QUERY_RAISED" : a.claimStatus;
-      return { claim: { status: status as ClaimStatus } };
+      return {
+        claim: {
+          status: status as ClaimStatus,
+          hasProgress: a.claimHasProgress,
+        },
+      };
     });
   const counts = summariseClaimOverview(eligible);
 
@@ -130,7 +135,7 @@ export default async function ClaimDashboardPage({
         <ClaimOverviewBand
           counts={counts}
           hrefs={overviewHrefs(gridBase)}
-          showLenderKpis={session.role === "LENDER"}
+          showDraftQueryKpis
           title={
             data.canFilterByLender
               ? (selectedLenderName ?? "Every Lender")

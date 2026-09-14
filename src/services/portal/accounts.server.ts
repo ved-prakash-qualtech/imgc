@@ -27,6 +27,12 @@ import type {
 
 export interface AccountRow extends Account {
   claimNo: string;
+  /**
+   * Whether the account's claim has actually got going — same rule as `ClaimRow.hasProgress`
+   * (claimFlow.server.ts). `claimStatus` alone reads `DRAFT` both for an account with no claim
+   * and for one whose lender has saved a draft; this is what tells those two apart.
+   */
+  claimHasProgress: boolean;
   lenderOrgName: string;
   requiredDocs: number;
   pendingDocs: number;
@@ -123,6 +129,9 @@ function decorate(
   return {
     ...account,
     claimNo: claim && claim.status !== "DRAFT" ? claim.claimNo : "",
+    claimHasProgress: Boolean(
+      claim && (claim.draftSaved || claim.status !== "DRAFT")
+    ),
     // Repairs rows stored before `advance()` applied `toAccountClaimStatus`: those accounts hold
     // the claim's own `QUERY_RAISED` where the account vocabulary says `QUERIED`, which no
     // account-side reader matches. Normalising here means the existing data reads correctly

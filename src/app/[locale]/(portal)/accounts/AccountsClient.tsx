@@ -187,16 +187,16 @@ function statusDisplay(v: StatusOption): string {
 /**
  * What the Claim Status column shows for an account's stored `claimStatus`.
  *
- * `DRAFT` is this grid's "nothing has been submitted yet" state, and the status filter already
- * says so — the "Not started" option matches `claimStatus === "DRAFT"` (see `matchesNotStarted`
- * below). The column was the one place still printing the raw stored value, so the same row read
- * "Draft" in the grid and "Not started" in the filter that selected it. Only the label moves:
- * nothing here writes `claimStatus`, and the stored value stays `DRAFT`.
+ * `claimStatus` reads `DRAFT` both for an account with no claim yet and for one whose lender has
+ * saved a draft; `claimHasProgress` tells them apart, exactly as the lender's grid does. The first
+ * is "Not started", the second a real "Draft" — and the status filter below uses the same split,
+ * so the label a row shows and the filter option that selects it always agree. Only the label
+ * moves: nothing here writes `claimStatus`, and the stored value stays `DRAFT`.
  */
-function claimStatusDisplay(
-  claimStatus: ClaimStatus
-): ClaimStatus | "NOT_STARTED" {
-  return claimStatus === "DRAFT" ? "NOT_STARTED" : claimStatus;
+function claimStatusDisplay(a: AccountRow): ClaimStatus | "NOT_STARTED" {
+  return a.claimStatus === "DRAFT" && !a.claimHasProgress
+    ? "NOT_STARTED"
+    : a.claimStatus;
 }
 
 function StatusMultiSelect({
@@ -418,18 +418,32 @@ export function AccountsClient({
         } else if (status.includes("UNDER_PROGRESS")) {
           if (!UNDER_PROGRESS_STATUSES.has(a.claimStatus)) return false;
         } else {
+          // `DRAFT` splits on `claimHasProgress`, same as the Claim Status column
+          // (`claimStatusDisplay`): an untouched account is "Not started", a saved one "Draft".
           const matchesNotStarted =
-            status.includes("NOT_STARTED") && a.claimStatus === "DRAFT";
+            status.includes("NOT_STARTED") &&
+            a.claimStatus === "DRAFT" &&
+            !a.claimHasProgress;
+          const matchesDraft =
+            status.includes("DRAFT") &&
+            a.claimStatus === "DRAFT" &&
+            a.claimHasProgress;
+          // The account side stores a query as `QUERIED` (`toAccountClaimStatus`), while the
+          // filter option — and the dashboard's Query Raised tile — use the claim's `QUERY_RAISED`.
+          const matchesQueryRaised =
+            status.includes("QUERY_RAISED") && a.claimStatus === "QUERIED";
           const matchesApproved =
             status.includes("APPROVED") &&
             (a.claimStatus === "APPROVED" ||
               a.claimStatus === "CLOSED" ||
               a.claimStatus === "REFUND_RECEIVED_BY_IMGC");
-          const matchesClaimStatus = (status as string[]).includes(
-            a.claimStatus
-          );
+          const matchesClaimStatus =
+            a.claimStatus !== "DRAFT" &&
+            (status as string[]).includes(a.claimStatus);
           if (
             !matchesNotStarted &&
+            !matchesDraft &&
+            !matchesQueryRaised &&
             !matchesApproved &&
             !matchesClaimStatus
           )
@@ -742,7 +756,7 @@ export function AccountsClient({
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5">
                       <StatusPill
-                        status={claimStatusDisplay(a.claimStatus)}
+                        status={claimStatusDisplay(a)}
                         className="px-1.5 py-0.5 text-[10.5px]"
                       />
                     </TableCell>

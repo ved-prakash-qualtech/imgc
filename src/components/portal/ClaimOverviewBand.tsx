@@ -70,7 +70,7 @@ const EMPTY_STATS: never[] = [];
 export function ClaimOverviewBand({
   counts,
   hrefs,
-  showLenderKpis,
+  showDraftQueryKpis,
   title = "Claims Overview",
   subtitle,
   action,
@@ -79,14 +79,14 @@ export function ClaimOverviewBand({
   /** Where each tile drills into — the grid below reads the same `?status=` value back out
    *  (see EligibleCasesClient's `statusFromParam`), so the click and the count always agree. */
   hrefs?: Partial<Record<keyof ClaimOverviewCounts, string>>;
-  showLenderKpis?: boolean;
+  showDraftQueryKpis?: boolean;
   title?: string;
   subtitle?: string;
   /** Top-right of the band, on the gradient — the Claim Dashboard's lender lens goes here, same
    *  slot the main Dashboard's lender filter uses. Unused by the Claims-grid callers. */
   action?: React.ReactNode;
 }>) {
-  const activeTiles = showLenderKpis
+  const activeTiles = showDraftQueryKpis
     ? ([
         ...TILES,
         {
