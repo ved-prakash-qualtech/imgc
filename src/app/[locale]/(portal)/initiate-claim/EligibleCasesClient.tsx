@@ -37,7 +37,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { EligibleRow } from "@/app/[locale]/(portal)/initiate-claim/page";
+import type { EligibleRow } from "@/types/portal/eligibleClaim";
 import type { ClaimStatus } from "@/server/mock/types";
 
 type SortKey =

@@ -458,8 +458,12 @@ export default async function ClaimDetailsPage({
       title={`Track Claim · ${claim.customerName} · ${claim.claimNo}`}
     >
       <div
-        className="flex flex-col overflow-hidden"
-        style={{ height: "calc(100vh - 5.5rem)" }}
+        className={
+          isSingleView ? "flex flex-col" : "flex flex-col overflow-hidden"
+        }
+        style={
+          isSingleView ? undefined : { height: "calc(100vh - 5.5rem)" }
+        }
       >
         {layoutContent}
       </div>

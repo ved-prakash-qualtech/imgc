@@ -1,24 +1,11 @@
 import { EligibleCasesClient } from "@/app/[locale]/(portal)/initiate-claim/EligibleCasesClient";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { requireSession } from "@/lib/auth/appSession";
-import {
-  listAccounts,
-  type AccountRow,
-} from "@/services/portal/accounts.server";
-import {
-  getClaimAction,
-  listClaims,
-  type ClaimRow,
-} from "@/services/portal/claimFlow.server";
-import type { ClaimAction } from "@/server/mock/types";
+import { getClaimAction, listClaims } from "@/services/portal/claimFlow.server";
+import { listAccounts } from "@/services/portal/accounts.server";
+import type { EligibleRow } from "@/types/portal/eligibleClaim";
 
 export const dynamic = "force-dynamic";
-
-export interface EligibleRow extends AccountRow {
-  claim: ClaimRow | null;
-  claimAction: ClaimAction;
-  claimReason?: string;
-}
 
 export default async function TrackClaimPage() {
   const session = await requireSession();
