@@ -61,7 +61,7 @@ export function ClaimDetailSinglePage({
   }, [showSectionNav, history]);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col">
       {/* ── Header row: Back link + Section Nav ── */}
       <div className="mb-4 flex shrink-0 flex-wrap items-end gap-8 border-b border-neutral-200 px-1 pt-1">
         {backLink && (
@@ -90,7 +90,7 @@ export function ClaimDetailSinglePage({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-8 pb-0">
+      <div className="space-y-8 pr-2 pb-4">
         {/* Loan Details Section */}
         <section id="loan-details" className="scroll-mt-4">
           <h2 className="mb-3 text-lg font-semibold text-neutral-900 border-b border-neutral-200 pb-2">

@@ -2,20 +2,12 @@
 
 import { type ChangeEvent, useCallback, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { SendIcon, FileTextIcon, PaperclipIcon } from "lucide-react";
+import { SendIcon, FileTextIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { submitClaimAction } from "@/app/[locale]/(portal)/initiate-claim/actions";
-import { ClaimDocuments } from "@/components/portal/ClaimDocuments";
 import { Panel } from "@/components/portal/Panel";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import type { RequirementRow } from "@/services/portal/requirements.server";
 import type { ClaimQuery, ClaimStatus, Remark } from "@/server/mock/types";
 
@@ -91,9 +83,6 @@ export function QueryResponseSection({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [response, setResponse] = useState(savedResponse);
-  const [attachOpen, setAttachOpen] = useState(false);
-
-  const closeAttachModal = useCallback(() => setAttachOpen(false), []);
 
   const handleResponseChange = useCallback(
     (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -341,50 +330,17 @@ export function QueryResponseSection({
                   style={{ fieldSizing: "content" } as any}
                 />
 
-                <div className="flex shrink-0 items-center gap-1">
-                  <Dialog open={attachOpen} onOpenChange={setAttachOpen}>
-                    <DialogTrigger
-                      className="flex size-8 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/20"
-                      title="Attach documents"
-                    >
-                      <PaperclipIcon className="size-[18px]" />
-                      <span className="sr-only">Attach documents</span>
-                    </DialogTrigger>
-                    <DialogContent className="flex max-h-[85vh] w-full sm:max-w-4xl flex-col overflow-hidden p-0">
-                      <DialogHeader className="shrink-0 border-b border-neutral-100 px-5 py-4">
-                        <DialogTitle className="text-lg">
-                          Attach Documents
-                        </DialogTitle>
-                      </DialogHeader>
-                      <div className="flex-1 overflow-y-auto bg-neutral-50/50 px-5 py-4 custom-scrollbar">
-                        <ClaimDocuments
-                          accountId={accountId}
-                          claimId={claimId}
-                          documents={documents}
-                          locked={false}
-                          bare
-                        />
-                      </div>
-                      <div className="flex shrink-0 justify-end border-t border-neutral-100 bg-white px-5 py-3">
-                        <Button variant="outline" onClick={closeAttachModal}>
-                          Done
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Button
-                    type="button"
-                    size="icon"
-                    className="size-8 rounded-full bg-brand-primary hover:bg-brand-primary/90 text-white"
-                    onClick={onSubmit}
-                    disabled={pending || !response.trim()}
-                    title="Send Response"
-                  >
-                    <SendIcon className="size-[15px]" />
-                    <span className="sr-only">Send Response</span>
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  size="icon"
+                  className="shrink-0 size-8 rounded-full bg-brand-primary hover:bg-brand-primary/90 text-white"
+                  onClick={onSubmit}
+                  disabled={pending || !response.trim()}
+                  title="Send Response"
+                >
+                  <SendIcon className="size-[15px]" />
+                  <span className="sr-only">Send Response</span>
+                </Button>
               </div>
 
               <div className="flex items-center justify-between px-2 text-[11px] text-neutral-400">

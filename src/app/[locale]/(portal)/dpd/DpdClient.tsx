@@ -32,7 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DPD_BANDS, DPD_BAND_LABEL, dpdInBand, formatDpd, type DpdBand } from "@/lib/dpd";
-import type { EligibleRow } from "@/app/[locale]/(portal)/initiate-claim/page";
+import type { EligibleRow } from "@/types/portal/eligibleClaim";
 import type { Role } from "@/server/mock/types";
 
 /** Same "not started" idea the Claim grid uses (a claim record can exist before the lender has

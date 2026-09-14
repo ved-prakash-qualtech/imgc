@@ -1,5 +1,5 @@
 import { DpdClient } from "@/app/[locale]/(portal)/dpd/DpdClient";
-import type { EligibleRow } from "@/app/[locale]/(portal)/initiate-claim/page";
+import type { EligibleRow } from "@/types/portal/eligibleClaim";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { requireSession } from "@/lib/auth/appSession";
 import { listAccounts } from "@/services/portal/accounts.server";

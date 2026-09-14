@@ -1,24 +1,16 @@
 import { EligibleCasesClient } from "@/app/[locale]/(portal)/initiate-claim/EligibleCasesClient";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { requireSession } from "@/lib/auth/appSession";
-import { listAccounts, type AccountRow } from "@/services/portal/accounts.server";
+import { listAccounts } from "@/services/portal/accounts.server";
 import {
   getClaimAction,
   listClaims,
-  type ClaimRow,
 } from "@/services/portal/claimFlow.server";
-import type { ClaimAction } from "@/server/mock/types";
+import type { EligibleRow } from "@/types/portal/eligibleClaim";
 
 // The Claims Overview band moved to the Claim Dashboard (/claim-dashboard); this page is the
 // grid alone now.
 export const dynamic = "force-dynamic";
-
-/** One grid row: an NPA account, whatever claim it carries, and what the row may do next. */
-export interface EligibleRow extends AccountRow {
-  claim: ClaimRow | null;
-  claimAction: ClaimAction;
-  claimReason?: string;
-}
 
 export default async function InitiateClaimPage() {
   const session = await requireSession();
