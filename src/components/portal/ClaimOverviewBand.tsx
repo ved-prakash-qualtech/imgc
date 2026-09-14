@@ -1,10 +1,8 @@
 import Link from "next/link";
 import {
-  BanknoteIcon,
   CheckCircle2Icon,
   ClipboardListIcon,
   FilePlus2Icon,
-  LayersIcon,
   XCircleIcon,
 } from "lucide-react";
 
@@ -42,12 +40,6 @@ const TILES: ReadonlyArray<{
   tone: Tone;
 }> = [
   {
-    key: "total",
-    label: "Actionable NPA",
-    icon: <LayersIcon className="size-4" />,
-    tone: "blue",
-  },
-  {
     key: "initiation",
     label: "Claim to be Initiated",
     icon: <FilePlus2Icon className="size-4" />,
@@ -55,7 +47,7 @@ const TILES: ReadonlyArray<{
   },
   {
     key: "underProgress",
-    label: "Under Progress",
+    label: "Under Review",
     icon: <ClipboardListIcon className="size-4" />,
     tone: "amber",
   },
@@ -70,12 +62,6 @@ const TILES: ReadonlyArray<{
     label: "Claim Rejected",
     icon: <XCircleIcon className="size-4" />,
     tone: "gold",
-  },
-  {
-    key: "refunded",
-    label: "Claim Refunded",
-    icon: <BanknoteIcon className="size-4" />,
-    tone: "green",
   },
 ];
 
@@ -105,7 +91,7 @@ export function ClaimOverviewBand({
       stats={EMPTY_STATS}
       action={action}
     >
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
         {TILES.map((tile) => {
           const tone = TONE[tile.tone];
           const href = hrefs?.[tile.key];

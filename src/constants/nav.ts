@@ -41,7 +41,7 @@ export type NavItem = Readonly<{
 
 const CLAIM_DASHBOARD: NavItem = {
   key: "claim-dashboard",
-  label: "Claim Dashboard",
+  label: "Dashboard",
   href: ROUTES.claimDashboard,
 };
 

@@ -35,8 +35,8 @@ function overviewHrefs(
     initiation: `${base}?status=NOT_STARTED`,
     underProgress:
       base === ROUTES.initiateClaim
-        ? `${base}?status=SUBMITTED,UNDER_REVIEW,QUERY_RAISED`
-        : `${base}?status=SUBMITTED,UNDER_REVIEW,DOCUMENTS_RESUBMITTED,QUERIED`,
+        ? `${base}?status=SUBMITTED,UNDER_REVIEW`
+        : `${base}?status=SUBMITTED,UNDER_REVIEW,DOCUMENTS_RESUBMITTED`,
     approved: `${base}?status=APPROVED`,
     rejected: `${base}?status=REJECTED`,
     refunded: `${base}?status=REFUND_RECEIVED_BY_IMGC`,
@@ -46,7 +46,7 @@ function overviewHrefs(
 function parseStatus(v: string | undefined): MonthlyStatusKey {
   return MONTHLY_STATUS_OPTIONS.some((o) => o.key === v)
     ? (v as MonthlyStatusKey)
-    : "INITIATED";
+    : "SUBMITTED";
 }
 
 function parseMonths(v: string | undefined): MonthWindow {

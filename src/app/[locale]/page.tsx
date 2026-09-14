@@ -8,5 +8,5 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const session = await getSessionOrNull();
-  redirect(session ? ROUTES.dashboard : ROUTES.login);
+  redirect(session ? ROUTES.claimDashboard : ROUTES.login);
 }

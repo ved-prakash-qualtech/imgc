@@ -16,7 +16,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ returnTo?: string }>;
 }) {
-  if (await getSessionOrNull()) redirect(ROUTES.dashboard);
+  if (await getSessionOrNull()) redirect(ROUTES.claimDashboard);
 
   const { returnTo } = await searchParams;
   const safe =

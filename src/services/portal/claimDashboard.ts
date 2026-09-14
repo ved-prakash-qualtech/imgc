@@ -30,12 +30,10 @@ export const MONTHLY_STATUS_OPTIONS: ReadonlyArray<{
   key: MonthlyStatusKey;
   label: string;
 }> = [
-  { key: "INITIATED", label: "Claim initiated" },
   { key: "SUBMITTED", label: "Submitted" },
   { key: "UNDER_REVIEW", label: "Under review" },
   { key: "APPROVED", label: "Approved" },
   { key: "REJECTED", label: "Rejected" },
-  { key: "REFUND_RECEIVED_BY_IMGC", label: "Refunded" },
 ];
 
 export const MONTH_WINDOWS = [3, 6, 12] as const;

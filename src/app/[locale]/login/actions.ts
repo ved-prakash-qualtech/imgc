@@ -29,7 +29,7 @@ const isDev = process.env.NODE_ENV !== "production";
 /** Only ever redirect within this app. */
 function safeReturnTo(returnTo: string | undefined): string {
   if (!returnTo || !returnTo.startsWith("/") || returnTo.startsWith("//")) {
-    return ROUTES.dashboard;
+    return ROUTES.claimDashboard;
   }
   return returnTo;
 }
@@ -142,7 +142,7 @@ export async function demoLoginAction(role: Role): Promise<{ error: string } | n
       name: staff.name,
       email: staff.email,
     });
-    redirect(ROUTES.dashboard);
+    redirect(ROUTES.claimDashboard);
   }
 
   const lender = await findByEmail("arjun@hdfcbank.com");
@@ -156,5 +156,5 @@ export async function demoLoginAction(role: Role): Promise<{ error: string } | n
     lenderOrgId: lender.lenderOrgId,
     lenderDomain: org?.emailDomain,
   });
-  redirect(ROUTES.dashboard);
+  redirect(ROUTES.claimDashboard);
 }
