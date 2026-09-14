@@ -393,6 +393,31 @@ export interface Claim {
   };
 }
 
+/**
+ * One document IMGC requires from a given lender's INITIAL claims — "Lender Document
+ * Configuration". Independent of `ClaimDocumentSpec` (the built-in default checklist every claim
+ * type ships with): a lender with no rows here simply gets the default, unchanged. A lender with
+ * rows here gets exactly this list instead, in `order`, the moment a new claim is created for
+ * them — see `materialiseChecklist` in claimFlow.server.ts. Never touches a claim already in
+ * progress; only what a *new* claim is built from.
+ */
+export interface LenderDocumentRequirement {
+  id: string;
+  lenderOrgId: string;
+  /** Matches a built-in `ClaimDocumentSpec.slug` when this row stands in for a default document
+   *  (e.g. carried over from the default checklist, or re-added after being removed); a fresh
+   *  slug of its own for a document IMGC invented for this lender only (e.g. "NOC"). Lets a new
+   *  claim's demo pre-loaded files still line up with the right row regardless of order. */
+  slug: string;
+  name: string;
+  category: string;
+  description?: string;
+  required: boolean;
+  /** Materialisation and display order. */
+  order: number;
+  createdAt: string;
+}
+
 export interface MockDb {
   lenderOrgs: LenderOrg[];
   users: User[];
@@ -406,4 +431,5 @@ export interface MockDb {
   remarks: Remark[];
   auditEvents: AuditEvent[];
   notifications: Notification[];
+  lenderDocumentRequirements: LenderDocumentRequirement[];
 }

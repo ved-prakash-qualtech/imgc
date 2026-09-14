@@ -14,6 +14,7 @@ import type {
   ClaimTypeKey,
   DocStatus,
   DocumentFile,
+  LenderDocumentRequirement,
   LenderOrg,
   MockDb,
   PasValue,
@@ -1400,6 +1401,83 @@ export function buildSeed(): MockDb {
     });
   });
 
+  // Lender Document Configuration — demo coverage for three lenders, each deliberately
+  // different (a different subset of the default checklist, a different Mandatory/Optional
+  // split, and one with a document IMGC invented that exists for that lender alone) so the
+  // feature is visibly doing something rather than reproducing the default for everyone.
+  // Every other lender has no rows here at all, which is the point: `materialiseChecklist`
+  // falls back to `CLAIM_TYPES.INITIAL.documents` unchanged for any lender nobody has configured.
+  const INITIAL_DOC_BY_SLUG = new Map(
+    CLAIM_TYPES.INITIAL.documents.map((d) => [d.slug, d])
+  );
+  function fromDefault(
+    slug: string,
+    required: boolean
+  ): Omit<LenderDocumentRequirement, "id" | "lenderOrgId" | "order" | "createdAt"> {
+    const spec = INITIAL_DOC_BY_SLUG.get(slug)!;
+    return {
+      slug,
+      name: spec.name,
+      category: spec.category,
+      description: spec.description,
+      required,
+    };
+  }
+  const NOC_DOC = {
+    slug: "noc",
+    name: "NOC",
+    category: "Legal Document",
+    description: "No-objection certificate from the lender.",
+  };
+  const LENDER_DOC_CONFIG: ReadonlyArray<{
+    lenderId: string;
+    docs: ReadonlyArray<
+      Omit<LenderDocumentRequirement, "id" | "lenderOrgId" | "order" | "createdAt">
+    >;
+  }> = [
+    {
+      // HDFC Bank — the default checklist, plus an optional NOC only HDFC asks for.
+      lenderId: "org_acme",
+      docs: [
+        fromDefault("lod", true),
+        fromDefault("legal-collection-feedback", true),
+        fromDefault("latest-technical-report", true),
+        fromDefault("income-banking", true),
+        { ...NOC_DOC, required: false },
+      ],
+    },
+    {
+      // ICICI Bank — no technical-report/NOC story here; origination FI instead, and every
+      // document mandatory.
+      lenderId: "org_northgate",
+      docs: [
+        fromDefault("lod", true),
+        fromDefault("origination-field-investigation", true),
+        fromDefault("latest-technical-report", true),
+        fromDefault("income-banking", true),
+      ],
+    },
+    {
+      // ABC Housing Finance — the shortest list: two mandatory documents and an optional NOC.
+      lenderId: "org_abc",
+      docs: [
+        fromDefault("lod", true),
+        fromDefault("legal-collection-feedback", true),
+        { ...NOC_DOC, required: false },
+      ],
+    },
+  ];
+  const lenderDocumentRequirements: LenderDocumentRequirement[] =
+    LENDER_DOC_CONFIG.flatMap(({ lenderId, docs }) =>
+      docs.map((doc, i) => ({
+        id: `ldr_${lenderId}_${doc.slug}`,
+        lenderOrgId: lenderId,
+        order: i,
+        createdAt: NOW,
+        ...doc,
+      }))
+    );
+
   return {
     lenderOrgs,
     users,
@@ -1413,6 +1491,7 @@ export function buildSeed(): MockDb {
     remarks,
     auditEvents: auditEvents.map((e, i) => ({ id: `aud_${String(i + 1).padStart(4, "0")}`, ...e })),
     notifications: [],
+    lenderDocumentRequirements,
   };
 }
 

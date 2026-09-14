@@ -31,11 +31,20 @@ interface Loaded {
   etag?: string;
 }
 
+/**
+ * Backfills collections added to `MockDb` after a snapshot was written, so an older persisted
+ * database (local disk, or a Blob store from before this field existed) doesn't crash the first
+ * time something reads it — same idea as an optional field on a row, just for a whole collection.
+ */
+function normalize(db: MockDb): MockDb {
+  return { ...db, lenderDocumentRequirements: db.lenderDocumentRequirements ?? [] };
+}
+
 async function load(): Promise<Loaded> {
   const raw = await readSnapshot();
   if (raw) {
     try {
-      return { db: JSON.parse(raw.json) as MockDb, etag: raw.etag };
+      return { db: normalize(JSON.parse(raw.json) as MockDb), etag: raw.etag };
     } catch {
       // A truncated or half-written snapshot: fall through and rebuild rather than crash every
       // page with a JSON parse error.
@@ -56,7 +65,7 @@ async function load(): Promise<Loaded> {
   let seeded: MockDb;
   if (bundled) {
     try {
-      seeded = JSON.parse(bundled) as MockDb;
+      seeded = normalize(JSON.parse(bundled) as MockDb);
     } catch {
       seeded = buildSeed();
     }
@@ -70,7 +79,7 @@ async function load(): Promise<Loaded> {
   const stored = await readSnapshot();
   if (stored) {
     try {
-      return { db: JSON.parse(stored.json) as MockDb, etag: stored.etag };
+      return { db: normalize(JSON.parse(stored.json) as MockDb), etag: stored.etag };
     } catch {
       /* fall through to the copy we just built */
     }

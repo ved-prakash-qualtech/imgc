@@ -17,6 +17,7 @@ import {
   LENDER_ACTIONABLE,
   TERMINAL_STATUSES,
   toAccountClaimStatus,
+  type ClaimDocumentSpec,
 } from "@/config/claimConfig";
 import type { AppSession } from "@/lib/auth/appSession";
 import type {
@@ -448,6 +449,36 @@ export async function syncQueryForDocumentDecision(
  * a real demo PDF in public/demo/, so View Document and Replace work through the same existing
  * /api/portal/files/[fileId] route as any normally-uploaded file.
  */
+/**
+ * The checklist a new claim is built from — the claim type's own default documents, unless the
+ * lender has a saved "Lender Document Configuration" (IMGC's own admin page, over on
+ * `lenderDocumentConfig.server.ts`), which only ever applies to INITIAL claims and only replaces
+ * the list when that lender actually has rows saved. Any lender with none configured gets the
+ * exact same default checklist this always produced — the feature is additive, never a change to
+ * a lender nobody has configured.
+ */
+function documentSpecsFor(
+  fresh: MockDb,
+  claimType: ClaimTypeKey,
+  lenderOrgId: string | undefined
+): readonly ClaimDocumentSpec[] {
+  if (claimType === "INITIAL" && lenderOrgId) {
+    const custom = fresh.lenderDocumentRequirements
+      .filter((r) => r.lenderOrgId === lenderOrgId)
+      .sort((a, b) => a.order - b.order);
+    if (custom.length > 0) {
+      return custom.map((r) => ({
+        slug: r.slug,
+        name: r.name,
+        category: r.category,
+        description: r.description,
+        required: r.required,
+      }));
+    }
+  }
+  return claimConfig(claimType).documents;
+}
+
 function materialiseChecklist(
   fresh: MockDb,
   claimId: string,
@@ -457,12 +488,14 @@ function materialiseChecklist(
   const account = fresh.accounts.find((a) => a.id === accountId);
   const loan = (account ?? {}) as unknown as Record<string, unknown>;
 
-  /** Stable demo PDF paths — resolved at runtime so the path is valid wherever cwd lands. */
+  /** Stable demo PDF paths, keyed by the document's own config `slug` rather than its position in
+   *  the list — a lender's own configuration can reorder, drop or add documents, and this still
+   *  lands on the right two regardless of where they end up. */
   const DEMO_FILES: Record<
-    number,
+    string,
     { name: string; file: string; size: number }
   > = {
-    0: {
+    lod: {
       name: "property-documents.pdf",
       file: path.join(
         process.cwd(),
@@ -472,7 +505,7 @@ function materialiseChecklist(
       ),
       size: 214_990,
     },
-    1: {
+    "legal-collection-feedback": {
       name: "legal-collection-feedback.pdf",
       file: path.join(
         process.cwd(),
@@ -484,7 +517,7 @@ function materialiseChecklist(
     },
   };
 
-  claimConfig(claimType).documents.forEach((spec, i) => {
+  documentSpecsFor(fresh, claimType, account?.lenderOrgId).forEach((spec, i) => {
     const applies = docConditionMet(spec.condition, loan);
     const docId = `${claimId}_doc${i}`;
 
@@ -492,7 +525,7 @@ function materialiseChecklist(
     // customer during loan sourcing. We seed them as UNDER_REVIEW with a real DocumentFile so
     // the existing ClaimDocuments UI naturally shows View / Replace, and summariseDocs() counts
     // them as satisfied without any change to validation logic.
-    const demoEntry = claimType === "INITIAL" ? DEMO_FILES[i] : undefined;
+    const demoEntry = claimType === "INITIAL" ? DEMO_FILES[spec.slug] : undefined;
     const fileId = demoEntry ? `${docId}_f1` : undefined;
 
     if (demoEntry && fileId) {

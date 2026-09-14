@@ -245,7 +245,14 @@ export function ClaimWorkspace({
                           {t.label}
                         </span>
                         <span className="mt-0.5 block text-[11px] text-neutral-500">
-                          {t.documents.filter((d) => d.required).length}{" "}
+                          {/* The active type's count comes from this claim's own materialised
+                              checklist, not the static config — a lender with a saved Document
+                              Configuration can have a different required count than the type's
+                              own default. The other (locked) type has no materialised checklist
+                              to read, so it still shows what its default would produce. */}
+                          {active
+                            ? documents.filter((d) => d.required).length
+                            : t.documents.filter((d) => d.required).length}{" "}
                           required docs
                         </span>
                       </button>

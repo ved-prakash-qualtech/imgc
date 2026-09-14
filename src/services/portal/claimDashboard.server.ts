@@ -102,7 +102,7 @@ export async function getClaimDashboard(
   const lenderOrgId =
     session.role === "IMGC" ? (options.lenderOrgId ?? null) : null;
   const status: MonthlyStatusKey = options.status ?? "INITIATED";
-  const months: MonthWindow = options.months ?? 6;
+  const months: MonthWindow = options.months ?? 3;
 
   const ids = scopedAccountIds(db.accounts, session, lenderOrgId);
   // Same eligibility gate the Claims Overview band and the Claims grid apply: a claim only

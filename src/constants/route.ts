@@ -44,6 +44,8 @@ export const ROUTES = {
   adminUsers: "/admin/users",
   /** IMGC only — rejected-document retention + reinstatement approvals. */
   adminRetention: "/admin/retention",
+  /** IMGC only — configure which documents each lender's INITIAL claims require. */
+  adminDocumentConfig: "/admin/document-config",
   logout: "/api/auth/logout",
 
   /* ── retained from the base template (unused by the portal nav) ── */

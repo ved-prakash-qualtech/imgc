@@ -213,32 +213,22 @@ export function LoginClient({
         {/* ── Body ─────────────────────────────────────────────────── */}
         <div className="flex flex-1 flex-col gap-4 py-2 lg:flex-row lg:items-center lg:gap-10 lg:py-0 lg:-mt-3">
           {/* Left: the proposition */}
-          <section className="imgc-rise min-w-0 flex-1">
-            <h1 className="font-outfit max-w-[620px] text-[34px] font-bold leading-[1.12] tracking-tight text-slate-900 sm:text-[44px]">
-              One workspace{" "}
-              <span className="text-[#d85811] [text-shadow:_0_0_15px_rgb(255_255_255_/_100%),_0_1px_2px_rgb(255_255_255_/_80%)]">
-                for every lender.
-              </span>
-            </h1>
-            <p className="font-display mt-3.5 max-w-[520px] text-[34px] font-bold leading-[1.12] tracking-tight text-slate-800/90 [text-shadow:_0_0_15px_rgb(255_255_255_/_100%),_0_1px_2px_rgb(255_255_255_/_80%)] sm:text-[44px]">
-              Initiate, track and manage claims with complete visibility, all in one place.
-            </p>
-
-            {/* <ul className="mt-5 flex max-w-[620px] flex-wrap gap-2">
-              {FEATURE_PILLS.map((pill) => (
-                <li
-                  key={pill}
-                  className="flex items-center gap-1.5 rounded-full border border-[#f26e22]/20 bg-white/60 px-3 py-1.5 text-[12px] font-medium text-slate-800"
-                >
-                  <CheckCircle2Icon className="size-3.5 shrink-0 text-[#f26e22]" />
-                  {pill}
-                </li>
-              ))}
-            </ul> */}
+          <section className="imgc-rise flex min-w-0 flex-1 flex-col justify-between self-stretch py-2 lg:py-6">
+            <div className="my-auto">
+              <h1 className="font-outfit max-w-[620px] text-[34px] font-bold leading-[1.12] tracking-tight text-slate-900 sm:text-[44px]">
+                One workspace{" "}
+                <span className="text-[#d85811] [text-shadow:_0_0_15px_rgb(255_255_255_/_100%),_0_1px_2px_rgb(255_255_255_/_80%)]">
+                  for every lender.
+                </span>
+              </h1>
+              <p className="font-outfit mt-4 max-w-[560px] text-[24px] font-semibold leading-snug tracking-tight text-slate-800">
+                Initiate, track and manage claims with complete visibility, all in one place.
+              </p>
+            </div>
 
             {/* Squarer chips with an icon tile, deliberately unlike the rounded-full benefit
                 pills above — these are assurances about the platform, not things it does. */}
-            <div className="mt-5 max-w-[560px]">
+            <div className="mt-6 lg:mt-auto pt-2 max-w-[560px]">
               <p className="text-[12px] font-bold uppercase tracking-[0.15em] text-slate-800">
                 Security &amp; compliance
               </p>

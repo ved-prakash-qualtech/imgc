@@ -22,6 +22,7 @@ import {
   TerminalIcon,
   UsersIcon,
   FilePlusIcon,
+  FileSlidersIcon,
   ListTreeIcon,
 } from "lucide-react";
 
@@ -52,6 +53,7 @@ const ICONS = new Map<NavKey, typeof LayoutDashboardIcon>([
   ["administration", ShieldIcon],
   ["admin-users", UsersIcon],
   ["admin-retention", ArchiveIcon],
+  ["admin-doc-config", FileSlidersIcon],
   // Retained from the base template.
   ["tenants", BuildingIcon],
   ["menus", LayoutListIcon],

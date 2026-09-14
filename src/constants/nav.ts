@@ -22,6 +22,7 @@ export type NavKey =
   | "administration"
   | "admin-users"
   | "admin-retention"
+  | "admin-doc-config"
   // Retained from the base template so its demo pages still type-check.
   | "tenants"
   | "menus"
@@ -37,12 +38,6 @@ export type NavItem = Readonly<{
   href?: string;
   children?: readonly NavItem[];
 }>;
-
-const DASHBOARD: NavItem = {
-  key: "dashboard",
-  label: "Dashboard",
-  href: ROUTES.dashboard,
-};
 
 const CLAIM_DASHBOARD: NavItem = {
   key: "claim-dashboard",
@@ -92,6 +87,11 @@ const ADMINISTRATION: NavItem = {
       label: "Document Retention",
       href: ROUTES.adminRetention,
     },
+    {
+      key: "admin-doc-config",
+      label: "Lender Document Configuration",
+      href: ROUTES.adminDocumentConfig,
+    },
   ],
 };
 
@@ -102,6 +102,6 @@ const ALL_LOANS: NavItem = {
 
 export function navFor(role: Role): NavItem[] {
   return role === "IMGC"
-    ? [DASHBOARD, CLAIM_DASHBOARD, ACCOUNTS, ALL_LOANS, ADMINISTRATION]
-    : [DASHBOARD, CLAIM_DASHBOARD, CLAIM, DPD, AUDIT_TRAIL];
+    ? [CLAIM_DASHBOARD, ACCOUNTS, ALL_LOANS, ADMINISTRATION]
+    : [CLAIM_DASHBOARD, CLAIM, DPD, AUDIT_TRAIL];
 }

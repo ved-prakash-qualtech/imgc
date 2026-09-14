@@ -46,7 +46,7 @@ export default async function DashboardPage() {
   ]);
 
   return (
-    <PortalShell activeKey="dashboard" title="Dashboard">
+    <PortalShell title="Loan Dashboard">
       <DashboardView
         role={session.role}
         summary={summary}
