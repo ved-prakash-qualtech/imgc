@@ -321,9 +321,9 @@ function buildAccount(
 // A pattern length sharing a factor with that modulus (e.g. 15) can silently exclude a status
 // from ever being assigned at all.
 const CLAIM_STATUS_PATTERN: readonly ClaimStatus[] = [
-  "SUBMITTED", "DRAFT", "UNDER_REVIEW", "QUERY_RAISED", "REJECTED",
-  "APPROVED", "DOCUMENTS_RESUBMITTED", "DRAFT", "SUBMITTED", "UNDER_REVIEW",
-  "CLOSED", "QUERY_RAISED", "SUBMITTED",
+  "DRAFT", "UNDER_REVIEW", "QUERY_RAISED", "REJECTED",
+  "APPROVED", "DOCUMENTS_RESUBMITTED", "DRAFT", "UNDER_REVIEW",
+  "CLOSED", "QUERY_RAISED",
 ];
 
 /** Steps walked before reaching this status — a real, chronological path, never an impossible
@@ -331,14 +331,14 @@ const CLAIM_STATUS_PATTERN: readonly ClaimStatus[] = [
 const HISTORY_BEFORE: Record<ClaimStatus, readonly ClaimStatus[]> = {
   DRAFT: [],
   SUBMITTED: ["DRAFT"],
-  UNDER_REVIEW: ["DRAFT", "SUBMITTED"],
-  QUERY_RAISED: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
-  DOCUMENTS_RESUBMITTED: ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "QUERY_RAISED"],
-  APPROVED: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
-  REJECTED: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
-  CLOSED: ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "APPROVED"],
-  REFUND_RECEIVED_BY_IMGC: ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "APPROVED"],
-  QUERIED: ["DRAFT", "SUBMITTED", "UNDER_REVIEW"],
+  UNDER_REVIEW: ["DRAFT"],
+  QUERY_RAISED: ["DRAFT", "UNDER_REVIEW"],
+  DOCUMENTS_RESUBMITTED: ["DRAFT", "UNDER_REVIEW", "QUERY_RAISED"],
+  APPROVED: ["DRAFT", "UNDER_REVIEW"],
+  REJECTED: ["DRAFT", "UNDER_REVIEW"],
+  CLOSED: ["DRAFT", "UNDER_REVIEW", "APPROVED"],
+  REFUND_RECEIVED_BY_IMGC: ["DRAFT", "UNDER_REVIEW", "APPROVED"],
+  QUERIED: ["DRAFT", "UNDER_REVIEW"],
   ACTIVE: [],
 };
 
@@ -470,9 +470,12 @@ export function buildSeed(): MockDb {
       const status = CLAIM_STATUS_PATTERN[k % CLAIM_STATUS_PATTERN.length]!;
       const type: ClaimTypeKey = k % 2 === 0 ? "INITIAL" : "SUBSEQUENT";
       const config = CLAIM_TYPES[type];
-      claimCountByPrefix[config.prefix] = (claimCountByPrefix[config.prefix] ?? 0) + 1;
+      let claimNo = "";
+      if (status !== "DRAFT") {
+        claimCountByPrefix[config.prefix] = (claimCountByPrefix[config.prefix] ?? 0) + 1;
+        claimNo = `${config.prefix}-2026-${String(claimCountByPrefix[config.prefix]).padStart(5, "0")}`;
+      }
       const claimId = `clm_${String(i + 1).padStart(4, "0")}`;
-      const claimNo = `${config.prefix}-2026-${String(claimCountByPrefix[config.prefix]).padStart(5, "0")}`;
 
       const lenderUser = lenderUsersByOrg.get(lender.id)?.[0];
       const actorId = lenderUser?.id ?? "usr_len1";
@@ -484,7 +487,7 @@ export function buildSeed(): MockDb {
       // path from the query-flow coverage requirement, distinct from a straight approval.
       const wentThroughQuery = status === "APPROVED" && k % 4 === 0;
       const history = wentThroughQuery
-        ? (["DRAFT", "SUBMITTED", "UNDER_REVIEW", "QUERY_RAISED", "DOCUMENTS_RESUBMITTED", "UNDER_REVIEW"] as const)
+        ? (["DRAFT", "UNDER_REVIEW", "QUERY_RAISED", "DOCUMENTS_RESUBMITTED", "UNDER_REVIEW"] as const)
         : HISTORY_BEFORE[status];
       // `k % 15`, not `k % 5` — a wider spread here is what gives the "Aging overview" widget on
       // the Dashboard (buildDashboardSummary's `aging`, keyed off each open claim's own
@@ -884,7 +887,7 @@ export function buildSeed(): MockDb {
     const claimNo = `${qrConfig.prefix}-2026-${String(claimCountByPrefix[qrConfig.prefix]).padStart(5, "0")}`;
 
     const daysAgo = 14 + e * 3;
-    const steps = ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "QUERY_RAISED"] as const;
+    const steps = ["DRAFT", "UNDER_REVIEW", "QUERY_RAISED"] as const;
     const statusHistory = steps.map((s, si) => {
       const imgcSide = s === "UNDER_REVIEW" || s === "QUERY_RAISED";
       return {
@@ -1065,7 +1068,7 @@ export function buildSeed(): MockDb {
       const claimNo = `${dbConfig.prefix}-2026-${String(claimCountByPrefix[dbConfig.prefix]).padStart(5, "0")}`;
 
       const { outcome, daysAgo } = spec;
-      const steps = ["DRAFT", "SUBMITTED", "UNDER_REVIEW", outcome] as const;
+      const steps = ["DRAFT", "UNDER_REVIEW", outcome] as const;
       const statusHistory = steps.map((s, si) => {
         const imgcSide = s === "UNDER_REVIEW" || s === outcome;
         return {
@@ -1262,7 +1265,7 @@ export function buildSeed(): MockDb {
     const claimNo = `${dbConfig.prefix}-2026-${String(claimCountByPrefix[dbConfig.prefix]).padStart(5, "0")}`;
 
     const { outcome, daysAgo } = spec;
-    const steps = ["DRAFT", "SUBMITTED", "UNDER_REVIEW", outcome] as const;
+    const steps = ["DRAFT", "UNDER_REVIEW", outcome] as const;
     const statusHistory = steps.map((s, si) => {
       const imgcSide = s === "UNDER_REVIEW" || s === outcome;
       return {

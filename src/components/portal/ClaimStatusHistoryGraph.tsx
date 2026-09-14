@@ -44,13 +44,19 @@ export function timelineEntries(
   currentStatus: ClaimStatusEntry["status"]
 ): ClaimStatusEntry[] {
   const visualCurrentStatus =
-    currentStatus === "DOCUMENTS_RESUBMITTED" ? "UNDER_REVIEW" : currentStatus;
+    currentStatus === "DOCUMENTS_RESUBMITTED" || currentStatus === "SUBMITTED"
+      ? "UNDER_REVIEW"
+      : currentStatus;
   const entries: ClaimStatusEntry[] = [];
   const lastAt = history[history.length - 1]?.at ?? new Date().toISOString();
   const add = (entry: ClaimStatusEntry) => entries.push(entry);
 
   for (const entry of history) {
     if (entry.status === "DOCUMENTS_RESUBMITTED") continue;
+    if (entry.status === "SUBMITTED") {
+      add({ ...entry, status: "UNDER_REVIEW" });
+      continue;
+    }
     if (
       entry.status === "QUERY_RAISED" &&
       entries[entries.length - 1]?.status === "QUERY_RAISED"
@@ -82,11 +88,8 @@ export function timelineEntries(
     );
   };
 
-  if (visualCurrentStatus === "SUBMITTED") {
-    ensureAfter("UNDER_REVIEW", "SUBMITTED");
-  } else if (visualCurrentStatus === "UNDER_REVIEW") {
+  if (visualCurrentStatus === "UNDER_REVIEW") {
     ensureAfter("UNDER_REVIEW", "QUERY_RAISED");
-    ensureAfter("UNDER_REVIEW", "SUBMITTED");
   } else if (visualCurrentStatus === "APPROVED") {
     ensureAfter("APPROVED", "UNDER_REVIEW");
   } else if (
@@ -94,9 +97,6 @@ export function timelineEntries(
     visualCurrentStatus === "CLOSED" ||
     visualCurrentStatus === "QUERIED" ||
     visualCurrentStatus === "ACTIVE" ||
-    // A safety net, same as the other terminal-ish statuses above — in the ordinary path this
-    // entry already came through as a real one in the `for` loop, since `markRefundReceived`
-    // always appends a genuine statusHistory entry when it advances the claim.
     visualCurrentStatus === "REFUND_RECEIVED_BY_IMGC"
   ) {
     if (entries[entries.length - 1]?.status !== visualCurrentStatus) {
@@ -109,10 +109,7 @@ export function timelineEntries(
   };
 
   if (visualCurrentStatus === "DRAFT") {
-    addFuture("SUBMITTED");
     addFuture("UNDER_REVIEW");
-    addFuture("APPROVED");
-  } else if (visualCurrentStatus === "SUBMITTED") {
     addFuture("APPROVED");
   } else if (visualCurrentStatus === "UNDER_REVIEW") {
     addFuture("APPROVED");
@@ -120,9 +117,6 @@ export function timelineEntries(
     addFuture("UNDER_REVIEW");
     addFuture("APPROVED");
   } else if (visualCurrentStatus === "APPROVED") {
-    // Sequence the requirement asks for: Approved → Refund Received by IMGC. Previewed here the
-    // same way every other in-flight status previews its own next step, so the pill is visible
-    // (greyed, pending) the moment a claim is approved — before anyone has clicked the button.
     addFuture("REFUND_RECEIVED_BY_IMGC");
   }
 

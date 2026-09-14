@@ -594,7 +594,7 @@ export async function buildDashboardSummary(
     {
       key: "submitted",
       label: "Active Loans",
-      value: byStatus("SUBMITTED"),
+      value: byStatus("SUBMITTED") + byStatus("UNDER_REVIEW"),
       total: accounts.length || 1,
       // "SUBMITTED" is what `classifyLoanStatus` (accounts.server.ts) labels "Pre Offer" — same
       // bucket, same field, just the All Loans grid's own name for it.
@@ -673,7 +673,7 @@ export async function buildDashboardSummary(
     completionPct: documentsRequired
       ? Math.round((documentsIn / documentsRequired) * 100)
       : 0,
-    submittedCount: byStatus("SUBMITTED"),
+    submittedCount: byStatus("SUBMITTED") + byStatus("UNDER_REVIEW"),
     queriedCount: byStatus("QUERIED"),
     approvedCount: byStatus("APPROVED"),
     rejectedDocCount,

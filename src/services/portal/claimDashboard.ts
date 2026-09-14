@@ -10,7 +10,6 @@ import type { ClaimStatus } from "@/server/mock/types";
  *  "Under Progress" and the Claims grid filters on, so the widgets and the band agree. */
 export const IN_PROGRESS_STATUSES: ReadonlySet<ClaimStatus> =
   new Set<ClaimStatus>([
-    "SUBMITTED",
     "UNDER_REVIEW",
     "QUERY_RAISED",
     "DOCUMENTS_RESUBMITTED",
@@ -30,7 +29,6 @@ export const MONTHLY_STATUS_OPTIONS: ReadonlyArray<{
   key: MonthlyStatusKey;
   label: string;
 }> = [
-  { key: "SUBMITTED", label: "Submitted" },
   { key: "UNDER_REVIEW", label: "Under review" },
   { key: "APPROVED", label: "Approved" },
   { key: "REJECTED", label: "Rejected" },
