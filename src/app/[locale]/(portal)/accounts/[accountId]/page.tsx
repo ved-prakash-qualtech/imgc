@@ -56,14 +56,15 @@ export default async function AccountPage({
   return (
     <PortalShell activeKey="accounts" title={account.loanNo}>
       <div className="space-y-3">
-        <Link
-          href={ROUTES.accounts}
-          className="-mt-1 inline-flex items-center gap-1.5 text-[13px] font-medium text-neutral-500 hover:text-neutral-800"
-        >
-          <ArrowLeftIcon className="size-3.5" /> All accounts
-        </Link>
-
         <AccountWorkspace
+          backLink={
+            <Link
+              href={ROUTES.accounts}
+              className="-mt-1 inline-flex items-center gap-1.5 text-[13px] font-medium text-neutral-500 hover:text-neutral-800"
+            >
+              <ArrowLeftIcon className="size-3.5" /> All accounts
+            </Link>
+          }
           account={account}
           claim={claim}
           queries={queries}

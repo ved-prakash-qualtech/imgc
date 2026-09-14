@@ -57,11 +57,9 @@ const STATUSES = [
   "NOT_STARTED",
   "DRAFT",
   "UNDER_REVIEW",
-  "ACTIVE",
+  "QUERY_RAISED",
   "APPROVED",
-  "REFUND_RECEIVED_BY_IMGC",
   "REJECTED",
-  "CLOSED",
 ] as const;
 type StatusOption = (typeof STATUSES)[number];
 type StatusFilter = StatusOption | "UNDER_PROGRESS" | "ACTIVE_NPA";
@@ -180,7 +178,7 @@ function statusFromParam(value: string | null): StatusFilter[] {
 }
 
 function statusDisplay(v: StatusOption): string {
-  if (v === "REFUND_RECEIVED_BY_IMGC") return "Refund";
+  if (v === "NOT_STARTED") return "Not started";
   return v
     .toLowerCase()
     .split("_")
@@ -409,18 +407,16 @@ export function AccountsClient({
         } else {
           const matchesNotStarted =
             status.includes("NOT_STARTED") && a.claimStatus === "DRAFT";
-          const matchesActive = status.includes("ACTIVE") && a.isActive;
           const matchesApproved =
             status.includes("APPROVED") &&
             (a.claimStatus === "APPROVED" ||
               a.claimStatus === "CLOSED" ||
               a.claimStatus === "REFUND_RECEIVED_BY_IMGC");
-          const matchesClaimStatus = status.includes(
-            a.claimStatus as StatusFilter
+          const matchesClaimStatus = (status as string[]).includes(
+            a.claimStatus
           );
           if (
             !matchesNotStarted &&
-            !matchesActive &&
             !matchesApproved &&
             !matchesClaimStatus
           )

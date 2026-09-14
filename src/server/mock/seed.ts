@@ -323,7 +323,7 @@ function buildAccount(
 const CLAIM_STATUS_PATTERN: readonly ClaimStatus[] = [
   "DRAFT", "UNDER_REVIEW", "QUERY_RAISED", "REJECTED",
   "APPROVED", "DOCUMENTS_RESUBMITTED", "DRAFT", "UNDER_REVIEW",
-  "CLOSED", "QUERY_RAISED",
+  "APPROVED", "QUERY_RAISED",
 ];
 
 /** Steps walked before reaching this status — a real, chronological path, never an impossible
