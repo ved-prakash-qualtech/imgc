@@ -100,11 +100,16 @@ const STATUS_OPTIONS = [
   "CLOSED",
 ] as const;
 type StatusOption = (typeof STATUS_OPTIONS)[number];
-type StatusFilter = StatusOption | "DOCUMENTS_RESUBMITTED" | "ACTIVE_NPA";
+type StatusFilter =
+  | StatusOption
+  | "DOCUMENTS_RESUBMITTED"
+  | "ACTIVE_NPA"
+  | "UNDER_PROGRESS";
 const URL_STATUS_VALUES = new Set<string>([
   ...STATUS_OPTIONS,
   "DOCUMENTS_RESUBMITTED",
   "ACTIVE_NPA",
+  "UNDER_PROGRESS",
 ]);
 
 /** Which side currently holds the claim. Same two values (and the same "ALL") the Accounts grid
@@ -311,12 +316,17 @@ function StatusMultiSelect({
       : value.length === 1
         ? value[0] === "ACTIVE_NPA"
           ? "Active NPA"
-          : statusLabel(value[0] as StatusOption)
+          : value[0] === "UNDER_PROGRESS"
+            ? "Under progress"
+            : statusLabel(value[0] as StatusOption)
         : `${value.length} statuses selected`;
 
   const toggle = (option: StatusOption) => {
     const next = new Set(
-      value.filter((item): item is StatusOption => item !== "ACTIVE_NPA")
+      value.filter(
+        (item): item is StatusOption =>
+          item !== "ACTIVE_NPA" && item !== "UNDER_PROGRESS"
+      )
     );
     if (next.has(option)) next.delete(option);
     else next.add(option);
@@ -489,9 +499,7 @@ export function EligibleCasesClient({
   const rows = useMemo(() => {
     // Eligibility (NPA, or an existing claim) is already decided server-side — every row here is
     // meant to be shown.
-    let result = accounts.filter(
-      (account) => account.claim?.status !== "DOCUMENTS_RESUBMITTED"
-    );
+    let result = accounts;
 
     if (status.length > 0) {
       result = result.filter((a) => {
@@ -499,6 +507,14 @@ export function EligibleCasesClient({
           return (
             isNotStarted(a) ||
             a.claim?.status === "DRAFT" ||
+            UNDER_PROGRESS_STATUSES.has(
+              (a.claim as NonNullable<EligibleRow["claim"]>).status
+            )
+          );
+        }
+        if (status.includes("UNDER_PROGRESS")) {
+          return (
+            !isNotStarted(a) &&
             UNDER_PROGRESS_STATUSES.has(
               (a.claim as NonNullable<EligibleRow["claim"]>).status
             )

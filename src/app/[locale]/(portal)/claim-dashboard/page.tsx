@@ -33,10 +33,7 @@ function overviewHrefs(
         ? `${base}?status=NOT_STARTED,UNDER_REVIEW,QUERY_RAISED`
         : `${base}?status=NOT_STARTED,UNDER_REVIEW,DOCUMENTS_RESUBMITTED,QUERIED`,
     initiation: `${base}?status=NOT_STARTED`,
-    underProgress:
-      base === ROUTES.initiateClaim
-        ? `${base}?status=UNDER_REVIEW`
-        : `${base}?status=UNDER_REVIEW,DOCUMENTS_RESUBMITTED`,
+    underProgress: `${base}?status=UNDER_PROGRESS`,
     approved: `${base}?status=APPROVED`,
     rejected: `${base}?status=REJECTED`,
     refunded: `${base}?status=REFUND_RECEIVED_BY_IMGC`,
@@ -92,9 +89,6 @@ export default async function ClaimDashboardPage({
   const eligible = accounts
     .filter((a) => (a.dpd ?? 0) > 90)
     .filter((a) => !lenderOrgId || a.lenderOrgId === lenderOrgId)
-    .filter(
-      (a) => claimByAccountId.get(a.id)?.status !== "DOCUMENTS_RESUBMITTED"
-    )
     .map((a) => {
       if (session.role !== "IMGC") {
         return { claim: claimByAccountId.get(a.id) ?? null };

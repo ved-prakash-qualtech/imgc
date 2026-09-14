@@ -308,7 +308,7 @@ export function ClaimDashboardView({
 
       <Panel
         size="compact"
-        title="Query Raised · Not Responded"
+        title={data.isLender ? "Query Raised · Not Responded" : "Claim Under Review"}
       >
         <div className="max-h-[280px] overflow-auto px-4 py-3">
           {data.isLender ? (
