@@ -29,7 +29,6 @@ export const MONTHLY_STATUS_OPTIONS: ReadonlyArray<{
   key: MonthlyStatusKey;
   label: string;
 }> = [
-  { key: "UNDER_REVIEW", label: "Under review" },
   { key: "APPROVED", label: "Approved" },
   { key: "REJECTED", label: "Rejected" },
 ];

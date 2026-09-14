@@ -101,7 +101,7 @@ export async function getClaimDashboard(
   const db = await readDb();
   const lenderOrgId =
     session.role === "IMGC" ? (options.lenderOrgId ?? null) : null;
-  const status: MonthlyStatusKey = options.status ?? "UNDER_REVIEW";
+  const status: MonthlyStatusKey = options.status ?? "APPROVED";
   const months: MonthWindow = options.months ?? 3;
 
   const ids = scopedAccountIds(db.accounts, session, lenderOrgId);

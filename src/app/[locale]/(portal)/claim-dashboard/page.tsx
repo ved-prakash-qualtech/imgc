@@ -46,7 +46,7 @@ function overviewHrefs(
 function parseStatus(v: string | undefined): MonthlyStatusKey {
   return MONTHLY_STATUS_OPTIONS.some((o) => o.key === v)
     ? (v as MonthlyStatusKey)
-    : "UNDER_REVIEW";
+    : "APPROVED";
 }
 
 function parseMonths(v: string | undefined): MonthWindow {
@@ -92,6 +92,16 @@ export default async function ClaimDashboardPage({
   const eligible = accounts
     .filter((a) => (a.dpd ?? 0) > 90)
     .filter((a) => !lenderOrgId || a.lenderOrgId === lenderOrgId)
+    // The Lender's own Claims grid deliberately hides `DOCUMENTS_RESUBMITTED` and `CLOSED`
+    // claims (they've moved on to a different screen/workflow) — dropped here too, so a tile
+    // click never lands on a grid showing fewer rows than the tile counted.
+    .filter((a) => {
+      if (session.role === "IMGC") return true;
+      const claimStatus = claimByAccountId.get(a.id)?.status;
+      return (
+        claimStatus !== "DOCUMENTS_RESUBMITTED" && claimStatus !== "CLOSED"
+      );
+    })
     .map((a) => {
       if (session.role !== "IMGC") {
         const claim = claimByAccountId.get(a.id);
