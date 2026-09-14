@@ -46,7 +46,7 @@ import {
 } from "@/lib/dpd";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
-import type { Role } from "@/server/mock/types";
+import type { ClaimStatus, Role } from "@/server/mock/types";
 
 const BUCKETS = ["ALL", "IMGC", "LENDER"] as const;
 // "UNDER_PROGRESS" and "ACTIVE_NPA" are composites (not real `claimStatus` values): both use
@@ -182,6 +182,21 @@ function statusDisplay(v: StatusOption): string {
     .split("_")
     .map((w) => w[0]!.toUpperCase() + w.slice(1))
     .join(" ");
+}
+
+/**
+ * What the Claim Status column shows for an account's stored `claimStatus`.
+ *
+ * `DRAFT` is this grid's "nothing has been submitted yet" state, and the status filter already
+ * says so — the "Not started" option matches `claimStatus === "DRAFT"` (see `matchesNotStarted`
+ * below). The column was the one place still printing the raw stored value, so the same row read
+ * "Draft" in the grid and "Not started" in the filter that selected it. Only the label moves:
+ * nothing here writes `claimStatus`, and the stored value stays `DRAFT`.
+ */
+function claimStatusDisplay(
+  claimStatus: ClaimStatus
+): ClaimStatus | "NOT_STARTED" {
+  return claimStatus === "DRAFT" ? "NOT_STARTED" : claimStatus;
 }
 
 function StatusMultiSelect({
@@ -727,7 +742,7 @@ export function AccountsClient({
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5">
                       <StatusPill
-                        status={a.claimStatus}
+                        status={claimStatusDisplay(a.claimStatus)}
                         className="px-1.5 py-0.5 text-[10.5px]"
                       />
                     </TableCell>

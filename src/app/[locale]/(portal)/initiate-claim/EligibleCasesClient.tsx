@@ -38,7 +38,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { EligibleRow } from "@/types/portal/eligibleClaim";
-import type { ClaimStatus } from "@/server/mock/types";
+import type { Bucket, ClaimStatus } from "@/server/mock/types";
 
 type SortKey =
   | "loanNo"
@@ -165,6 +165,19 @@ function isNotStarted(a: EligibleRow): boolean {
   return !a.claim || !a.claim.hasProgress;
 }
 
+/**
+ * Which side holds the row, as the Owner column shows it.
+ *
+ * Nothing has been submitted on a "Not started" row, so it is the lender's to begin — whether or
+ * not an empty draft shell happens to exist behind it. Reading `claim.bucket` alone made that an
+ * accident of plumbing: the same "Not started" row read "Lender" once the workspace had been
+ * opened and "—" before it, so two identical-looking rows disagreed. The Owner filter reads this
+ * too, so the column and the filter can never say different things about the same row.
+ */
+function ownerOf(a: EligibleRow): Bucket {
+  return isNotStarted(a) ? "LENDER" : (a.claim as NonNullable<EligibleRow["claim"]>).bucket;
+}
+
 /** Escapes a value for one CSV field. */
 function csvField(value: string | number): string {
   const s = String(value);
@@ -194,7 +207,7 @@ function downloadCsv(rows: EligibleRow[]): void {
       isNotStarted(a)
         ? "NOT_STARTED"
         : (a.claim as NonNullable<EligibleRow["claim"]>).status,
-      a.claim?.bucket ?? "",
+      ownerOf(a),
       a.submittedAt?.slice(0, 10) ?? "",
     ]
       .map(csvField)
@@ -532,9 +545,9 @@ export function EligibleCasesClient({
       result = result.filter((a) => a.product === product);
     }
     if (bucket !== "ALL") {
-      // Reads the claim's own bucket, which is what the Bucket column renders — an account with
-      // no claim yet shows "—" there and so cannot match either side.
-      result = result.filter((a) => a.claim?.bucket === bucket);
+      // Same rule the Owner column renders (`ownerOf`), so a row that visibly reads "Lender"
+      // can never drop out of the Lender filter.
+      result = result.filter((a) => ownerOf(a) === bucket);
     }
 
     const q = query.trim().toLowerCase();
@@ -581,8 +594,8 @@ export function EligibleCasesClient({
             valB = isNotStarted(b) ? "NOT_STARTED" : (b.claim?.status ?? "");
             break;
           case "bucket":
-            valA = a.claim?.bucket ?? "";
-            valB = b.claim?.bucket ?? "";
+            valA = ownerOf(a);
+            valB = ownerOf(b);
             break;
           case "submittedAt":
             valA = a.submittedAt ?? "";
@@ -776,14 +789,10 @@ export function EligibleCasesClient({
                     )}
                   </TableCell>
                   <TableCell className="px-1 py-1.5">
-                    {a.claim ? (
-                      <StatusPill
-                        status={a.claim.bucket}
-                        className="px-1 py-0.5 text-[10.5px]"
-                      />
-                    ) : (
-                      "—"
-                    )}
+                    <StatusPill
+                      status={ownerOf(a)}
+                      className="px-1 py-0.5 text-[10.5px]"
+                    />
                   </TableCell>
                   <TableCell className="px-1 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
                     {dateOrDash(a.submittedAt)}
