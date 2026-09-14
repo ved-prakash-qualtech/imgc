@@ -116,11 +116,12 @@ export default async function ClaimDetailsPage({
         <>
           {isLender ? (
             <LenderClaimStatusPanel
+              key="claim-status"
               history={claim.statusHistory}
               currentStatus={claim.status}
             />
           ) : (
-            <Panel title="Claim Status" className="shrink-0">
+            <Panel key="claim-status" title="Claim Status" className="shrink-0">
               <div className="px-5 py-4">
                 <ClaimStatusHistoryGraph
                   history={claim.statusHistory}
@@ -131,7 +132,7 @@ export default async function ClaimDetailsPage({
           )}
 
           {claim.decision && (
-            <Panel title="Decision" className="shrink-0">
+            <Panel key="decision" title="Decision" className="shrink-0">
               <div className="px-5 py-4">
                 <p className="flex flex-wrap items-center gap-2 text-[13.5px]">
                   <StatusPill status={claim.decision.outcome} />
@@ -157,7 +158,7 @@ export default async function ClaimDetailsPage({
             </Panel>
           )}
 
-          <div className="flex flex-col">
+          <div key="query-response" className="flex flex-col">
             <QueryResponseSection
               accountId={claim.accountId}
               claimId={claim.id}
@@ -297,11 +298,12 @@ export default async function ClaimDetailsPage({
         <>
           {isLender ? (
             <LenderClaimStatusPanel
+              key="claim-status"
               history={claim.statusHistory}
               currentStatus={claim.status}
             />
           ) : (
-            <Panel title="Claim Status" className="shrink-0">
+            <Panel key="claim-status" title="Claim Status" className="shrink-0">
               <div className="px-5 py-4">
                 <ClaimStatusHistoryGraph
                   history={claim.statusHistory}
@@ -312,7 +314,7 @@ export default async function ClaimDetailsPage({
           )}
 
           {claim.decision && (
-            <Panel title="Decision" className="shrink-0">
+            <Panel key="decision" title="Decision" className="shrink-0">
               <div className="px-5 py-4">
                 <p className="flex flex-wrap items-center gap-2 text-[13.5px]">
                   <StatusPill status={claim.decision.outcome} />
@@ -338,7 +340,7 @@ export default async function ClaimDetailsPage({
             </Panel>
           )}
 
-          <div className="flex-1 min-h-0 flex flex-col">
+          <div key="query-response" className="flex-1 min-h-0 flex flex-col">
             <QueryResponseSection
               accountId={claim.accountId}
               claimId={claim.id}

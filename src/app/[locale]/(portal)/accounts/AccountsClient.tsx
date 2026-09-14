@@ -57,11 +57,9 @@ const STATUSES = [
   "NOT_STARTED",
   "DRAFT",
   "UNDER_REVIEW",
-  "ACTIVE",
+  "QUERY_RAISED",
   "APPROVED",
-  "REFUND_RECEIVED_BY_IMGC",
   "REJECTED",
-  "CLOSED",
 ] as const;
 type StatusOption = (typeof STATUSES)[number];
 type StatusFilter = StatusOption | "UNDER_PROGRESS" | "ACTIVE_NPA";
@@ -96,18 +94,16 @@ const ASSET_CLASS_LABEL: Record<AssetClass, string> = {
 
 type SortKey =
   | "loanNo"
+  | "claimNo"
   | "borrowerName"
   | "lender"
   | "purpose"
-  | "loanAmount"
   | "outstandingAmount"
   | "submittedAt"
   | "dpd"
   | "bucket"
   | "status";
 type SortDirection = "asc" | "desc" | null;
-
-const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 
 function date(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", {
@@ -127,10 +123,10 @@ function csvField(value: string | number): string {
 function downloadCsv(rows: AccountRow[], role: Role): void {
   const headers = [
     "Loan No",
+    "Claim No",
     "Borrower",
     ...(role === "IMGC" ? ["Lender"] : []),
     "Loan Type",
-    "Principal",
     "Outstanding",
     "Claim Initiation Date",
     "DPD",
@@ -140,10 +136,10 @@ function downloadCsv(rows: AccountRow[], role: Role): void {
   const lines = rows.map((a) =>
     [
       a.loanNo,
+      a.claimNo,
       a.borrowerName,
       ...(role === "IMGC" ? [a.lenderOrgName] : []),
       a.product,
-      a.loanAmount,
       a.outstandingAmount,
       a.submittedAt ? a.submittedAt.slice(0, 10) : "",
       a.dpd ?? "",
@@ -180,7 +176,7 @@ function statusFromParam(value: string | null): StatusFilter[] {
 }
 
 function statusDisplay(v: StatusOption): string {
-  if (v === "REFUND_RECEIVED_BY_IMGC") return "Refund";
+  if (v === "NOT_STARTED") return "Not started";
   return v
     .toLowerCase()
     .split("_")
@@ -409,18 +405,16 @@ export function AccountsClient({
         } else {
           const matchesNotStarted =
             status.includes("NOT_STARTED") && a.claimStatus === "DRAFT";
-          const matchesActive = status.includes("ACTIVE") && a.isActive;
           const matchesApproved =
             status.includes("APPROVED") &&
             (a.claimStatus === "APPROVED" ||
               a.claimStatus === "CLOSED" ||
               a.claimStatus === "REFUND_RECEIVED_BY_IMGC");
-          const matchesClaimStatus = status.includes(
-            a.claimStatus as StatusFilter
+          const matchesClaimStatus = (status as string[]).includes(
+            a.claimStatus
           );
           if (
             !matchesNotStarted &&
-            !matchesActive &&
             !matchesApproved &&
             !matchesClaimStatus
           )
@@ -432,6 +426,7 @@ export function AccountsClient({
       if (!dpdInBand(a.dpd, dpdBand)) return false;
       if (!q) return true;
       return (
+        a.claimNo.toLowerCase().includes(q) ||
         a.loanNo.toLowerCase().includes(q) ||
         a.borrowerName.toLowerCase().includes(q) ||
         a.lenderOrgName.toLowerCase().includes(q)
@@ -447,13 +442,13 @@ export function AccountsClient({
             valA = a.loanNo;
             valB = b.loanNo;
             break;
+          case "claimNo":
+            valA = a.claimNo;
+            valB = b.claimNo;
+            break;
           case "borrowerName":
             valA = a.borrowerName;
             valB = b.borrowerName;
-            break;
-          case "loanAmount":
-            valA = a.loanAmount;
-            valB = b.loanAmount;
             break;
           case "outstandingAmount":
             valA = a.outstandingAmount;
@@ -619,6 +614,13 @@ export function AccountsClient({
                 onToggle={toggleSort}
               />
               <SortableTableHead
+                column="claimNo"
+                label="Claim no."
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
                 column="borrowerName"
                 label="Borrower"
                 sortKey={sortKey}
@@ -637,13 +639,6 @@ export function AccountsClient({
               <SortableTableHead
                 column="purpose"
                 label="Loan Type"
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-              />
-              <SortableTableHead
-                column="loanAmount"
-                label="Principal"
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
@@ -701,6 +696,9 @@ export function AccountsClient({
                     <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
                       {a.loanNo}
                     </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
+                      {a.claimNo || "—"}
+                    </TableCell>
                     <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap">
                       {a.borrowerName}
                     </TableCell>
@@ -711,9 +709,6 @@ export function AccountsClient({
                     )}
                     <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
                       {a.product}
-                    </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-700">
-                      {inr.format(a.loanAmount)}
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
                       {a.submittedAt ? date(a.submittedAt) : "—"}

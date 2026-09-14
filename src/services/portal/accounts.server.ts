@@ -23,6 +23,7 @@ import type {
 } from "@/server/mock/types";
 
 export interface AccountRow extends Account {
+  claimNo: string;
   lenderOrgName: string;
   requiredDocs: number;
   pendingDocs: number;
@@ -108,6 +109,7 @@ function decorate(
 
   return {
     ...account,
+    claimNo: claim?.claimNo ?? "",
     // Repairs rows stored before `advance()` applied `toAccountClaimStatus`: those accounts hold
     // the claim's own `QUERY_RAISED` where the account vocabulary says `QUERIED`, which no
     // account-side reader matches. Normalising here means the existing data reads correctly

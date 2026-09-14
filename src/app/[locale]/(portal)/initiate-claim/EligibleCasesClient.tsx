@@ -94,10 +94,9 @@ const STATUS_OPTIONS = [
   "NOT_STARTED",
   "DRAFT",
   "UNDER_REVIEW",
+  "QUERY_RAISED",
   "APPROVED",
-  "REFUND_RECEIVED_BY_IMGC",
   "REJECTED",
-  "CLOSED",
 ] as const;
 type StatusOption = (typeof STATUS_OPTIONS)[number];
 type StatusFilter =
@@ -142,7 +141,6 @@ function dateOrDash(iso?: string): string {
 
 function statusLabel(v: StatusOption): string {
   if (v === "NOT_STARTED") return "Not started";
-  if (v === "REFUND_RECEIVED_BY_IMGC") return "Refund";
   return v
     .toLowerCase()
     .split("_")
@@ -499,7 +497,11 @@ export function EligibleCasesClient({
   const rows = useMemo(() => {
     // Eligibility (NPA, or an existing claim) is already decided server-side — every row here is
     // meant to be shown.
-    let result = accounts;
+    let result = accounts.filter(
+      (account) =>
+        account.claim?.status !== "DOCUMENTS_RESUBMITTED" &&
+        account.claim?.status !== "CLOSED"
+    );
 
     if (status.length > 0) {
       result = result.filter((a) => {

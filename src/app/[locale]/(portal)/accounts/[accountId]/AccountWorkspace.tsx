@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { setClaimStatusAction } from "@/app/[locale]/(portal)/accounts/[accountId]/actions";
-import { markRefundReceivedAction } from "@/app/[locale]/(portal)/initiate-claim/actions";
 
 import { AuditTrailTab } from "@/app/[locale]/(portal)/accounts/[accountId]/AuditTrailTab";
 import { InitialClaimsTab } from "@/app/[locale]/(portal)/accounts/[accountId]/InitialClaimsTab";
@@ -54,6 +53,7 @@ type Props = Readonly<{
   /** Names of documents an open query already covers — so a rejection from before that sync
    *  existed can offer to raise one, and a fresh rejection (already covered) doesn't. */
   queriedDocNames: string[];
+  backLink?: React.ReactNode;
 }>;
 
 export function AccountWorkspace({
@@ -68,6 +68,7 @@ export function AccountWorkspace({
   canSubmit,
   retentionDays,
   queriedDocNames,
+  backLink,
 }: Props) {
   // A notification deep-links here with `?tab=initial-claims` etc. — land on that tab instead of
   // always defaulting to Loan Details. Read once; switching tabs afterwards stays plain local state.
@@ -85,10 +86,13 @@ export function AccountWorkspace({
   return (
     <div>
       <div
-        className="mb-5 flex flex-wrap gap-1 border-b border-neutral-200"
+        className="mb-5 flex flex-wrap items-center gap-1 border-b border-neutral-200"
         role="tablist"
         aria-label="Account sections"
       >
+        {backLink && (
+          <div className="mr-4 flex items-center">{backLink}</div>
+        )}
         {TABS.map((name) => (
           <button
             key={name}
@@ -159,10 +163,6 @@ function QueryTrailTab({
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState("");
   const [noteError, setNoteError] = useState("");
-  // Its own transition, separate from the note composer's — clicking "Refund Received" doesn't
-  // need a note and shouldn't wait on (or be blocked by) whatever the Approve/Query composer is
-  // doing, and vice versa.
-  const [refundPending, startRefundTransition] = useTransition();
 
   const decide = useCallback(
     (status: "APPROVED" | "QUERIED" | "REJECTED") => {
@@ -193,18 +193,6 @@ function QueryTrailTab({
     [account.id, note, router]
   );
 
-  const markRefund = useCallback(() => {
-    if (!claim) return;
-    startRefundTransition(async () => {
-      const result = await markRefundReceivedAction(claim.id);
-      if (!result.ok) {
-        toast.error(result.error ?? "The refund could not be recorded.");
-        return;
-      }
-      toast.success("Refund marked as received by IMGC.");
-      router.refresh();
-    });
-  }, [claim, router]);
 
   if (role !== "IMGC") return null;
 
@@ -237,19 +225,7 @@ function QueryTrailTab({
             }`}
           />
         </label>
-        {refundReceived ? (
-          <StatusPill status="REFUND_RECEIVED_BY_IMGC" />
-        ) : isApproved ? (
-          <Button
-            size="sm"
-            variant="default"
-            onClick={markRefund}
-            disabled={refundPending}
-            title="Confirms the refund for this claim has reached IMGC."
-          >
-            Refund Received
-          </Button>
-        ) : (
+        {isApproved || refundReceived ? null : (
           <Button
             size="sm"
             variant="success"
