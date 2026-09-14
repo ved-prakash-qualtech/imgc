@@ -20,11 +20,7 @@ import type { ClaimRow } from "@/services/portal/claimFlow.server";
 import type { RequirementRow } from "@/services/portal/requirements.server";
 import type { AuditEvent, ClaimQuery, Remark, Role } from "@/server/mock/types";
 
-const TABS = [
-  "Loan Details",
-  "Query/Decision",
-  "Audit Trail",
-] as const;
+const TABS = ["Loan Details", "Query/Decision", "Audit Trail"] as const;
 
 /** URL-friendly slugs for `?tab=` — a notification linking into an account picks the tab that
  *  actually shows what it's about (see notifications/page.tsx's `tabSlugForEvent`). */
@@ -34,9 +30,13 @@ const TAB_SLUGS: Record<(typeof TABS)[number], string> = {
   "Audit Trail": "audit-trail",
 };
 
-function tabFromSlug(slug: string | null): (typeof TABS)[number] {
+function tabFromSlug(slug: string | null, role: Role): (typeof TABS)[number] {
   if (slug === "initial-claims") return "Query/Decision";
-  return TABS.find((t) => TAB_SLUGS[t] === slug) ?? "Loan Details";
+  return (
+    // eslint-disable-next-line security/detect-object-injection
+    TABS.find((t) => TAB_SLUGS[t] === slug) ??
+    (role === "IMGC" ? "Query/Decision" : "Loan Details")
+  );
 }
 
 type Props = Readonly<{
@@ -74,7 +74,7 @@ export function AccountWorkspace({
   // always defaulting to Loan Details. Read once; switching tabs afterwards stays plain local state.
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<(typeof TABS)[number]>(() =>
-    tabFromSlug(searchParams.get("tab"))
+    tabFromSlug(searchParams.get("tab"), role)
   );
 
   // The canonical document checklist for the active claim.
@@ -90,9 +90,7 @@ export function AccountWorkspace({
         role="tablist"
         aria-label="Account sections"
       >
-        {backLink && (
-          <div className="mr-4 flex items-center">{backLink}</div>
-        )}
+        {backLink && <div className="mr-4 flex items-center">{backLink}</div>}
         {TABS.map((name) => (
           <button
             key={name}
@@ -172,8 +170,8 @@ function QueryTrailTab({
           status === "APPROVED"
             ? "Please enter a note before marking the case as approved."
             : status === "REJECTED"
-            ? "Please enter a note before rejecting the case."
-            : "Please enter a note before raising a query."
+              ? "Please enter a note before rejecting the case."
+              : "Please enter a note before raising a query."
         );
         return;
       }
@@ -192,7 +190,6 @@ function QueryTrailTab({
     },
     [account.id, note, router]
   );
-
 
   if (role !== "IMGC") return null;
 
@@ -302,8 +299,6 @@ function QueryTrailTab({
 
 import { LoanDetailsCard } from "@/components/portal/LoanDetailsCard";
 
-
-
 function Fact({
   label,
   value,
@@ -319,6 +314,15 @@ function Fact({
   );
 }
 
+function formatDate(iso: string | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 function OverviewTab({
   account,
 }: Readonly<{
@@ -327,17 +331,20 @@ function OverviewTab({
   return (
     <div className="space-y-4">
       <Panel title="Claim Details">
-        <div className="grid divide-y divide-neutral-100 sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-3">
+        <div className="grid divide-y divide-neutral-100 sm:grid-cols-3 sm:divide-y-0 lg:grid-cols-5">
+          <Fact label="Claim No" value={account.claimNo || "—"} />
           <Fact label="Lender" value={account.lenderOrgName} />
           <Fact
             label="Processing bucket"
             value={<StatusPill status={account.bucket} />}
-            className="sm:text-center"
           />
           <Fact
             label="Claim status"
             value={<StatusPill status={account.claimStatus} />}
-            className="sm:text-right"
+          />
+          <Fact
+            label="Initiation Date"
+            value={formatDate(account.submittedAt)}
           />
         </div>
       </Panel>
