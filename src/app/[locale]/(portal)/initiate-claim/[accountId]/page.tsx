@@ -52,7 +52,7 @@ export default async function ClaimWorkspacePage({
   const config = claim ? claimConfig(claim.claimType) : null;
 
   return (
-    <PortalShell activeKey="initiate-claim" title="Claim">
+    <PortalShell activeKey="initiate-claim" title="">
       <div>
         {!claim || !config ? (
           <Panel title="No claim raised">

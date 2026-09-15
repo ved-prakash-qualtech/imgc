@@ -468,7 +468,9 @@ export function buildSeed(): MockDb {
     const hasClaim = i % 3 !== 2;
     if (hasClaim) {
       const status = CLAIM_STATUS_PATTERN[k % CLAIM_STATUS_PATTERN.length]!;
-      const type: ClaimTypeKey = k % 2 === 0 ? "INITIAL" : "SUBSEQUENT";
+      // Every mock claim is an Initial claim: the portal no longer offers Subsequent claims, and a
+      // Subsequent checklist showing up as a claim's documents read as the wrong checklist.
+      const type: ClaimTypeKey = "INITIAL";
       const config = CLAIM_TYPES[type];
       let claimNo = "";
       if (status !== "DRAFT") {
@@ -1432,6 +1434,13 @@ export function buildSeed(): MockDb {
     category: "Legal Document",
     description: "No-objection certificate from the lender.",
   };
+  // No longer part of the default checklist, so ICICI's own configuration carries it itself.
+  const ORIGINATION_FI_DOC = {
+    slug: "origination-field-investigation",
+    name: "Origination Field Investigation",
+    category: "Legal Document",
+    description: "FI report captured at loan origination.",
+  };
   const LENDER_DOC_CONFIG: ReadonlyArray<{
     lenderId: string;
     docs: ReadonlyArray<
@@ -1455,7 +1464,7 @@ export function buildSeed(): MockDb {
       lenderId: "org_northgate",
       docs: [
         fromDefault("lod", true),
-        fromDefault("origination-field-investigation", true),
+        { ...ORIGINATION_FI_DOC, required: true },
         fromDefault("latest-technical-report", true),
         fromDefault("income-banking", true),
       ],

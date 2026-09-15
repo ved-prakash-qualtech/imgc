@@ -1,8 +1,6 @@
 /* eslint-disable use-client/browser-api */
 import "server-only";
 
-import path from "node:path";
-
 import { readDb, writeDb } from "@/server/mock/db";
 import {
   storeIncomingUpload,
@@ -460,11 +458,7 @@ export async function syncQueryForDocumentDecision(
  * against the loan data — so a not-applicable conditional document sits in the list as optional
  * and does not block submission.
  *
- * For INITIAL claims, the first two documents (Property Documents and Legal & Collection Feedback)
- * are pre-seeded as already available — simulating documents that the customer supplied at loan
- * sourcing before claim initiation. Both receive an UNDER_REVIEW DocumentFile record pointing at
- * a real demo PDF in public/demo/, so View Document and Replace work through the same existing
- * /api/portal/files/[fileId] route as any normally-uploaded file.
+ * Every document starts empty (PENDING_UPLOAD): nothing is pre-uploaded on the lender's behalf.
  */
 /**
  * The checklist a new claim is built from — the claim type's own default documents, unless the
@@ -505,65 +499,10 @@ function materialiseChecklist(
   const account = fresh.accounts.find((a) => a.id === accountId);
   const loan = (account ?? {}) as unknown as Record<string, unknown>;
 
-  /** Stable demo PDF paths, keyed by the document's own config `slug` rather than its position in
-   *  the list — a lender's own configuration can reorder, drop or add documents, and this still
-   *  lands on the right two regardless of where they end up. */
-  const DEMO_FILES: Record<
-    string,
-    { name: string; file: string; size: number }
-  > = {
-    lod: {
-      name: "property-documents.pdf",
-      file: path.join(
-        process.cwd(),
-        "public",
-        "demo",
-        "property-documents.pdf"
-      ),
-      size: 214_990,
-    },
-    "legal-collection-feedback": {
-      name: "legal-collection-feedback.pdf",
-      file: path.join(
-        process.cwd(),
-        "public",
-        "demo",
-        "legal-collection-feedback.pdf"
-      ),
-      size: 184_320,
-    },
-  };
-
   documentSpecsFor(fresh, claimType, account?.lenderOrgId).forEach(
     (spec, i) => {
       const applies = docConditionMet(spec.condition, loan);
       const docId = `${claimId}_doc${i}`;
-
-      // For INITIAL claims, the first two documents are pre-existing: they were submitted by the
-      // customer during loan sourcing. We seed them as UNDER_REVIEW with a real DocumentFile so
-      // the existing ClaimDocuments UI naturally shows View / Replace, and summariseDocs() counts
-      // them as satisfied without any change to validation logic.
-      const demoEntry =
-        claimType === "INITIAL" ? DEMO_FILES[spec.slug] : undefined;
-      const fileId = demoEntry ? `${docId}_f1` : undefined;
-
-      if (demoEntry && fileId) {
-        fresh.documentFiles.push({
-          id: fileId,
-          documentId: docId,
-          accountId,
-          originalName: demoEntry.name,
-          storedPath: demoEntry.file,
-          size: demoEntry.size,
-          mime: "application/pdf",
-          // Uploaded by "system" to represent a customer-sourced document, not the current lender.
-          uploadedBy: "system",
-          uploadedByName: "Customer (Pre-Loaded)",
-          // Dated 7 days before claim creation to signal pre-existence.
-          uploadedAt: new Date(Date.now() - 7 * 86_400_000).toISOString(),
-          version: 1,
-        });
-      }
 
       fresh.claimDocuments.push({
         id: docId,
@@ -580,12 +519,8 @@ function materialiseChecklist(
           ? conditionReason(spec.condition)
           : undefined,
         addedBy: "SYSTEM",
-        // Pre-seeded docs land in UNDER_REVIEW (uploaded, awaiting IMGC approval) — the same state
-        // a normal upload produces (see uploadDocument()), so validation and UI treat them
-        // identically to a document the lender uploaded themselves.
-        status: demoEntry ? "UNDER_REVIEW" : "PENDING_UPLOAD",
-        version: demoEntry ? 1 : 0,
-        currentFileId: fileId,
+        status: "PENDING_UPLOAD",
+        version: 0,
         active: true,
         createdAt: nowIso(),
       });
