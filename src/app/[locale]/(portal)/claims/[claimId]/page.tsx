@@ -454,7 +454,13 @@ export default async function ClaimDetailsPage({
   return (
     <PortalShell
       activeKey="initiate-claim"
-      title={`Track Claim · ${claim.customerName} · ${claim.claimNo}`}
+      // Claim number only — no borrower name. A `SUB-` number is a submission reference, not a
+      // claim number, so the header shows just "Track Claim" for those.
+      title={
+        claim.claimNo && !claim.claimNo.startsWith("SUB")
+          ? `Track Claim · ${claim.claimNo}`
+          : "Track Claim"
+      }
     >
       <div
         className={
