@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { EyeIcon, FileIcon, PlusIcon, TrashIcon, UploadIcon, RotateCwIcon } from "lucide-react";
+import { FileIcon, PlusIcon, TrashIcon, UploadIcon, RotateCwIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { AddLenderDocumentDialog } from "@/components/portal/AddLenderDocumentDialog";
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { RequirementRow } from "@/services/portal/requirements.server";
-import type { DocStatus, DocumentFile } from "@/server/mock/types";
+import type { DocStatus } from "@/server/mock/types";
 
 const STATUS_LABEL: Record<DocStatus, string> = {
   NOT_REQUESTED: "Not requested",
@@ -73,9 +73,6 @@ function when(iso: string): string {
   });
 }
 
-function isIn(doc: RequirementRow) {
-  return doc.files.length > 0;
-}
 
 function TableLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -148,7 +145,7 @@ export function ClaimDocumentsTable({
     []
   );
 
-  const applicable = required.filter((d) => d.required && d.active);
+
 
   const requiredActions = null;
 

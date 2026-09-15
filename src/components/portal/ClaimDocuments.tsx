@@ -8,12 +8,12 @@ import {
   type ReactNode,
 } from "react";
 import {
-  CheckCircle2Icon,
   ChevronDownIcon,
   FileIcon,
   PlusIcon,
   TrashIcon,
   UploadIcon,
+  RotateCwIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -139,9 +139,6 @@ export function ClaimDocuments({
   );
 
   const applicable = required.filter((d) => d.required && d.active);
-  const done = applicable.filter(isIn).length;
-
-  const requiredActions = null;
 
   const additionalActions = !locked ? (
     <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
