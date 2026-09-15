@@ -112,13 +112,8 @@ export function QueryResponseSection({
       return (
         <Panel
           title={title ?? "Query Management"}
-          className={
-            constrainedLayout || fillLayout
-              ? "flex h-full min-h-0 flex-col overflow-hidden"
-              : undefined
-          }
         >
-          <div className={constrainedLayout ? "shrink-0" : undefined}>
+          <div>
             {imgcComposer}
           </div>
         </Panel>
@@ -129,11 +124,6 @@ export function QueryResponseSection({
       <Panel
         title={title}
         size="compact"
-        className={
-          constrainedLayout || fillLayout
-            ? "flex h-full min-h-0 flex-col overflow-hidden"
-            : undefined
-        }
       >
         <p className="flex flex-1 items-center justify-center px-5 py-8 text-center text-[13px] text-neutral-500">
           {noQueryMessage(claimStatus)}

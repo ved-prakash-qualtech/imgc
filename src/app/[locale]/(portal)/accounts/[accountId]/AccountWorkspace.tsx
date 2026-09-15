@@ -262,8 +262,15 @@ function QueryTrailTab({
     <div className="flex flex-col gap-6">
       {documentsSection}
 
-      <div className="h-[min(620px,calc(100vh-14rem))] min-h-[420px] min-w-0">
-        {claim ? (
+      {claim ? (
+        <div
+          className={
+            queries.length > 0 ||
+            remarks.some((r) => r.source === "CLAIM_INITIATION")
+              ? "h-[min(620px,calc(100vh-14rem))] min-h-[420px] min-w-0"
+              : "min-w-0"
+          }
+        >
           <QueryResponseSection
             accountId={account.id}
             claimId={claim.id}
@@ -280,15 +287,12 @@ function QueryTrailTab({
             title="Query Management"
             constrainedLayout
           />
-        ) : (
-          <Panel
-            title="Query Management"
-            className="flex h-full min-h-0 flex-col overflow-hidden"
-          >
-            <div className="shrink-0">{imgcComposer}</div>
-          </Panel>
-        )}
-      </div>
+        </div>
+      ) : (
+        <Panel title="Query Management">
+          {imgcComposer}
+        </Panel>
+      )}
     </div>
   );
 }
@@ -296,6 +300,8 @@ function QueryTrailTab({
 /* ── Overview ──────────────────────────────────────────────────────── */
 
 import { LoanDetailsCard } from "@/components/portal/LoanDetailsCard";
+
+
 
 function Fact({
   label,
@@ -347,7 +353,7 @@ function OverviewTab({
         </div>
       </Panel>
 
-      <LoanDetailsCard account={account} isLenderTrackClaim={true} />
+      <LoanDetailsCard account={account} />
 
       {account.pushRecipients.length > 0 && (
         <Panel title="Notification recipients">

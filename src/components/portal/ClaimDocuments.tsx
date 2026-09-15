@@ -141,12 +141,7 @@ export function ClaimDocuments({
   const applicable = required.filter((d) => d.required && d.active);
   const done = applicable.filter(isIn).length;
 
-  const requiredActions =
-    done === applicable.length && applicable.length > 0 ? (
-      <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-success-700">
-        <CheckCircle2Icon className="size-3.5" /> All in
-      </span>
-    ) : null;
+  const requiredActions = null;
 
   const additionalActions = !locked ? (
     <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
@@ -552,7 +547,7 @@ function DocumentsTable({
       <table className="w-full min-w-[760px] text-left text-[12.5px]">
         <thead className="bg-neutral-50 text-[11px] font-medium text-neutral-500">
           <tr>
-            <th className="px-4 py-2.5">Document</th>
+            <th className="px-4 py-2.5">Document Type</th>
             <th className="px-4 py-2.5">Status</th>
             <th className="px-4 py-2.5">File Name</th>
             <th className="px-4 py-2.5">Size</th>

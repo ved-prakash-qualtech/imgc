@@ -407,9 +407,9 @@ export function EligibleCasesClient({
   // Initialise sort from the URL param so that returning from claim submission
   // (with ?sort=lastUpdatedAt_desc) immediately shows the newest claim at row 1.
   const initialSort = sortFromParam(searchParams.get("sort"));
-  const [sortKey, setSortKey] = useState<SortKey | null>(initialSort.key);
+  const [sortKey, setSortKey] = useState<SortKey | null>(initialSort.key ?? "submittedAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>(
-    initialSort.dir
+    initialSort.dir ?? "desc"
   );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);

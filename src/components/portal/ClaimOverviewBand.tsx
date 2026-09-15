@@ -41,7 +41,7 @@ const TILES: ReadonlyArray<{
 }> = [
   {
     key: "initiation",
-    label: "Claim to be Initiated",
+    label: "To be initiated",
     icon: <FilePlus2Icon className="size-4" />,
     tone: "rose",
   },
@@ -53,13 +53,13 @@ const TILES: ReadonlyArray<{
   },
   {
     key: "approved",
-    label: "Claim Approved",
+    label: "Approved",
     icon: <CheckCircle2Icon className="size-4" />,
     tone: "violet",
   },
   {
     key: "rejected",
-    label: "Claim Rejected",
+    label: "Rejected",
     icon: <XCircleIcon className="size-4" />,
     tone: "gold",
   },
@@ -88,7 +88,8 @@ export function ClaimOverviewBand({
 }>) {
   const activeTiles = showDraftQueryKpis
     ? ([
-        ...TILES,
+        TILES[0]!,
+        TILES[1]!,
         {
           key: "draft",
           label: "Draft",
@@ -101,6 +102,8 @@ export function ClaimOverviewBand({
           icon: <ClipboardListIcon className="size-4" />,
           tone: "amber",
         },
+        TILES[2]!,
+        TILES[3]!,
       ] as const)
     : TILES;
 

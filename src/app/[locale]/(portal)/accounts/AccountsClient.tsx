@@ -363,8 +363,8 @@ export function AccountsClient({
   );
   const [product, setProduct] = useState<string>("ALL");
   const [dpdBand, setDpdBand] = useState<DpdBand>("ALL");
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [sortKey, setSortKey] = useState<SortKey | null>("submittedAt");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 

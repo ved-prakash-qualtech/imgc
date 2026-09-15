@@ -86,6 +86,7 @@ export default async function ClaimDetailsPage({
 
   const layoutContent = isSingleView ? (
     <ClaimDetailSinglePage
+      isLender={isLender}
       showSectionNav={isLender}
       loanDetails={
         account ? (
@@ -96,7 +97,7 @@ export default async function ClaimDetailsPage({
         <div className="flex items-center gap-3">
           {isLender && (
             <Link
-              href={ROUTES.trackClaim}
+              href={ROUTES.initiateClaim}
               className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
             >
               <ArrowLeftIcon className="size-3" /> Back
@@ -454,7 +455,11 @@ export default async function ClaimDetailsPage({
   return (
     <PortalShell
       activeKey="initiate-claim"
-      title={`Track Claim · ${claim.customerName} · ${claim.claimNo}`}
+      title={
+        isLender
+          ? `Track Claim · ${claim.claimNo}`
+          : `Track Claim · ${claim.customerName} · ${claim.claimNo}`
+      }
     >
       <div
         className={

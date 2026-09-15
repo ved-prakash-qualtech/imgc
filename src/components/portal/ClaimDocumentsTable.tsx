@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { EyeIcon, FileIcon, PlusIcon, TrashIcon, UploadIcon, RotateCwIcon, CheckCircle2Icon } from "lucide-react";
+import { EyeIcon, FileIcon, PlusIcon, TrashIcon, UploadIcon, RotateCwIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { AddLenderDocumentDialog } from "@/components/portal/AddLenderDocumentDialog";
@@ -149,14 +149,8 @@ export function ClaimDocumentsTable({
   );
 
   const applicable = required.filter((d) => d.required && d.active);
-  const done = applicable.filter(isIn).length;
 
-  const requiredActions =
-    done === applicable.length && applicable.length > 0 ? (
-      <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-success-700">
-        <CheckCircle2Icon className="size-3.5" /> All in
-      </span>
-    ) : null;
+  const requiredActions = null;
 
   const additionalActions = !locked ? (
     <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
@@ -294,9 +288,6 @@ export function ClaimDocumentsTable({
         title={
           <div className="flex items-baseline gap-2">
             Required documents
-            <span className="text-[12.5px] font-normal text-neutral-500">
-              {done} / {applicable.length} required complete
-            </span>
           </div>
         }
         className={bare ? "border-neutral-200 shadow-none" : undefined}

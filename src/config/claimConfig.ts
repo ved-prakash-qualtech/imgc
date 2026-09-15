@@ -185,7 +185,7 @@ export const CLAIM_TYPES: Readonly<Record<ClaimTypeKey, ClaimTypeConfig>> = {
     label: "Subsequent Claim",
     description:
       "Final claim for the net loss once recovery is complete — after settlement, auction or legal recovery.",
-    prefix: "SUB",
+    prefix: "CLM",
     fields: CLAIM_PROGRAM_FIELDS,
     documents: [
       {

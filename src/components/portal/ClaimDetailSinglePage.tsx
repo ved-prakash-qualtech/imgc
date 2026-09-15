@@ -13,6 +13,7 @@ export function ClaimDetailSinglePage({
   history,
   backLink,
   showSectionNav,
+  isLender,
 }: Readonly<{
   loanDetails: ReactNode;
   statusAndQuery: ReactNode;
@@ -20,6 +21,7 @@ export function ClaimDetailSinglePage({
   history: ReactNode;
   backLink?: ReactNode;
   showSectionNav?: boolean;
+  isLender?: boolean;
 }>) {
   const scrollTo = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     e.preventDefault();
@@ -32,14 +34,15 @@ export function ClaimDetailSinglePage({
     { id: "loan-details", label: "Loan Details" },
     { id: "status-query", label: "Status & Query" },
   ];
-  if (history) {
+  if (history && !isLender) {
     navItems.push({ id: "history", label: "Audit Trail" });
   }
 
-  const [activeSection, setActiveSection] = useState<string>("loan-details");
+  const [activeSection, setActiveSection] = useState<string>(isLender ? "status-query" : "loan-details");
 
   useEffect(() => {
-    if (!showSectionNav) return;
+    // Only use the intersection observer if this is NOT the lender tabbed view
+    if (!showSectionNav || isLender) return;
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -57,7 +60,7 @@ export function ClaimDetailSinglePage({
     });
 
     return () => observer.disconnect();
-  }, [showSectionNav, history]);
+  }, [showSectionNav, history, isLender]);
 
   return (
     <div className="flex flex-col">
@@ -70,57 +73,96 @@ export function ClaimDetailSinglePage({
         )}
         {showSectionNav && (
           <nav className="flex items-center gap-6">
-            {navItems.map((item) => (
-              <a
-                key={item.id}
-                href={`#${item.id}`}
-                onClick={(e) => scrollTo(e, item.id)}
-                className={cn(
-                  "pb-2 text-[14px] font-medium transition-colors border-b-2",
-                  activeSection === item.id
-                    ? "border-brand-primary text-brand-primary"
-                    : "border-transparent text-neutral-500 hover:text-neutral-700"
-                )}
-              >
-                {item.label}
-              </a>
-            ))}
+            {navItems.map((item) => {
+              if (isLender) {
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveSection(item.id)}
+                    className={cn(
+                      "pb-2 text-[14px] font-medium transition-colors border-b-2",
+                      activeSection === item.id
+                        ? "border-brand-primary text-brand-primary"
+                        : "border-transparent text-neutral-500 hover:text-neutral-700"
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                );
+              }
+              
+              return (
+                <a
+                  key={item.id}
+                  href={`#${item.id}`}
+                  onClick={(e) => scrollTo(e, item.id)}
+                  className={cn(
+                    "pb-2 text-[14px] font-medium transition-colors border-b-2",
+                    activeSection === item.id
+                      ? "border-brand-primary text-brand-primary"
+                      : "border-transparent text-neutral-500 hover:text-neutral-700"
+                  )}
+                >
+                  {item.label}
+                </a>
+              );
+            })}
           </nav>
         )}
       </div>
 
-      <div className="pr-2 pb-4">
-        {/* Loan Details Section */}
-        <section id="loan-details" className="scroll-mt-4 mb-8">
-          <h2 className="mb-3 text-lg font-semibold text-neutral-900 border-b border-neutral-200 pb-2">
-            Loan Details
-          </h2>
-          {loanDetails}
-        </section>
+      {isLender ? (
+        <div className="pr-2 pb-4">
+          {activeSection === "loan-details" && (
+            <section id="loan-details" className="mb-8">
+              {loanDetails}
+            </section>
+          )}
 
-        {/* Status & Query Section */}
-        <section id="status-query" className="scroll-mt-4 mb-4">
-          <h2 className="mb-3 text-lg font-semibold text-neutral-900 border-b border-neutral-200 pb-2">
-            Status & Query
-          </h2>
-          <div className="flex flex-col gap-4">{statusAndQuery}</div>
-        </section>
-
-        {/* Documents Section */}
-        <section id="documents" className="scroll-mt-4 mb-8">
-          {documents}
-        </section>
-
-        {/* History Section */}
-        {history && (
-          <section id="history" className="scroll-mt-4">
+          {activeSection === "status-query" && (
+            <section id="status-query" className="mb-4">
+              <div className="flex flex-col gap-4">
+                {statusAndQuery}
+                {documents}
+              </div>
+            </section>
+          )}
+        </div>
+      ) : (
+        <div className="pr-2 pb-4">
+          {/* Loan Details Section */}
+          <section id="loan-details" className="scroll-mt-4 mb-8">
             <h2 className="mb-3 text-lg font-semibold text-neutral-900 border-b border-neutral-200 pb-2">
-              Claim History
+              Loan Details
             </h2>
-            {history}
+            {loanDetails}
           </section>
-        )}
-      </div>
+
+          {/* Status & Query Section */}
+          <section id="status-query" className="scroll-mt-4 mb-4">
+            <h2 className="mb-3 text-lg font-semibold text-neutral-900 border-b border-neutral-200 pb-2">
+              Status & Query
+            </h2>
+            <div className="flex flex-col gap-4">{statusAndQuery}</div>
+          </section>
+
+          {/* Documents Section */}
+          <section id="documents" className="scroll-mt-4 mb-8">
+            {documents}
+          </section>
+
+          {/* History Section */}
+          {history && (
+            <section id="history" className="scroll-mt-4">
+              <h2 className="mb-3 text-lg font-semibold text-neutral-900 border-b border-neutral-200 pb-2">
+                Claim History
+              </h2>
+              {history}
+            </section>
+          )}
+        </div>
+      )}
     </div>
   );
 }

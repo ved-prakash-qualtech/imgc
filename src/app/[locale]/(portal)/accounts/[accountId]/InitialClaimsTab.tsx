@@ -817,9 +817,8 @@ function ImgcDocumentRowItem({
         return;
       }
       toast.success(`"${doc.name}" is back under review.`);
-      router.refresh();
     });
-  }, [accountId, doc.id, doc.name, router]);
+  }, [accountId, doc.id, doc.name]);
 
   const onRaiseQuery = useCallback(() => {
     startTransition(async () => {

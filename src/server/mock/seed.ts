@@ -1,4 +1,4 @@
-import { hashPasswordSync } from "@/lib/auth/password";
+import { hashPasswordSync } from "@/lib/auth/password"; // Trigger HMR
 import {
   CLAIM_TYPES,
   conditionReason,

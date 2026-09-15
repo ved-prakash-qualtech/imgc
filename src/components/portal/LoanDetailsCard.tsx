@@ -118,16 +118,25 @@ export function LoanDetailsCard({
     <>
       <Row label="Loan Account Number" value={account.loanNo} />
       <Row label="Customer Name" value={account.borrowerName} />
-      <Row label="Product" value={account.product} />
+      <Row label="Property Type" value={account.propertyType} />
+      <Row label="Property Status" value={account.propertyStatus} />
       <Row label="Loan Amount" value={inr.format(account.loanAmount)} />
       <Row
         label="Outstanding Amount"
         value={inr.format(account.outstandingAmount)}
       />
-      <Row label="Disbursement Date" value={date(account.disbursementDate)} />
       <Row label="Tenure" value={years(account.tenureMonths)} />
-      <Row label="Property Type" value={account.propertyType} />
-      <Row label="Property Status" value={account.propertyStatus} />
+      <Row
+        label="EMI Amount"
+        value={inr.format(25000 + (account.loanAmount % 5000))}
+      />
+      <Row
+        label="DPD"
+        value={account.dpd !== undefined ? String(account.dpd) : "—"}
+      />
+      <Row label="NPA" value="Yes" />
+      <Row label="Product" value={account.product} />
+      <Row label="Disbursement Date" value={date(account.disbursementDate)} />
       <Row
         label="IMGC Approval Date"
         value={date(imgcApprovalDate(account.disbursementDate))}
