@@ -12,6 +12,7 @@ import {
   decideReinstate,
   raiseQueryForRejectedDocument,
   reactivateDocument,
+  undoAcceptedDocument,
   requestReinstate,
   submitClaim,
   uploadDocument,
@@ -102,6 +103,17 @@ export async function reactivateDocumentAction(
 ): Promise<Result> {
   const session = await requireSession();
   const result = await reactivateDocument(session, accountId, documentId);
+  if (result.ok) refresh(accountId);
+  return result;
+}
+
+/** IMGC undoes their own acceptance — the document goes back under review. */
+export async function undoAcceptedDocumentAction(
+  accountId: string,
+  documentId: string
+): Promise<Result> {
+  const session = await requireSession();
+  const result = await undoAcceptedDocument(session, accountId, documentId);
   if (result.ok) refresh(accountId);
   return result;
 }

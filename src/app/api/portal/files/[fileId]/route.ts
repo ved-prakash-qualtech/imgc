@@ -56,12 +56,15 @@ export async function GET(
   const mime = docFile.mime || "application/octet-stream";
   const safeName = encodeURIComponent(docFile.originalName);
 
+  const isDownload = request.nextUrl.searchParams.get("download") === "1";
+  const disposition = isDownload ? "attachment" : "inline";
+
   return new NextResponse(new Uint8Array(bytes), {
     status: 200,
     headers: {
       "Content-Type": mime,
       // inline: browser opens in tab; attachment would force download.
-      "Content-Disposition": `inline; filename*=UTF-8''${safeName}`,
+      "Content-Disposition": `${disposition}; filename*=UTF-8''${safeName}`,
       "Content-Length": String(bytes.length),
       // Do not cache — documents can be superseded.
       "Cache-Control": "no-store",

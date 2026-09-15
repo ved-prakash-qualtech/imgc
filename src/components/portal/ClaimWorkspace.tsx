@@ -191,7 +191,7 @@ export function ClaimWorkspace({
       </div>
 
       {/* ── Loan Details tab ────────────────────────────────── */}
-      {activeTab === "loan-details" && <LoanDetailsCard account={account} />}
+      {activeTab === "loan-details" && <LoanDetailsCard account={account} isInitiateClaim />}
 
       {/* ── Initiate Claim tab — single column, viewport-fit ── */}
       {activeTab === "initiate-claim" && (
@@ -210,8 +210,7 @@ export function ClaimWorkspace({
             />
 
             <Panel
-              title="Add Remarks"
-              description="Optional note for IMGC about this claim."
+              title="Remarks"
               className="mt-3"
             >
               <div className="px-4 py-3">

@@ -158,9 +158,7 @@ export function ClaimDocuments({
       {/* ── Required documents ───────────────────────────────── */}
       <Panel
         title="Required documents"
-        description={`${done} / ${applicable.length} required complete`}
         className={bare ? "border-neutral-200 shadow-none" : undefined}
-        actions={requiredActions}
       >
         {variant === "table" ? (
           <DocumentsTable

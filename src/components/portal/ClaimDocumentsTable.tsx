@@ -84,7 +84,7 @@ function TableLayout({ children }: { children: React.ReactNode }) {
       <Table>
         <TableHeader className="sticky top-0 bg-white shadow-sm z-10">
           <TableRow>
-            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Document</TableHead>
+            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Document Type</TableHead>
             <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Status</TableHead>
             <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">File Name</TableHead>
             <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Size</TableHead>

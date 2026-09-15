@@ -7,6 +7,7 @@ import {
   CalendarClockIcon,
   CheckIcon,
   ChevronDownIcon,
+  DownloadIcon,
   EyeIcon,
   FileTextIcon,
   MessageSquareWarningIcon,
@@ -22,6 +23,7 @@ import { addRemarkAction,
   decideReinstateAction,
   raiseQueryForRejectedDocumentAction,
   reactivateDocumentAction,
+  undoAcceptedDocumentAction,
   requestReinstateAction,
   setRequirementActiveAction,
   submitClaimAction,
@@ -171,14 +173,14 @@ export function InitialClaimsTab({
         {role === "IMGC" ? (
           <div className="overflow-x-auto">
             <div className="flex min-w-[900px] flex-col divide-y divide-neutral-100 text-left text-[13px]">
-              <div className="flex items-center gap-4 bg-neutral-50 px-4 py-2.5 text-[11.5px] font-medium text-neutral-500">
-                <div className="w-[200px] shrink-0">Document</div>
-                <div className="w-[140px] shrink-0">Status</div>
-                <div className="min-w-[150px] flex-1">File Name</div>
-                <div className="w-[60px] shrink-0">Size</div>
-                <div className="w-[110px] shrink-0">Uploaded By</div>
-                <div className="w-[120px] shrink-0">Date/Time</div>
-                <div className="w-[90px] shrink-0 pr-4 text-right">Actions</div>
+              <div className="flex items-center justify-between bg-neutral-50 px-4 py-2 text-[11.5px] font-medium text-neutral-500">
+                <div className="w-[160px] shrink-0">Document Type</div>
+                <div className="w-[110px] shrink-0">Status</div>
+                <div className="w-[220px] shrink-0">File Name</div>
+                <div className="w-[60px] shrink-0 text-center">Size</div>
+                <div className="w-[110px] shrink-0 text-center">Uploaded By</div>
+                <div className="w-[110px] shrink-0 text-center">Date/Time</div>
+                <div className="w-[150px] shrink-0 text-right">Actions</div>
               </div>
               {docs
                 .filter((d) => d.status !== "PENDING_UPLOAD" || d.addedBy === "IMGC")
@@ -806,6 +808,18 @@ function ImgcDocumentRowItem({
     });
   }, [accountId, doc.id, doc.name, router]);
 
+  const onUndoAccepted = useCallback(() => {
+    startTransition(async () => {
+      const result = await undoAcceptedDocumentAction(accountId, doc.id);
+      if (!result.ok) {
+        toast.error(result.error ?? "Acceptance could not be undone.");
+        return;
+      }
+      toast.success(`"${doc.name}" is back under review.`);
+      router.refresh();
+    });
+  }, [accountId, doc.id, doc.name, router]);
+
   const onRaiseQuery = useCallback(() => {
     startTransition(async () => {
       const result = await raiseQueryForRejectedDocumentAction(accountId, doc.id);
@@ -854,16 +868,19 @@ function ImgcDocumentRowItem({
   return (
     <div className={cn("flex flex-col border-b border-neutral-100 last:border-b-0", inactive && "bg-neutral-25/60 opacity-70")}>
       {doc.files.length === 0 && (
-        <div className="flex items-center gap-4 px-4 py-3">
-          <div className="flex w-[200px] shrink-0 flex-col items-start gap-1.5">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex w-[160px] shrink-0 flex-col items-start gap-1.5">
             <span className="line-clamp-2 font-semibold leading-tight text-neutral-950" title={doc.name}>{doc.name}</span>
             {inactive && <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">Withdrawn</span>}
           </div>
-          <div className="w-[140px] shrink-0">
+          <div className="w-[110px] shrink-0">
             <StatusPill status={doc.status === "APPROVED" ? "ACCEPTED" : doc.status} />
           </div>
-          <div className="min-w-[150px] flex-1 text-[12px] text-neutral-400">Nothing uploaded yet.</div>
-          <div className="flex w-[90px] shrink-0 flex-wrap justify-end gap-2 pr-4">
+          <div className="w-[220px] shrink-0 text-[12px] text-neutral-400">Nothing uploaded yet.</div>
+          <div className="w-[60px] shrink-0" />
+          <div className="w-[110px] shrink-0" />
+          <div className="w-[110px] shrink-0" />
+          <div className="flex w-[150px] shrink-0 flex-wrap justify-end gap-2">
             {doc.addedBy === "IMGC" && (
                <Button size="xs" variant="outline" onClick={() => onToggleActive(inactive)} disabled={working} className="h-7 px-2.5 text-[11px]">
                  {inactive ? <RotateCcwIcon className="mr-1 size-3" /> : <BanIcon className="mr-1 size-3" />}
@@ -875,8 +892,8 @@ function ImgcDocumentRowItem({
       )}
       
       {doc.files.length > 0 && doc.files.map((f, i) => (
-        <div key={f.id} className={cn("flex items-center gap-4 px-4 py-3", i > 0 && "border-t border-dashed border-neutral-100")}>
-          <div className="flex w-[200px] shrink-0 flex-col items-start gap-1.5">
+        <div key={f.id} className={cn("flex items-center justify-between px-4 py-3", i > 0 && "border-t border-dashed border-neutral-100")}>
+          <div className="flex w-[160px] shrink-0 flex-col items-start gap-1.5">
             {i === 0 && (
               <>
                 <span className="line-clamp-2 font-semibold leading-tight text-neutral-950" title={doc.name}>{doc.name}</span>
@@ -885,54 +902,93 @@ function ImgcDocumentRowItem({
             )}
           </div>
           
-          <div className="w-[140px] shrink-0">
+          <div className="w-[110px] shrink-0">
             {i === 0 && <StatusPill status={doc.status === "APPROVED" ? "ACCEPTED" : doc.status} />}
           </div>
           
-          <div className="min-w-[150px] flex-1 truncate text-[12.5px] font-medium text-neutral-700" title={f.originalName}>
+          <div className="w-[220px] shrink-0 truncate text-[12.5px] font-medium text-neutral-700" title={f.originalName}>
             {f.storedPath ? (
               <a href={`/api/portal/files/${f.id}`} target="_blank" rel="noopener noreferrer" className="hover:text-brand-primary hover:underline">{f.originalName}</a>
             ) : (
               <button type="button" onClick={() => setPreviewingFileId(f.id)} className="w-full truncate text-left hover:text-brand-primary hover:underline">{f.originalName}</button>
             )}
           </div>
-          <div className="w-[60px] shrink-0 text-[11.5px] text-neutral-500">{bytes(f.size)}</div>
-          <div className="w-[110px] shrink-0 truncate text-[11.5px] text-neutral-500" title={f.uploadedByName}>{f.uploadedByName}</div>
-          <div className="w-[120px] shrink-0 text-[11.5px] text-neutral-500">{when(f.uploadedAt)}</div>
+          <div className="w-[60px] shrink-0 text-center text-[11.5px] text-neutral-500">{bytes(f.size)}</div>
+          <div className="w-[110px] shrink-0 truncate text-center text-[11.5px] text-neutral-500" title={f.uploadedByName}>{f.uploadedByName}</div>
+          <div className="w-[110px] shrink-0 text-center text-[11.5px] text-neutral-500">{when(f.uploadedAt)}</div>
           
-          <div className="flex w-[90px] shrink-0 flex-wrap justify-end gap-1.5 pr-4">
-            {/* Document actions only on the first file row */}
-            {i === 0 && (
+          <div className="flex w-[150px] shrink-0 flex-wrap justify-end gap-1.5">
+            {f.storedPath ? (
               <>
-                {doc.status === "UNDER_REVIEW" && !rejecting && (
-                  <>
-                    <Button size="xs" variant="success" onClick={() => decide("APPROVED", "")} disabled={working} className="size-7 p-0" title="Accept"><CheckIcon className="size-4" /></Button>
-                    <Button size="xs" variant="outline" onClick={() => setRejecting(true)} disabled={working} className="size-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30" title="Reject"><XIcon className="size-4" /></Button>
-                  </>
-                )}
-                
-                {doc.status === "REJECTED" && (
-                  <>
-                    <Button size="xs" variant="outline" onClick={onReactivate} disabled={working} title="Undo the rejection" className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
-                    {!hasOpenQuery && (
-                      <Button size="xs" variant="outline" onClick={onRaiseQuery} disabled={working} className="h-7 px-2.5 text-[11px]"><MessageSquareWarningIcon className="mr-1 size-3" /> Query</Button>
-                    )}
-                  </>
-                )}
+                <a
+                  href={`/api/portal/files/${f.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
+                  title="View"
+                >
+                  <EyeIcon className="size-4" />
+                </a>
+                <a
+                  href={`/api/portal/files/${f.id}?download=1`}
+                  className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
+                  title="Download"
+                >
+                  <DownloadIcon className="size-4" />
+                </a>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setPreviewingFileId(f.id)}
+                  className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
+                  title="View"
+                >
+                  <EyeIcon className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toast.error("Demo files cannot be downloaded")}
+                  className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
+                  title="Download"
+                >
+                  <DownloadIcon className="size-4" />
+                </button>
+              </>
+            )}
 
-                {doc.addedBy === "IMGC" && (
-                  <Button size="xs" variant="outline" onClick={() => onToggleActive(inactive)} disabled={working} className="h-7 px-2.5 text-[11px]">
-                    {inactive ? <RotateCcwIcon className="mr-1 size-3" /> : <BanIcon className="mr-1 size-3" />}
-                    {inactive ? "Reactivate" : "Withdraw"}
-                  </Button>
+            {doc.status === "UNDER_REVIEW" && !rejecting && (
+              <>
+                <Button size="xs" variant="success" onClick={() => decide("APPROVED", "")} disabled={working} className="size-7 p-0" title="Accept"><CheckIcon className="size-4" /></Button>
+                <Button size="xs" variant="outline" onClick={() => setRejecting(true)} disabled={working} className="size-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30" title="Reject"><XIcon className="size-4" /></Button>
+              </>
+            )}
+            
+            {doc.status === "REJECTED" && (
+              <>
+                <Button size="xs" variant="outline" onClick={onReactivate} disabled={working} title="Undo the rejection" className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
+                {!hasOpenQuery && (
+                  <Button size="xs" variant="outline" onClick={onRaiseQuery} disabled={working} className="h-7 px-2.5 text-[11px]"><MessageSquareWarningIcon className="mr-1 size-3" /> Query</Button>
                 )}
+              </>
+            )}
 
-                {reinstate?.status === "REQUESTED" && (
-                   <>
-                     <Button size="xs" variant="success" onClick={() => onReinstateDecision(true)} disabled={working} className="h-7 px-2.5 text-[11px]">Approve Reinstatement</Button>
-                     <Button size="xs" variant="outline" onClick={() => onReinstateDecision(false)} disabled={working} className="h-7 px-2.5 text-[11px]">Deny</Button>
-                   </>
-                )}
+            {doc.status === "APPROVED" && (
+              <Button size="xs" variant="outline" onClick={onUndoAccepted} disabled={working} title="Undo the acceptance" className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
+            )}
+
+            {doc.addedBy === "IMGC" && (
+              <Button size="xs" variant="outline" onClick={() => onToggleActive(inactive)} disabled={working} className="h-7 px-2.5 text-[11px]">
+                {inactive ? <RotateCcwIcon className="mr-1 size-3" /> : <BanIcon className="mr-1 size-3" />}
+                {inactive ? "Reactivate" : "Withdraw"}
+              </Button>
+            )}
+
+            {i === 0 && reinstate?.status === "REQUESTED" && (
+              <>
+                <Button size="xs" variant="success" onClick={() => onReinstateDecision(true)} disabled={working} className="h-7 px-2.5 text-[11px]">Approve Reinstatement</Button>
+                <Button size="xs" variant="outline" onClick={() => onReinstateDecision(false)} disabled={working} className="h-7 px-2.5 text-[11px]">Deny</Button>
               </>
             )}
           </div>

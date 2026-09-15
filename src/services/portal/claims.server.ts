@@ -498,6 +498,46 @@ export async function decideDocument(
 }
 
 /**
+ * IMGC undoes their own acceptance — the document goes back under review.
+ * Only applies to documents that are currently ACCEPTED (or APPROVED).
+ */
+export async function undoAcceptedDocument(
+  session: AppSession,
+  accountId: string,
+  documentId: string
+): Promise<Outcome> {
+  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+
+  const outcome = await writeDb((db) => {
+    const row = db.claimDocuments.find(
+      (d) => d.id === documentId && d.accountId === accountId
+    );
+    if (!row) return { ok: false as const, error: "Document not found." };
+    if (row.active === false) {
+      return { ok: false as const, error: "That requirement has been withdrawn." };
+    }
+    if (row.status !== "APPROVED") {
+      return { ok: false as const, error: "Document is not accepted." };
+    }
+
+    row.status = "UNDER_REVIEW";
+    return { ok: true as const, name: row.name, version: row.version ?? 1 };
+  });
+
+  if (!outcome.ok) return outcome;
+
+  await recordEvent({
+    accountId,
+    actor: session,
+    type: "DOC_STATUS_CHANGED",
+    summary: `Undid acceptance for "${outcome.name}" v${outcome.version}. Back under review.`,
+    meta: { document: outcome.name, decision: "UNDO_ACCEPTANCE" },
+  });
+
+  return { ok: true };
+}
+
+/**
  * IMGC undoes their own rejection directly — the same reset a lender's reinstatement request
  * grants once approved (`decideReinstate`), just without making them ask for it first. For when
  * the rejection itself was the mistake, not the document.
