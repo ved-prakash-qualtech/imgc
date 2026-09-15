@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowDownIcon, ArrowUpIcon, ArrowUpDownIcon, BrushCleaningIcon, ChevronDownIcon, DownloadIcon, SearchIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -116,7 +115,6 @@ export function RetentionClient({
   rows,
   retentionDays,
 }: Readonly<{ rows: RejectedDocRow[]; retentionDays: number }>) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -249,9 +247,8 @@ export function RetentionClient({
           ? `${result.purged} document(s) purged.`
           : "Nothing has aged out — everything is still inside the window."
       );
-      router.refresh();
     });
-  }, [router]);
+  }, []);
 
   const onDecide = useCallback(
     (row: RejectedDocRow, approve: boolean) => {
@@ -267,10 +264,9 @@ export function RetentionClient({
           return;
         }
         toast.success(approve ? "Document reinstated." : "Reinstatement denied.");
-        router.refresh();
       });
     },
-    [router]
+    []
   );
 
   return (

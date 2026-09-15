@@ -1,5 +1,6 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import open from "open";
@@ -82,6 +83,74 @@ if (useHttps && hostname && fs.existsSync(certPath)) {
 `
     );
   }
+}
+
+/*
+ * Two local mistakes that each looked like an application bug the first time they happened:
+ *
+ * - A second dev server on the same checkout. Both write `.next/` and `.data/`, so each one's build
+ *   cache and database writes land underneath the other's, and pages fail with errors that point
+ *   anywhere but here.
+ * - Unresolved merge-conflict markers. The server starts, then every page that imports the file
+ *   fails to compile, and the error names a syntax problem rather than the merge.
+ *
+ * Both are cheap to detect before Next starts, so refuse to start instead.
+ */
+function portInUse(portNumber) {
+  return new Promise((resolve) => {
+    const probe = net.createServer();
+    probe.once("error", (error) => resolve(error.code === "EADDRINUSE"));
+    probe.once("listening", () => probe.close(() => resolve(false)));
+    probe.listen(Number(portNumber));
+  });
+}
+
+function conflictMarkers() {
+  try {
+    return execFileSync(
+      "git",
+      [
+        "grep",
+        "-nE",
+        "^(<<<<<<<|>>>>>>>)( |$)",
+        "--",
+        "src",
+        "scripts",
+        "test",
+        "*.ts",
+        "*.mjs",
+      ],
+      {
+        cwd: projectRoot,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }
+    ).trim();
+  } catch {
+    // `git grep` exits 1 when nothing matches; no git at all is also not a reason to block.
+    return "";
+  }
+}
+
+if (await portInUse(port)) {
+  console.error(
+    `\n[dev] Port ${port} is already in use — most likely another dev server for this project.\n` +
+      "[dev] Stop it first: two servers share .next/ and .data/ and break each other's cache and data.\n"
+  );
+  process.exit(1);
+}
+
+const markers = conflictMarkers();
+if (markers) {
+  console.error(
+    "\n[dev] Unresolved merge-conflict markers — resolve these before starting:\n" +
+      markers
+        .split("\n")
+        .map((line) => `[dev]   ${line}`)
+        .join("\n") +
+      "\n"
+  );
+  process.exit(1);
 }
 
 const nextBin = path.join(projectRoot, "node_modules/next/dist/bin/next");

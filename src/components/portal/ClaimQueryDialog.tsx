@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { MessageSquarePlusIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -38,7 +37,6 @@ export function ClaimQueryDialog({
   role: "IMGC" | "LENDER";
   requestableDocuments?: readonly string[];
 }>) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [reason, setReason] = useState("");
@@ -90,10 +88,9 @@ export function ClaimQueryDialog({
         setRequested([]);
         setError("");
         setOpen(false);
-        router.refresh();
       });
     },
-    [isImgc, reason, remarks, requested, claimId, claimNo, router]
+    [isImgc, reason, remarks, requested, claimId, claimNo]
   );
 
   return (

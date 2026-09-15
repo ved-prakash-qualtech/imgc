@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { ROUTES } from "@/constants/route";
+import { runAction } from "@/lib/actions/runAction";
 import { requireSession } from "@/lib/auth/appSession";
 import {
   saveLenderDocumentConfig,
@@ -19,8 +20,10 @@ export async function saveLenderDocumentConfigAction(
     required: boolean;
   }>
 ): Promise<Outcome> {
-  const session = await requireSession();
-  const result = await saveLenderDocumentConfig(session, lenderOrgId, rows);
-  if (result.ok) revalidatePath(ROUTES.adminDocumentConfig);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await saveLenderDocumentConfig(session, lenderOrgId, rows);
+    if (result.ok) revalidatePath(ROUTES.adminDocumentConfig);
+    return result;
+  });
 }

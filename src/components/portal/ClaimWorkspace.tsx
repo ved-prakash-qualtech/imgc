@@ -119,7 +119,6 @@ export function ClaimWorkspace({
         return;
       }
       toast.success("Claim saved.");
-      router.refresh();
     });
   }, [accountId, claimId, router, values]);
 

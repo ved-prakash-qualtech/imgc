@@ -120,29 +120,24 @@ export function DocumentConfigClient({
         return;
       }
       toast.success(`Document configuration saved for ${selectedLenderName}.`);
-      router.refresh();
     });
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="font-outfit text-[20px] font-bold text-neutral-950">
-          Lender Document Configuration
-        </h1>
-        <p className="mt-1 text-[13px] text-neutral-500">
-          Configure document requirements separately for each lender.
-        </p>
-      </div>
-
-      <Panel size="compact" title="Lender">
-        <div className="px-5 py-4">
-          <div className="relative w-full max-w-[320px]">
+    <div>
+      <Panel
+        size="compact"
+        title="Document Requirements"
+        description={`What ${selectedLenderName}'s INITIAL claims ask for, in order.`}
+        // The lender picker sits in the panel header rather than a card of its own, so the whole
+        // configuration fits on one screen without scrolling.
+        actions={
+          <div className="relative w-[240px]">
             <select
               aria-label="Select lender"
               value={selectedLenderId ?? ""}
               onChange={(e) => onLenderChange(e.target.value)}
-              className="h-10 w-full appearance-none rounded-lg border border-neutral-200 bg-white pl-3.5 pr-9 text-[13.5px] font-medium text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              className="h-9 w-full appearance-none rounded-lg border border-neutral-200 bg-white pl-3 pr-8 text-[13px] font-medium text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
             >
               {lenders.length === 0 && <option value="">No lenders</option>}
               {lenders.map((l) => (
@@ -151,15 +146,9 @@ export function DocumentConfigClient({
                 </option>
               ))}
             </select>
-            <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+            <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
           </div>
-        </div>
-      </Panel>
-
-      <Panel
-        size="compact"
-        title="Document Requirements"
-        description={`What ${selectedLenderName}'s INITIAL claims ask for, in order.`}
+        }
       >
         <div className="overflow-x-auto">
           <Table>
@@ -188,17 +177,17 @@ export function DocumentConfigClient({
               ) : (
                 rows.map((row) => (
                   <TableRow key={row.key}>
-                    <TableCell className="px-3.5 py-2.5">
+                    <TableCell className="px-3.5 py-1.5">
                       <span className="block text-[13px] font-medium text-neutral-900">
                         {row.name}
                       </span>
                       {row.description && (
-                        <span className="mt-0.5 block text-[11.5px] text-neutral-500">
+                        <span className="block text-[11.5px] text-neutral-500">
                           {row.description}
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="px-3.5 py-2.5">
+                    <TableCell className="px-3.5 py-1.5">
                       <div className="relative inline-block">
                         <select
                           aria-label={`Requirement for ${row.name}`}
@@ -207,7 +196,7 @@ export function DocumentConfigClient({
                             onRequiredChange(row.key, e.target.value === "MANDATORY")
                           }
                           className={cn(
-                            "h-8 appearance-none rounded-full border py-0 pl-3 pr-7 text-[12px] font-semibold outline-none focus:ring-2",
+                            "h-7 appearance-none rounded-full border py-0 pl-3 pr-7 text-[12px] font-semibold outline-none focus:ring-2",
                             row.required
                               ? "border-warning/30 bg-warning/10 text-warning focus:ring-warning/20"
                               : "border-neutral-200 bg-neutral-50 text-neutral-600 focus:ring-neutral-300/40"
@@ -219,19 +208,19 @@ export function DocumentConfigClient({
                         <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 size-3 -translate-y-1/2 opacity-60" />
                       </div>
                     </TableCell>
-                    <TableCell className="px-3.5 py-2.5">
+                    <TableCell className="px-3.5 py-1.5">
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-2.5 py-0.5 text-[11.5px] font-semibold text-success-700">
                         <span className="size-1.5 rounded-full bg-current opacity-70" />
                         Active
                       </span>
                     </TableCell>
-                    <TableCell className="px-3.5 py-2.5 text-right">
+                    <TableCell className="px-3.5 py-1.5 text-right">
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
                         onClick={() => onRemove(row.key)}
-                        className="text-destructive hover:border-destructive/40 hover:bg-destructive/5"
+                        className="h-7 text-destructive hover:border-destructive/40 hover:bg-destructive/5"
                       >
                         <Trash2Icon className="size-3.5" /> Remove
                       </Button>
@@ -243,7 +232,7 @@ export function DocumentConfigClient({
           </Table>
         </div>
 
-        <div className="flex items-center justify-between border-t border-neutral-100 px-5 py-3">
+        <div className="flex items-center justify-between border-t border-neutral-100 px-5 py-2.5">
           <Button
             type="button"
             size="sm"

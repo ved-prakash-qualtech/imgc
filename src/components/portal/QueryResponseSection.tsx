@@ -1,7 +1,6 @@
 "use client";
 
 import { type ChangeEvent, useCallback, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { SendIcon, FileTextIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -80,7 +79,6 @@ export function QueryResponseSection({
   constrainedLayout?: boolean;
   fillLayout?: boolean;
 }>) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [response, setResponse] = useState(savedResponse);
 
@@ -106,9 +104,8 @@ export function QueryResponseSection({
       }
       setResponse("");
       toast.success("Response submitted — back with IMGC for review.");
-      router.refresh();
     });
-  }, [accountId, claimId, response, router]);
+  }, [accountId, claimId, response]);
 
   if (queries.length === 0 && claimRemarks.length === 0) {
     if (!isLender && imgcComposer) {

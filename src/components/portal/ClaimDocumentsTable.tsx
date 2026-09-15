@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { EyeIcon, FileIcon, PlusIcon, TrashIcon, UploadIcon, RotateCwIcon, CheckCircle2Icon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -128,8 +127,9 @@ export function ClaimDocumentsTable({
     replaceFileId?: string;
   } | null>(null);
 
-  const router = useRouter();
-  const [, startDelete] = useTransition();
+  // While a delete is running every delete button is disabled, so a double click cannot remove a
+  // second file.
+  const [deleting, startDelete] = useTransition();
 
   const onDelete = useCallback(
     (accId: string, documentId: string, fileId: string) => {
@@ -143,10 +143,9 @@ export function ClaimDocumentsTable({
           return;
         }
         toast.success("File removed.");
-        router.refresh();
       });
     },
-    [router]
+    []
   );
 
   const applicable = required.filter((d) => d.required && d.active);
@@ -269,6 +268,7 @@ export function ClaimDocumentsTable({
                     // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                     onClick={() => onDelete(accountId, doc.id, file.id)}
                     aria-label="Delete file"
+                    disabled={deleting}
                     title="Delete file"
                   >
                     <TrashIcon className="size-3.5" />

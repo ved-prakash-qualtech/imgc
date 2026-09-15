@@ -122,6 +122,12 @@ export interface Otp {
 
 export interface Account {
   id: string;
+  /**
+   * When anything last happened on this account — the newest audit event's time. Kept here so the
+   * pages that only need "last activity" never have to read the audit log, which lives in its own
+   * snapshot. Absent on an account nothing has happened to yet; read it as `createdAt` then.
+   */
+  lastActivityAt?: string;
   /** Loan / application ID shown to users, e.g. 3002060000000. */
   loanNo: string;
   borrowerName: string;
@@ -429,7 +435,11 @@ export interface MockDb {
   claimQueries: ClaimQuery[];
   documentFiles: DocumentFile[];
   remarks: Remark[];
-  auditEvents: AuditEvent[];
+  /**
+   * Only in a fresh seed and in snapshots written before the audit log moved to its own snapshot;
+   * `db.ts` moves it out on first read. Everything else reads the log through `readAuditLog()`.
+   */
+  auditEvents?: AuditEvent[];
   notifications: Notification[];
   lenderDocumentRequirements: LenderDocumentRequirement[];
 }

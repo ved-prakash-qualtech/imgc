@@ -7,7 +7,6 @@ import {
   useTransition,
   type ReactNode,
 } from "react";
-import { useRouter } from "next/navigation";
 import {
   CheckCircle2Icon,
   ChevronDownIcon,
@@ -110,8 +109,9 @@ export function ClaimDocuments({
     replaceFileId?: string;
   } | null>(null);
 
-  const router = useRouter();
-  const [, startDelete] = useTransition();
+  // While a delete is running every delete button is disabled, so a double click cannot remove a
+  // second file.
+  const [deleting, startDelete] = useTransition();
 
   const toggle = useCallback(
     (id: string) => setOpenId((cur) => (cur === id ? undefined : id)),
@@ -133,10 +133,9 @@ export function ClaimDocuments({
           return;
         }
         toast.success("File removed.");
-        router.refresh();
       });
     },
-    [router]
+    []
   );
 
   const applicable = required.filter((d) => d.required && d.active);
@@ -169,6 +168,7 @@ export function ClaimDocuments({
             locked={locked}
             onUpload={setUploadTarget}
             onDelete={onDelete}
+            deleting={deleting}
           />
         ) : (
           <ol className="divide-y divide-neutral-100">
@@ -184,6 +184,7 @@ export function ClaimDocuments({
                 onToggle={toggle}
                 onUpload={setUploadTarget}
                 onDelete={onDelete}
+                deleting={deleting}
               />
             ))}
           </ol>
@@ -205,6 +206,7 @@ export function ClaimDocuments({
             locked={locked}
             onUpload={setUploadTarget}
             onDelete={onDelete}
+            deleting={deleting}
           />
         ) : (
           <ol className="divide-y divide-neutral-100">
@@ -219,6 +221,7 @@ export function ClaimDocuments({
                 onToggle={toggle}
                 onUpload={setUploadTarget}
                 onDelete={onDelete}
+                deleting={deleting}
               />
             ))}
           </ol>
@@ -249,6 +252,7 @@ function DocAccordionItem({
   onToggle,
   onUpload,
   onDelete,
+  deleting,
 }: Readonly<{
   doc: RequirementRow;
   index?: number;
@@ -263,6 +267,8 @@ function DocAccordionItem({
     replaceFileId?: string;
   }) => void;
   onDelete: (accountId: string, documentId: string, fileId: string) => void;
+  /** A delete is running — every delete button stays disabled until it settles. */
+  deleting: boolean;
 }>) {
   const hasFiles = doc.files.length > 0;
   const conditionalNotRequired = doc.conditional && !doc.required;
@@ -467,6 +473,7 @@ function DocAccordionItem({
                           // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                           onClick={() => onDelete(doc.accountId, doc.id, f.id)}
                           title="Delete this file"
+                          disabled={deleting}
                           className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-400 transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive focus:outline-none focus:ring-2 focus:ring-destructive/20"
                         >
                           <TrashIcon className="size-3.5" />
@@ -527,6 +534,7 @@ function DocumentsTable({
   locked,
   onUpload,
   onDelete,
+  deleting,
 }: Readonly<{
   docs: RequirementRow[];
   /** Number the rows 1., 2., 3. — only the required-documents list does this. */
@@ -538,6 +546,8 @@ function DocumentsTable({
     replaceFileId?: string;
   }) => void;
   onDelete: (accountId: string, documentId: string, fileId: string) => void;
+  /** A delete is running — every delete button stays disabled until it settles. */
+  deleting: boolean;
 }>) {
   return (
     <div className="overflow-x-auto">
@@ -561,6 +571,7 @@ function DocumentsTable({
               locked={locked}
               onUpload={onUpload}
               onDelete={onDelete}
+              deleting={deleting}
             />
           ))}
         </tbody>
@@ -575,6 +586,7 @@ function DocTableRows({
   locked,
   onUpload,
   onDelete,
+  deleting,
 }: Readonly<{
   doc: RequirementRow;
   index?: number;
@@ -585,6 +597,8 @@ function DocTableRows({
     replaceFileId?: string;
   }) => void;
   onDelete: (accountId: string, documentId: string, fileId: string) => void;
+  /** A delete is running — every delete button stays disabled until it settles. */
+  deleting: boolean;
 }>) {
   const hasFiles = doc.files.length > 0;
   const canAddMore = !locked && doc.status !== "APPROVED";
@@ -721,6 +735,7 @@ function DocTableRows({
                         // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                         onClick={() => onDelete(doc.accountId, doc.id, f.id)}
                         title="Delete this file"
+                        disabled={deleting}
                         className="size-7 p-0 text-neutral-400 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
                       >
                         <TrashIcon className="size-3.5" />
@@ -762,6 +777,7 @@ function DocTableRows({
                               onDelete(doc.accountId, doc.id, f.id)
                             }
                             title="Delete this file"
+                            disabled={deleting}
                             className="size-7 p-0 text-neutral-400 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
                           >
                             <TrashIcon className="size-3.5" />

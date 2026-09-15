@@ -2,7 +2,10 @@ import "server-only";
 
 
 import { readDb, writeDb } from "@/server/mock/db";
-import { putUpload } from "@/server/mock/storage";
+import {
+  storeIncomingUpload,
+  type IncomingUpload,
+} from "@/server/mock/storage";
 import { newId, nowIso } from "@/server/mock/ids";
 import { recordEvent } from "@/services/portal/audit.server";
 import { syncQueryForDocumentDecision } from "@/services/portal/claimFlow.server";
@@ -29,8 +32,6 @@ export interface DocumentRow extends ClaimDocument {
 }
 
 type Outcome = { ok: true } | { ok: false; error: string };
-
-const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 
 /** A lender may only touch accounts belonging to their own org. */
 async function assertAccess(
@@ -215,15 +216,11 @@ export async function uploadDocument(
   session: AppSession,
   accountId: string,
   documentId: string,
-  file: File,
+  incoming: IncomingUpload,
   meta: UploadMeta = {}
 ): Promise<Outcome> {
   const access = await assertAccess(session, accountId);
   if (!access.ok) return access;
-  if (!file || file.size === 0) return { ok: false, error: "Choose a file to upload." };
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return { ok: false, error: "That file is larger than 15 MB." };
-  }
 
   const db = await readDb();
   const doc = db.claimDocuments.find((d) => d.id === documentId && d.accountId === accountId);
@@ -236,16 +233,12 @@ export async function uploadDocument(
   }
 
   const fileId = newId("file");
-  const safeName = file.name.replace(/[^\w.\-]+/g, "_").slice(-120);
   // Shared object storage on a deployment, the local disk in development — `storedPath` is
   // whatever locator that backend hands back (a URL or an absolute path), and the file route
-  // reads either kind.
-  const storedPath = await putUpload(
-    accountId,
-    `${fileId}__${safeName}`,
-    Buffer.from(await file.arrayBuffer()),
-    file.type || "application/octet-stream"
-  );
+  // reads either kind. A file the browser already uploaded to Blob is verified, not re-sent.
+  const stored = await storeIncomingUpload(accountId, fileId, incoming);
+  if (!stored.ok) return stored;
+  const upload = stored.file;
 
   const version = await writeDb((fresh) => {
     const row = fresh.claimDocuments.find((d) => d.id === documentId);
@@ -268,10 +261,10 @@ export async function uploadDocument(
       id: fileId,
       documentId,
       accountId,
-      originalName: file.name,
-      storedPath,
-      size: file.size,
-      mime: file.type || "application/octet-stream",
+      originalName: upload.originalName,
+      storedPath: upload.storedPath,
+      size: upload.size,
+      mime: upload.mime,
       uploadedBy: session.userId,
       uploadedByName: session.name,
       uploadedAt: nowIso(),
@@ -295,8 +288,13 @@ export async function uploadDocument(
     accountId,
     actor: session,
     type: "DOC_UPLOADED",
-    summary: `"${doc.name}" uploaded — version ${version} (${file.name})`,
-    meta: { document: doc.name, file: file.name, version: String(version), fileId },
+    summary: `"${doc.name}" uploaded — version ${version} (${upload.originalName})`,
+    meta: {
+      document: doc.name,
+      file: upload.originalName,
+      version: String(version),
+      fileId,
+    },
   });
 
   const fresh = await readDb();

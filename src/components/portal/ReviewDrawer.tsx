@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   CheckIcon,
   ExternalLinkIcon,
@@ -103,7 +102,6 @@ export function ReviewDrawer({
    */
   readOnly?: boolean;
 }>) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [decision, setDecision] = useState<ReviewDecision | null>(null);
   const [remarks, setRemarks] = useState("");
@@ -154,9 +152,8 @@ export function ReviewDrawer({
       );
       reset();
       onOpenChange(false);
-      router.refresh();
     });
-  }, [row, decision, remarks, reset, onOpenChange, router]);
+  }, [row, decision, remarks, reset, onOpenChange]);
 
   if (!row) return null;
 

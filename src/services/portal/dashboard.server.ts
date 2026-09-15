@@ -371,7 +371,14 @@ export async function buildDashboardSummary(
   }
   const ids = new Set(accounts.map((a) => a.id));
   const docs = db.claimDocuments.filter((d) => ids.has(d.accountId));
-  const events = db.auditEvents.filter((e) => ids.has(e.accountId));
+  // Newest activity across the accounts in view — from the accounts themselves, not the audit log.
+  const lastActivityAt = accounts.reduce<string | null>(
+    (latest, a) =>
+      a.lastActivityAt && (!latest || a.lastActivityAt > latest)
+        ? a.lastActivityAt
+        : latest,
+    null
+  );
 
   // Same claims `listClaims` already scopes by session — filtered again here against `ids` so a
   // narrower `accounts` (the lender-filtered case above) narrows `claims` right along with it,
@@ -485,10 +492,8 @@ export async function buildDashboardSummary(
      classification `buildPortfolioSummary` already uses for IMGC's own Portfolio Status
      Breakdown — reused, not reinvented, so "Active" means the same thing on both dashboards. */
   const lastTouch = new Map<string, string>();
-  for (const event of events) {
-    const current = lastTouch.get(event.accountId);
-    if (!current || event.at > current)
-      lastTouch.set(event.accountId, event.at);
+  for (const a of accounts) {
+    if (a.lastActivityAt) lastTouch.set(a.id, a.lastActivityAt);
   }
 
   // Same two-step classification as `buildPortfolioSummary`: closed outranks overdue (a
@@ -683,7 +688,7 @@ export async function buildDashboardSummary(
     rings,
     progressTiles,
     aging,
-    lastActivityAt: events[0]?.at ?? null,
+    lastActivityAt,
     additional: (() => {
       const add = db.claimDocuments.filter(
         (d) =>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -334,7 +334,6 @@ export function UsersClient({
   users,
   orgs,
 }: Readonly<{ users: UserRow[]; orgs: LenderOrg[] }>) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
@@ -726,7 +725,6 @@ export function UsersClient({
       );
       form.reset();
       setOrgForm(null);
-      router.refresh();
     });
   }
 
@@ -765,7 +763,6 @@ export function UsersClient({
       // cleared explicitly, or the next open starts pre-filled with the last grant.
       resetGrantForm();
       setOpen(false);
-      router.refresh();
     });
   }
 

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { readDb, writeDb } from "@/server/mock/db";
+import { appendAudit, readAuditLog, readDb, writeDb } from "@/server/mock/db";
 import { newId, nowIso } from "@/server/mock/ids";
 import type { AppSession } from "@/lib/auth/appSession";
 import type {
@@ -18,26 +18,30 @@ export async function recordEvent(input: {
   summary: string;
   meta?: Record<string, string>;
 }): Promise<void> {
+  const at = nowIso();
+  // The account keeps its own last-activity time, so pages that only need that skip the log.
   await writeDb((db) => {
-    db.auditEvents.unshift({
-      id: newId("aud"),
-      accountId: input.accountId,
-      at: nowIso(),
-      actorId: input.actor.userId,
-      actorName: input.actor.name,
-      actorRole: input.actor.role,
-      type: input.type,
-      summary: input.summary,
-      meta: input.meta,
-    });
+    const account = db.accounts.find((a) => a.id === input.accountId);
+    if (account) account.lastActivityAt = at;
+  });
+  await appendAudit({
+    id: newId("aud"),
+    accountId: input.accountId,
+    at,
+    actorId: input.actor.userId,
+    actorName: input.actor.name,
+    actorRole: input.actor.role,
+    type: input.type,
+    summary: input.summary,
+    meta: input.meta,
   });
 }
 
 export async function listAuditForAccount(
   accountId: string
 ): Promise<AuditEvent[]> {
-  const db = await readDb();
-  return db.auditEvents.filter((e) => e.accountId === accountId);
+  const log = await readAuditLog();
+  return log.filter((e) => e.accountId === accountId);
 }
 
 export async function listRecentAudit(
@@ -45,8 +49,8 @@ export async function listRecentAudit(
   limit = 200
 ): Promise<AuditEvent[]> {
   const allowed = new Set(accountIds);
-  const db = await readDb();
-  return db.auditEvents.filter((e) => allowed.has(e.accountId)).slice(0, limit);
+  const log = await readAuditLog();
+  return log.filter((e) => allowed.has(e.accountId)).slice(0, limit);
 }
 
 export interface DocumentTrailItem {

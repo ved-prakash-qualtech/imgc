@@ -30,7 +30,9 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   `script-src 'self' 'unsafe-inline'${env.isProduction ? "" : " 'unsafe-eval'"}`,
   "worker-src 'self' blob:",
-  "connect-src 'self' https://*.sentry.io https://*.ingest.sentry.io",
+  // vercel.com/api/blob is where the browser sends a document when it uploads straight to Blob
+  // (`attachUpload`); without it the upload is blocked with nothing but a console message.
+  "connect-src 'self' https://*.sentry.io https://*.ingest.sentry.io https://vercel.com",
   "form-action 'self'",
   // Production only. This directive rewrites every http:// subresource to https://, and a
   // dev server on plain http has nothing listening there — so the browser upgrades the
@@ -136,6 +138,12 @@ const nextConfig: NextConfig = {
     // route no granted menu covers. Without it Next throws instead of rendering the Forbidden page,
     // and the guard turns every ungranted route into "Something went wrong".
     authInterrupts: true,
+    // In local development an upload travels inside the Server Action request, and Next's default
+    // cap is 1 MB — any real-world PDF over 1 MB was rejected before the app saw it. 16 MB fits the
+    // app's own 15 MB limit (`MAX_UPLOAD_BYTES`) plus the multipart envelope. On a deployment the
+    // browser uploads straight to Blob (`attachUpload`), so the file never enters this request and
+    // Vercel's 4.5 MB request cap does not apply.
+    serverActions: { bodySizeLimit: "16mb" },
     serverSourceMaps: env.sourceMapsEnabled,
     turbopackSourceMaps: env.sourceMapsEnabled,
     turbopackInputSourceMaps: env.sourceMapsEnabled,

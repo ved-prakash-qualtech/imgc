@@ -356,6 +356,11 @@ export function AccountsClient({
     (searchParams.get("assetClass") as (typeof ASSET_CLASSES)[number] | null) ??
       "ALL"
   );
+  // `?lender=` comes from a Claim Dashboard tile clicked with a lender picked in its hero banner,
+  // so the grid shows the same lender the tile counted.
+  const [lender, setLender] = useState<string>(
+    () => searchParams.get("lender") ?? "ALL"
+  );
   const [product, setProduct] = useState<string>("ALL");
   const [dpdBand, setDpdBand] = useState<DpdBand>("ALL");
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
@@ -378,10 +383,39 @@ export function AccountsClient({
     setStatus(statusFromParam(statusParam));
     setPage(1);
   }
+  // Same re-sync for `?lender=`.
+  const [prevLenderParam, setPrevLenderParam] = useState(
+    searchParams.get("lender")
+  );
+  const lenderParam = searchParams.get("lender");
+  if (lenderParam !== prevLenderParam) {
+    setPrevLenderParam(lenderParam);
+    setLender(lenderParam ?? "ALL");
+    setPage(1);
+  }
 
   const products = useMemo(
     () => Array.from(new Set(accounts.map((a) => a.product))).sort(),
     [accounts]
+  );
+  const lenderNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const a of accounts) names.set(a.lenderOrgId, a.lenderOrgName);
+    return names;
+  }, [accounts]);
+  const lenderOptions = useMemo(
+    () =>
+      [
+        "ALL",
+        ...[...lenderNames.keys()].sort((x, y) =>
+          (lenderNames.get(x) ?? "").localeCompare(lenderNames.get(y) ?? "")
+        ),
+      ] as const,
+    [lenderNames]
+  );
+  const lenderDisplay = useCallback(
+    (v: string) => (v === "ALL" ? "All Lenders" : (lenderNames.get(v) ?? v)),
+    [lenderNames]
   );
 
   // See EligibleCasesClient.tsx's `toggleSort` for why this reads `sortKey`/`sortDirection` from
@@ -408,6 +442,7 @@ export function AccountsClient({
     const q = query.trim().toLowerCase();
     let result = accounts.filter((a) => {
       if (bucket !== "ALL" && a.bucket !== bucket) return false;
+      if (lender !== "ALL" && a.lenderOrgId !== lender) return false;
       if (status.length > 0) {
         if (status.includes("ACTIVE_NPA")) {
           if (
@@ -524,6 +559,7 @@ export function AccountsClient({
     accounts,
     query,
     bucket,
+    lender,
     status,
     assetClass,
     product,
@@ -576,6 +612,17 @@ export function AccountsClient({
     setProduct(v);
     setPage(1);
   }, []);
+  const handleLenderChange = useCallback(
+    (v: string) => {
+      setLender(v);
+      const nextParams = new URLSearchParams(searchParams.toString());
+      if (v === "ALL") nextParams.delete("lender");
+      else nextParams.set("lender", v);
+      router.replace(`?${nextParams.toString()}`, { scroll: false });
+      setPage(1);
+    },
+    [router, searchParams]
+  );
   const handleBucketChange = useCallback((v: (typeof BUCKETS)[number]) => {
     setBucket(v);
     setPage(1);
@@ -598,6 +645,15 @@ export function AccountsClient({
           />
         </div>
         <StatusMultiSelect value={status} onChange={handleStatusChange} />
+        {role === "IMGC" && (
+          <FilterSelect
+            label="Lender"
+            options={lenderOptions}
+            display={lenderDisplay}
+            value={lender}
+            onChange={handleLenderChange}
+          />
+        )}
         <FilterSelect
           label="Loan Type"
           options={["ALL", ...products] as const}

@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { setClaimStatusAction } from "@/app/[locale]/(portal)/accounts/[accountId]/actions";
@@ -157,7 +157,6 @@ function QueryTrailTab({
   claimDocuments: RequirementRow[];
   documentsSection: React.ReactNode;
 }>) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState("");
   const [noteError, setNoteError] = useState("");
@@ -185,10 +184,9 @@ function QueryTrailTab({
         setNote("");
         setNoteError("");
         toast.success(`Claim marked ${status.toLowerCase()}.`);
-        router.refresh();
       });
     },
-    [account.id, note, router]
+    [account.id, note]
   );
 
   if (role !== "IMGC") return null;
