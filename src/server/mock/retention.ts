@@ -2,7 +2,7 @@ import "server-only";
 
 import { promises as fs } from "node:fs";
 
-import { readDb, writeDb } from "@/server/mock/db";
+import { appendAudit, readDb, writeDb } from "@/server/mock/db";
 import { newId, nowIso } from "@/server/mock/ids";
 import type { ClaimDocument } from "@/server/mock/types";
 
@@ -49,7 +49,12 @@ export async function sweepExpiredRejections(): Promise<{ purged: number }> {
     }
   }
 
-  return writeDb((fresh) => {
+  // Filled by the mutator and logged once the write has landed. Reset on every attempt, because a
+  // mutator re-runs when another write got in first.
+  let purgedRows: { accountId: string; name: string }[] = [];
+  const result = await writeDb((fresh) => {
+    purgedRows = [];
+    const at = nowIso();
     let purged = 0;
     for (const doc of expired) {
       const row = fresh.claimDocuments.find((d) => d.id === doc.id);
@@ -63,17 +68,24 @@ export async function sweepExpiredRejections(): Promise<{ purged: number }> {
       row.currentFileId = undefined;
       row.rejection = undefined;
       purged += 1;
-      fresh.auditEvents.unshift({
-        id: newId("aud"),
-        accountId: row.accountId,
-        at: nowIso(),
-        actorId: "system",
-        actorName: "Retention sweep",
-        actorRole: "SYSTEM",
-        type: "RETENTION_PURGED",
-        summary: `Rejected document "${row.name}" purged after ${RETENTION_DAYS}-day retention`,
-      });
+      purgedRows.push({ accountId: row.accountId, name: row.name });
+      const account = fresh.accounts.find((a) => a.id === row.accountId);
+      if (account) account.lastActivityAt = at;
     }
     return { purged };
   });
+
+  for (const row of purgedRows) {
+    await appendAudit({
+      id: newId("aud"),
+      accountId: row.accountId,
+      at: nowIso(),
+      actorId: "system",
+      actorName: "Retention sweep",
+      actorRole: "SYSTEM",
+      type: "RETENTION_PURGED",
+      summary: `Rejected document "${row.name}" purged after ${RETENTION_DAYS}-day retention`,
+    });
+  }
+  return result;
 }

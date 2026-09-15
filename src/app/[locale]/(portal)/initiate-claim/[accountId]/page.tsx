@@ -6,6 +6,7 @@ import { PortalShell } from "@/components/portal/PortalShell";
 import { claimConfig } from "@/config/claimConfig";
 import { ROUTES } from "@/constants/route";
 import { requireSession } from "@/lib/auth/appSession";
+import { withDbTransaction } from "@/server/mock/db";
 import { getAccount } from "@/services/portal/accounts.server";
 import {
   createClaim,
@@ -39,7 +40,11 @@ export default async function ClaimWorkspacePage({
     session.role === "LENDER" &&
     (account.npa || account.writeOff)
   ) {
-    const created = await createClaim(session, accountId, "INITIAL");
+    // One transaction, so opening the workspace saves the new draft (and its audit entry) in a
+    // single write rather than as a chain of them.
+    const created = await withDbTransaction(() =>
+      createClaim(session, accountId, "INITIAL")
+    );
     if (created.ok) claim = await getClaimForAccount(session, accountId);
   }
 

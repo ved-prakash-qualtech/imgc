@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowDownIcon,
@@ -222,7 +221,6 @@ export function AdditionalDocumentsClient({
   rows,
   cases,
 }: Readonly<{ rows: RequirementRow[]; cases: CaseOption[] }>) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   const [query, setQuery] = useState("");
@@ -347,21 +345,19 @@ export function AdditionalDocumentsClient({
       const result = await addRequirementAction(addCaseId, input);
       if (result.ok) {
         setAddCaseId("");
-        router.refresh();
       }
       return result;
     },
-    [addCaseId, router]
+    [addCaseId]
   );
 
   const onEdit = useCallback(
     async (input: RequirementInput) => {
       if (!editing) return { ok: false, error: "Nothing selected." };
       const result = await updateRequirementAction(editing.accountId, editing.id, input);
-      if (result.ok) router.refresh();
       return result;
     },
-    [editing, router]
+    [editing]
   );
 
   const onToggle = useCallback(
@@ -377,10 +373,9 @@ export function AdditionalDocumentsClient({
             ? `"${row.name}" deactivated — the lender no longer sees it.`
             : `"${row.name}" reactivated.`
         );
-        router.refresh();
       });
     },
-    [router]
+    []
   );
 
   return (

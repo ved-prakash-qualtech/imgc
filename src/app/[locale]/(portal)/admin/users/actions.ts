@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { ROUTES } from "@/constants/route";
+import { runAction } from "@/lib/actions/runAction";
 import { requireSession } from "@/lib/auth/appSession";
 import {
   createLenderAccess,
@@ -18,13 +19,15 @@ export async function grantLenderAccessAction(
   email: string,
   orgName: string
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await createLenderAccess(session, { name, email, orgName });
-  if (result.ok) {
-    revalidatePath(ROUTES.adminUsers);
-    revalidatePath(ROUTES.notifications);
-  }
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await createLenderAccess(session, { name, email, orgName });
+    if (result.ok) {
+      revalidatePath(ROUTES.adminUsers);
+      revalidatePath(ROUTES.notifications);
+    }
+    return result;
+  });
 }
 
 /** Onboard a lender organisation ahead of anyone from it having a login. */
@@ -33,10 +36,16 @@ export async function createLenderOrgAction(
   emailDomain: string,
   contactEmails: string
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await createLenderOrg(session, { name, emailDomain, contactEmails });
-  if (result.ok) revalidatePath(ROUTES.adminUsers);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await createLenderOrg(session, {
+      name,
+      emailDomain,
+      contactEmails,
+    });
+    if (result.ok) revalidatePath(ROUTES.adminUsers);
+    return result;
+  });
 }
 
 /** Correct an organisation's name or its stakeholder mailboxes. The domain is not editable —
@@ -46,8 +55,13 @@ export async function updateLenderOrgAction(
   name: string,
   contactEmails: string
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await updateLenderOrg(session, orgId, { name, contactEmails });
-  if (result.ok) revalidatePath(ROUTES.adminUsers);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await updateLenderOrg(session, orgId, {
+      name,
+      contactEmails,
+    });
+    if (result.ok) revalidatePath(ROUTES.adminUsers);
+    return result;
+  });
 }

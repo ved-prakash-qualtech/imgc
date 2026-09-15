@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { ROUTES } from "@/constants/route";
+import { incomingUploadFrom } from "@/lib/actions/incomingUpload";
+import { runAction } from "@/lib/actions/runAction";
 import { requireSession } from "@/lib/auth/appSession";
 import {
   addRequirement,
@@ -31,28 +33,41 @@ function refresh(accountId: string): void {
 
 /* ── documents ─────────────────────────────────────────────────────── */
 
-export async function uploadDocumentAction(formData: FormData): Promise<Result> {
-  const session = await requireSession();
-  const accountId = String(formData.get("accountId") ?? "");
-  const documentId = String(formData.get("documentId") ?? "");
-  const file = formData.get("file");
+export async function uploadDocumentAction(
+  formData: FormData
+): Promise<Result> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const accountId = String(formData.get("accountId") ?? "");
+    const documentId = String(formData.get("documentId") ?? "");
+    const incoming = incomingUploadFrom(formData);
+    if (!incoming) return { ok: false, error: "Choose a file to upload." };
 
-  if (!(file instanceof File)) return { ok: false, error: "Choose a file to upload." };
-
-  const replaceFileId = formData.get("replaceFileId") ? String(formData.get("replaceFileId")) : undefined;
-  const result = await uploadDocument(session, accountId, documentId, file, { replaceFileId });
-  if (result.ok) refresh(accountId);
-  return result;
+    const replaceFileId = formData.get("replaceFileId")
+      ? String(formData.get("replaceFileId"))
+      : undefined;
+    const result = await uploadDocument(
+      session,
+      accountId,
+      documentId,
+      incoming,
+      { replaceFileId }
+    );
+    if (result.ok) refresh(accountId);
+    return result;
+  });
 }
 
 export async function addRequirementAction(
   accountId: string,
   input: RequirementInput
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await addRequirement(session, accountId, input);
-  if (result.ok) refresh(accountId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await addRequirement(session, accountId, input);
+    if (result.ok) refresh(accountId);
+    return result;
+  });
 }
 
 /** Withdraw a requirement (or bring it back) without losing what was uploaded against it. */
@@ -61,10 +76,17 @@ export async function setRequirementActiveAction(
   documentId: string,
   active: boolean
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await setRequirementActive(session, accountId, documentId, active);
-  if (result.ok) refresh(accountId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await setRequirementActive(
+      session,
+      accountId,
+      documentId,
+      active
+    );
+    if (result.ok) refresh(accountId);
+    return result;
+  });
 }
 
 export async function decideDocumentAction(
@@ -73,27 +95,29 @@ export async function decideDocumentAction(
   decision: "APPROVED" | "REJECTED",
   reason: string
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await decideDocument(
-    session,
-    accountId,
-    documentId,
-    decision,
-    reason
-  );
-  if (result.ok) {
-    refresh(accountId);
-    // A rejection now syncs into the Claim entity as a query (`syncQueryForDocumentDecision`) —
-    // same broader revalidation `setClaimStatusAction` uses for a Claim-side change, so the
-    // lender's workspace and Track Claim pick it up too, not just this account's own page.
-    if (decision === "REJECTED") {
-      revalidatePath(ROUTES.initiateClaim);
-      revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
-      revalidatePath(ROUTES.trackQueryResponse);
-      revalidatePath(ROUTES.notifications);
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await decideDocument(
+      session,
+      accountId,
+      documentId,
+      decision,
+      reason
+    );
+    if (result.ok) {
+      refresh(accountId);
+      // A rejection now syncs into the Claim entity as a query (`syncQueryForDocumentDecision`) —
+      // same broader revalidation `setClaimStatusAction` uses for a Claim-side change, so the
+      // lender's workspace and Track Claim pick it up too, not just this account's own page.
+      if (decision === "REJECTED") {
+        revalidatePath(ROUTES.initiateClaim);
+        revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
+        revalidatePath(ROUTES.trackQueryResponse);
+        revalidatePath(ROUTES.notifications);
+      }
     }
-  }
-  return result;
+    return result;
+  });
 }
 
 /** IMGC undoes their own rejection — the document goes back under review. */
@@ -101,10 +125,12 @@ export async function reactivateDocumentAction(
   accountId: string,
   documentId: string
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await reactivateDocument(session, accountId, documentId);
-  if (result.ok) refresh(accountId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await reactivateDocument(session, accountId, documentId);
+    if (result.ok) refresh(accountId);
+    return result;
+  });
 }
 
 /** IMGC undoes their own acceptance — the document goes back under review. */
@@ -124,23 +150,31 @@ export async function raiseQueryForRejectedDocumentAction(
   accountId: string,
   documentId: string
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await raiseQueryForRejectedDocument(session, accountId, documentId);
-  if (result.ok) {
-    refresh(accountId);
-    revalidatePath(ROUTES.initiateClaim);
-    revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
-    revalidatePath(ROUTES.trackQueryResponse);
-    revalidatePath(ROUTES.notifications);
-  }
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await raiseQueryForRejectedDocument(
+      session,
+      accountId,
+      documentId
+    );
+    if (result.ok) {
+      refresh(accountId);
+      revalidatePath(ROUTES.initiateClaim);
+      revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
+      revalidatePath(ROUTES.trackQueryResponse);
+      revalidatePath(ROUTES.notifications);
+    }
+    return result;
+  });
 }
 
 export async function submitClaimAction(accountId: string): Promise<Result> {
-  const session = await requireSession();
-  const result = await submitClaim(session, accountId);
-  if (result.ok) refresh(accountId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await submitClaim(session, accountId);
+    if (result.ok) refresh(accountId);
+    return result;
+  });
 }
 
 export async function requestReinstateAction(
@@ -148,10 +182,12 @@ export async function requestReinstateAction(
   documentId: string,
   note: string
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await requestReinstate(session, accountId, documentId, note);
-  if (result.ok) refresh(accountId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await requestReinstate(session, accountId, documentId, note);
+    if (result.ok) refresh(accountId);
+    return result;
+  });
 }
 
 export async function decideReinstateAction(
@@ -160,13 +196,21 @@ export async function decideReinstateAction(
   approve: boolean,
   note: string
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await decideReinstate(session, accountId, documentId, approve, note);
-  if (result.ok) {
-    refresh(accountId);
-    revalidatePath(ROUTES.adminRetention);
-  }
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await decideReinstate(
+      session,
+      accountId,
+      documentId,
+      approve,
+      note
+    );
+    if (result.ok) {
+      refresh(accountId);
+      revalidatePath(ROUTES.adminRetention);
+    }
+    return result;
+  });
 }
 
 /* ── remarks, PAS, claim status ────────────────────────────────────── */
@@ -176,10 +220,12 @@ export async function addRemarkAction(
   body: string,
   documentId?: string
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await addRemark(session, accountId, body, documentId);
-  if (result.ok) refresh(accountId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await addRemark(session, accountId, body, documentId);
+    if (result.ok) refresh(accountId);
+    return result;
+  });
 }
 
 export async function updatePasValueAction(
@@ -187,10 +233,12 @@ export async function updatePasValueAction(
   key: string,
   value: string
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await pushToPas(session, accountId, key, value);
-  if (result.ok) refresh(accountId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await pushToPas(session, accountId, key, value);
+    if (result.ok) refresh(accountId);
+    return result;
+  });
 }
 
 export async function setClaimStatusAction(
@@ -198,18 +246,20 @@ export async function setClaimStatusAction(
   status: "APPROVED" | "QUERIED" | "REJECTED",
   note: string
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await setClaimStatus(session, accountId, status, note);
-  if (result.ok) {
-    refresh(accountId);
-    // This now also syncs the account's Claim entity (syncClaimForAccountDecision) — the same
-    // routes initiate-claim/actions.ts's refreshAll revalidates for a Claim-side change, so the
-    // lender's workspace and Track Claim pick it up too, not just this account's own page.
-    revalidatePath(ROUTES.initiateClaim);
-    revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
-    revalidatePath(ROUTES.trackQueryResponse);
-    revalidatePath(ROUTES.auditTrail);
-    revalidatePath(ROUTES.notifications);
-  }
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await setClaimStatus(session, accountId, status, note);
+    if (result.ok) {
+      refresh(accountId);
+      // This now also syncs the account's Claim entity (syncClaimForAccountDecision) — the same
+      // routes initiate-claim/actions.ts's refreshAll revalidates for a Claim-side change, so the
+      // lender's workspace and Track Claim pick it up too, not just this account's own page.
+      revalidatePath(ROUTES.initiateClaim);
+      revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
+      revalidatePath(ROUTES.trackQueryResponse);
+      revalidatePath(ROUTES.auditTrail);
+      revalidatePath(ROUTES.notifications);
+    }
+    return result;
+  });
 }

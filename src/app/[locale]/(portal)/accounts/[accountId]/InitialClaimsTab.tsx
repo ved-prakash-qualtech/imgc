@@ -40,6 +40,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { daysUntil } from "@/constants/documents";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@/constants/uploads";
+import { attachUpload } from "@/lib/uploads/attachUpload";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { DocumentRow } from "@/services/portal/claims.server";
 import type { ClaimStatus, Role } from "@/server/mock/types";
@@ -93,7 +95,7 @@ export function InitialClaimsTab({
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   /**
    * Which rows are expanded, keyed by document id — lifted up here rather than left as each
-   * row's own local state so a `router.refresh()` (fired after every accept/reject/upload) can
+   * row's own local state so the page refresh that follows every accept/reject/upload can
    * never reset it: the id-keyed map survives a full `docs` prop replacement the same way a doc's
    * own row does, whereas a value implicitly tied to a row's mount lifetime would not. Multiple
    * rows are independent and open at once — there is no "close the others" behavior here.
@@ -129,9 +131,8 @@ export function InitialClaimsTab({
     startTransition(async () => {
       if (!(await persistDrafts())) return;
       toast.success("Saved.");
-      router.refresh();
     });
-  }, [persistDrafts, router]);
+  }, [persistDrafts]);
 
   const onSaveAndSubmit = useCallback(() => {
     startTransition(async () => {
@@ -142,9 +143,8 @@ export function InitialClaimsTab({
         return;
       }
       toast.success("Initial claim submitted to IMGC.");
-      router.refresh();
     });
-  }, [persistDrafts, accountId, router]);
+  }, [persistDrafts, accountId]);
 
   const onCancel = useCallback(() => {
     setDrafts({});
@@ -161,10 +161,9 @@ export function InitialClaimsTab({
           return;
         }
         toast.success(active ? "Requirement reactivated." : "Requirement withdrawn.");
-        router.refresh();
       });
     },
-    [accountId, router]
+    [accountId]
   );
 
   return (
@@ -292,7 +291,6 @@ function DocumentRowItem({
   expanded: boolean;
   onToggleExpanded: (docId: string) => void;
 }>) {
-  const router = useRouter();
   const [busy, startTransition] = useTransition();
   const [rejecting, setRejecting] = useState(false);
   const [previewingFileId, setPreviewingFileId] = useState<string | null>(null);
@@ -304,11 +302,23 @@ function DocumentRowItem({
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
+      // Checked here too, so an oversized file is refused at once instead of after the upload.
+      if (file.size > MAX_UPLOAD_BYTES) {
+        toast.error(`That file is larger than ${MAX_UPLOAD_LABEL}.`);
+        if (fileInput.current) fileInput.current.value = "";
+        return;
+      }
       const data = new FormData();
       data.set("accountId", accountId);
       data.set("documentId", doc.id);
-      data.set("file", file);
       startTransition(async () => {
+        try {
+          await attachUpload(data, file, accountId);
+        } catch {
+          if (fileInput.current) fileInput.current.value = "";
+          toast.error("That upload failed. Please try again.");
+          return;
+        }
         const result = await uploadDocumentAction(data);
         if (fileInput.current) fileInput.current.value = "";
         if (!result.ok) {
@@ -316,10 +326,9 @@ function DocumentRowItem({
           return;
         }
         toast.success(`"${doc.name}" uploaded.`);
-        router.refresh();
       });
     },
-    [accountId, doc.id, doc.name, router]
+    [accountId, doc.id, doc.name]
   );
 
   const decide = useCallback(
@@ -337,10 +346,9 @@ function DocumentRowItem({
         }
         toast.success(`"${doc.name}" ${decision.toLowerCase()}.`);
         setRejecting(false);
-        router.refresh();
       });
     },
-    [accountId, doc.id, doc.name, router]
+    [accountId, doc.id, doc.name]
   );
 
   const onReactivate = useCallback(() => {
@@ -351,9 +359,8 @@ function DocumentRowItem({
         return;
       }
       toast.success(`"${doc.name}" is back under review.`);
-      router.refresh();
     });
-  }, [accountId, doc.id, doc.name, router]);
+  }, [accountId, doc.id, doc.name]);
 
   const onRaiseQuery = useCallback(() => {
     startTransition(async () => {
@@ -363,9 +370,8 @@ function DocumentRowItem({
         return;
       }
       toast.success(`Query raised for "${doc.name}".`);
-      router.refresh();
     });
-  }, [accountId, doc.id, doc.name, router]);
+  }, [accountId, doc.id, doc.name]);
 
   const onReinstateRequest = useCallback(() => {
     startTransition(async () => {
@@ -375,9 +381,8 @@ function DocumentRowItem({
         return;
       }
       toast.success("Reinstatement requested — IMGC will review it.");
-      router.refresh();
     });
-  }, [accountId, doc.id, router]);
+  }, [accountId, doc.id]);
 
   const onReinstateDecision = useCallback(
     (approve: boolean) => {
@@ -393,10 +398,9 @@ function DocumentRowItem({
           return;
         }
         toast.success(approve ? "Reinstated." : "Reinstatement denied.");
-        router.refresh();
       });
     },
-    [accountId, doc.id, router]
+    [accountId, doc.id]
   );
 
   const reinstate = doc.rejection?.reinstate;
@@ -768,7 +772,6 @@ function ImgcDocumentRowItem({
   retentionDays: number;
   hasOpenQuery: boolean;
 }>) {
-  const router = useRouter();
   const [busy, startTransition] = useTransition();
   const [rejecting, setRejecting] = useState(false);
   const [previewingFileId, setPreviewingFileId] = useState<string | null>(null);
@@ -790,10 +793,9 @@ function ImgcDocumentRowItem({
         }
         toast.success(`"${doc.name}" ${decision.toLowerCase()}.`);
         setRejecting(false);
-        router.refresh();
       });
     },
-    [accountId, doc.id, doc.name, router]
+    [accountId, doc.id, doc.name]
   );
 
   const onReactivate = useCallback(() => {
@@ -804,9 +806,8 @@ function ImgcDocumentRowItem({
         return;
       }
       toast.success(`"${doc.name}" is back under review.`);
-      router.refresh();
     });
-  }, [accountId, doc.id, doc.name, router]);
+  }, [accountId, doc.id, doc.name]);
 
   const onUndoAccepted = useCallback(() => {
     startTransition(async () => {
@@ -828,9 +829,8 @@ function ImgcDocumentRowItem({
         return;
       }
       toast.success(`Query raised for "${doc.name}".`);
-      router.refresh();
     });
-  }, [accountId, doc.id, doc.name, router]);
+  }, [accountId, doc.id, doc.name]);
 
   const onToggleActive = useCallback(
     (active: boolean) => {
@@ -841,10 +841,9 @@ function ImgcDocumentRowItem({
           return;
         }
         toast.success(active ? "Requirement reactivated." : "Requirement withdrawn.");
-        router.refresh();
       });
     },
-    [accountId, doc.id, router]
+    [accountId, doc.id]
   );
 
   const onReinstateDecision = useCallback(
@@ -856,10 +855,9 @@ function ImgcDocumentRowItem({
           return;
         }
         toast.success(approve ? "Reinstated." : "Reinstatement denied.");
-        router.refresh();
       });
     },
-    [accountId, doc.id, router]
+    [accountId, doc.id]
   );
 
   const reinstate = doc.rejection?.reinstate;

@@ -22,7 +22,6 @@ import type {
   ClaimQuery,
   ClaimStatus,
   LenderOrg,
-  AuditEvent,
 } from "@/server/mock/types";
 
 export interface AccountRow extends Account {
@@ -105,17 +104,16 @@ function decorate(
     active?: boolean;
   }[],
   claims: Claim[],
-  queries: ClaimQuery[],
-  events: AuditEvent[]
+  queries: ClaimQuery[]
 ): AccountRow {
   const own = docs.filter((d) => d.accountId === account.id);
   const claim = claims.find((c) => c.accountId === account.id);
-  const accountEvents = events.filter((e) => e.accountId === account.id);
 
-  let lastTouch = account.createdAt;
-  for (const e of accountEvents) {
-    if (e.at > lastTouch) lastTouch = e.at;
-  }
+  // Kept on the account itself, so listing accounts never reads the audit log.
+  const lastTouch =
+    account.lastActivityAt && account.lastActivityAt > account.createdAt
+      ? account.lastActivityAt
+      : account.createdAt;
 
   const isClosed =
     account.writeOff ||
@@ -161,8 +159,7 @@ export async function listAccounts(session: AppSession): Promise<AccountRow[]> {
         db.lenderOrgs,
         db.claimDocuments,
         db.claims,
-        db.claimQueries,
-        db.auditEvents
+        db.claimQueries
       )
     )
     .sort((a, b) => a.loanNo.localeCompare(b.loanNo));
@@ -180,8 +177,7 @@ export async function getAccount(
     db.lenderOrgs,
     db.claimDocuments,
     db.claims,
-    db.claimQueries,
-    db.auditEvents
+    db.claimQueries
   );
 }
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { PaperclipIcon, PlusIcon, UploadIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,9 +14,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils/twMergeUtils";
+import {
+  ACCEPTED_UPLOAD_TYPES,
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_LABEL,
+} from "@/constants/uploads";
+import { attachUpload } from "@/lib/uploads/attachUpload";
 
-const MAX_BYTES = 15 * 1024 * 1024;
-const ACCEPTED = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+const ACCEPTED: readonly string[] = ACCEPTED_UPLOAD_TYPES;
 const FIELD =
   "h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-[13px] text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20";
 
@@ -37,7 +41,6 @@ export function AddLenderDocumentDialog({
   accountId,
   claimId,
 }: Readonly<{ accountId: string; claimId: string }>) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [file, setFile] = useState<File | null>(null);
@@ -60,8 +63,10 @@ export function AddLenderDocumentDialog({
       setError("Only PDF, JPG, PNG or WEBP files are accepted.");
       return setFile(null);
     }
-    if (picked.size > MAX_BYTES) {
-      setError(`That file is ${bytes(picked.size)} — the limit is 15 MB.`);
+    if (picked.size > MAX_UPLOAD_BYTES) {
+      setError(
+        `That file is ${bytes(picked.size)} — the limit is ${MAX_UPLOAD_LABEL}.`
+      );
       return setFile(null);
     }
     setFile(picked);
@@ -76,8 +81,13 @@ export function AddLenderDocumentDialog({
       }
       const data = new FormData(event.currentTarget);
       data.set("claimId", claimId);
-      data.set("file", file);
       startTransition(async () => {
+        try {
+          await attachUpload(data, file, accountId);
+        } catch {
+          toast.error("That upload failed. Please try again.");
+          return;
+        }
         const result = await addLenderDocumentAction(accountId, data);
         if (!result.ok) {
           toast.error(result.error ?? "That document could not be added.");
@@ -86,10 +96,9 @@ export function AddLenderDocumentDialog({
         toast.success("Additional document added.");
         reset();
         setOpen(false);
-        router.refresh();
       });
     },
-    [file, claimId, accountId, reset, router]
+    [file, claimId, accountId, reset]
   );
 
   return (
@@ -168,8 +177,8 @@ export function AddLenderDocumentDialog({
                 </>
               ) : (
                 <>
-                  <UploadIcon className="size-4 shrink-0" /> Choose a file — PDF, JPG, PNG or
-                  WEBP, up to 15 MB
+                  <UploadIcon className="size-4 shrink-0" /> Choose a file —
+                  PDF, JPG, PNG or WEBP, up to {MAX_UPLOAD_LABEL}
                 </>
               )}
             </label>

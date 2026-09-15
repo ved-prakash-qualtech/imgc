@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { ROUTES } from "@/constants/route";
+import { incomingUploadFrom } from "@/lib/actions/incomingUpload";
+import { runAction } from "@/lib/actions/runAction";
 import { requireSession } from "@/lib/auth/appSession";
 import {
   addLenderDocument,
@@ -45,10 +47,12 @@ export async function createClaimAction(
   accountId: string,
   claimType: ClaimTypeKey
 ): Promise<Outcome> {
-  const session = await requireSession();
-  const result = await createClaim(session, accountId, claimType);
-  if (result.ok) refreshAll(accountId, result.claimId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await createClaim(session, accountId, claimType);
+    if (result.ok) refreshAll(accountId, result.claimId);
+    return result;
+  });
 }
 
 /** Lender only — change a draft claim's type, rebuilding its checklist from the new config. */
@@ -57,10 +61,12 @@ export async function switchClaimTypeAction(
   claimId: string,
   newType: ClaimTypeKey
 ): Promise<Outcome> {
-  const session = await requireSession();
-  const result = await switchClaimType(session, claimId, newType);
-  if (result.ok) refreshAll(accountId, claimId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await switchClaimType(session, claimId, newType);
+    if (result.ok) refreshAll(accountId, claimId);
+    return result;
+  });
 }
 
 /** Lender only — add an additional document (name + description + file + remarks). */
@@ -68,18 +74,20 @@ export async function addLenderDocumentAction(
   accountId: string,
   formData: FormData
 ): Promise<Outcome> {
-  const session = await requireSession();
-  const claimId = String(formData.get("claimId") ?? "");
-  const file = formData.get("file");
-  if (!(file instanceof File)) return { ok: false, error: "Choose a file to upload." };
-  const result = await addLenderDocument(session, claimId, {
-    name: String(formData.get("name") ?? ""),
-    description: String(formData.get("description") ?? ""),
-    remarks: String(formData.get("remarks") ?? ""),
-    file,
+  return runAction(async () => {
+    const session = await requireSession();
+    const claimId = String(formData.get("claimId") ?? "");
+    const incoming = incomingUploadFrom(formData);
+    if (!incoming) return { ok: false, error: "Choose a file to upload." };
+    const result = await addLenderDocument(session, claimId, {
+      name: String(formData.get("name") ?? ""),
+      description: String(formData.get("description") ?? ""),
+      remarks: String(formData.get("remarks") ?? ""),
+      file: incoming,
+    });
+    if (result.ok) refreshAll(accountId, claimId);
+    return result;
   });
-  if (result.ok) refreshAll(accountId, claimId);
-  return result;
 }
 
 /** Lender only — save the remark on one claim document category. */
@@ -89,10 +97,17 @@ export async function saveDocumentRemarkAction(
   documentId: string,
   body: string
 ): Promise<Outcome> {
-  const session = await requireSession();
-  const result = await upsertDocumentRemark(session, claimId, documentId, body);
-  if (result.ok) refreshAll(accountId, claimId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await upsertDocumentRemark(
+      session,
+      claimId,
+      documentId,
+      body
+    );
+    if (result.ok) refreshAll(accountId, claimId);
+    return result;
+  });
 }
 
 export async function saveDraftAction(
@@ -100,10 +115,12 @@ export async function saveDraftAction(
   claimId: string,
   fields: Record<string, string>
 ): Promise<Outcome> {
-  const session = await requireSession();
-  const result = await saveClaimDraft(session, claimId, fields);
-  if (result.ok) refreshAll(accountId, claimId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await saveClaimDraft(session, claimId, fields);
+    if (result.ok) refreshAll(accountId, claimId);
+    return result;
+  });
 }
 
 export async function submitClaimAction(
@@ -111,10 +128,12 @@ export async function submitClaimAction(
   claimId: string,
   fields: Record<string, string>
 ): Promise<Outcome> {
-  const session = await requireSession();
-  const result = await submitClaim(session, claimId, fields);
-  if (result.ok) refreshAll(accountId, claimId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await submitClaim(session, claimId, fields);
+    if (result.ok) refreshAll(accountId, claimId);
+    return result;
+  });
 }
 
 /** IMGC only — the service refuses a lender regardless of what the UI offers. */
@@ -122,10 +141,12 @@ export async function raiseQueryAction(
   claimId: string,
   input: { reason: string; remarks: string; requestedDocuments: string[] }
 ): Promise<Outcome> {
-  const session = await requireSession();
-  const result = await raiseQuery(session, claimId, input);
-  if (result.ok) refreshAll(result.accountId, claimId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await raiseQuery(session, claimId, input);
+    if (result.ok) refreshAll(result.accountId, claimId);
+    return result;
+  });
 }
 
 /**
@@ -138,10 +159,12 @@ export async function askQuestionAction(
   claimId: string,
   question: string
 ): Promise<Outcome> {
-  const session = await requireSession();
-  const result = await askClaimQuestion(session, claimId, question);
-  if (result.ok) refreshAll(result.accountId, claimId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await askClaimQuestion(session, claimId, question);
+    if (result.ok) refreshAll(result.accountId, claimId);
+    return result;
+  });
 }
 
 /** IMGC only — move a claim along its flow, or decide it. */
@@ -150,10 +173,12 @@ export async function updateClaimStatusAction(
   status: ClaimStatus,
   remarks: string
 ): Promise<Outcome> {
-  const session = await requireSession();
-  const result = await updateClaimStatus(session, claimId, status, remarks);
-  if (result.ok) refreshAll(result.accountId, claimId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await updateClaimStatus(session, claimId, status, remarks);
+    if (result.ok) refreshAll(result.accountId, claimId);
+    return result;
+  });
 }
 
 /** IMGC only — confirm the refund for an already-approved claim has been received. Recording and
@@ -161,8 +186,10 @@ export async function updateClaimStatusAction(
 export async function markRefundReceivedAction(
   claimId: string
 ): Promise<Outcome> {
-  const session = await requireSession();
-  const result = await markRefundReceived(session, claimId);
-  if (result.ok) refreshAll(result.accountId, claimId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await markRefundReceived(session, claimId);
+    if (result.ok) refreshAll(result.accountId, claimId);
+    return result;
+  });
 }

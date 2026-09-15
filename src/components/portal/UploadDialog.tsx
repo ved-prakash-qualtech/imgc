@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { PaperclipIcon, UploadIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,14 +15,12 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { RequirementRow } from "@/services/portal/requirements.server";
-
-const MAX_BYTES = 15 * 1024 * 1024;
-const ACCEPTED = [
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-] as const;
+import {
+  ACCEPTED_UPLOAD_TYPES as ACCEPTED,
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_LABEL,
+} from "@/constants/uploads";
+import { attachUpload } from "@/lib/uploads/attachUpload";
 
 function bytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -52,7 +49,6 @@ export function UploadDialog({
   mode?: "upload" | "add" | "replace";
   replaceFileId?: string;
 }>) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState("");
@@ -76,8 +72,10 @@ export function UploadDialog({
       setFile(null);
       return;
     }
-    if (picked.size > MAX_BYTES) {
-      setError(`That file is ${bytes(picked.size)} — the limit is 15 MB.`);
+    if (picked.size > MAX_UPLOAD_BYTES) {
+      setError(
+        `That file is ${bytes(picked.size)} — the limit is ${MAX_UPLOAD_LABEL}.`
+      );
       setFile(null);
       return;
     }
@@ -99,12 +97,17 @@ export function UploadDialog({
       const data = new FormData(event.currentTarget);
       data.set("accountId", row.accountId);
       data.set("documentId", row.id);
-      data.set("file", file);
       if (replaceFileId) {
         data.set("replaceFileId", replaceFileId);
       }
 
       startTransition(async () => {
+        try {
+          await attachUpload(data, file, row.accountId);
+        } catch {
+          toast.error("That upload failed. Please try again.");
+          return;
+        }
         const result = await uploadRequirementAction(data);
         if (!result.ok) {
           toast.error(result.error ?? "That upload failed.");
@@ -117,10 +120,9 @@ export function UploadDialog({
         );
         reset();
         onOpenChange(false);
-        router.refresh();
       });
     },
-    [row, file, reset, onOpenChange, router, effectiveMode, replaceFileId]
+    [row, file, reset, onOpenChange, effectiveMode, replaceFileId]
   );
 
   if (!row) return null;
@@ -194,7 +196,8 @@ export function UploadDialog({
               ) : (
                 <>
                   <UploadIcon className="size-4 shrink-0" />
-                  Choose a file — PDF, JPG, PNG or WEBP, up to 15 MB
+                  Choose a file — PDF, JPG, PNG or WEBP, up to{" "}
+                  {MAX_UPLOAD_LABEL}
                 </>
               )}
             </label>

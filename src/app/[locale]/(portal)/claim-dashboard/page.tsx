@@ -26,20 +26,25 @@ export const dynamic = "force-dynamic";
  *  role (IMGC's `/accounts`, the lender's own `/initiate-claim`), so it is resolved per session
  *  below rather than baked in here. */
 function overviewHrefs(
-  base: string
+  base: string,
+  lenderOrgId: string | null
 ): Partial<Record<keyof ClaimOverviewCounts, string>> {
+  // The tiles count only the lender picked in the hero banner, so the grid they open is narrowed
+  // to that lender too — otherwise "14" for one lender opens a grid of every lender's rows.
+  const lender = lenderOrgId ? `&lender=${encodeURIComponent(lenderOrgId)}` : "";
+  const href = (status: string) => `${base}?status=${status}${lender}`;
   return {
     total:
       base === ROUTES.initiateClaim
-        ? `${base}?status=NOT_STARTED,UNDER_REVIEW,QUERY_RAISED`
-        : `${base}?status=NOT_STARTED,UNDER_REVIEW,DOCUMENTS_RESUBMITTED,QUERIED`,
-    initiation: `${base}?status=NOT_STARTED`,
-    underProgress: `${base}?status=UNDER_PROGRESS`,
-    approved: `${base}?status=APPROVED`,
-    rejected: `${base}?status=REJECTED`,
-    draft: `${base}?status=DRAFT`,
-    queryRaised: `${base}?status=QUERY_RAISED`,
-    refunded: `${base}?status=REFUND_RECEIVED_BY_IMGC`,
+        ? href("NOT_STARTED,UNDER_REVIEW,QUERY_RAISED")
+        : href("NOT_STARTED,UNDER_REVIEW,DOCUMENTS_RESUBMITTED,QUERIED"),
+    initiation: href("NOT_STARTED"),
+    underProgress: href("UNDER_PROGRESS"),
+    approved: href("APPROVED"),
+    rejected: href("REJECTED"),
+    draft: href("DRAFT"),
+    queryRaised: href("QUERY_RAISED"),
+    refunded: href("REFUND_RECEIVED_BY_IMGC"),
   };
 }
 
@@ -96,7 +101,13 @@ export default async function ClaimDashboardPage({
     // claims (they've moved on to a different screen/workflow) — dropped here too, so a tile
     // click never lands on a grid showing fewer rows than the tile counted.
     .filter((a) => {
-      if (session.role === "IMGC") return true;
+      // IMGC's Claims grid (accounts/page.tsx) hides the same two, by the account's own status —
+      // counting them here made a tile read higher than the grid it opens.
+      if (session.role === "IMGC") {
+        return (
+          a.claimStatus !== "DOCUMENTS_RESUBMITTED" && a.claimStatus !== "CLOSED"
+        );
+      }
       const claimStatus = claimByAccountId.get(a.id)?.status;
       return (
         claimStatus !== "DOCUMENTS_RESUBMITTED" && claimStatus !== "CLOSED"
@@ -134,7 +145,7 @@ export default async function ClaimDashboardPage({
       <div className="space-y-4">
         <ClaimOverviewBand
           counts={counts}
-          hrefs={overviewHrefs(gridBase)}
+          hrefs={overviewHrefs(gridBase, lenderOrgId)}
           showDraftQueryKpis
           title={
             data.canFilterByLender

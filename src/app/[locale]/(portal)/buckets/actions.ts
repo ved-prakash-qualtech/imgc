@@ -3,8 +3,12 @@
 import { revalidatePath } from "next/cache";
 
 import { ROUTES } from "@/constants/route";
+import { runAction } from "@/lib/actions/runAction";
 import { requireSession } from "@/lib/auth/appSession";
-import { setPushRecipients, shiftBucket } from "@/services/portal/accounts.server";
+import {
+  setPushRecipients,
+  shiftBucket,
+} from "@/services/portal/accounts.server";
 import type { Bucket } from "@/server/mock/types";
 
 export type Result = Readonly<{ ok: boolean; error?: string }>;
@@ -23,15 +27,17 @@ export async function shiftBucketAction(
   to: Bucket,
   extraRecipients: string
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await shiftBucket(
-    session,
-    accountId,
-    to,
-    extraRecipients.split(/[,;\s]+/).filter(Boolean)
-  );
-  if (result.ok) refresh(accountId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await shiftBucket(
+      session,
+      accountId,
+      to,
+      extraRecipients.split(/[,;\s]+/).filter(Boolean)
+    );
+    if (result.ok) refresh(accountId);
+    return result;
+  });
 }
 
 /** BRD: the processor specifies which mail IDs a push goes to. */
@@ -39,12 +45,14 @@ export async function setPushRecipientsAction(
   accountId: string,
   recipients: string
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await setPushRecipients(
-    session,
-    accountId,
-    recipients.split(/[,;\s]+/).filter(Boolean)
-  );
-  if (result.ok) refresh(accountId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await setPushRecipients(
+      session,
+      accountId,
+      recipients.split(/[,;\s]+/).filter(Boolean)
+    );
+    if (result.ok) refresh(accountId);
+    return result;
+  });
 }

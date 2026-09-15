@@ -4,7 +4,10 @@ import "server-only";
 import path from "node:path";
 
 import { readDb, writeDb } from "@/server/mock/db";
-import { putUpload } from "@/server/mock/storage";
+import {
+  storeIncomingUpload,
+  type IncomingUpload,
+} from "@/server/mock/storage";
 import { newId, nowIso } from "@/server/mock/ids";
 import { recordEvent } from "@/services/portal/audit.server";
 import { sendMail } from "@/server/mock/mailer";
@@ -1250,19 +1253,18 @@ export async function askClaimQuestion(
 export async function addLenderDocument(
   session: AppSession,
   claimId: string,
-  input: { name: string; description: string; remarks: string; file: File }
+  input: {
+    name: string;
+    description: string;
+    remarks: string;
+    file: IncomingUpload;
+  }
 ): Promise<Outcome> {
   const guard = await assertLenderOwns(session, claimId);
   if (!guard.ok) return guard;
 
   const name = input.name.trim();
   if (!name) return { ok: false, error: "Give the document a name." };
-  if (!input.file || input.file.size === 0) {
-    return { ok: false, error: "Choose a file to upload." };
-  }
-  if (input.file.size > 15 * 1024 * 1024) {
-    return { ok: false, error: "That file is larger than 15 MB." };
-  }
 
   const db = await readDb();
   const claim = db.claims.find((c) => c.id === claimId);
@@ -1287,14 +1289,10 @@ export async function addLenderDocument(
   const docId = newId("addoc");
   const refNo = `AD-${String(existingAd + 1).padStart(3, "0")}`;
   const fileId = newId("file");
-  const safeName = input.file.name.replace(/[^\w.\-]+/g, "_").slice(-120);
   // Same shared-storage seam the checklist upload uses.
-  const storedPath = await putUpload(
-    accountId,
-    `${fileId}__${safeName}`,
-    Buffer.from(await input.file.arrayBuffer()),
-    input.file.type || "application/octet-stream"
-  );
+  const stored = await storeIncomingUpload(accountId, fileId, input.file);
+  if (!stored.ok) return stored;
+  const upload = stored.file;
 
   await writeDb((fresh) => {
     fresh.claimDocuments.push({
@@ -1319,10 +1317,10 @@ export async function addLenderDocument(
       id: fileId,
       documentId: docId,
       accountId,
-      originalName: input.file.name,
-      storedPath,
-      size: input.file.size,
-      mime: input.file.type || "application/octet-stream",
+      originalName: upload.originalName,
+      storedPath: upload.storedPath,
+      size: upload.size,
+      mime: upload.mime,
       uploadedBy: session.userId,
       uploadedByName: session.name,
       uploadedAt: nowIso(),

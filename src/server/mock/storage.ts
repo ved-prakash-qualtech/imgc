@@ -3,8 +3,24 @@ import "server-only";
 /* eslint-disable security/detect-non-literal-fs-filename -- every filesystem path here is built
    from `process.cwd()` plus fixed literal segments, or from ids this server generated itself
    (`newId(...)`), never from request input. */
+import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+
+import {
+  ACCEPTED_UPLOAD_TYPES,
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_LABEL,
+  UPLOAD_PATH_PREFIX,
+} from "@/constants/uploads";
+
+/**
+ * No storage call may wait forever. A request that never settles holds `db.ts`'s per-process
+ * write queue, and every later write on that process waits behind it — on a long-lived dev server,
+ * for the rest of the session. A timeout turns that into one failed action instead.
+ */
+const SNAPSHOT_TIMEOUT_MS = 20_000;
+const UPLOAD_TIMEOUT_MS = 60_000;
 
 /**
  * Where the prototype's state actually lives.
@@ -47,7 +63,25 @@ const UPLOAD_DIR = path.join(DATA_DIR, "uploads");
 
 /** Fixed key for the snapshot — one document, overwritten in place, never suffixed. */
 const DB_BLOB_KEY = "imgc/db.json";
-const UPLOAD_PREFIX = "imgc/uploads";
+const UPLOAD_PREFIX = UPLOAD_PATH_PREFIX;
+
+/**
+ * The activity log is its own snapshot. It only ever grows and only the audit screens read it, so
+ * keeping it inside the main snapshot made every page load and every save carry the whole history.
+ */
+const AUDIT_FILE = path.join(DATA_DIR, "imgc-audit.json");
+const AUDIT_BLOB_KEY = "imgc/audit.json";
+
+/** Which stored snapshot: `db` is the domain, `audit` the activity log. */
+export type SnapshotName = "db" | "audit";
+
+function fileFor(name: SnapshotName): string {
+  return name === "audit" ? AUDIT_FILE : DB_FILE;
+}
+
+function keyFor(name: SnapshotName): string {
+  return name === "audit" ? AUDIT_BLOB_KEY : DB_BLOB_KEY;
+}
 
 /* ── snapshot ──────────────────────────────────────────────────────── */
 
@@ -100,7 +134,10 @@ export async function readBundledSeed(): Promise<string | null> {
  * and accepts for its write queue, and the `useCache: false` origin read above is what keeps it
  * as small as this store allows.
  */
-let ownWrite: { json: string; etag: string; at: number } | null = null;
+const ownWrites = new Map<
+  SnapshotName,
+  { json: string; etag: string; at: number }
+>();
 const OWN_WRITE_TTL_MS = 10_000;
 
 /** What a read hands back: the snapshot, plus the version tag a write must quote to be accepted. */
@@ -132,30 +169,85 @@ function strongEtag(etag: string): string {
   return etag.replace(/^W\//, "");
 }
 
-export async function readSnapshot(): Promise<Snapshot | null> {
+/** Version tag for the disk snapshot — the local equivalent of Blob's ETag. */
+function contentTag(json: string): string {
+  return createHash("sha1").update(json).digest("hex");
+}
+
+/**
+ * Read the stored snapshot.
+ *
+ * `null` means one thing only: nothing has ever been stored. Every other failure — a timeout, a
+ * 5xx, an unreadable file — throws. The difference matters because `db.ts` answers `null` by
+ * seeding a fresh database and writing it; answering a transient error the same way, as this used
+ * to (`.catch(() => null)` on Blob, a bare `catch` on disk), replaced the whole live database with
+ * the demo seed.
+ */
+export async function readSnapshot(
+  name: SnapshotName = "db"
+): Promise<Snapshot | null> {
   if (!USING_BLOB) {
+    let json: string;
     try {
-      return { json: await fs.readFile(DB_FILE, "utf8") };
-    } catch {
-      return null;
+      json = await fs.readFile(fileFor(name), "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
     }
+    return { json, etag: contentTag(json) };
   }
 
-  if (ownWrite && Date.now() - ownWrite.at < OWN_WRITE_TTL_MS) {
-    return { json: ownWrite.json, etag: ownWrite.etag };
+  const own = ownWrites.get(name);
+  if (own && Date.now() - own.at < OWN_WRITE_TTL_MS) {
+    return { json: own.json, etag: own.etag };
   }
 
-  const { get } = await import("@vercel/blob");
-  const result = await get(DB_BLOB_KEY, {
-    access: "public",
-    useCache: false,
-    token: BLOB_TOKEN,
-  }).catch(() => null);
-  if (!result || result.statusCode !== 200) return null;
+  const { get, BlobNotFoundError } = await import("@vercel/blob");
+  let result: Awaited<ReturnType<typeof get>>;
+  try {
+    result = await get(keyFor(name), {
+      access: "public",
+      useCache: false,
+      token: BLOB_TOKEN,
+      abortSignal: AbortSignal.timeout(SNAPSHOT_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error instanceof BlobNotFoundError) return null;
+    throw error;
+  }
+  if (!result) return null;
+  if (result.statusCode !== 200) {
+    throw new Error(`Snapshot read returned status ${result.statusCode}.`);
+  }
   return {
     json: await new Response(result.stream).text(),
     etag: strongEtag(result.blob.etag),
   };
+}
+
+/**
+ * Replace the disk snapshot atomically: write a temporary file, then rename it over the real one.
+ * Writing the real file in place empties it first, and any request reading during that window got
+ * a truncated file. Windows can refuse the rename for a moment while a reader holds the file open,
+ * so that one case is retried.
+ */
+async function writeFileAtomic(target: string, json: string): Promise<void> {
+  const temp = `${target}.${process.pid}.${Date.now()}.tmp`;
+  await fs.writeFile(temp, json, "utf8");
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await fs.rename(temp, target);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      const busy = code === "EPERM" || code === "EBUSY" || code === "EACCES";
+      if (!busy || attempt >= 5) {
+        await fs.rm(temp, { force: true }).catch(() => undefined);
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
+    }
+  }
 }
 
 /**
@@ -173,17 +265,31 @@ export async function readSnapshot(): Promise<Snapshot | null> {
  */
 export async function writeSnapshot(
   json: string,
-  ifMatch?: string
+  ifMatch?: string,
+  name: SnapshotName = "db"
 ): Promise<void> {
+  const file = fileFor(name);
   if (!USING_BLOB) {
     await fs.mkdir(DATA_DIR, { recursive: true });
-    await fs.writeFile(DB_FILE, json, "utf8");
+    // Same compare-then-write rule as Blob's ETag, so a local write also refuses to erase a change
+    // it never saw. Every disk write runs inside `db.ts`'s per-process queue, which is what keeps
+    // this check and the write below from interleaving with another write.
+    if (ifMatch) {
+      let current: string | null = null;
+      try {
+        current = contentTag(await fs.readFile(file, "utf8"));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+      if (current !== ifMatch) throw new StaleSnapshotError();
+    }
+    await writeFileAtomic(file, json);
     return;
   }
 
   const { put, BlobPreconditionFailedError } = await import("@vercel/blob");
   try {
-    const result = await put(DB_BLOB_KEY, json, {
+    const result = await put(keyFor(name), json, {
       access: "public",
       token: BLOB_TOKEN,
       contentType: "application/json",
@@ -191,13 +297,18 @@ export async function writeSnapshot(
       addRandomSuffix: false,
       allowOverwrite: true,
       cacheControlMaxAge: 0,
+      abortSignal: AbortSignal.timeout(SNAPSHOT_TIMEOUT_MS),
       ...(ifMatch ? { ifMatch } : {}),
     });
-    ownWrite = { json, etag: strongEtag(result.etag), at: Date.now() };
+    ownWrites.set(name, {
+      json,
+      etag: strongEtag(result.etag),
+      at: Date.now(),
+    });
   } catch (error) {
     if (error instanceof BlobPreconditionFailedError) {
       // Our copy is behind. Drop it so the retry's read cannot be served from this cache.
-      ownWrite = null;
+      ownWrites.delete(name);
       throw new StaleSnapshotError();
     }
     throw error;
@@ -227,15 +338,129 @@ export async function putUpload(
   }
 
   const { put } = await import("@vercel/blob");
-  const { url } = await put(`${UPLOAD_PREFIX}/${accountId}/${fileName}`, bytes, {
-    access: "public",
-    token: BLOB_TOKEN,
-    contentType,
-    // The caller already made the name unique with the file's own id.
-    addRandomSuffix: false,
-    allowOverwrite: true,
-  });
+  const { url } = await put(
+    `${UPLOAD_PREFIX}/${accountId}/${fileName}`,
+    bytes,
+    {
+      access: "public",
+      token: BLOB_TOKEN,
+      contentType,
+      // The caller already made the name unique with the file's own id.
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      abortSignal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
+    }
+  );
   return url;
+}
+
+/** A document an upload action received — its bytes (local development), or the address the
+ *  browser already uploaded it to (a deployment; see `attachUpload`). */
+export type IncomingUpload = File | { url: string; name: string };
+
+/** A stored document, as a `DocumentFile` row records it. */
+export interface StoredUpload {
+  storedPath: string;
+  originalName: string;
+  size: number;
+  mime: string;
+}
+
+export type StoreUploadResult =
+  { ok: true; file: StoredUpload } | { ok: false; error: string };
+
+/**
+ * Store an incoming document and describe it for its `DocumentFile` row. File bytes are written
+ * with `putUpload`; a browser-uploaded file is checked before it is accepted (`resolveDirectUpload`).
+ */
+export async function storeIncomingUpload(
+  accountId: string,
+  fileId: string,
+  incoming: IncomingUpload
+): Promise<StoreUploadResult> {
+  if (!(incoming instanceof File)) {
+    return resolveDirectUpload(accountId, incoming);
+  }
+  if (incoming.size > MAX_UPLOAD_BYTES) {
+    return {
+      ok: false,
+      error: `That file is larger than ${MAX_UPLOAD_LABEL}.`,
+    };
+  }
+  const mime = incoming.type || "application/octet-stream";
+  const safeName = incoming.name.replace(/[^\w.\-]+/g, "_").slice(-120);
+  const storedPath = await putUpload(
+    accountId,
+    `${fileId}__${safeName}`,
+    Buffer.from(await incoming.arrayBuffer()),
+    mime
+  );
+  return {
+    ok: true,
+    file: {
+      storedPath,
+      originalName: incoming.name,
+      size: incoming.size,
+      mime,
+    },
+  };
+}
+
+/**
+ * Accept a file the browser uploaded straight to Blob — but only after confirming it is really
+ * one of ours. The address must be in this store (`head` with our token fails for anyone else's)
+ * and under the account's own folder, and its size and type are read back from Blob rather than
+ * taken from the browser's word.
+ */
+async function resolveDirectUpload(
+  accountId: string,
+  incoming: { url: string; name: string }
+): Promise<StoreUploadResult> {
+  let url: URL;
+  try {
+    url = new URL(incoming.url);
+  } catch {
+    return { ok: false, error: "That upload could not be found." };
+  }
+  const inAccountFolder =
+    url.protocol === "https:" &&
+    url.hostname.endsWith(".public.blob.vercel-storage.com") &&
+    url.pathname.startsWith(`/${UPLOAD_PREFIX}/${accountId}/`);
+  if (!USING_BLOB || !inAccountFolder) {
+    return { ok: false, error: "That upload could not be verified." };
+  }
+
+  const storedPath = `${url.origin}${url.pathname}`;
+  const { head } = await import("@vercel/blob");
+  const meta = await head(storedPath, {
+    token: BLOB_TOKEN,
+    abortSignal: AbortSignal.timeout(SNAPSHOT_TIMEOUT_MS),
+  });
+  if (meta.size === 0) return { ok: false, error: "That file is empty." };
+  if (meta.size > MAX_UPLOAD_BYTES) {
+    return {
+      ok: false,
+      error: `That file is larger than ${MAX_UPLOAD_LABEL}.`,
+    };
+  }
+  if (
+    !(ACCEPTED_UPLOAD_TYPES as readonly string[]).includes(meta.contentType)
+  ) {
+    return {
+      ok: false,
+      error: "Only PDF, JPG, PNG or WEBP files are accepted.",
+    };
+  }
+  const fallbackName = decodeURIComponent(url.pathname.split("/").pop() ?? "");
+  return {
+    ok: true,
+    file: {
+      storedPath,
+      originalName: incoming.name.trim().slice(0, 200) || fallbackName || "document",
+      size: meta.size,
+      mime: meta.contentType,
+    },
+  };
 }
 
 /** Marks the two Initial-Claim demo PDFs seeded from `public/demo/` (see `materialiseChecklist` in
@@ -250,7 +475,10 @@ export async function readUpload(storedPath: string): Promise<Buffer | null> {
   // A URL means Blob wrote it — true even for a row created before this instance started, and
   // true regardless of which backend is active now.
   if (/^https?:\/\//.test(storedPath)) {
-    const res = await fetch(`${storedPath}?t=${Date.now()}`, { cache: "no-store" });
+    const res = await fetch(`${storedPath}?t=${Date.now()}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(SNAPSHOT_TIMEOUT_MS),
+    });
     if (!res.ok) return null;
     return Buffer.from(await res.arrayBuffer());
   }
@@ -284,7 +512,10 @@ export async function readUpload(storedPath: string): Promise<Buffer | null> {
     }
     const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
     try {
-      const res = await fetch(`${base}/${publicPath}`, { cache: "no-store" });
+      const res = await fetch(`${base}/${publicPath}`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(SNAPSHOT_TIMEOUT_MS),
+      });
       if (!res.ok) return null;
       const bytes = Buffer.from(await res.arrayBuffer());
       // This request carries no session, so the app's own middleware answers it with the login

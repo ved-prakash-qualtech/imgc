@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowLeftRightIcon, InboxIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,7 +27,6 @@ export function BucketToggle({
   bucket: Bucket;
   size?: "xs" | "sm";
 }>) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   const to: Bucket = bucket === "IMGC" ? "LENDER" : "IMGC";
@@ -46,9 +44,8 @@ export function BucketToggle({
           ? `${loanNo} pulled into the IMGC bucket — stakeholders notified.`
           : `${loanNo} handed back to the lender — stakeholders notified.`
       );
-      router.refresh();
     });
-  }, [accountId, to, pulling, loanNo, router]);
+  }, [accountId, to, pulling, loanNo]);
 
   return (
     <Button

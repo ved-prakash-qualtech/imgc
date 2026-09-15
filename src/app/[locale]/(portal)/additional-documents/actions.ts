@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { ROUTES } from "@/constants/route";
+import { incomingUploadFrom } from "@/lib/actions/incomingUpload";
+import { runAction } from "@/lib/actions/runAction";
 import { requireSession } from "@/lib/auth/appSession";
 import {
   addRequirement,
@@ -37,11 +39,13 @@ export async function addRequirementAction(
   accountId: string,
   input: RequirementInput
 ): Promise<Result> {
-  const session = await requireSession();
-  if (!accountId) return { ok: false, error: "Choose a case first." };
-  const result = await addRequirement(session, accountId, input);
-  if (result.ok) refreshAll(accountId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    if (!accountId) return { ok: false, error: "Choose a case first." };
+    const result = await addRequirement(session, accountId, input);
+    if (result.ok) refreshAll(accountId);
+    return result;
+  });
 }
 
 export async function updateRequirementAction(
@@ -49,10 +53,17 @@ export async function updateRequirementAction(
   documentId: string,
   input: RequirementInput
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await updateRequirement(session, accountId, documentId, input);
-  if (result.ok) refreshAll(accountId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await updateRequirement(
+      session,
+      accountId,
+      documentId,
+      input
+    );
+    if (result.ok) refreshAll(accountId);
+    return result;
+  });
 }
 
 export async function setActiveAction(
@@ -60,15 +71,17 @@ export async function setActiveAction(
   documentId: string,
   active: boolean
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await setRequirementActive(
-    session,
-    accountId,
-    documentId,
-    active
-  );
-  if (result.ok) refreshAll(accountId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await setRequirementActive(
+      session,
+      accountId,
+      documentId,
+      active
+    );
+    if (result.ok) refreshAll(accountId);
+    return result;
+  });
 }
 
 /** Approve · Reject · Request re-upload — the review drawer's three outcomes. */
@@ -78,56 +91,60 @@ export async function reviewDocumentAction(
   decision: ReviewDecision,
   remarks: string
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await decideDocument(
-    session,
-    accountId,
-    documentId,
-    decision,
-    remarks
-  );
-  if (result.ok) {
-    refreshAll(accountId);
-    // Reject / re-upload now syncs into the Claim entity as a query
-    // (`syncQueryForDocumentDecision`), so the lender's workspace and Track Claim need the same
-    // revalidation a Claim-side change gets elsewhere.
-    if (decision === "REJECTED" || decision === "REUPLOAD_REQUESTED") {
-      revalidatePath(ROUTES.initiateClaim);
-      revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
-      revalidatePath(ROUTES.trackQueryResponse);
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await decideDocument(
+      session,
+      accountId,
+      documentId,
+      decision,
+      remarks
+    );
+    if (result.ok) {
+      refreshAll(accountId);
+      // Reject / re-upload now syncs into the Claim entity as a query
+      // (`syncQueryForDocumentDecision`), so the lender's workspace and Track Claim need the same
+      // revalidation a Claim-side change gets elsewhere.
+      if (decision === "REJECTED" || decision === "REUPLOAD_REQUESTED") {
+        revalidatePath(ROUTES.initiateClaim);
+        revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
+        revalidatePath(ROUTES.trackQueryResponse);
+      }
     }
-  }
-  return result;
+    return result;
+  });
 }
 
 /** Lender upload / re-upload, with the metadata the upload form collects. */
 export async function uploadRequirementAction(
   formData: FormData
 ): Promise<Result> {
-  const session = await requireSession();
-  const accountId = String(formData.get("accountId") ?? "");
-  const documentId = String(formData.get("documentId") ?? "");
-  const file = formData.get("file");
+  return runAction(async () => {
+    const session = await requireSession();
+    const accountId = String(formData.get("accountId") ?? "");
+    const documentId = String(formData.get("documentId") ?? "");
+    const incoming = incomingUploadFrom(formData);
+    if (!incoming) return { ok: false, error: "Choose a file to upload." };
 
-  if (!(file instanceof File))
-    return { ok: false, error: "Choose a file to upload." };
+    const meta: UploadMeta = {
+      documentNumber: String(formData.get("documentNumber") ?? ""),
+      documentDate: String(formData.get("documentDate") ?? ""),
+      remarks: String(formData.get("remarks") ?? ""),
+      replaceFileId: formData.get("replaceFileId")
+        ? String(formData.get("replaceFileId"))
+        : undefined,
+    };
 
-  const meta: UploadMeta = {
-    documentNumber: String(formData.get("documentNumber") ?? ""),
-    documentDate: String(formData.get("documentDate") ?? ""),
-    remarks: String(formData.get("remarks") ?? ""),
-    replaceFileId: formData.get("replaceFileId") ? String(formData.get("replaceFileId")) : undefined,
-  };
-
-  const result = await uploadDocument(
-    session,
-    accountId,
-    documentId,
-    file,
-    meta
-  );
-  if (result.ok) refreshAll(accountId);
-  return result;
+    const result = await uploadDocument(
+      session,
+      accountId,
+      documentId,
+      incoming,
+      meta
+    );
+    if (result.ok) refreshAll(accountId);
+    return result;
+  });
 }
 
 /** Lender only — soft-delete a single uploaded file from a document category. */
@@ -136,8 +153,15 @@ export async function deleteDocumentFileAction(
   documentId: string,
   fileId: string
 ): Promise<Result> {
-  const session = await requireSession();
-  const result = await deleteDocumentFile(session, accountId, documentId, fileId);
-  if (result.ok) refreshAll(accountId);
-  return result;
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await deleteDocumentFile(
+      session,
+      accountId,
+      documentId,
+      fileId
+    );
+    if (result.ok) refreshAll(accountId);
+    return result;
+  });
 }
