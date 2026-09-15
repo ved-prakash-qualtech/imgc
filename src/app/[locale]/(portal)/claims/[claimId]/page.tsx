@@ -80,8 +80,8 @@ export default async function ClaimDetailsPage({
   const refundReceivedEntry =
     claim.status === "REFUND_RECEIVED_BY_IMGC"
       ? [...claim.statusHistory]
-          .reverse()
-          .find((h) => h.status === "REFUND_RECEIVED_BY_IMGC")
+        .reverse()
+        .find((h) => h.status === "REFUND_RECEIVED_BY_IMGC")
       : undefined;
 
   const layoutContent = isSingleView ? (

@@ -57,6 +57,49 @@ const IS_SERVERLESS = Boolean(
  *  development always uses the disk, even if a token happens to be sitting in `.env.local`. */
 export const USING_BLOB = Boolean(BLOB_TOKEN) && IS_SERVERLESS;
 
+/*
+ * The snapshots (not the uploads) live in Postgres wherever one is connected.
+ *
+ * Blob turned out not to be read-after-write consistent for an overwritten object: measured on the
+ * live store, 11 of 15 reads straight after a write returned the previous version, and some were
+ * still stale 15 seconds later. With every request reading the whole database, that meant screens
+ * drawn from an old copy (a deleted document reappearing, "Document not found" right after an
+ * upload) and saves failing their version check five times in a row with nobody else using the app.
+ * Postgres always answers with the latest committed row, and `UPDATE … WHERE version = $n` is the
+ * same compare-and-set the Blob ETag was meant to be.
+ *
+ * Uploaded files stay in Blob: each is written once under a unique name and never overwritten, so
+ * they never had this problem.
+ *
+ * Local development keeps the disk unless SNAPSHOT_STORE=postgres is set, and even then it uses its
+ * own rows (`local:db`, `local:audit`, or SNAPSHOT_NAMESPACE) so a local test can never write over
+ * the rows the live site reads.
+ */
+const DATABASE_URL = process.env.DATABASE_URL;
+export const USING_POSTGRES =
+  Boolean(DATABASE_URL) &&
+  (IS_SERVERLESS || process.env.SNAPSHOT_STORE === "postgres");
+
+type Sql = ReturnType<typeof import("@neondatabase/serverless").neon>;
+let sqlClient: Sql | null = null;
+
+async function pg(): Promise<Sql> {
+  if (!sqlClient) {
+    const { neon } = await import("@neondatabase/serverless");
+    sqlClient = neon(DATABASE_URL!);
+  }
+  return sqlClient;
+}
+
+function rowName(name: SnapshotName): string {
+  if (IS_SERVERLESS) return name;
+  return `${process.env.SNAPSHOT_NAMESPACE || "local"}:${name}`;
+}
+
+const pgTimeout = () => ({
+  fetchOptions: { signal: AbortSignal.timeout(SNAPSHOT_TIMEOUT_MS) },
+});
+
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DB_FILE = path.join(DATA_DIR, "imgc-db.json");
 const UPLOAD_DIR = path.join(DATA_DIR, "uploads");
@@ -186,6 +229,17 @@ function contentTag(json: string): string {
 export async function readSnapshot(
   name: SnapshotName = "db"
 ): Promise<Snapshot | null> {
+  if (USING_POSTGRES) {
+    const sql = await pg();
+    const rows = (await sql.query(
+      "SELECT data, version FROM imgc_snapshots WHERE name = $1",
+      [rowName(name)],
+      pgTimeout()
+    )) as { data: string; version: string | number }[];
+    const row = rows[0];
+    return row ? { json: row.data, etag: String(row.version) } : null;
+  }
+
   if (!USING_BLOB) {
     let json: string;
     try {
@@ -269,6 +323,28 @@ export async function writeSnapshot(
   name: SnapshotName = "db"
 ): Promise<void> {
   const file = fileFor(name);
+  if (USING_POSTGRES) {
+    const sql = await pg();
+    if (ifMatch) {
+      // Accepted only if nobody has saved since `ifMatch` was read; otherwise no row matches.
+      const rows = (await sql.query(
+        "UPDATE imgc_snapshots SET data = $1, version = version + 1, updated_at = now() WHERE name = $2 AND version = $3 RETURNING version",
+        [json, rowName(name), ifMatch],
+        pgTimeout()
+      )) as unknown[];
+      if (rows.length === 0) throw new StaleSnapshotError();
+      return;
+    }
+    // No version quoted: the first write of this snapshot (seeding, or the audit log's first
+    // entry). Same unconditional behaviour the disk and Blob paths have for that case.
+    await sql.query(
+      "INSERT INTO imgc_snapshots (name, data, version) VALUES ($1, $2, 1) ON CONFLICT (name) DO UPDATE SET data = EXCLUDED.data, version = imgc_snapshots.version + 1, updated_at = now()",
+      [rowName(name), json],
+      pgTimeout()
+    );
+    return;
+  }
+
   if (!USING_BLOB) {
     await fs.mkdir(DATA_DIR, { recursive: true });
     // Same compare-then-write rule as Blob's ETag, so a local write also refuses to erase a change
