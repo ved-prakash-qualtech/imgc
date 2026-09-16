@@ -62,7 +62,6 @@ export function QueryResponseSection({
   isLender,
   imgcComposer,
   title = "Query Management",
-  constrainedLayout = false,
   fillLayout = false,
 }: Readonly<{
   accountId: string;
@@ -136,17 +135,18 @@ export function QueryResponseSection({
     <Panel
       title={title}
       size="compact"
+      // Height follows the conversation. Only `fillLayout` stretches to a parent that sets a height
+      // on purpose; everywhere else a short thread stays short and a long one scrolls inside the
+      // message list rather than stretching the page.
       className={
-        constrainedLayout || fillLayout
-          ? "flex h-full min-h-0 flex-col overflow-hidden"
-          : undefined
+        fillLayout ? "flex h-full min-h-0 flex-col overflow-hidden" : undefined
       }
     >
       <div
         className={
-          constrainedLayout
-            ? "min-h-0 flex-1 overflow-y-auto space-y-3 px-4 py-4 custom-scrollbar max-h-[300px]"
-            : "flex-1 min-h-0 overflow-y-auto space-y-3 px-4 py-4 custom-scrollbar"
+          fillLayout
+            ? "flex-1 min-h-0 overflow-y-auto space-y-3 px-4 py-4 custom-scrollbar"
+            : "max-h-[360px] overflow-y-auto space-y-3 px-4 py-4 custom-scrollbar"
         }
       >
         {claimRemarks

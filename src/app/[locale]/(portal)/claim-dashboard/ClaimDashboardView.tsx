@@ -262,7 +262,13 @@ export function ClaimDashboardView({
   }
 
   function openClaim(claimId: string) {
-    router.push(`${ROUTES.claimDetails(claimId)}?tab=status`);
+    // A lender lands on the same Track Claim screen the Claims grid opens (the single view, which
+    // opens on Status & Query) — not a second, older layout of the same claim.
+    router.push(
+      data.isLender
+        ? `${ROUTES.claimDetails(claimId)}?view=single`
+        : `${ROUTES.claimDetails(claimId)}?tab=status`
+    );
   }
 
   // The lender lens itself lives in the hero band (`ClaimDashboardLenderPicker`), same slot the

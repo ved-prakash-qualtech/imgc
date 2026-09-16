@@ -263,14 +263,9 @@ function QueryTrailTab({
       {documentsSection}
 
       {claim ? (
-        <div
-          className={
-            queries.length > 0 ||
-            remarks.some((r) => r.source === "CLAIM_INITIATION")
-              ? "h-[min(620px,calc(100vh-14rem))] min-h-[420px] min-w-0"
-              : "min-w-0"
-          }
-        >
+        <div className="min-w-0">
+          {/* No fixed height: the panel is as tall as its conversation, and the message list
+              scrolls on its own once it gets long (see QueryResponseSection). */}
           <QueryResponseSection
             accountId={account.id}
             claimId={claim.id}
