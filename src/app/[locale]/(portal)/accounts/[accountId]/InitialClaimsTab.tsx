@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useRef, useState, useTransition } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowUpDownIcon,
   BanIcon,
   CalendarClockIcon,
   CheckIcon,
   ChevronDownIcon,
+  ChevronUpIcon,
   DownloadIcon,
   EyeIcon,
   FileTextIcon,
@@ -104,6 +106,41 @@ export function InitialClaimsTab({
   const toggleExpanded = useCallback((docId: string) => {
     setExpandedIds((prev) => ({ ...prev, [docId]: !prev[docId] }));
   }, []);
+
+
+  const [sortField, setSortField] = useState<"name" | "status" | "fileName" | "size" | "uploadedBy" | "dateTime">("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  const sortedDocs = useMemo(() => {
+    return [...docs].sort((a, b) => {
+      const aFile = a.files[0];
+      const bFile = b.files[0];
+      let cmp = 0;
+      switch (sortField) {
+        case "name": cmp = a.name.localeCompare(b.name); break;
+        case "status": cmp = a.status.localeCompare(b.status); break;
+        case "fileName": cmp = (aFile?.originalName || "").localeCompare(bFile?.originalName || ""); break;
+        case "size": cmp = (aFile?.size || 0) - (bFile?.size || 0); break;
+        case "uploadedBy": cmp = (aFile?.uploadedByName || "").localeCompare(bFile?.uploadedByName || ""); break;
+        case "dateTime": cmp = (aFile?.uploadedAt || "").localeCompare(bFile?.uploadedAt || ""); break;
+      }
+      return sortDirection === "asc" ? cmp : -cmp;
+    });
+  }, [docs, sortField, sortDirection]);
+
+  const handleSort = useCallback((field: typeof sortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  }, [sortField]);
+
+  const SortIcon = ({ field }: { field: typeof sortField }) => {
+    if (sortField !== field) return <ArrowUpDownIcon className="ml-1 inline-block size-3 text-neutral-300" />;
+    return sortDirection === "asc" ? <ChevronUpIcon className="ml-1 inline-block size-3" /> : <ChevronDownIcon className="ml-1 inline-block size-3" />;
+  };
 
   const isLender = role === "LENDER";
   const submitted = claimStatus === "SUBMITTED" || claimStatus === "APPROVED";
@@ -864,134 +901,128 @@ function ImgcDocumentRowItem({
   
   return (
     <div className={cn("flex flex-col border-b border-neutral-100 last:border-b-0", inactive && "bg-neutral-25/60 opacity-70")}>
-      {doc.files.length === 0 && (
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex w-[160px] shrink-0 flex-col items-start gap-1.5">
-            <span className="line-clamp-2 font-semibold leading-tight text-neutral-950" title={doc.name}>{doc.name}</span>
-            {inactive && <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">Withdrawn</span>}
-          </div>
-          <div className="w-[110px] shrink-0">
-            <StatusPill status={doc.status === "APPROVED" ? "ACCEPTED" : doc.status} />
-          </div>
-          <div className="w-[220px] shrink-0 text-[12px] text-neutral-400">Nothing uploaded yet.</div>
-          <div className="w-[60px] shrink-0" />
-          <div className="w-[110px] shrink-0" />
-          <div className="w-[110px] shrink-0" />
-          <div className="flex w-[150px] shrink-0 flex-wrap justify-end gap-2">
-            {doc.addedBy === "IMGC" && (
-               <Button size="xs" variant="outline" onClick={() => onToggleActive(inactive)} disabled={working} className="h-7 px-2.5 text-[11px]">
-                 {inactive ? <RotateCcwIcon className="mr-1 size-3" /> : <BanIcon className="mr-1 size-3" />}
-                 {inactive ? "Reactivate" : "Withdraw"}
-               </Button>
-            )}
-          </div>
+      <div className="flex items-stretch">
+        <div className="flex w-[160px] shrink-0 flex-col items-start gap-1.5 border-r border-neutral-100 px-4 py-3">
+          <span className="line-clamp-2 font-semibold leading-tight text-neutral-950" title={doc.name}>
+            {doc.name}
+            {doc.required && <span className="text-destructive ml-1">*</span>}
+          </span>
+          {inactive && <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">Withdrawn</span>}
         </div>
-      )}
-      
-      {doc.files.length > 0 && doc.files.map((f, i) => (
-        <div key={f.id} className={cn("flex items-center justify-between px-4 py-3", i > 0 && "border-t border-dashed border-neutral-100")}>
-          <div className="flex w-[160px] shrink-0 flex-col items-start gap-1.5">
-            {i === 0 && (
-              <>
-                <span className="line-clamp-2 font-semibold leading-tight text-neutral-950" title={doc.name}>{doc.name}</span>
-                {inactive && <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">Withdrawn</span>}
-              </>
-            )}
-          </div>
-          
-          <div className="w-[110px] shrink-0">
-            {i === 0 && <StatusPill status={doc.status === "APPROVED" ? "ACCEPTED" : doc.status} />}
-          </div>
-          
-          <div className="w-[220px] shrink-0 truncate text-[12.5px] font-medium text-neutral-700" title={f.originalName}>
-            {f.storedPath ? (
-              <a href={`/api/portal/files/${f.id}`} target="_blank" rel="noopener noreferrer" className="hover:text-brand-primary hover:underline">{f.originalName}</a>
-            ) : (
-              <button type="button" onClick={() => setPreviewingFileId(f.id)} className="w-full truncate text-left hover:text-brand-primary hover:underline">{f.originalName}</button>
-            )}
-          </div>
-          <div className="w-[60px] shrink-0 text-center text-[11.5px] text-neutral-500">{bytes(f.size)}</div>
-          <div className="w-[110px] shrink-0 truncate text-center text-[11.5px] text-neutral-500" title={f.uploadedByName}>{f.uploadedByName}</div>
-          <div className="w-[110px] shrink-0 text-center text-[11.5px] text-neutral-500">{when(f.uploadedAt)}</div>
-          
-          <div className="flex w-[150px] shrink-0 flex-wrap justify-end gap-1.5">
-            {f.storedPath ? (
-              <>
-                <a
-                  href={`/api/portal/files/${f.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                  title="View"
-                >
-                  <EyeIcon className="size-4" />
-                </a>
-                <a
-                  href={`/api/portal/files/${f.id}?download=1`}
-                  className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                  title="Download"
-                >
-                  <DownloadIcon className="size-4" />
-                </a>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setPreviewingFileId(f.id)}
-                  className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                  title="View"
-                >
-                  <EyeIcon className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toast.error("Demo files cannot be downloaded")}
-                  className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                  title="Download"
-                >
-                  <DownloadIcon className="size-4" />
-                </button>
-              </>
-            )}
+        <div className="w-[140px] shrink-0 border-r border-neutral-100 px-4 py-3">
+          <StatusPill status={doc.status === "APPROVED" ? "ACCEPTED" : doc.status} />
+        </div>
 
-            {doc.status === "UNDER_REVIEW" && !rejecting && (
-              <>
-                <Button size="xs" variant="success" onClick={() => decide("APPROVED", "")} disabled={working} className="size-7 p-0" title="Accept"><CheckIcon className="size-4" /></Button>
-                <Button size="xs" variant="outline" onClick={() => setRejecting(true)} disabled={working} className="size-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30" title="Reject"><XIcon className="size-4" /></Button>
-              </>
-            )}
-            
-            {doc.status === "REJECTED" && (
-              <>
-                <Button size="xs" variant="outline" onClick={onReactivate} disabled={working} title="Undo the rejection" className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
-                {!hasOpenQuery && (
-                  <Button size="xs" variant="outline" onClick={onRaiseQuery} disabled={working} className="h-7 px-2.5 text-[11px]"><MessageSquareWarningIcon className="mr-1 size-3" /> Query</Button>
+        <div className="flex flex-1 flex-col">
+          {doc.files.length === 0 && (
+            <div className="flex flex-1 items-center justify-between px-4 py-3">
+              <div className="w-[220px] shrink-0 text-[12px] text-neutral-400">Nothing uploaded yet.</div>
+              <div className="w-[60px] shrink-0" />
+              <div className="w-[110px] shrink-0" />
+              <div className="w-[110px] shrink-0" />
+              <div className="flex w-[150px] shrink-0 flex-wrap justify-end gap-2">
+                {doc.addedBy === "IMGC" && (
+                   <Button size="xs" variant="outline" onClick={() => onToggleActive(inactive)} disabled={working} className="h-7 px-2.5 text-[11px]">
+                     {inactive ? <RotateCcwIcon className="mr-1 size-3" /> : <BanIcon className="mr-1 size-3" />}
+                     {inactive ? "Reactivate" : "Withdraw"}
+                   </Button>
                 )}
-              </>
-            )}
+              </div>
+            </div>
+          )}
+          
+          {doc.files.length > 0 && doc.files.map((f, i) => (
+            <div key={f.id} className={cn("flex flex-1 items-center justify-between px-4 py-3", i > 0 && "border-t border-neutral-100")}>
+              <div className="w-[220px] shrink-0 truncate text-[12.5px] font-medium text-neutral-700" title={f.originalName}>
+                {f.storedPath ? (
+                  <a href={`/api/portal/files/${f.id}`} target="_blank" rel="noopener noreferrer" className="hover:text-brand-primary hover:underline">{f.originalName}</a>
+                ) : (
+                  <button type="button" onClick={() => setPreviewingFileId(f.id)} className="w-full truncate text-left hover:text-brand-primary hover:underline">{f.originalName}</button>
+                )}
+              </div>
+              <div className="w-[60px] shrink-0 text-center text-[11.5px] text-neutral-500">{bytes(f.size)}</div>
+              <div className="w-[110px] shrink-0 truncate text-center text-[11.5px] text-neutral-500" title={f.uploadedByName}>{f.uploadedByName}</div>
+              <div className="w-[110px] shrink-0 text-center text-[11.5px] text-neutral-500">{when(f.uploadedAt)}</div>
+              
+              <div className="flex w-[150px] shrink-0 flex-wrap justify-end gap-1.5">
+                {f.storedPath ? (
+                  <>
+                    <a
+                      href={`/api/portal/files/${f.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
+                      title="View"
+                    >
+                      <EyeIcon className="size-4" />
+                    </a>
+                    <a
+                      href={`/api/portal/files/${f.id}?download=1`}
+                      className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
+                      title="Download"
+                    >
+                      <DownloadIcon className="size-4" />
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewingFileId(f.id)}
+                      className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
+                      title="View"
+                    >
+                      <EyeIcon className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toast.error("Demo files cannot be downloaded")}
+                      className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
+                      title="Download"
+                    >
+                      <DownloadIcon className="size-4" />
+                    </button>
+                  </>
+                )}
 
-            {doc.status === "APPROVED" && (
-              <Button size="xs" variant="outline" onClick={onUndoAccepted} disabled={working} title="Undo the acceptance" className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
-            )}
+                {doc.status === "UNDER_REVIEW" && !rejecting && (
+                  <>
+                    <Button size="xs" variant="success" onClick={() => decide("APPROVED", "")} disabled={working} className="size-7 p-0" title="Accept"><CheckIcon className="size-4" /></Button>
+                    <Button size="xs" variant="outline" onClick={() => setRejecting(true)} disabled={working} className="size-7 p-0 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive" title="Reject"><XIcon className="size-4" /></Button>
+                  </>
+                )}
+                
+                {doc.status === "REJECTED" && (
+                  <>
+                    <Button size="xs" variant="outline" onClick={onReactivate} disabled={working} title="Undo the rejection" className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
+                    {!hasOpenQuery && (
+                      <Button size="xs" variant="outline" onClick={onRaiseQuery} disabled={working} className="h-7 px-2.5 text-[11px]"><MessageSquareWarningIcon className="mr-1 size-3" /> Query</Button>
+                    )}
+                  </>
+                )}
 
-            {doc.addedBy === "IMGC" && (
-              <Button size="xs" variant="outline" onClick={() => onToggleActive(inactive)} disabled={working} className="h-7 px-2.5 text-[11px]">
-                {inactive ? <RotateCcwIcon className="mr-1 size-3" /> : <BanIcon className="mr-1 size-3" />}
-                {inactive ? "Reactivate" : "Withdraw"}
-              </Button>
-            )}
+                {doc.status === "APPROVED" && (
+                  <Button size="xs" variant="outline" onClick={onUndoAccepted} disabled={working} title="Undo the acceptance" className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
+                )}
 
-            {i === 0 && reinstate?.status === "REQUESTED" && (
-              <>
-                <Button size="xs" variant="success" onClick={() => onReinstateDecision(true)} disabled={working} className="h-7 px-2.5 text-[11px]">Approve Reinstatement</Button>
-                <Button size="xs" variant="outline" onClick={() => onReinstateDecision(false)} disabled={working} className="h-7 px-2.5 text-[11px]">Deny</Button>
-              </>
-            )}
-          </div>
+                {doc.addedBy === "IMGC" && (
+                  <Button size="xs" variant="outline" onClick={() => onToggleActive(inactive)} disabled={working} className="h-7 px-2.5 text-[11px]">
+                    {inactive ? <RotateCcwIcon className="mr-1 size-3" /> : <BanIcon className="mr-1 size-3" />}
+                    {inactive ? "Reactivate" : "Withdraw"}
+                  </Button>
+                )}
+
+                {i === 0 && reinstate?.status === "REQUESTED" && (
+                  <>
+                    <Button size="xs" variant="success" onClick={() => onReinstateDecision(true)} disabled={working} className="h-7 px-2.5 text-[11px]">Approve Reinstatement</Button>
+                    <Button size="xs" variant="outline" onClick={() => onReinstateDecision(false)} disabled={working} className="h-7 px-2.5 text-[11px]">Deny</Button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
-      
+      </div>
       {rejecting && (
         <form
           className="m-3 flex flex-wrap items-end gap-2 rounded-lg border border-neutral-200 bg-neutral-25 p-3"

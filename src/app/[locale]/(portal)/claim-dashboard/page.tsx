@@ -39,7 +39,7 @@ function overviewHrefs(
         ? href("NOT_STARTED,UNDER_REVIEW,QUERY_RAISED")
         : href("NOT_STARTED,UNDER_REVIEW,DOCUMENTS_RESUBMITTED,QUERIED"),
     initiation: href("NOT_STARTED"),
-    underProgress: href("UNDER_PROGRESS"),
+    underReview: href("UNDER_REVIEW"),
     approved: href("APPROVED"),
     rejected: href("REJECTED"),
     draft: href("DRAFT"),
@@ -150,7 +150,7 @@ export default async function ClaimDashboardPage({
           title={
             data.canFilterByLender
               ? (selectedLenderName ?? "Every Lender")
-              : "Claims Overview"
+              : "Overview"
           }
           action={
             data.canFilterByLender ? (

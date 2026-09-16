@@ -71,7 +71,7 @@ export function LenderClaimStatusPanel({
             <div className="flex-1 overflow-y-auto bg-neutral-50/50 px-5 py-5 custom-scrollbar">
               <ol className="relative ml-2 border-l border-neutral-200">
                 {entries.map((entry, i) => {
-                  const isCurrent = i === currentIndex;
+                  const isCurrent = i === currentIndex && entry.status !== "APPROVED";
                   const isFuture = i > currentIndex;
                   return (
                     <li

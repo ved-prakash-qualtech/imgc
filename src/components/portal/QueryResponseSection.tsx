@@ -152,22 +152,40 @@ export function QueryResponseSection({
         {claimRemarks
           .slice()
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-          .map((remark) => (
-            <div key={remark.id} className="flex justify-start">
-              <div className="w-full max-w-2xl rounded-lg rounded-tl-sm border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 shadow-sm">
-                <div className="mb-1 flex flex-wrap items-baseline gap-1.5 text-[11.5px] text-neutral-500">
-                  <span className="font-semibold text-brand-primary">
-                    Lender
-                  </span>
-                  <span>&middot; {remark.authorName}</span>
-                  <span>&middot; {when(remark.createdAt)}</span>
+          .map((remark) => {
+            const isLender = remark.authorRole === "LENDER";
+            return isLender ? (
+              <div key={remark.id} className="flex justify-end">
+                <div className="w-full max-w-2xl rounded-lg rounded-tr-sm border border-brand-primary/10 bg-brand-primary/5 px-2.5 py-1.5 shadow-sm">
+                  <div className="mb-1 flex flex-wrap items-baseline justify-end gap-1.5 text-[11.5px] text-neutral-500">
+                    <span>{when(remark.createdAt)}</span>
+                    <span>&middot; {remark.authorName}</span>
+                    <span className="font-semibold text-brand-primary">
+                      &middot; Lender
+                    </span>
+                  </div>
+                  <p className="whitespace-pre-wrap text-[12px] font-semibold text-neutral-800">
+                    {remark.body}
+                  </p>
                 </div>
-                <p className="whitespace-pre-wrap text-[12px] font-semibold text-neutral-800">
-                  {remark.body}
-                </p>
               </div>
-            </div>
-          ))}
+            ) : (
+              <div key={remark.id} className="flex justify-start">
+                <div className="w-full max-w-2xl rounded-lg rounded-tl-sm border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 shadow-sm">
+                  <div className="mb-1 flex flex-wrap items-baseline gap-1.5 text-[11.5px] text-neutral-500">
+                    <span className="font-semibold text-brand-primary">
+                      IMGC
+                    </span>
+                    <span>&middot; {remark.authorName}</span>
+                    <span>&middot; {when(remark.createdAt)}</span>
+                  </div>
+                  <p className="whitespace-pre-wrap text-[12px] font-semibold text-neutral-800">
+                    {remark.body}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
         {/* Sort ascending so the oldest message is at top and the latest is at the bottom */}
         {[...queries]
           .sort((a, b) => a.raisedAt.localeCompare(b.raisedAt))

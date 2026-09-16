@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils/twMergeUtils";
 
 const TABS = [
   { key: "loan-details", label: "Loan Details" },
-  { key: "status", label: "Status & Query" },
+  { key: "status", label: "Status/Query" },
   { key: "documents", label: "Documents" },
   { key: "history", label: "Audit Trail" },
 ] as const;

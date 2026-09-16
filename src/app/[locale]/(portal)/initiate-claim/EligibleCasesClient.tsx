@@ -759,7 +759,7 @@ export function EligibleCasesClient({
                     </span>
                   </TableCell>
                   <TableCell className="px-1 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
-                    {a.claim?.claimNo ?? "—"}
+                    {a.claim?.claimNo || "—"}
                   </TableCell>
                   <TableCell className="px-1 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-900">
                     {a.borrowerName}

@@ -46,7 +46,7 @@ const TILES: ReadonlyArray<{
     tone: "rose",
   },
   {
-    key: "underProgress",
+    key: "underReview",
     label: "Under Review",
     icon: <ClipboardListIcon className="size-4" />,
     tone: "amber",

@@ -52,6 +52,7 @@ export function timelineEntries(
   const add = (entry: ClaimStatusEntry) => entries.push(entry);
 
   for (const entry of history) {
+    if (entry.status === "REFUND_RECEIVED_BY_IMGC") continue;
     if (entry.status === "DOCUMENTS_RESUBMITTED") continue;
     if (entry.status === "SUBMITTED") {
       add({ ...entry, status: "UNDER_REVIEW" });
@@ -96,8 +97,7 @@ export function timelineEntries(
     visualCurrentStatus === "REJECTED" ||
     visualCurrentStatus === "CLOSED" ||
     visualCurrentStatus === "QUERIED" ||
-    visualCurrentStatus === "ACTIVE" ||
-    visualCurrentStatus === "REFUND_RECEIVED_BY_IMGC"
+    visualCurrentStatus === "ACTIVE"
   ) {
     if (entries[entries.length - 1]?.status !== visualCurrentStatus) {
       add(syntheticEntry(visualCurrentStatus, lastAt));
@@ -116,8 +116,6 @@ export function timelineEntries(
   } else if (visualCurrentStatus === "QUERY_RAISED") {
     addFuture("UNDER_REVIEW");
     addFuture("APPROVED");
-  } else if (visualCurrentStatus === "APPROVED") {
-    addFuture("REFUND_RECEIVED_BY_IMGC");
   }
 
   return entries;

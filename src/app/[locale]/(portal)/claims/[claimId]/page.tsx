@@ -90,7 +90,7 @@ export default async function ClaimDetailsPage({
       showSectionNav={isLender}
       loanDetails={
         account ? (
-          <LoanDetailsCard account={account} isLenderTrackClaim={isLender} />
+          <LoanDetailsCard account={account} />
         ) : null
       }
       backLink={
@@ -133,16 +133,10 @@ export default async function ClaimDetailsPage({
           )}
 
           {claim.decision && (
-            <Panel key="decision" title="Decision" className="shrink-0">
-              <div className="px-5 py-4">
-                <p className="flex flex-wrap items-center gap-2 text-[13.5px]">
-                  <StatusPill status={claim.decision.outcome} />
-                  <span className="text-neutral-700">
-                    by {claim.decision.byName} · {when(claim.decision.at)}
-                  </span>
-                </p>
+            <Panel key="decision" title="Decision Remarks" className="shrink-0">
+              <div className="px-4 py-3">
                 {claim.decision.remarks && (
-                  <p className="mt-2 rounded-md bg-neutral-50 px-3 py-2 text-[13px] text-neutral-700">
+                  <p className="rounded-md bg-neutral-50 p-2 text-[13px] text-neutral-700">
                     {claim.decision.remarks}
                   </p>
                 )}
@@ -271,7 +265,7 @@ export default async function ClaimDetailsPage({
     <ClaimDetailTabs
       loanDetails={
         account ? (
-          <LoanDetailsCard account={account} isLenderTrackClaim={isLender} />
+          <LoanDetailsCard account={account} />
         ) : null
       }
       backLink={
@@ -314,16 +308,10 @@ export default async function ClaimDetailsPage({
           )}
 
           {claim.decision && (
-            <Panel key="decision" title="Decision" className="shrink-0">
-              <div className="px-5 py-4">
-                <p className="flex flex-wrap items-center gap-2 text-[13.5px]">
-                  <StatusPill status={claim.decision.outcome} />
-                  <span className="text-neutral-700">
-                    by {claim.decision.byName} · {when(claim.decision.at)}
-                  </span>
-                </p>
+            <Panel key="decision" title="Decision Remarks" className="shrink-0">
+              <div className="px-4 py-3">
                 {claim.decision.remarks && (
-                  <p className="mt-2 rounded-md bg-neutral-50 px-3 py-2 text-[13px] text-neutral-700">
+                  <p className="rounded-md bg-neutral-50 p-2 text-[13px] text-neutral-700">
                     {claim.decision.remarks}
                   </p>
                 )}

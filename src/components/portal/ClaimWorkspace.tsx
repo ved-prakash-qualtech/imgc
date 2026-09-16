@@ -131,8 +131,8 @@ export function ClaimWorkspace({
       }
       toast.success(
         resubmitting
-          ? `${claimNo} resubmitted — back with IMGC for review.`
-          : `${claimNo} submitted to IMGC.`
+          ? `${result.claimNo || claimNo} resubmitted — back with IMGC for review.`
+          : `Claim ${result.claimNo || claimNo} generated successfully and submitted to IMGC.`
       );
       // Away from the workspace, not a refresh-in-place: the claim is now with IMGC, so there is
       // nothing left to do here until a query brings it back. Re-opening it (Continue/Track) picks
@@ -186,11 +186,10 @@ export function ClaimWorkspace({
             </button>
           ))}
         </div>
-        {activeTab === "initiate-claim" && <StatusPill status={status} />}
       </div>
 
       {/* ── Loan Details tab ────────────────────────────────── */}
-      {activeTab === "loan-details" && <LoanDetailsCard account={account} isInitiateClaim />}
+      {activeTab === "loan-details" && <LoanDetailsCard account={account} />}
 
       {/* ── Initiate Claim tab — single column, viewport-fit ── */}
       {activeTab === "initiate-claim" && (

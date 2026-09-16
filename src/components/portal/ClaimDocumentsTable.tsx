@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { FileIcon, PlusIcon, TrashIcon, UploadIcon, RotateCwIcon } from "lucide-react";
+import { ArrowUpDownIcon, ChevronDownIcon, ChevronUpIcon, FileIcon, PlusIcon, TrashIcon, UploadIcon, RotateCwIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { AddLenderDocumentDialog } from "@/components/portal/AddLenderDocumentDialog";
@@ -74,17 +74,34 @@ function when(iso: string): string {
 }
 
 
-function TableLayout({ children }: { children: React.ReactNode }) {
+type SortField = "name" | "status" | "fileName" | "size" | "dateTime";
+
+function TableLayout({
+  children,
+  sortField,
+  sortDirection,
+  onSort,
+}: {
+  children: React.ReactNode;
+  sortField: SortField;
+  sortDirection: "asc" | "desc";
+  onSort: (field: SortField) => void;
+}) {
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDownIcon className="ml-1 inline-block size-3 text-neutral-300" />;
+    return sortDirection === "asc" ? <ChevronUpIcon className="ml-1 inline-block size-3" /> : <ChevronDownIcon className="ml-1 inline-block size-3" />;
+  };
+
   return (
     <div className="custom-scrollbar overflow-x-auto w-full max-h-[500px] overflow-y-auto">
       <Table>
         <TableHeader className="sticky top-0 bg-white shadow-sm z-10">
           <TableRow>
-            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Document Type</TableHead>
-            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Status</TableHead>
-            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">File Name</TableHead>
-            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Size</TableHead>
-            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Date/Time</TableHead>
+            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50 cursor-pointer select-none hover:text-neutral-700" onClick={() => onSort("name")}>Document Type<SortIcon field="name" /></TableHead>
+            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50 cursor-pointer select-none hover:text-neutral-700" onClick={() => onSort("status")}>Status<SortIcon field="status" /></TableHead>
+            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50 cursor-pointer select-none hover:text-neutral-700" onClick={() => onSort("fileName")}>File Name<SortIcon field="fileName" /></TableHead>
+            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50 cursor-pointer select-none hover:text-neutral-700" onClick={() => onSort("size")}>Size<SortIcon field="size" /></TableHead>
+            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50 cursor-pointer select-none hover:text-neutral-700" onClick={() => onSort("dateTime")}>Date/Time<SortIcon field="dateTime" /></TableHead>
             <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50 text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -109,13 +126,41 @@ export function ClaimDocumentsTable({
   locked: boolean;
   bare?: boolean;
 }>) {
+  const [sortField, setSortField] = useState<SortField>("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  const handleSort = useCallback((field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  }, [sortField]);
+
+  const sortDocs = useCallback((docs: RequirementRow[]) => {
+    return [...docs].sort((a, b) => {
+      const aFile = a.files[0];
+      const bFile = b.files[0];
+      let cmp = 0;
+      switch (sortField) {
+        case "name": cmp = a.name.localeCompare(b.name); break;
+        case "status": cmp = a.status.localeCompare(b.status); break;
+        case "fileName": cmp = (aFile?.originalName || "").localeCompare(bFile?.originalName || ""); break;
+        case "size": cmp = (aFile?.size || 0) - (bFile?.size || 0); break;
+        case "dateTime": cmp = (aFile?.uploadedAt || "").localeCompare(bFile?.uploadedAt || ""); break;
+      }
+      return sortDirection === "asc" ? cmp : -cmp;
+    });
+  }, [sortField, sortDirection]);
+
   const required = useMemo(
-    () => documents.filter((d) => d.addedBy !== "LENDER"),
-    [documents]
+    () => sortDocs(documents.filter((d) => d.addedBy !== "LENDER")),
+    [documents, sortDocs]
   );
   const additional = useMemo(
-    () => documents.filter((d) => d.addedBy === "LENDER"),
-    [documents]
+    () => sortDocs(documents.filter((d) => d.addedBy === "LENDER")),
+    [documents, sortDocs]
   );
 
   const [uploadTarget, setUploadTarget] = useState<{
@@ -290,7 +335,7 @@ export function ClaimDocumentsTable({
         className={bare ? "border-neutral-200 shadow-none" : undefined}
         actions={requiredActions}
       >
-        <TableLayout>
+        <TableLayout sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
           {renderTableRows(required)}
         </TableLayout>
       </Panel>
@@ -306,7 +351,7 @@ export function ClaimDocumentsTable({
             No additional documents added.
           </p>
         ) : (
-          <TableLayout>
+          <TableLayout sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
             {renderTableRows(additional)}
           </TableLayout>
         )}

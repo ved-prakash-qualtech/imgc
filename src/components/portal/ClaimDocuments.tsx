@@ -8,7 +8,9 @@ import {
   type ReactNode,
 } from "react";
 import {
+  ArrowUpDownIcon,
   ChevronDownIcon,
+  ChevronUpIcon,
   FileIcon,
   PlusIcon,
   TrashIcon,
@@ -539,21 +541,66 @@ function DocumentsTable({
   /** A delete is running — every delete button stays disabled until it settles. */
   deleting: boolean;
 }>) {
+  const [sortField, setSortField] = useState<"name" | "status" | "fileName" | "size" | "dateTime">("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  const sortedDocs = useMemo(() => {
+    return [...docs].sort((a, b) => {
+      const aFile = a.files[0];
+      const bFile = b.files[0];
+      let cmp = 0;
+      switch (sortField) {
+        case "name": cmp = a.name.localeCompare(b.name); break;
+        case "status": cmp = a.status.localeCompare(b.status); break;
+        case "fileName": cmp = (aFile?.originalName || "").localeCompare(bFile?.originalName || ""); break;
+        case "size": cmp = (aFile?.size || 0) - (bFile?.size || 0); break;
+        case "dateTime": cmp = (aFile?.uploadedAt || "").localeCompare(bFile?.uploadedAt || ""); break;
+      }
+      return sortDirection === "asc" ? cmp : -cmp;
+    });
+  }, [docs, sortField, sortDirection]);
+
+  const handleSort = useCallback((field: typeof sortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  }, [sortField]);
+
+  const SortIcon = ({ field }: { field: typeof sortField }) => {
+    if (sortField !== field) {
+      return <ArrowUpDownIcon className="ml-1 inline-block size-3 text-neutral-300" />;
+    }
+    return sortDirection === "asc" ? <ChevronUpIcon className="ml-1 inline-block size-3" /> : <ChevronDownIcon className="ml-1 inline-block size-3" />;
+  };
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[760px] text-left text-[12.5px]">
         <thead className="bg-neutral-50 text-[11px] font-medium text-neutral-500">
           <tr>
-            <th className="px-4 py-2.5">Document Type</th>
-            <th className="px-4 py-2.5">Status</th>
-            <th className="px-4 py-2.5">File Name</th>
-            <th className="px-4 py-2.5">Size</th>
-            <th className="px-4 py-2.5">Date/Time</th>
+            <th className="px-4 py-2.5">
+              <div className="flex items-center cursor-pointer select-none hover:text-neutral-700" onClick={() => handleSort("name")}>Document Type<SortIcon field="name" /></div>
+            </th>
+            <th className="px-4 py-2.5">
+              <div className="flex items-center cursor-pointer select-none hover:text-neutral-700" onClick={() => handleSort("status")}>Status<SortIcon field="status" /></div>
+            </th>
+            <th className="px-4 py-2.5">
+              <div className="flex items-center cursor-pointer select-none hover:text-neutral-700" onClick={() => handleSort("fileName")}>File Name<SortIcon field="fileName" /></div>
+            </th>
+            <th className="px-4 py-2.5">
+              <div className="flex items-center cursor-pointer select-none hover:text-neutral-700" onClick={() => handleSort("size")}>Size<SortIcon field="size" /></div>
+            </th>
+            <th className="px-4 py-2.5">
+              <div className="flex items-center cursor-pointer select-none hover:text-neutral-700" onClick={() => handleSort("dateTime")}>Date/Time<SortIcon field="dateTime" /></div>
+            </th>
             <th className="px-4 py-2.5 text-right">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">
-          {docs.map((doc, i) => (
+          {sortedDocs.map((doc, i) => (
             <DocTableRows
               key={doc.id}
               index={indexed ? i + 1 : undefined}
@@ -643,7 +690,7 @@ function DocTableRows({
       <tr>
         {nameCell}
         {statusCell}
-        <td className="px-4 py-3 text-neutral-400" colSpan={2}>
+        <td className="px-4 py-3 text-neutral-400" colSpan={3}>
           Nothing uploaded yet.
         </td>
         {actionsCell()}

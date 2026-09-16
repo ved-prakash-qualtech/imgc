@@ -43,6 +43,7 @@ export type Outcome = Readonly<{
   ok: boolean;
   error?: string;
   claimId?: string;
+  claimNo?: string;
   /** So the caller can revalidate the account's own pages — not every mutation has one to give. */
   accountId?: string;
 }>;
@@ -200,7 +201,7 @@ const UNDER_PROGRESS_STATUSES = new Set<ClaimStatus>([
 export interface ClaimOverviewCounts {
   total: number;
   initiation: number;
-  underProgress: number;
+  underReview: number;
   approved: number;
   rejected: number;
   draft: number;
@@ -229,24 +230,26 @@ export function summariseClaimOverview(
   }>
 ): ClaimOverviewCounts {
   let initiation = 0;
-  let underProgress = 0;
+  let underReview = 0;
   let approved = 0;
   let rejected = 0;
   let draft = 0;
   let queryRaised = 0;
   let refunded = 0;
+  let docsResubmitted = 0;
 
   for (const row of rows) {
     const status = row.claim?.status;
     const isNotStarted = !row.claim || !row.claim.hasProgress;
 
     if (!status || status === "DRAFT") initiation += 1;
-    else if (UNDER_PROGRESS_STATUSES.has(status)) underProgress += 1;
+    else if (status === "UNDER_REVIEW") underReview += 1;
+    else if (status === "QUERY_RAISED") queryRaised += 1;
+    else if (status === "DOCUMENTS_RESUBMITTED") docsResubmitted += 1;
     // "Refund received" is a confirmation on top of an already-approved claim, not a fourth
     // outcome — it stays counted as "approved" here, same as CLOSED above, so this tile doesn't
     // drop a claim the moment IMGC confirms the refund for it. It also gets its own tally below,
-    // for the "Claim Refunded" tile — a subset count, same idea as `underProgress` above still
-    // including `QUERY_RAISED` even where a dedicated "Awaiting Lender Response" filter exists.
+    // for the "Claim Refunded" tile.
     else if (
       status === "APPROVED" ||
       status === "CLOSED" ||
@@ -258,14 +261,13 @@ export function summariseClaimOverview(
 
     if (!isNotStarted) {
       if (status === "DRAFT") draft += 1;
-      if (status === "QUERY_RAISED") queryRaised += 1;
     }
   }
 
   return {
-    total: initiation + underProgress + approved + rejected,
+    total: initiation + underReview + queryRaised + docsResubmitted + approved + rejected,
     initiation,
-    underProgress,
+    underReview,
     approved,
     rejected,
     draft,
@@ -874,7 +876,7 @@ export async function submitClaim(
     event: "CLAIM_SUBMITTED",
     unreadFor: ["IMGC"],
   });
-  return { ok: true, claimId };
+  return { ok: true, claimId, claimNo };
 }
 
 /* ── IMGC actions ──────────────────────────────────────────────────── */
