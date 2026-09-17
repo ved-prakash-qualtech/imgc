@@ -203,7 +203,7 @@ function statusDisplay(v: StatusOption): string {
 function claimStatusDisplay(a: AccountRow): ClaimStatus | "NOT_STARTED" {
   return a.claimStatus === "DRAFT" && !a.claimHasProgress
     ? "NOT_STARTED"
-    : a.claimStatus;
+    : (a.realClaimStatus ?? a.claimStatus);
 }
 
 function StatusMultiSelect({

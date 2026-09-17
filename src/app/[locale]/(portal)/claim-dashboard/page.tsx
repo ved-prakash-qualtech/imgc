@@ -124,8 +124,7 @@ export default async function ClaimDashboardPage({
         };
       }
 
-      const status =
-        a.claimStatus === "QUERIED" ? "QUERY_RAISED" : a.claimStatus;
+      const status = a.realClaimStatus ?? a.claimStatus;
       return {
         claim: {
           status: status as ClaimStatus,

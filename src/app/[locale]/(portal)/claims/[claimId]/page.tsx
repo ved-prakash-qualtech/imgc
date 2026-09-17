@@ -445,8 +445,8 @@ export default async function ClaimDetailsPage({
       activeKey="initiate-claim"
       title={
         isLender
-          ? `Track Claim · ${claim.claimNo}`
-          : `Track Claim · ${claim.customerName} · ${claim.claimNo}`
+          ? `Claim No. ${claim.claimNo}`
+          : `Claim No. ${claim.claimNo}`
       }
     >
       <div
