@@ -20,6 +20,8 @@ import {
   toAccountClaimStatus,
   type ClaimDocumentSpec,
 } from "@/config/claimConfig";
+import { summariseDocs } from "@/services/portal/claims.server";
+import { listClaimDocuments } from "@/services/portal/requirements.server";
 import type { AppSession } from "@/lib/auth/appSession";
 import type {
   Account,
@@ -205,7 +207,10 @@ export interface ClaimOverviewCounts {
   approved: number;
   rejected: number;
   draft: number;
-  queryRaised: number;
+  initiated: number;
+  queried: number;
+  queryInitiated: number;
+  queryUnderReview: number;
   /** Claims IMGC has confirmed the refund for (`REFUND_RECEIVED_BY_IMGC`) — a subset of
    *  `approved`, not a sixth mutually-exclusive outcome, so it stays counted there too. */
   refunded: number;
@@ -234,7 +239,9 @@ export function summariseClaimOverview(
   let approved = 0;
   let rejected = 0;
   let draft = 0;
-  let queryRaised = 0;
+  let initiated = 0;
+  let queryInitiated = 0;
+  let queryUnderReview = 0;
   let refunded = 0;
   let docsResubmitted = 0;
 
@@ -242,36 +249,45 @@ export function summariseClaimOverview(
     const status = row.claim?.status;
     const isNotStarted = !row.claim || !row.claim.hasProgress;
 
-    if (!status || status === "DRAFT") initiation += 1;
-    else if (status === "UNDER_REVIEW") underReview += 1;
-    else if (status === "QUERY_RAISED") queryRaised += 1;
-    else if (status === "DOCUMENTS_RESUBMITTED") docsResubmitted += 1;
-    // "Refund received" is a confirmation on top of an already-approved claim, not a fourth
-    // outcome — it stays counted as "approved" here, same as CLOSED above, so this tile doesn't
-    // drop a claim the moment IMGC confirms the refund for it. It also gets its own tally below,
-    // for the "Claim Refunded" tile.
-    else if (
+    if (isNotStarted) {
+      initiation += 1;
+    } else if (status === "INITIATED") {
+      initiated += 1;
+    } else if (status === "UNDER_REVIEW") {
+      underReview += 1;
+    } else if (status === "QUERY_INITIATED") {
+      queryInitiated += 1;
+    } else if (status === "QUERY_UNDER_REVIEW" || status === "QUERY_RAISED") {
+      queryUnderReview += 1; // QUERY_RAISED is legacy fallback
+    } else if (status === "DOCUMENTS_RESUBMITTED") {
+      docsResubmitted += 1;
+    } else if (
       status === "APPROVED" ||
       status === "CLOSED" ||
       status === "REFUND_RECEIVED_BY_IMGC"
     ) {
       approved += 1;
       if (status === "REFUND_RECEIVED_BY_IMGC") refunded += 1;
-    } else if (status === "REJECTED") rejected += 1;
-
-    if (!isNotStarted) {
-      if (status === "DRAFT") draft += 1;
+    } else if (status === "REJECTED") {
+      rejected += 1;
+    } else if (status === "DRAFT") {
+      draft += 1;
     }
   }
 
+  const queried = queryInitiated + queryUnderReview;
+
   return {
-    total: initiation + underReview + queryRaised + docsResubmitted + approved + rejected,
+    total: initiation + draft + initiated + underReview + queried + docsResubmitted + approved + rejected,
     initiation,
     underReview,
     approved,
     rejected,
     draft,
-    queryRaised,
+    initiated,
+    queried,
+    queryInitiated,
+    queryUnderReview,
     refunded,
   };
 }
@@ -372,10 +388,10 @@ export async function syncClaimForAccountDecision(
       return;
     }
 
-    // "QUERIED" here is the account-level status; the claim's own vocabulary for the same event
-    // is QUERY_RAISED, and Query Response is driven by there being a matching ClaimQuery row
-    // (`openQuery` in claimFlow's `decorate()`) — so a query raised this way needs one too, or
-    // the claim would show as queried with nothing for the lender to actually respond to.
+    // "QUERIED" here is the account-level status. Route to the correct claim-level status based
+    // on where the claim currently sits: pre-review queries become QUERY_INITIATED; post-review
+    // queries become QUERY_UNDER_REVIEW. Legacy QUERY_RAISED is preserved for any existing records
+    // but is not produced by new raises through this path.
     const raisedAt = nowIso();
     db.claimQueries.push({
       id: newId("qry"),
@@ -391,7 +407,9 @@ export async function syncClaimForAccountDecision(
       ).toISOString(),
     });
     claim.bucket = "LENDER";
-    advance(db, claim, "QUERY_RAISED", session, note || undefined);
+    const queryStatus: ClaimStatus =
+      claim.status === "INITIATED" ? "QUERY_INITIATED" : "QUERY_UNDER_REVIEW";
+    advance(db, claim, queryStatus, session, note || undefined);
   });
 }
 
@@ -441,7 +459,9 @@ export async function syncQueryForDocumentDecision(
       ).toISOString(),
     });
     claim.bucket = "LENDER";
-    advance(db, claim, "QUERY_RAISED", session, note || undefined);
+    const docQueryStatus: ClaimStatus =
+      claim.status === "INITIATED" ? "QUERY_INITIATED" : "QUERY_UNDER_REVIEW";
+    advance(db, claim, docQueryStatus, session, note || undefined);
   });
 }
 
@@ -767,13 +787,17 @@ export async function submitClaim(
         initiationRemarkAdded: false,
       };
     // Answering a query resubmits; a first submission submits. Both land with IMGC.
-    const resubmitting = claim.status === "QUERY_RAISED";
-    advance(
-      db,
-      claim,
-      resubmitting ? "DOCUMENTS_RESUBMITTED" : "UNDER_REVIEW",
-      session
-    );
+    const resubmittingInitiated = claim.status === "QUERY_INITIATED";
+    const resubmittingUnderReview = claim.status === "QUERY_UNDER_REVIEW";
+    const resubmittingLegacy = claim.status === "QUERY_RAISED";
+    const resubmitting = resubmittingInitiated || resubmittingUnderReview || resubmittingLegacy;
+
+    // Fresh initial submission only — resubmissions get their single advance inside the
+    // if(resubmitting) block below, so we must not advance here too (would produce a duplicate
+    // history entry e.g. UNDER_REVIEW → UNDER_REVIEW after a QUERY_UNDER_REVIEW response).
+    if (!resubmitting) {
+      advance(db, claim, "INITIATED", session);
+    }
     if (!claim.claimNo) {
       claim.claimNo = nextClaimNo(db, claim.claimType);
     }
@@ -798,8 +822,14 @@ export async function submitClaim(
           "Documents resubmitted.";
       }
       delete claim.fields.__queryResponse;
-      // Rule: a resubmission goes straight back into review.
-      advance(db, claim, "UNDER_REVIEW", session, "Resubmission received");
+      // Pre-review response (QUERY_INITIATED) returns to INITIATED so IMGC can Submit for Review.
+      // Post-review response (QUERY_UNDER_REVIEW / legacy QUERY_RAISED) returns to UNDER_REVIEW.
+      // Exactly one advance fires here — the duplicate above has been removed.
+      if (resubmittingInitiated) {
+        advance(db, claim, "INITIATED", session, "Query response received");
+      } else {
+        advance(db, claim, "UNDER_REVIEW", session, "Resubmission received");
+      }
     }
 
     let bucketChangedFrom = null;
@@ -877,6 +907,52 @@ export async function submitClaim(
     unreadFor: ["IMGC"],
   });
   return { ok: true, claimId, claimNo };
+}
+
+export async function startClaimReview(
+  session: AppSession,
+  accountId: string
+): Promise<Outcome> {
+  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+
+  const claimIdLookup = await writeDb((db) => {
+    const claim = db.claims.find((c) => c.accountId === accountId);
+    return claim ? claim.id : "";
+  });
+  
+  if (!claimIdLookup) return { ok: false, error: "Claim not found." };
+  
+  const docs = await listClaimDocuments(session, claimIdLookup);
+  const summary = summariseDocs(docs);
+  if (!summary.complete) {
+    return {
+      ok: false,
+      error: "Please approve all required documents before submitting the claim for review.",
+    };
+  }
+
+  const { claimId, account } = await writeDb((db) => {
+    const claim = db.claims.find((c) => c.accountId === accountId);
+    if (!claim) return { claimId: "", account: null };
+    if (claim.status !== "INITIATED") return { claimId: claim.id, account: null };
+
+    advance(db, claim, "UNDER_REVIEW", session, "Review started");
+
+    const account = db.accounts.find((a) => a.id === claim.accountId);
+    return { claimId: claim.id, account };
+  });
+
+  if (!claimId || !account) return { ok: false, error: "Claim not found or not in Initiated status." };
+
+  await recordEvent({
+    accountId,
+    actor: session,
+    type: "CLAIM_STATUS_CHANGED",
+    summary: "Claim review started",
+    meta: { status: "UNDER_REVIEW", from: "INITIATED" },
+  });
+
+  return { ok: true, claimId };
 }
 
 /* ── IMGC actions ──────────────────────────────────────────────────── */
@@ -1024,7 +1100,11 @@ export async function raiseQuery(
       if (doc) doc.status = "REUPLOAD_REQUIRED";
     }
 
-    advance(db, claim, "QUERY_RAISED", session, input.reason.trim());
+    let targetStatus: ClaimStatus = "QUERY_UNDER_REVIEW";
+    if (claim.status === "INITIATED") {
+      targetStatus = "QUERY_INITIATED";
+    }
+    advance(db, claim, targetStatus, session, input.reason.trim());
     claim.bucket = "LENDER";
 
     let bucketChangedFrom = null;

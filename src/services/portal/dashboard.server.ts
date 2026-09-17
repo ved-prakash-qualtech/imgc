@@ -447,7 +447,7 @@ export async function buildDashboardSummary(
   // accounts.server.ts applies (still mid query-loop) — so this tile's count doesn't undercount
   // against what `/dpd?loanStatus=Queried` actually lists.
   const queriedCount =
-    claimStatusCount("QUERY_RAISED") + claimStatusCount("DOCUMENTS_RESUBMITTED");
+    claimStatusCount("QUERY_RAISED") + claimStatusCount("DOCUMENTS_RESUBMITTED") + claimStatusCount("QUERY_INITIATED") + claimStatusCount("QUERY_UNDER_REVIEW");
   // "Approved" folds in CLOSED and REFUND_RECEIVED_BY_IMGC too — same fold `classifyLoanStatus`
   // in accounts.server.ts applies (closest terminal-success bucket, and a refund confirmation on
   // top of an approval rather than a fourth outcome) — so this tile's count doesn't undercount
@@ -599,7 +599,7 @@ export async function buildDashboardSummary(
     {
       key: "submitted",
       label: "Active Loans",
-      value: byStatus("SUBMITTED") + byStatus("UNDER_REVIEW"),
+      value: byStatus("INITIATED") + byStatus("SUBMITTED") + byStatus("UNDER_REVIEW"),
       total: accounts.length || 1,
       // "SUBMITTED" is what `classifyLoanStatus` (accounts.server.ts) labels "Pre Offer" — same
       // bucket, same field, just the All Loans grid's own name for it.
@@ -640,8 +640,11 @@ export async function buildDashboardSummary(
   // unrelated additional-document review can bump to "today" while the claim itself sits stalled.
   const OPEN_CLAIM_STATUSES = new Set<Claim["status"]>([
     "DRAFT",
+    "INITIATED",
     "SUBMITTED",
     "UNDER_REVIEW",
+    "QUERY_INITIATED",
+    "QUERY_UNDER_REVIEW",
     "QUERY_RAISED",
     "DOCUMENTS_RESUBMITTED",
   ]);
@@ -678,7 +681,7 @@ export async function buildDashboardSummary(
     completionPct: documentsRequired
       ? Math.round((documentsIn / documentsRequired) * 100)
       : 0,
-    submittedCount: byStatus("SUBMITTED") + byStatus("UNDER_REVIEW"),
+    submittedCount: byStatus("CLAIM_INITIATED") + byStatus("SUBMITTED") + byStatus("UNDER_REVIEW"),
     queriedCount: byStatus("QUERIED"),
     approvedCount: byStatus("APPROVED"),
     rejectedDocCount,

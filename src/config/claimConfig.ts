@@ -110,7 +110,7 @@ export interface ClaimTypeConfig {
 /** Shared by every type — the timeline's spine. */
 const STANDARD_FLOW: readonly ClaimStatus[] = [
   "DRAFT",
-  "SUBMITTED",
+  "INITIATED",
   "UNDER_REVIEW",
   "APPROVED",
   "CLOSED",
@@ -240,8 +240,11 @@ export function claimConfig(type: ClaimTypeKey): ClaimTypeConfig {
 
 export const CLAIM_STATUS_LABELS: Readonly<Record<ClaimStatus, string>> = {
   DRAFT: "Draft",
+  INITIATED: "Initiated",
+  QUERY_INITIATED: "Query Initiated",
   SUBMITTED: "Submitted",
   UNDER_REVIEW: "Under review",
+  QUERY_UNDER_REVIEW: "Query Under Review",
   QUERY_RAISED: "Query raised",
   DOCUMENTS_RESUBMITTED: "Documents resubmitted",
   APPROVED: "Approved",
@@ -281,6 +284,8 @@ export function flowPosition(
   if (direct !== -1) return { flow, index: direct };
 
   const fallback: Partial<Record<ClaimStatus, ClaimStatus>> = {
+    QUERY_INITIATED: "INITIATED",
+    QUERY_UNDER_REVIEW: "UNDER_REVIEW",
     QUERY_RAISED: "UNDER_REVIEW",
     DOCUMENTS_RESUBMITTED: "UNDER_REVIEW",
     REJECTED: "UNDER_REVIEW",
@@ -305,5 +310,7 @@ export function flowPosition(
  * itself, still counted them. That was the gap between the tile and the table.
  */
 export function toAccountClaimStatus(status: ClaimStatus): ClaimStatus {
+  if (status === "QUERY_UNDER_REVIEW") return "QUERIED";
+  if (status === "QUERY_INITIATED") return "QUERIED";
   return status === "QUERY_RAISED" ? "QUERIED" : status;
 }

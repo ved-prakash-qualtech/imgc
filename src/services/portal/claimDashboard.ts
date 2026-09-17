@@ -10,7 +10,10 @@ import type { ClaimStatus } from "@/server/mock/types";
  *  "Under Progress" and the Claims grid filters on, so the widgets and the band agree. */
 export const IN_PROGRESS_STATUSES: ReadonlySet<ClaimStatus> =
   new Set<ClaimStatus>([
+    "INITIATED",
     "UNDER_REVIEW",
+    "QUERY_INITIATED",
+    "QUERY_UNDER_REVIEW",
     "QUERY_RAISED",
     "DOCUMENTS_RESUBMITTED",
   ]);
@@ -57,6 +60,7 @@ export interface LenderUnderProgressRow {
   loanId: string;
   applicant: string;
   latestQueryDate: string | null;
+  status: string;
 }
 
 export interface ClaimDashboardData {

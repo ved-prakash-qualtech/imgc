@@ -321,31 +321,37 @@ function buildAccount(
 // A pattern length sharing a factor with that modulus (e.g. 15) can silently exclude a status
 // from ever being assigned at all.
 const CLAIM_STATUS_PATTERN: readonly ClaimStatus[] = [
-  "DRAFT", "UNDER_REVIEW", "QUERY_RAISED", "REJECTED",
+  "DRAFT", "INITIATED", "UNDER_REVIEW", "QUERY_INITIATED", "REJECTED",
   "APPROVED", "DOCUMENTS_RESUBMITTED", "DRAFT", "UNDER_REVIEW",
-  "APPROVED", "QUERY_RAISED",
+  "APPROVED", "QUERY_UNDER_REVIEW",
 ];
 
 /** Steps walked before reaching this status — a real, chronological path, never an impossible
  *  jump (e.g. never "NOT_STARTED → APPROVED" with no submission in between). */
 const HISTORY_BEFORE: Record<ClaimStatus, readonly ClaimStatus[]> = {
   DRAFT: [],
+  INITIATED: ["DRAFT"],
+  QUERY_INITIATED: ["DRAFT", "INITIATED"],
   SUBMITTED: ["DRAFT"],
-  UNDER_REVIEW: ["DRAFT"],
-  QUERY_RAISED: ["DRAFT", "UNDER_REVIEW"],
-  DOCUMENTS_RESUBMITTED: ["DRAFT", "UNDER_REVIEW", "QUERY_RAISED"],
-  APPROVED: ["DRAFT", "UNDER_REVIEW"],
-  REJECTED: ["DRAFT", "UNDER_REVIEW"],
-  CLOSED: ["DRAFT", "UNDER_REVIEW", "APPROVED"],
-  REFUND_RECEIVED_BY_IMGC: ["DRAFT", "UNDER_REVIEW", "APPROVED"],
-  QUERIED: ["DRAFT", "UNDER_REVIEW"],
+  UNDER_REVIEW: ["DRAFT", "INITIATED"],
+  QUERY_UNDER_REVIEW: ["DRAFT", "INITIATED", "UNDER_REVIEW"],
+  QUERY_RAISED: ["DRAFT", "INITIATED", "UNDER_REVIEW"],
+  DOCUMENTS_RESUBMITTED: ["DRAFT", "INITIATED", "UNDER_REVIEW", "QUERY_RAISED"],
+  APPROVED: ["DRAFT", "INITIATED", "UNDER_REVIEW"],
+  REJECTED: ["DRAFT", "INITIATED", "UNDER_REVIEW"],
+  CLOSED: ["DRAFT", "INITIATED", "UNDER_REVIEW", "APPROVED"],
+  REFUND_RECEIVED_BY_IMGC: ["DRAFT", "INITIATED", "UNDER_REVIEW", "APPROVED"],
+  QUERIED: ["DRAFT", "INITIATED", "UNDER_REVIEW"],
   ACTIVE: [],
 };
 
 const DAYS_AGO_BY_STATUS: Record<ClaimStatus, number> = {
   DRAFT: 1,
+  INITIATED: 4,
+  QUERY_INITIATED: 5,
   SUBMITTED: 7,
   UNDER_REVIEW: 12,
+  QUERY_UNDER_REVIEW: 14,
   QUERY_RAISED: 16,
   DOCUMENTS_RESUBMITTED: 20,
   APPROVED: 26,
@@ -489,7 +495,7 @@ export function buildSeed(): MockDb {
       // path from the query-flow coverage requirement, distinct from a straight approval.
       const wentThroughQuery = status === "APPROVED" && k % 4 === 0;
       const history = wentThroughQuery
-        ? (["DRAFT", "UNDER_REVIEW", "QUERY_RAISED", "DOCUMENTS_RESUBMITTED", "UNDER_REVIEW"] as const)
+        ? (["DRAFT", "INITIATED", "UNDER_REVIEW", "QUERY_RAISED", "DOCUMENTS_RESUBMITTED", "UNDER_REVIEW"] as const)
         : HISTORY_BEFORE[status];
       // `k % 15`, not `k % 5` — a wider spread here is what gives the "Aging overview" widget on
       // the Dashboard (buildDashboardSummary's `aging`, keyed off each open claim's own
@@ -529,7 +535,7 @@ export function buildSeed(): MockDb {
         submittedAt: status === "DRAFT" ? undefined : ago(Math.max(0, daysAgo - 1)),
         lastUpdatedAt: statusHistory[statusHistory.length - 1]?.at ?? ago(daysAgo),
         draftSaved: true,
-        bucket: status === "DRAFT" || status === "QUERY_RAISED" ? "LENDER" : "IMGC",
+        bucket: status === "DRAFT" ? "LENDER" : "IMGC",
         decision: decisionOutcome
           ? {
               outcome: decisionOutcome,
@@ -547,7 +553,8 @@ export function buildSeed(): MockDb {
         status === "APPROVED" ? "Claim approved"
           : status === "REJECTED" ? "Claim rejected"
           : status === "CLOSED" ? "Claim closed"
-          : status === "QUERY_RAISED" ? "Query raised with the lender"
+          : status === "QUERY_INITIATED" ? "Query raised – pre-review"
+          : status === "QUERY_UNDER_REVIEW" ? "Query raised – under review"
           : account.bucket === "IMGC" ? "Under IMGC review" : "Document collection";
       account.submittedAt = status === "DRAFT" ? undefined : ago(Math.max(0, daysAgo - 1));
 
@@ -571,7 +578,7 @@ export function buildSeed(): MockDb {
           : status === "APPROVED" || status === "CLOSED" ? 99
           : 2;
 
-      const hasOpenQuery = status === "QUERY_RAISED";
+      const hasOpenQuery = status === "QUERY_INITIATED" || status === "QUERY_UNDER_REVIEW";
       // Also true for a fraction of plain UNDER_REVIEW claims — a claim can be back under review
       // after an earlier query was already answered, a real and common state.
       const hasResolvedQuery =
@@ -658,7 +665,9 @@ export function buildSeed(): MockDb {
         // The one case with no such step (a resolved query on a plain UNDER_REVIEW claim, which
         // moved on without leaving a QUERY_RAISED entry behind) falls back to a date between
         // "Submitted" and the current "Under review" entry.
-        const queryRaisedEntry = statusHistory.find((h) => h.status === "QUERY_RAISED");
+        const queryRaisedEntry = statusHistory.find((h) =>
+          h.status === "QUERY_RAISED" || h.status === "QUERY_INITIATED" || h.status === "QUERY_UNDER_REVIEW"
+        );
         const docsResubmittedEntry = statusHistory.find((h) => h.status === "DOCUMENTS_RESUBMITTED");
         const raisedAtIso = queryRaisedEntry?.at ?? ago(Math.round(daysAgo * 0.65));
         const respondedAtIso = docsResubmittedEntry?.at ?? ago(Math.round(daysAgo * 0.55));
@@ -850,13 +859,13 @@ export function buildSeed(): MockDb {
     accounts.push(account);
   }
 
-  // A guaranteed block of "Query Raised" claims for the demo lender (HDFC Bank), so signing in
-  // through "Demo as Lender" always has claims sitting on a lender response — the Query Trail /
-  // "Awaiting Lender Response" demo. Like EXTRA_INITIATE_ELIGIBLE above, these are hand-built
-  // rather than left to fall out of CLAIM_STATUS_PATTERN, which promises no per-lender count.
-  const EXTRA_QUERY_RAISED = 10;
+  // A guaranteed block of queried claims for the demo lender (HDFC Bank), so signing in
+  // through "Demo as Lender" always has claims sitting on a lender response. Split evenly
+  // between QUERY_INITIATED (pre-review) and QUERY_UNDER_REVIEW (post-review) so both
+  // workflow branches are visible in the demo.
+  const EXTRA_QUERIED = 10; // 5 × QUERY_INITIATED + 5 × QUERY_UNDER_REVIEW
   const qrConfig = CLAIM_TYPES.INITIAL;
-  for (let e = 0; e < EXTRA_QUERY_RAISED; e += 1) {
+  for (let e = 0; e < EXTRA_QUERIED; e += 1) {
     const i = TOTAL_ACCOUNTS + EXTRA_INITIATE_ELIGIBLE + e;
     const account = buildAccount(i, LENDER_DEFS[0]!, ["usr_emp1", "Meera Nair"]);
     account.npa = true;
@@ -888,10 +897,18 @@ export function buildSeed(): MockDb {
     const claimId = `clm_${String(i + 1).padStart(4, "0")}`;
     const claimNo = `${qrConfig.prefix}-2026-${String(claimCountByPrefix[qrConfig.prefix]).padStart(5, "0")}`;
 
+    // First 5 → QUERY_INITIATED (pre-review query), next 5 → QUERY_UNDER_REVIEW (post-review).
+    const queriedStatus: ClaimStatus = e < 5 ? "QUERY_INITIATED" : "QUERY_UNDER_REVIEW";
     const daysAgo = 14 + e * 3;
-    const steps = ["DRAFT", "UNDER_REVIEW", "QUERY_RAISED"] as const;
+
+    // History paths match the real workflow transitions.
+    const steps: readonly ClaimStatus[] =
+      queriedStatus === "QUERY_INITIATED"
+        ? (["DRAFT", "INITIATED", "QUERY_INITIATED"] as const)
+        : (["DRAFT", "INITIATED", "UNDER_REVIEW", "QUERY_UNDER_REVIEW"] as const);
+
     const statusHistory = steps.map((s, si) => {
-      const imgcSide = s === "UNDER_REVIEW" || s === "QUERY_RAISED";
+      const imgcSide = s === "UNDER_REVIEW" || s === "QUERY_INITIATED" || s === "QUERY_UNDER_REVIEW";
       return {
         status: s,
         at: ago(Math.max(0, daysAgo - si * (daysAgo / (steps.length + 1)))),
@@ -907,7 +924,7 @@ export function buildSeed(): MockDb {
       claimNo,
       accountId: account.id,
       claimType: "INITIAL",
-      status: "QUERY_RAISED",
+      status: queriedStatus,
       fields: Object.fromEntries(qrConfig.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""])),
       statusHistory,
       createdById: "usr_len1",
@@ -916,11 +933,14 @@ export function buildSeed(): MockDb {
       submittedAt: ago(daysAgo - 1),
       lastUpdatedAt: queryRaisedAt,
       draftSaved: true,
-      bucket: "LENDER",
+      bucket: "IMGC",
     });
 
-    account.claimStatus = toAccountClaimStatus("QUERY_RAISED");
-    account.stage = "Query raised with the lender";
+    account.claimStatus = toAccountClaimStatus(queriedStatus);
+    account.stage =
+      queriedStatus === "QUERY_INITIATED"
+        ? "Query raised – pre-review"
+        : "Query raised – under review";
     account.submittedAt = ago(daysAgo - 1);
 
     // Checklist documents — index 0 is the one the query asks to be re-uploaded.
@@ -1011,6 +1031,134 @@ export function buildSeed(): MockDb {
   // "00" as if the demo had no rejections at all. Applied per lender, not just HDFC, because
   // IMGC's own Claim Dashboard can narrow to any one of them via its lender picker — the same
   // "empty widget" problem exists there for whichever lender is selected.
+
+  // A block of strictly INITIATED claims so the dashboard tile and filter have demo cases.
+  const EXTRA_INITIATED = 5;
+  const initConfig = CLAIM_TYPES.INITIAL;
+  for (let e = 0; e < EXTRA_INITIATED; e += 1) {
+    const i = TOTAL_ACCOUNTS + EXTRA_INITIATE_ELIGIBLE + EXTRA_QUERIED + e;
+    const account = buildAccount(i, LENDER_DEFS[0]!, ["usr_emp1", "Meera Nair"]);
+    account.npa = true;
+    account.writeOff = false;
+    account.dpd = DPD_PATTERN[19 + (e % (DPD_PATTERN.length - 19))]!; // always one of the >90 entries
+
+    const amounts: Record<string, number> = {
+      sanctionedAmount: account.loanAmount,
+      outstandingPrincipal: account.outstandingAmount,
+      overdueAmount: Math.round(account.outstandingAmount * 0.11),
+      emiAmount: Math.round(account.loanAmount / account.tenureMonths),
+      sumInsured: Math.round(account.loanAmount * 0.9),
+      claimAmount: account.outstandingAmount,
+    };
+    PAS_TEMPLATE.forEach((t) => {
+      pasValues.push({
+        id: `pas_${account.id}_${t.key}`,
+        accountId: account.id,
+        key: t.key,
+        label: t.label,
+        value: inr(amounts[t.key] ?? 0),
+        source: "PAS",
+        updatedAt: ago(2),
+        updatedBy: "PAS",
+      });
+    });
+
+    claimCountByPrefix[initConfig.prefix] = (claimCountByPrefix[initConfig.prefix] ?? 0) + 1;
+    const claimId = `clm_${String(i + 1).padStart(4, "0")}`;
+    const claimNo = `${initConfig.prefix}-2026-${String(claimCountByPrefix[initConfig.prefix]).padStart(5, "0")}`;
+
+    const claimStatus: ClaimStatus = "INITIATED";
+    const daysAgo = 1 + (e % 3);
+
+    const statusHistory = [
+      { status: "DRAFT" as ClaimStatus, at: ago(daysAgo + 1), byId: "usr_len1", byName: "Arjun Mehta", byRole: "LENDER" as const },
+      { status: "INITIATED" as ClaimStatus, at: ago(daysAgo), byId: "usr_len1", byName: "Arjun Mehta", byRole: "LENDER" as const },
+    ];
+
+    claims.push({
+      id: claimId,
+      claimNo,
+      accountId: account.id,
+      claimType: "INITIAL",
+      status: claimStatus,
+      fields: Object.fromEntries(initConfig.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""])),
+      statusHistory,
+      createdById: "usr_len1",
+      createdByName: "Arjun Mehta",
+      createdAt: ago(daysAgo + 1),
+      submittedAt: ago(daysAgo),
+      lastUpdatedAt: ago(daysAgo),
+      draftSaved: true,
+      bucket: "IMGC",
+    });
+
+    account.claimStatus = toAccountClaimStatus(claimStatus);
+    account.stage = "Initiated";
+    account.submittedAt = ago(daysAgo);
+
+    initConfig.documents.forEach((spec, di) => {
+      if (spec.condition) return;
+      const docId = `${claimId}_doc${di}`;
+      const currentFileId = `${docId}_f1`;
+      documentFiles.push({
+        id: currentFileId,
+        documentId: docId,
+        accountId: account.id,
+        originalName: `${spec.name}.pdf`,
+        storedPath: "",
+        size: 200_000 + di * 7_000,
+        mime: "application/pdf",
+        uploadedBy: "usr_len1",
+        uploadedByName: "Arjun Mehta",
+        uploadedAt: ago(daysAgo),
+        version: 1,
+      });
+      claimDocuments.push({
+        id: docId,
+        accountId: account.id,
+        claimId,
+        slug: spec.slug,
+        name: spec.name,
+        category: spec.category,
+        description: spec.description,
+        required: spec.required,
+        multiple: spec.multiple ?? false,
+        conditional: false,
+        addedBy: "SYSTEM",
+        status: "UNDER_REVIEW",
+        version: 1,
+        currentFileId,
+        active: true,
+        createdAt: ago(daysAgo),
+      });
+    });
+
+    statusHistory.forEach((h, hi) => {
+      if (hi === 0) return;
+      auditEvents.push({
+        accountId: account.id,
+        at: h.at,
+        actorId: h.byId,
+        actorName: h.byName,
+        actorRole: h.byRole,
+        type: "CLAIM_STATUS_CHANGED",
+        summary: `Claim ${h.status.toLowerCase().replace(/_/g, " ")}`,
+        meta: { status: h.status },
+      });
+    });
+    auditEvents.push({
+      accountId: account.id,
+      at: ago(daysAgo - 1),
+      actorId: "usr_len1",
+      actorName: "Arjun Mehta",
+      actorRole: "LENDER",
+      type: "CLAIM_SUBMITTED",
+      summary: `Claim ${claimNo} submitted`,
+    });
+
+    accounts.push(account);
+  }
+
   const DASHBOARD_BALANCE_SPECS: ReadonlyArray<{
     outcome: "REJECTED" | "APPROVED";
     daysAgo: number;
@@ -1036,7 +1184,8 @@ export function buildSeed(): MockDb {
       const i =
         TOTAL_ACCOUNTS +
         EXTRA_INITIATE_ELIGIBLE +
-        EXTRA_QUERY_RAISED +
+        EXTRA_QUERIED +
+        EXTRA_INITIATED +
         lenderIndex * DASHBOARD_BALANCE_SPECS.length +
         e;
       const account = buildAccount(i, lender, [imgcId, imgcName]);
@@ -1232,7 +1381,8 @@ export function buildSeed(): MockDb {
     const i =
       TOTAL_ACCOUNTS +
       EXTRA_INITIATE_ELIGIBLE +
-      EXTRA_QUERY_RAISED +
+      EXTRA_QUERIED +
+        EXTRA_INITIATED +
       LENDER_DEFS.length * DASHBOARD_BALANCE_SPECS.length +
       e;
 

@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
-import { setClaimStatusAction } from "@/app/[locale]/(portal)/accounts/[accountId]/actions";
+import { setClaimStatusAction, startClaimReviewAction } from "@/app/[locale]/(portal)/accounts/[accountId]/actions";
 
 import { AuditTrailTab } from "@/app/[locale]/(portal)/accounts/[accountId]/AuditTrailTab";
 import { InitialClaimsTab } from "@/app/[locale]/(portal)/accounts/[accountId]/InitialClaimsTab";
@@ -220,7 +220,25 @@ function QueryTrailTab({
             }`}
           />
         </label>
-        {isApproved || refundReceived ? null : (
+        {claim?.status === "INITIATED" && (
+          <Button
+            size="sm"
+            onClick={() => {
+              startTransition(async () => {
+                const result = await startClaimReviewAction(account.id);
+                if (!result.ok) {
+                  toast.error(result.error ?? "The claim review could not be started.");
+                  return;
+                }
+                toast.success("Review started.");
+              });
+            }}
+            disabled={pending}
+          >
+            Submit for Review
+          </Button>
+        )}
+        {claim?.status === "UNDER_REVIEW" && !isApproved && !refundReceived && (
           <Button
             size="sm"
             variant="success"
@@ -230,14 +248,16 @@ function QueryTrailTab({
             Mark approved
           </Button>
         )}
-        <Button
-          size="sm"
-          variant="destructive"
-          onClick={() => decide("REJECTED")}
-          disabled={pending}
-        >
-          Reject
-        </Button>
+        {claim?.status === "UNDER_REVIEW" && (
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => decide("REJECTED")}
+            disabled={pending}
+          >
+            Reject
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"

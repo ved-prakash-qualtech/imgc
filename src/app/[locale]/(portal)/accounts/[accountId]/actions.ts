@@ -13,12 +13,13 @@ import {
   decideDocument,
   decideReinstate,
   raiseQueryForRejectedDocument,
-  reactivateDocument,
-  undoAcceptedDocument,
   requestReinstate,
   submitClaim,
   uploadDocument,
+  reactivateDocument,
+  undoAcceptedDocument,
 } from "@/services/portal/claims.server";
+import { startClaimReview } from "@/services/portal/claimFlow.server";
 import { addRemark } from "@/services/portal/remarks.server";
 import { pushToPas } from "@/services/portal/pas.server";
 import { setClaimStatus } from "@/services/portal/accounts.server";
@@ -175,6 +176,19 @@ export async function submitClaimAction(accountId: string): Promise<Result> {
     const session = await requireSession();
     const result = await submitClaim(session, accountId);
     if (result.ok) refresh(accountId);
+    return result;
+  });
+}
+
+export async function startClaimReviewAction(accountId: string): Promise<Result> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await startClaimReview(session, accountId);
+    if (result.ok) {
+      revalidatePath(ROUTES.initiateClaim);
+      revalidatePath(ROUTES.accounts);
+      revalidatePath(ROUTES.dashboard);
+    }
     return result;
   });
 }

@@ -36,14 +36,15 @@ function overviewHrefs(
   return {
     total:
       base === ROUTES.initiateClaim
-        ? href("NOT_STARTED,UNDER_REVIEW,QUERY_RAISED")
-        : href("NOT_STARTED,UNDER_REVIEW,DOCUMENTS_RESUBMITTED,QUERIED"),
+        ? href("NOT_STARTED,UNDER_REVIEW,QUERY_INITIATED,QUERY_UNDER_REVIEW,INITIATED")
+        : href("NOT_STARTED,UNDER_REVIEW,DOCUMENTS_RESUBMITTED,QUERY_INITIATED,QUERY_UNDER_REVIEW,INITIATED"),
     initiation: href("NOT_STARTED"),
     underReview: href("UNDER_REVIEW"),
     approved: href("APPROVED"),
     rejected: href("REJECTED"),
     draft: href("DRAFT"),
-    queryRaised: href("QUERY_RAISED"),
+    initiated: href("INITIATED"),
+    queried: href("QUERY_INITIATED,QUERY_UNDER_REVIEW"),
     refunded: href("REFUND_RECEIVED_BY_IMGC"),
   };
 }

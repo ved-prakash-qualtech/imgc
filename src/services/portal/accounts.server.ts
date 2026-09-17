@@ -37,6 +37,7 @@ export interface AccountRow extends Account {
   pendingDocs: number;
   loanStatus: string;
   isActive?: boolean;
+  realClaimStatus?: ClaimStatus;
 }
 
 /** The one place lender scoping is applied: a lender sees an account iff the org ids match. */
@@ -76,10 +77,13 @@ function classifyLoanStatus(
   switch (claim.status) {
     case "DRAFT":
       return "Underwriting";
+    case "INITIATED":
     case "SUBMITTED":
       return "Pre Offer";
     case "UNDER_REVIEW":
       return "Invoiced";
+    case "QUERY_INITIATED":
+    case "QUERY_UNDER_REVIEW":
     case "QUERY_RAISED":
     case "DOCUMENTS_RESUBMITTED":
       return "Queried";
@@ -135,6 +139,7 @@ function decorate(
     // account-side reader matches. Normalising here means the existing data reads correctly
     // without a migration; the write side no longer produces it.
     claimStatus: toAccountClaimStatus(account.claimStatus),
+    realClaimStatus: claim?.status,
     loanStatus: classifyLoanStatus(account, claim, queries),
     lenderOrgName: orgs.find((o) => o.id === account.lenderOrgId)?.name ?? "—",
     requiredDocs: own.filter((d) => d.required && d.active !== false).length,

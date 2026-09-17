@@ -87,10 +87,8 @@ export function ClaimOverviewBand({
   action?: React.ReactNode;
 }>) {
   const activeTiles = showDraftQueryKpis
-    ? // Ordered along the claim's own lifecycle (`statusFlow` in claimConfig): no claim yet →
-      // drafted → submitted → with IMGC → back with the lender on a query → decided.
-      ([
-        TILES[0]!, // To be initiated — no claim raised yet
+    ? ([
+        TILES[0]!,
         {
           key: "draft",
           label: "Draft",
@@ -99,13 +97,20 @@ export function ClaimOverviewBand({
         }, // started, not yet submitted
         TILES[1]!, // Under Review — with IMGC
         {
-          key: "queryRaised",
-          label: "Query Raised",
+          key: "initiated",
+          label: "Initiated",
+          icon: <CheckCircle2Icon className="size-4" />, // Or another suitable icon
+          tone: "blue",
+        },
+        {
+          key: "queried",
+          label: "Queried",
           icon: <ClipboardListIcon className="size-4" />,
           tone: "amber",
-        }, // back with the lender
-        TILES[2]!, // Approved
-        TILES[3]!, // Rejected
+        },
+        TILES[1]!,
+        TILES[2]!,
+        TILES[3]!,
       ] as const)
     : TILES;
 
@@ -123,9 +128,7 @@ export function ClaimOverviewBand({
             ? "xl:grid-cols-7"
             : activeTiles.length >= 6
               ? "xl:grid-cols-6"
-              : activeTiles.length === 5
-                ? "xl:grid-cols-5"
-                : "xl:grid-cols-4"
+              : "xl:grid-cols-4"
         )}
       >
         {activeTiles.map((tile) => {
@@ -138,6 +141,8 @@ export function ClaimOverviewBand({
             href &&
               "hover:-translate-y-1 hover:shadow-md hover:bg-neutral-50 cursor-pointer"
           );
+          const isQueried = tile.key === "queried";
+          
           const content = (
             <>
               <div className="flex items-center justify-between gap-1.5">
@@ -159,14 +164,28 @@ export function ClaimOverviewBand({
                   {tile.icon}
                 </span>
               </div>
-              <p
-                className={cn(
-                  "mt-0.5 truncate font-medium text-neutral-500",
-                  activeTiles.length >= 6 ? "text-[11px]" : "text-[12px]"
+              <div className="mt-auto pt-1">
+                <p
+                  className={cn(
+                    "truncate font-medium text-neutral-500",
+                    activeTiles.length >= 6 ? "text-xs" : "text-sm"
+                  )}
+                >
+                  {tile.label}
+                </p>
+                {isQueried && (
+                  <div className="mt-1 flex flex-col gap-0.5 text-[9px] font-medium text-neutral-500">
+                    <div className="flex justify-between">
+                      <span>Initiated:</span>
+                      <span>{counts.queryInitiated ?? 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Under Review:</span>
+                      <span>{counts.queryUnderReview ?? 0}</span>
+                    </div>
+                  </div>
                 )}
-              >
-                {tile.label}
-              </p>
+              </div>
             </>
           );
           return href ? (

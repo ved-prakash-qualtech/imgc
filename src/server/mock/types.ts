@@ -26,14 +26,17 @@ export type Bucket = "IMGC" | "LENDER";
  */
 export type ClaimStatus =
   | "DRAFT"
+  | "INITIATED"
+  | "QUERY_INITIATED"
   | "SUBMITTED"
   | "UNDER_REVIEW"
-  | "QUERY_RAISED"
-  | "DOCUMENTS_RESUBMITTED"
+  | "QUERY_UNDER_REVIEW"
+  | "QUERY_RAISED" // Legacy compatibility
+  | "DOCUMENTS_RESUBMITTED" // Legacy compatibility
   | "APPROVED"
   | "REJECTED"
-  | "CLOSED"
   | "REFUND_RECEIVED_BY_IMGC"
+  | "CLOSED"
   // Retained: `Account.claimStatus` predates the Claim entity and still uses it.
   | "QUERIED"
   | "ACTIVE";

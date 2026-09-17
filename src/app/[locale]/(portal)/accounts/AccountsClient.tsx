@@ -56,8 +56,10 @@ const BUCKETS = ["ALL", "IMGC", "LENDER"] as const;
 const STATUSES = [
   "NOT_STARTED",
   "DRAFT",
+  "INITIATED",
+  "QUERY_INITIATED",
   "UNDER_REVIEW",
-  "QUERY_RAISED",
+  "QUERY_UNDER_REVIEW",
   "APPROVED",
   "REJECTED",
 ] as const;
@@ -65,6 +67,7 @@ type StatusOption = (typeof STATUSES)[number];
 type StatusFilter = StatusOption | "UNDER_PROGRESS" | "ACTIVE_NPA";
 const URL_STATUS_VALUES = new Set<string>([
   ...STATUSES,
+  "QUERY_RAISED", // keep so old bookmarked URLs still parse safely
   "UNDER_PROGRESS",
   "ACTIVE_NPA",
 ]);
@@ -463,22 +466,19 @@ export function AccountsClient({
             status.includes("DRAFT") &&
             a.claimStatus === "DRAFT" &&
             a.claimHasProgress;
-          // The account side stores a query as `QUERIED` (`toAccountClaimStatus`), while the
-          // filter option — and the dashboard's Query Raised tile — use the claim's `QUERY_RAISED`.
-          const matchesQueryRaised =
-            status.includes("QUERY_RAISED") && a.claimStatus === "QUERIED";
           const matchesApproved =
             status.includes("APPROVED") &&
             (a.claimStatus === "APPROVED" ||
               a.claimStatus === "CLOSED" ||
               a.claimStatus === "REFUND_RECEIVED_BY_IMGC");
+          // Use `realClaimStatus` so QUERY_INITIATED / QUERY_UNDER_REVIEW (stored as QUERIED on the
+          // account side) match their specific filter options instead of always being invisible.
           const matchesClaimStatus =
             a.claimStatus !== "DRAFT" &&
-            (status as string[]).includes(a.claimStatus);
+            (status as string[]).includes(a.realClaimStatus || a.claimStatus);
           if (
             !matchesNotStarted &&
             !matchesDraft &&
-            !matchesQueryRaised &&
             !matchesApproved &&
             !matchesClaimStatus
           )
