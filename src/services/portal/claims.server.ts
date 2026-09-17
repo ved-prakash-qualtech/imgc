@@ -1,4 +1,4 @@
-import "server-only";
+  import "server-only";
 
 
 import { readDb, writeDb } from "@/server/mock/db";
@@ -297,7 +297,9 @@ export async function uploadDocument(
       file: upload.originalName,
       version: String(version),
       fileId,
-      remarks: meta.remarks?.trim() || undefined,
+      // Only when there is one: the audit meta holds strings, and an absent remark is an absent
+      // key rather than an empty one.
+      ...(meta.remarks?.trim() ? { remarks: meta.remarks.trim() } : {}),
     },
   });
 
