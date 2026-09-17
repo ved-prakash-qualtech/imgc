@@ -54,7 +54,7 @@ export function ClaimRowActions({
     <div
       role="group"
       aria-label="Claim actions"
-      className="flex items-center justify-end gap-1"
+      className="flex items-center gap-1"
     >
       {initiateActive && (
         <ActionPill

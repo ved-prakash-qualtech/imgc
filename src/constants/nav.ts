@@ -86,7 +86,7 @@ const ADMINISTRATION: NavItem = {
     },
     {
       key: "admin-doc-config",
-      label: "Lender Document Configuration",
+      label: "Document Configuration",
       href: ROUTES.adminDocumentConfig,
     },
   ],

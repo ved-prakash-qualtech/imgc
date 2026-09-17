@@ -99,7 +99,9 @@ function SidebarNavLink({
   return (
     <Link
       href={item.href ?? "#"}
-      title={collapsed ? item.label : undefined}
+      // Always set: a long label truncates in the expanded sidebar too, so the tooltip is the
+      // only way to read it in full.
+      title={item.label}
       aria-current={active ? "page" : undefined}
       className={cn(
         "relative flex items-center gap-2.5 rounded-full text-left text-[13.5px] font-medium transition-colors",

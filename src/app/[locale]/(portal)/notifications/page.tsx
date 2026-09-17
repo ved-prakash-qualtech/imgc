@@ -8,6 +8,7 @@ import {
   markNotificationsRead,
 } from "@/services/portal/notifications.server";
 import { ROUTES } from "@/constants/route";
+import type { Role } from "@/server/mock/types";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,20 @@ export const dynamic = "force-dynamic";
 function tabSlugForEvent(event: string): string {
   if (event.startsWith("DOC_") || event === "CLAIM_SUBMITTED") return "initial-claims";
   return "overview";
+}
+
+/**
+ * Where this notification's account actually opens, for the role reading it.
+ *
+ * Both roles are notified about the same account, but they have different screens for it: the
+ * account workspace is IMGC's and its nav key is not granted to a lender, so linking a lender
+ * there lands them on a 403 for a case that is plainly their own. The lender's equivalent is
+ * their claim workspace, which handles an account with no claim on its own.
+ */
+function accountHrefFor(role: Role, accountId: string, event: string): string {
+  return role === "LENDER"
+    ? ROUTES.initiateClaimWorkspace(accountId)
+    : `${ROUTES.account(accountId)}?tab=${tabSlugForEvent(event)}`;
 }
 
 export default async function NotificationsPage() {
@@ -79,7 +94,7 @@ export default async function NotificationsPage() {
                     <li key={n.id}>
                       {n.accountId ? (
                         <Link
-                          href={`${ROUTES.account(n.accountId)}?tab=${tabSlugForEvent(n.event)}`}
+                          href={accountHrefFor(session.role, n.accountId, n.event)}
                           className="flex gap-3 px-5 py-4 transition-colors hover:bg-neutral-50"
                         >
                           {body}

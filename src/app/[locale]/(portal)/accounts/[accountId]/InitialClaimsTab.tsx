@@ -213,10 +213,10 @@ export function InitialClaimsTab({
                 <div className="w-[160px] shrink-0">Document Type</div>
                 <div className="w-[110px] shrink-0">Status</div>
                 <div className="w-[220px] shrink-0">File Name</div>
-                <div className="w-[60px] shrink-0 text-center">Size</div>
-                <div className="w-[110px] shrink-0 text-center">Uploaded By</div>
-                <div className="w-[110px] shrink-0 text-center">Date/Time</div>
-                <div className="w-[150px] shrink-0 text-right">Actions</div>
+                <div className="w-[60px] shrink-0">Size</div>
+                <div className="w-[110px] shrink-0">Uploaded By</div>
+                <div className="w-[110px] shrink-0">Date/Time</div>
+                <div className="w-[150px] shrink-0">Actions</div>
               </div>
               {docs
                 .filter((d) => d.status !== "PENDING_UPLOAD" || d.addedBy === "IMGC")
@@ -694,7 +694,7 @@ function DocumentRowItem({
               proper query too, for a document rejected before that started happening
               automatically. A fresh rejection already has an open query, so this stays hidden. */}
           {role === "IMGC" && doc.status === "REJECTED" && (
-            <div className="flex flex-wrap justify-end gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 size="xs"
                 variant="outline"
@@ -920,7 +920,7 @@ function ImgcDocumentRowItem({
               <div className="w-[60px] shrink-0" />
               <div className="w-[110px] shrink-0" />
               <div className="w-[110px] shrink-0" />
-              <div className="flex w-[150px] shrink-0 flex-wrap justify-end gap-2">
+              <div className="flex w-[150px] shrink-0 flex-wrap gap-2">
                 {doc.addedBy === "IMGC" && (
                    <Button size="xs" variant="outline" onClick={() => onToggleActive(inactive)} disabled={working} className="h-7 px-2.5 text-[11px]">
                      {inactive ? <RotateCcwIcon className="mr-1 size-3" /> : <BanIcon className="mr-1 size-3" />}
@@ -940,11 +940,11 @@ function ImgcDocumentRowItem({
                   <button type="button" onClick={() => setPreviewingFileId(f.id)} className="w-full truncate text-left hover:text-brand-primary hover:underline">{f.originalName}</button>
                 )}
               </div>
-              <div className="w-[60px] shrink-0 text-center text-[11.5px] text-neutral-500">{bytes(f.size)}</div>
-              <div className="w-[110px] shrink-0 truncate text-center text-[11.5px] text-neutral-500" title={f.uploadedByName}>{f.uploadedByName}</div>
-              <div className="w-[110px] shrink-0 text-center text-[11.5px] text-neutral-500">{when(f.uploadedAt)}</div>
+              <div className="w-[60px] shrink-0 text-[11.5px] text-neutral-500">{bytes(f.size)}</div>
+              <div className="w-[110px] shrink-0 truncate text-[11.5px] text-neutral-500" title={f.uploadedByName}>{f.uploadedByName}</div>
+              <div className="w-[110px] shrink-0 text-[11.5px] text-neutral-500">{when(f.uploadedAt)}</div>
               
-              <div className="flex w-[150px] shrink-0 flex-wrap justify-end gap-1.5">
+              <div className="flex w-[150px] shrink-0 flex-wrap gap-1.5">
                 {f.storedPath ? (
                   <>
                     <a

@@ -184,7 +184,7 @@ export function AuditTrailClient({
             <SortableTableHead column="account" label="Account" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} className="w-[150px]" />
             <SortableTableHead column="activity" label="Activity" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
             <SortableTableHead column="user" label="User" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} className="w-[150px]" />
-            <TableHead className="w-[100px] text-right">Action</TableHead>
+            <TableHead className="w-[100px]">Action</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -249,7 +249,7 @@ export function AuditTrailClient({
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="w-[100px] text-right">
+                  <TableCell className="w-[100px]">
                     <Link
                       href={ROUTES.initiateClaimWorkspace(e.accountId)}
                       className="inline-flex h-8 items-center justify-center rounded-md border border-neutral-200 bg-white px-3 text-[12px] font-medium text-neutral-900 transition-colors hover:border-neutral-400 hover:bg-neutral-50"

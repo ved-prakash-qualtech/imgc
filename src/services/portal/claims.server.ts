@@ -14,6 +14,8 @@ import {
   notifyClaimSubmitted,
   notifyDocumentDecision,
   notifyDocumentUploaded,
+  notifyReinstateDecision,
+  notifyReinstateRequested,
   notifyRequirementAdded,
 } from "@/services/portal/notifications.server";
 import type { AppSession } from "@/lib/auth/appSession";
@@ -724,6 +726,12 @@ export async function requestReinstate(
     summary: `Reinstatement requested for rejected document "${outcome.name}"`,
     meta: { document: outcome.name },
   });
+
+  const db = await readDb();
+  const account = db.accounts.find((a) => a.id === accountId);
+  if (account) {
+    await notifyReinstateRequested(account, outcome.name, note.trim(), session);
+  }
   return { ok: true };
 }
 
@@ -763,6 +771,18 @@ export async function decideReinstate(
     summary: `Reinstatement ${approve ? "approved" : "denied"} for "${outcome.name}"${note.trim() ? ` — ${note.trim()}` : ""}`,
     meta: { document: outcome.name, decision: approve ? "APPROVED" : "DENIED" },
   });
+
+  const db = await readDb();
+  const account = db.accounts.find((a) => a.id === accountId);
+  if (account) {
+    await notifyReinstateDecision(
+      account,
+      outcome.name,
+      approve,
+      note.trim(),
+      session
+    );
+  }
   return { ok: true };
 }
 

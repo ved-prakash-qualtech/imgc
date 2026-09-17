@@ -94,7 +94,8 @@ export function ClaimOverviewBand({
           label: "Draft",
           icon: <FilePlus2Icon className="size-4" />,
           tone: "blue",
-        },
+        }, // started, not yet submitted
+        TILES[1]!, // Under Review — with IMGC
         {
           key: "initiated",
           label: "Initiated",

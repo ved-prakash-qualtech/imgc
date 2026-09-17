@@ -21,7 +21,13 @@ export interface RejectedDocRow extends ClaimDocument {
   held: boolean;
 }
 
-/** Rejected documents still inside the retention window, newest rejection first. */
+/**
+ * Rejected documents still inside the retention window, newest rejection first.
+ *
+ * Claim documents only. A document IMGC raised against the account itself carries no `claimId`,
+ * is on no claim's checklist, and has no screen that can open it — listing it here gave a row
+ * nobody could act on. Retention is reviewed against the claim it belongs to.
+ */
 export async function listRejectedDocuments(
   session: AppSession
 ): Promise<RejectedDocRow[]> {
@@ -33,7 +39,10 @@ export async function listRejectedDocuments(
 
   return db.claimDocuments
     .filter((d): d is ClaimDocument & { rejection: Rejection } =>
-      Boolean(d.rejection) && d.status === "REJECTED" && byId.has(d.accountId)
+      Boolean(d.rejection) &&
+      d.status === "REJECTED" &&
+      Boolean(d.claimId) &&
+      byId.has(d.accountId)
     )
     .map((d) => {
       const account = byId.get(d.accountId)!;

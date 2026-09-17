@@ -520,6 +520,37 @@ function when(iso: string): string {
  * document with nothing uploaded yet), matching the table the IMGC review screen already uses.
  * Used by the Initiate Claim workspace in place of the accordion.
  */
+/** The columns the claim-document table can be sorted by. */
+type DocSortField =
+  | "name"
+  | "status"
+  | "fileName"
+  | "size"
+  | "uploadedBy"
+  | "dateTime";
+
+/** Defined outside the table so it is one component, not a new one on every render. */
+function SortIcon({
+  field,
+  sortField,
+  sortDirection,
+}: Readonly<{
+  field: DocSortField;
+  sortField: DocSortField;
+  sortDirection: "asc" | "desc";
+}>) {
+  if (sortField !== field) {
+    return (
+      <ArrowUpDownIcon className="ml-1 inline-block size-3 text-neutral-300" />
+    );
+  }
+  return sortDirection === "asc" ? (
+    <ChevronUpIcon className="ml-1 inline-block size-3" />
+  ) : (
+    <ChevronDownIcon className="ml-1 inline-block size-3" />
+  );
+}
+
 function DocumentsTable({
   docs,
   indexed = false,
@@ -541,7 +572,7 @@ function DocumentsTable({
   /** A delete is running — every delete button stays disabled until it settles. */
   deleting: boolean;
 }>) {
-  const [sortField, setSortField] = useState<"name" | "status" | "fileName" | "size" | "dateTime">("name");
+  const [sortField, setSortField] = useState<DocSortField>("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const sortedDocs = useMemo(() => {
@@ -554,6 +585,7 @@ function DocumentsTable({
         case "status": cmp = a.status.localeCompare(b.status); break;
         case "fileName": cmp = (aFile?.originalName || "").localeCompare(bFile?.originalName || ""); break;
         case "size": cmp = (aFile?.size || 0) - (bFile?.size || 0); break;
+        case "uploadedBy": cmp = (aFile?.uploadedByName || "").localeCompare(bFile?.uploadedByName || ""); break;
         case "dateTime": cmp = (aFile?.uploadedAt || "").localeCompare(bFile?.uploadedAt || ""); break;
       }
       return sortDirection === "asc" ? cmp : -cmp;
@@ -569,34 +601,36 @@ function DocumentsTable({
     }
   }, [sortField]);
 
-  const SortIcon = ({ field }: { field: typeof sortField }) => {
-    if (sortField !== field) {
-      return <ArrowUpDownIcon className="ml-1 inline-block size-3 text-neutral-300" />;
-    }
-    return sortDirection === "asc" ? <ChevronUpIcon className="ml-1 inline-block size-3" /> : <ChevronDownIcon className="ml-1 inline-block size-3" />;
-  };
+  const sortable = (field: DocSortField, label: string) => (
+    <th className="px-4 py-2.5">
+      <button
+        type="button"
+        // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+        onClick={() => handleSort(field)}
+        className="flex select-none items-center hover:text-neutral-700"
+      >
+        {label}
+        <SortIcon
+          field={field}
+          sortField={sortField}
+          sortDirection={sortDirection}
+        />
+      </button>
+    </th>
+  );
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[760px] text-left text-[12.5px]">
+      <table className="w-full min-w-[860px] text-left text-[12.5px]">
         <thead className="bg-neutral-50 text-[11px] font-medium text-neutral-500">
           <tr>
-            <th className="px-4 py-2.5">
-              <div className="flex items-center cursor-pointer select-none hover:text-neutral-700" onClick={() => handleSort("name")}>Document Type<SortIcon field="name" /></div>
-            </th>
-            <th className="px-4 py-2.5">
-              <div className="flex items-center cursor-pointer select-none hover:text-neutral-700" onClick={() => handleSort("status")}>Status<SortIcon field="status" /></div>
-            </th>
-            <th className="px-4 py-2.5">
-              <div className="flex items-center cursor-pointer select-none hover:text-neutral-700" onClick={() => handleSort("fileName")}>File Name<SortIcon field="fileName" /></div>
-            </th>
-            <th className="px-4 py-2.5">
-              <div className="flex items-center cursor-pointer select-none hover:text-neutral-700" onClick={() => handleSort("size")}>Size<SortIcon field="size" /></div>
-            </th>
-            <th className="px-4 py-2.5">
-              <div className="flex items-center cursor-pointer select-none hover:text-neutral-700" onClick={() => handleSort("dateTime")}>Date/Time<SortIcon field="dateTime" /></div>
-            </th>
-            <th className="px-4 py-2.5 text-right">Actions</th>
+            {sortable("name", "Document Type")}
+            {sortable("status", "Status")}
+            {sortable("fileName", "File Name")}
+            {sortable("size", "Size")}
+            {sortable("uploadedBy", "Uploaded By")}
+            {sortable("dateTime", "Date/Time")}
+            <th className="px-4 py-2.5">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">
@@ -665,8 +699,8 @@ function DocTableRows({
   );
 
   const actionsCell = (extra?: ReactNode) => (
-    <td className="px-4 py-3 text-right align-top">
-      <div className="flex flex-wrap justify-end gap-1.5">
+    <td className="px-4 py-3 align-top">
+      <div className="flex flex-wrap gap-1.5">
         {extra}
         {canAddMore && (
           <Button
@@ -690,7 +724,7 @@ function DocTableRows({
       <tr>
         {nameCell}
         {statusCell}
-        <td className="px-4 py-3 text-neutral-400" colSpan={3}>
+        <td className="px-4 py-3 text-neutral-400" colSpan={4}>
           Nothing uploaded yet.
         </td>
         {actionsCell()}
@@ -739,6 +773,9 @@ function DocTableRows({
               {bytes(f.size)}
             </td>
             <td className="px-4 py-3 align-top text-neutral-500">
+              {f.uploadedByName || "—"}
+            </td>
+            <td className="px-4 py-3 align-top text-neutral-500">
               {when(f.uploadedAt)}
             </td>
             {i === 0
@@ -782,8 +819,8 @@ function DocTableRows({
                 )
               : (() => {
                   const cell = (
-                    <td className="px-4 py-3 text-right align-top">
-                      <div className="flex flex-wrap justify-end gap-1.5">
+                    <td className="px-4 py-3 align-top">
+                      <div className="flex flex-wrap gap-1.5">
                         {needsFix && !locked && (
                           <Button
                             size="xs"

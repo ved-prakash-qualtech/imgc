@@ -220,10 +220,17 @@ function FilterSelect({
 export function AdditionalDocumentsClient({
   rows,
   cases,
-}: Readonly<{ rows: RequirementRow[]; cases: CaseOption[] }>) {
+  initialQuery = "",
+}: Readonly<{
+  rows: RequirementRow[];
+  cases: CaseOption[];
+  /** Seeds the search box, so another screen can link straight to one case's documents
+   *  (`?q=<loan no>`) instead of dropping the reader into the unfiltered list. */
+  initialQuery?: string;
+}>) {
   const [pending, startTransition] = useTransition();
 
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [caseId, setCaseId] = useState("");
   const [lender, setLender] = useState("");
   const [product, setProduct] = useState("");
@@ -517,7 +524,7 @@ export function AdditionalDocumentsClient({
                 <SortableTableHead column="lenderName" label="Lender" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                 <SortableTableHead column="addedByName" label="Added by" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                 <SortableTableHead column="addedOn" label="Added on" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <TableHead className="h-8 px-1.5 text-right text-[10.5px]">Action</TableHead>
+                <TableHead className="h-8 px-1.5 text-[10.5px]">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -589,7 +596,7 @@ export function AdditionalDocumentsClient({
                       {shortDate(r.addedOn)}
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5">
-                      <div className="flex justify-end gap-1">
+                      <div className="flex gap-1">
                         <Button
                           size="xs"
                           variant="outline"
