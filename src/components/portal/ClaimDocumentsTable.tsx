@@ -76,6 +76,28 @@ function when(iso: string): string {
 
 type SortField = "name" | "status" | "fileName" | "size" | "dateTime";
 
+/** Defined here rather than inside the table so it is one component, not a new one per render. */
+function HeaderSortIcon({
+  field,
+  sortField,
+  sortDirection,
+}: Readonly<{
+  field: SortField;
+  sortField: SortField;
+  sortDirection: "asc" | "desc";
+}>) {
+  if (sortField !== field) {
+    return (
+      <ArrowUpDownIcon className="ml-1 inline-block size-3 text-neutral-300" />
+    );
+  }
+  return sortDirection === "asc" ? (
+    <ChevronUpIcon className="ml-1 inline-block size-3" />
+  ) : (
+    <ChevronDownIcon className="ml-1 inline-block size-3" />
+  );
+}
+
 function TableLayout({
   children,
   sortField,
@@ -87,22 +109,35 @@ function TableLayout({
   sortDirection: "asc" | "desc";
   onSort: (field: SortField) => void;
 }) {
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <ArrowUpDownIcon className="ml-1 inline-block size-3 text-neutral-300" />;
-    return sortDirection === "asc" ? <ChevronUpIcon className="ml-1 inline-block size-3" /> : <ChevronDownIcon className="ml-1 inline-block size-3" />;
-  };
+  const head = (field: SortField, label: string) => (
+    <TableHead className="h-9 bg-neutral-50 px-3 text-[11px] uppercase tracking-wider text-neutral-500">
+      <button
+        type="button"
+        // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+        onClick={() => onSort(field)}
+        className="flex select-none items-center uppercase hover:text-neutral-700"
+      >
+        {label}
+        <HeaderSortIcon
+          field={field}
+          sortField={sortField}
+          sortDirection={sortDirection}
+        />
+      </button>
+    </TableHead>
+  );
 
   return (
     <div className="custom-scrollbar overflow-x-auto w-full max-h-[500px] overflow-y-auto">
       <Table>
         <TableHeader className="sticky top-0 bg-white shadow-sm z-10">
           <TableRow>
-            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50 cursor-pointer select-none hover:text-neutral-700" onClick={() => onSort("name")}>Document Type<SortIcon field="name" /></TableHead>
-            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50 cursor-pointer select-none hover:text-neutral-700" onClick={() => onSort("status")}>Status<SortIcon field="status" /></TableHead>
-            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50 cursor-pointer select-none hover:text-neutral-700" onClick={() => onSort("fileName")}>File Name<SortIcon field="fileName" /></TableHead>
-            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50 cursor-pointer select-none hover:text-neutral-700" onClick={() => onSort("size")}>Size<SortIcon field="size" /></TableHead>
-            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50 cursor-pointer select-none hover:text-neutral-700" onClick={() => onSort("dateTime")}>Date/Time<SortIcon field="dateTime" /></TableHead>
-            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50 text-right">Actions</TableHead>
+            {head("name", "Document Type")}
+            {head("status", "Status")}
+            {head("fileName", "File Name")}
+            {head("size", "Size")}
+            {head("dateTime", "Date/Time")}
+            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -256,7 +291,7 @@ export function ClaimDocumentsTable({
             <TableCell className="py-3 text-[12px] text-neutral-400 align-top">Nothing uploaded yet.</TableCell>
             <TableCell className="py-3 text-[12px] text-neutral-400 align-top">—</TableCell>
             <TableCell className="py-3 text-[12px] text-neutral-400 align-top">—</TableCell>
-            <TableCell className="py-3 text-right align-top">{mainAction}</TableCell>
+            <TableCell className="py-3 align-top">{mainAction}</TableCell>
           </TableRow>
         ];
       }
@@ -295,7 +330,7 @@ export function ClaimDocumentsTable({
               {when(file.uploadedAt)}
             </TableCell>
             <TableCell className="py-3 align-middle">
-              <div className="flex items-center justify-end gap-1.5">
+              <div className="flex items-center gap-1.5">
                 {!locked && (
                   <Button
                     variant="ghost"

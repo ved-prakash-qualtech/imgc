@@ -182,3 +182,54 @@ export async function notifyClaimDecision(
     accountId: account.id,
   });
 }
+
+/**
+ * A reinstatement decision is IMGC's answer to something the lender asked for, and the retention
+ * clock only stops while it is pending — so the lender has to hear the outcome either way. An
+ * approval puts the document back in play; a denial leaves it on its 90-day countdown.
+ */
+export async function notifyReinstateDecision(
+  account: Account,
+  documentName: string,
+  approved: boolean,
+  note: string,
+  actor: AppSession
+): Promise<void> {
+  const verdict = approved ? "approved" : "denied";
+  await sendMail({
+    to: await recipientsFor(account),
+    subject: `[${account.loanNo}] reinstatement ${verdict} for ${documentName}`,
+    body:
+      `${actor.name} ${verdict} the reinstatement request for ${documentName} on ` +
+      `${account.loanNo} (${account.borrowerName}).` +
+      (note ? ` Remarks: ${note}` : "") +
+      (approved
+        ? " The document is back under review — no re-upload is needed."
+        : " The document stays rejected and will be purged at the end of its retention period."),
+    event: "REINSTATE_DECIDED",
+    accountId: account.id,
+    // The outcome is the lender's cue to act, so it lands unread on their side.
+    unreadFor: ["LENDER"],
+  });
+}
+
+/** The lender is asking for a rejected document back — IMGC is the side that now has to decide. */
+export async function notifyReinstateRequested(
+  account: Account,
+  documentName: string,
+  note: string,
+  actor: AppSession
+): Promise<void> {
+  await sendMail({
+    to: await recipientsFor(account),
+    subject: `[${account.loanNo}] reinstatement requested for ${documentName}`,
+    body:
+      `${actor.name} requested reinstatement of the rejected document ${documentName} on ` +
+      `${account.loanNo} (${account.borrowerName}).` +
+      (note ? ` Reason: ${note}` : "") +
+      " Retention is on hold until IMGC approves or denies the request.",
+    event: "REINSTATE_REQUESTED",
+    accountId: account.id,
+    unreadFor: ["IMGC"],
+  });
+}

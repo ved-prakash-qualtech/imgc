@@ -35,7 +35,7 @@ export default async function DocumentConfigPage({
     : [];
 
   return (
-    <PortalShell activeKey="admin-doc-config" title="Lender Document Configuration">
+    <PortalShell activeKey="admin-doc-config" title="Document Configuration">
       <DocumentConfigClient
         key={selectedLenderId}
         lenders={lenders}

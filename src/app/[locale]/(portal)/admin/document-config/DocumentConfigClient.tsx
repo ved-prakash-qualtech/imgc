@@ -159,7 +159,7 @@ export function DocumentConfigClient({
                   Mandatory / Optional
                 </TableHead>
                 <TableHead className="h-9 px-3.5 text-[11px]">Status</TableHead>
-                <TableHead className="h-9 px-3.5 text-right text-[11px]">
+                <TableHead className="h-9 px-3.5 text-[11px]">
                   Action
                 </TableHead>
               </TableRow>
@@ -214,7 +214,7 @@ export function DocumentConfigClient({
                         Active
                       </span>
                     </TableCell>
-                    <TableCell className="px-3.5 py-1.5 text-right">
+                    <TableCell className="px-3.5 py-1.5">
                       <Button
                         type="button"
                         size="sm"

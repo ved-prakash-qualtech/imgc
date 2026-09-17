@@ -18,8 +18,13 @@ import {
 export const dynamic = "force-dynamic";
 
 /** IMGC only — `PortalShell` refuses it for a lender, whose nav has no `additional-documents`. */
-export default async function AdditionalDocumentsPage() {
+export default async function AdditionalDocumentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const session = await requireSession();
+  const { q } = await searchParams;
   const [rows, cases] = await Promise.all([
     listRequirements(session),
     listCaseOptions(session),
@@ -66,7 +71,11 @@ export default async function AdditionalDocumentsPage() {
           ]}
         />
 
-        <AdditionalDocumentsClient rows={rows} cases={cases} />
+        <AdditionalDocumentsClient
+          rows={rows}
+          cases={cases}
+          initialQuery={q ?? ""}
+        />
       </div>
     </PortalShell>
   );

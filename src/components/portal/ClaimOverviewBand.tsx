@@ -87,23 +87,25 @@ export function ClaimOverviewBand({
   action?: React.ReactNode;
 }>) {
   const activeTiles = showDraftQueryKpis
-    ? ([
-        TILES[0]!,
-        TILES[1]!,
+    ? // Ordered along the claim's own lifecycle (`statusFlow` in claimConfig): no claim yet →
+      // drafted → submitted → with IMGC → back with the lender on a query → decided.
+      ([
+        TILES[0]!, // To be initiated — no claim raised yet
         {
           key: "draft",
           label: "Draft",
           icon: <FilePlus2Icon className="size-4" />,
           tone: "blue",
-        },
+        }, // started, not yet submitted
+        TILES[1]!, // Under Review — with IMGC
         {
           key: "queryRaised",
           label: "Query Raised",
           icon: <ClipboardListIcon className="size-4" />,
           tone: "amber",
-        },
-        TILES[2]!,
-        TILES[3]!,
+        }, // back with the lender
+        TILES[2]!, // Approved
+        TILES[3]!, // Rejected
       ] as const)
     : TILES;
 
@@ -117,7 +119,13 @@ export function ClaimOverviewBand({
       <div
         className={cn(
           "grid grid-cols-2 gap-2 sm:grid-cols-3",
-          activeTiles.length >= 6 ? "xl:grid-cols-6" : "xl:grid-cols-4"
+          activeTiles.length >= 7
+            ? "xl:grid-cols-7"
+            : activeTiles.length >= 6
+              ? "xl:grid-cols-6"
+              : activeTiles.length === 5
+                ? "xl:grid-cols-5"
+                : "xl:grid-cols-4"
         )}
       >
         {activeTiles.map((tile) => {

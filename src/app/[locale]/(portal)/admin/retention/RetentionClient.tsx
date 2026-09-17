@@ -113,8 +113,7 @@ function downloadCsv(rows: RejectedDocRow[]): void {
 
 export function RetentionClient({
   rows,
-  retentionDays,
-}: Readonly<{ rows: RejectedDocRow[]; retentionDays: number }>) {
+}: Readonly<{ rows: RejectedDocRow[] }>) {
   const [pending, startTransition] = useTransition();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -272,7 +271,6 @@ export function RetentionClient({
   return (
     <Panel
       title={`${filtered.length} rejected document${filtered.length === 1 ? "" : "s"}`}
-      description={`Rejected documents are kept for ${retentionDays} days, then purged — unless a reinstatement is requested, which holds them.`}
       actions={
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleExport}>
@@ -349,7 +347,7 @@ export function RetentionClient({
                   <SortableTableHead column="lender" label="Lender" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                   <SortableTableHead column="reason" label="Reason" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                   <SortableTableHead column="retention" label="Retention" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                  <TableHead className="h-8 px-1.5 text-right text-[10.5px]">Reinstatement</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px]">Reinstatement</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -366,8 +364,11 @@ export function RetentionClient({
                         {row.name}
                       </TableCell>
                       <TableCell className="px-1.5 py-1.5">
+                        {/* Every row here belongs to a claim (`listRejectedDocuments` lists no
+                            other kind), so the account's Query/Decision tab can always show the
+                            document this row is about. */}
                         <Link
-                          href={ROUTES.account(row.accountId)}
+                          href={`${ROUTES.account(row.accountId)}?tab=query-trail`}
                           className="inline-flex items-center rounded-full bg-info/12 px-1.5 py-0.5 text-[10.5px] font-semibold whitespace-nowrap text-info hover:underline"
                         >
                           {row.accountLoanNo}
@@ -406,9 +407,9 @@ export function RetentionClient({
                           </span>
                         )}
                       </TableCell>
-                      <TableCell className="px-1.5 py-1.5 text-right">
+                      <TableCell className="px-1.5 py-1.5">
                         {row.rejection.reinstate?.status === "REQUESTED" ? (
-                          <span className="flex justify-end gap-2">
+                          <span className="flex gap-2">
                             <Button
                               size="xs"
                               variant="success"

@@ -200,7 +200,7 @@ export default async function ClaimDetailsPage({
                     <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
                       Status
                     </TableHead>
-                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10 text-right">
+                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
                       Actions
                     </TableHead>
                   </TableRow>
@@ -228,7 +228,7 @@ export default async function ClaimDetailsPage({
                           className="px-1.5 py-0.5 text-[10.5px]"
                         />
                       </TableCell>
-                      <TableCell className="px-1.5 py-1.5 text-right">
+                      <TableCell className="px-1.5 py-1.5">
                         {d.file || d.files?.[0] ? (
                           <a
                             href={`/api/portal/files/${(d.file || (d.files && d.files[0]))?.id}`}
@@ -377,7 +377,7 @@ export default async function ClaimDetailsPage({
                     <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
                       Status
                     </TableHead>
-                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10 text-right">
+                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
                       Actions
                     </TableHead>
                   </TableRow>
@@ -405,7 +405,7 @@ export default async function ClaimDetailsPage({
                           className="px-1.5 py-0.5 text-[10.5px]"
                         />
                       </TableCell>
-                      <TableCell className="px-1.5 py-1.5 text-right">
+                      <TableCell className="px-1.5 py-1.5">
                         {d.file || d.files?.[0] ? (
                           <a
                             href={`/api/portal/files/${(d.file || (d.files && d.files[0]))?.id}`}

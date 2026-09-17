@@ -227,7 +227,7 @@ function OrgRow({
           {userCount}
         </span>
       </TableCell>
-      <TableCell className="px-1.5 py-0.5 text-right">
+      <TableCell className="px-1.5 py-0.5">
         <Button variant="outline" size="xs" onClick={handleEdit}>
           <PencilIcon /> Edit
         </Button>
@@ -1160,7 +1160,7 @@ export function UsersClient({
                   sortDirection={orgSortDirection}
                   onToggle={toggleOrgSort}
                 />
-                <TableHead className="h-8 px-1.5 text-right text-[10.5px]">Actions</TableHead>
+                <TableHead className="h-8 px-1.5 text-left text-[10.5px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

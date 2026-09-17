@@ -2,7 +2,6 @@ import { RetentionClient } from "@/app/[locale]/(portal)/admin/retention/Retenti
 import { PortalShell } from "@/components/portal/PortalShell";
 import { requireSession } from "@/lib/auth/appSession";
 import {
-  RETENTION_DAYS,
   listRejectedDocuments,
   sweepExpiredRejections,
 } from "@/services/portal/retention.server";
@@ -18,7 +17,7 @@ export default async function RetentionPage() {
   return (
     <PortalShell activeKey="admin-retention" title="Document Retention">
       <div className="space-y-4">
-        <RetentionClient rows={rows} retentionDays={RETENTION_DAYS} />
+        <RetentionClient rows={rows} />
       </div>
     </PortalShell>
   );

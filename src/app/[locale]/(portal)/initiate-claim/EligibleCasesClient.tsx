@@ -735,7 +735,7 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <TableHead className="h-8 px-1 text-right text-[10.5px]">
+              <TableHead className="h-8 px-1 text-[10.5px]">
                 Actions
               </TableHead>
             </TableRow>
@@ -797,7 +797,7 @@ export function EligibleCasesClient({
                   <TableCell className="px-1 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
                     {dateOrDash(a.submittedAt)}
                   </TableCell>
-                  <TableCell className="px-1 py-1.5 text-right">
+                  <TableCell className="px-1 py-1.5">
                     <ClaimRowActions
                       accountId={a.id}
                       claimId={a.claim?.id}

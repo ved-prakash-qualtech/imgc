@@ -29,6 +29,8 @@ function refresh(accountId: string): void {
   revalidatePath(ROUTES.account(accountId));
   revalidatePath(ROUTES.accounts);
   revalidatePath(ROUTES.dashboard);
+  // Most of these actions also send mail; the unread badge reads from the same store.
+  revalidatePath(ROUTES.notifications);
 }
 
 /* ── documents ─────────────────────────────────────────────────────── */
@@ -185,7 +187,11 @@ export async function requestReinstateAction(
   return runAction(async () => {
     const session = await requireSession();
     const result = await requestReinstate(session, accountId, documentId, note);
-    if (result.ok) refresh(accountId);
+    if (result.ok) {
+      refresh(accountId);
+      // The request is what puts the document on IMGC's retention queue.
+      revalidatePath(ROUTES.adminRetention);
+    }
     return result;
   });
 }

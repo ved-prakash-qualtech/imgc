@@ -38,6 +38,8 @@ export async function decideReinstateAction(
     if (result.ok) {
       revalidatePath(ROUTES.adminRetention);
       revalidatePath(ROUTES.account(accountId));
+      // The lender is told by mail; the badge has to follow.
+      revalidatePath(ROUTES.notifications);
     }
     return result;
   });

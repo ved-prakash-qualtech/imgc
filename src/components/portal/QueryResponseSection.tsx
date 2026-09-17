@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { submitClaimAction } from "@/app/[locale]/(portal)/initiate-claim/actions";
 import { Panel } from "@/components/portal/Panel";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils/twMergeUtils";
 import type { RequirementRow } from "@/services/portal/requirements.server";
 import type { ClaimQuery, ClaimStatus, Remark } from "@/server/mock/types";
 
@@ -131,6 +132,10 @@ export function QueryResponseSection({
     );
   }
 
+  /** The requested documents are named, not referenced by id, so match them back to the claim's
+   *  own rows to show what state each one is actually in. */
+  const docByName = new Map(documents.map((doc) => [doc.name, doc]));
+
   return (
     <Panel
       title={title}
@@ -228,14 +233,34 @@ export function QueryResponseSection({
                         to themselves. */}
                       {q.requestedDocuments.length > 0 && (
                         <ul className="flex shrink-0 flex-wrap justify-end gap-1.5">
-                          {q.requestedDocuments.map((name) => (
-                            <li
-                              key={name}
-                              className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-medium text-neutral-800 ring-1 ring-neutral-200"
-                            >
-                              {name}
-                            </li>
-                          ))}
+                          {q.requestedDocuments.map((name) => {
+                            const doc = docByName.get(name);
+                            const rejected = doc?.status === "REJECTED";
+                            return (
+                              <li
+                                key={name}
+                                title={
+                                  rejected
+                                    ? (doc?.review?.remarks ??
+                                      "Rejected by IMGC.")
+                                    : undefined
+                                }
+                                className={cn(
+                                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1",
+                                  rejected
+                                    ? "bg-destructive/5 text-neutral-800 ring-destructive/30"
+                                    : "bg-white text-neutral-800 ring-neutral-200"
+                                )}
+                              >
+                                {name}
+                                {rejected && (
+                                  <span className="rounded-full bg-destructive/12 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
+                                    Rejected
+                                  </span>
+                                )}
+                              </li>
+                            );
+                          })}
                         </ul>
                       )}
                     </div>
