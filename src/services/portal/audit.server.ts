@@ -41,7 +41,29 @@ export async function listAuditForAccount(
   accountId: string
 ): Promise<AuditEvent[]> {
   const log = await readAuditLog();
-  return log.filter((e) => e.accountId === accountId);
+  const events = log.filter((e) => e.accountId === accountId);
+
+  // Backfill remarks for existing DOC_UPLOADED events that don't have them
+  const db = await readDb();
+  const files = db.documentFiles.filter((f) => f.accountId === accountId && f.uploadRemarks);
+  
+  if (files.length > 0) {
+    const fileRemarks = new Map(files.map((f) => [f.id, f.uploadRemarks]));
+    return events.map((e) => {
+      if (e.type === "DOC_UPLOADED" && e.meta?.fileId && !e.meta.remarks) {
+        const remark = fileRemarks.get(e.meta.fileId);
+        if (remark) {
+          return {
+            ...e,
+            meta: { ...e.meta, remarks: remark },
+          };
+        }
+      }
+      return e;
+    });
+  }
+
+  return events;
 }
 
 export async function listRecentAudit(

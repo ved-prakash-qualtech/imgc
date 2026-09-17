@@ -45,10 +45,15 @@ export function AuditTrailTab({ events }: Readonly<{ events: AuditEvent[] }>) {
   const [group, setGroup] = useState(0);
 
   const rows = useMemo(() => {
-    const types = GROUPS[group]?.types;
-    if (!types) return events;
-    const set = new Set(types);
-    return events.filter((e) => set.has(e.type));
+    const g = GROUPS[group];
+    if (!g?.types) return events;
+    const set = new Set(g.types);
+    return events.filter((e) => {
+      if (set.has(e.type)) return true;
+      // Include document uploads that have remarks in the Remarks tab
+      if (g.label === "Remarks" && e.type === "DOC_UPLOADED" && e.meta?.remarks) return true;
+      return false;
+    });
   }, [events, group]);
 
   return (
@@ -137,6 +142,15 @@ export function AuditTrailTab({ events }: Readonly<{ events: AuditEvent[] }>) {
                     </a>
                   )}
                 </div>
+                {e.meta?.remarks && (
+                  <div className="mt-2 rounded-md border border-neutral-100 bg-neutral-50 px-3 py-2 text-[12.5px] text-neutral-700">
+                    <span className="font-semibold text-neutral-900 block mb-0.5">
+                      Document Name: {e.meta.document}
+                    </span>
+                    <span className="font-semibold text-neutral-900">Remarks: </span>
+                    {e.meta.remarks}
+                  </div>
+                )}
               </div>
             </li>
           ))}
