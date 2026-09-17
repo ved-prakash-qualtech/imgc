@@ -297,6 +297,7 @@ export async function uploadDocument(
       file: upload.originalName,
       version: String(version),
       fileId,
+      remarks: meta.remarks?.trim() || undefined,
     },
   });
 
