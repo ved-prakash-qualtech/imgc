@@ -1,3 +1,4 @@
+/* eslint-disable react-perf/jsx-no-jsx-as-prop, react-perf/jsx-no-new-array-as-prop */
 import { notFound } from "next/navigation";
 
 import { AccountWorkspace } from "@/app/[locale]/(portal)/accounts/[accountId]/AccountWorkspace";
@@ -13,9 +14,7 @@ import {
   getClaimForAccount,
   listQueries,
 } from "@/services/portal/claimFlow.server";
-import { listRemarks } from "@/services/portal/remarks.server";
 import { canSubmit, listDocuments } from "@/services/portal/claims.server";
-import { listClaimDocuments } from "@/services/portal/requirements.server";
 
 export const dynamic = "force-dynamic";
 
@@ -38,10 +37,8 @@ export default async function AccountPage({
     getClaimForAccount(session, accountId),
   ]);
 
-  const [queries, claimDocuments, remarks] = await Promise.all([
+  const [queries] = await Promise.all([
     claim ? listQueries(claim.id) : Promise.resolve([]),
-    claim ? listClaimDocuments(session, claim.id) : Promise.resolve([]),
-    listRemarks(accountId),
   ]);
 
   // Which rejected documents already have an open query naming them — so a fresh rejection
@@ -74,9 +71,6 @@ export default async function AccountPage({
           }
           account={account}
           claim={claim}
-          queries={queries}
-          remarks={remarks.filter((remark) => remark.claimId === claim?.id)}
-          claimDocuments={claimDocuments}
           role={session.role}
           docs={docs}
           events={events}

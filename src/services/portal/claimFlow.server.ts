@@ -193,13 +193,6 @@ export async function listQueries(claimId: string): Promise<ClaimQuery[]> {
 
 /* ── claim overview (shared by the Claim page and the Dashboard) ─────── */
 
-/** In-flight — submitted but not yet decided one way or the other. */
-const UNDER_PROGRESS_STATUSES = new Set<ClaimStatus>([
-  "UNDER_REVIEW",
-  "QUERY_RAISED",
-  "DOCUMENTS_RESUBMITTED",
-]);
-
 export interface ClaimOverviewCounts {
   total: number;
   initiation: number;
@@ -278,7 +271,15 @@ export function summariseClaimOverview(
   const queried = queryInitiated + queryUnderReview;
 
   return {
-    total: initiation + draft + initiated + underReview + queried + docsResubmitted + approved + rejected,
+    total:
+      initiation +
+      draft +
+      initiated +
+      underReview +
+      queried +
+      docsResubmitted +
+      approved +
+      rejected,
     initiation,
     underReview,
     approved,
@@ -790,7 +791,8 @@ export async function submitClaim(
     const resubmittingInitiated = claim.status === "QUERY_INITIATED";
     const resubmittingUnderReview = claim.status === "QUERY_UNDER_REVIEW";
     const resubmittingLegacy = claim.status === "QUERY_RAISED";
-    const resubmitting = resubmittingInitiated || resubmittingUnderReview || resubmittingLegacy;
+    const resubmitting =
+      resubmittingInitiated || resubmittingUnderReview || resubmittingLegacy;
 
     // Fresh initial submission only — resubmissions get their single advance inside the
     // if(resubmitting) block below, so we must not advance here too (would produce a duplicate
@@ -919,22 +921,24 @@ export async function startClaimReview(
     const claim = db.claims.find((c) => c.accountId === accountId);
     return claim ? claim.id : "";
   });
-  
+
   if (!claimIdLookup) return { ok: false, error: "Claim not found." };
-  
+
   const docs = await listClaimDocuments(session, claimIdLookup);
   const summary = summariseDocs(docs);
   if (!summary.complete) {
     return {
       ok: false,
-      error: "Please approve all required documents before submitting the claim for review.",
+      error:
+        "Please approve all required documents before submitting the claim for review.",
     };
   }
 
   const { claimId, account } = await writeDb((db) => {
     const claim = db.claims.find((c) => c.accountId === accountId);
     if (!claim) return { claimId: "", account: null };
-    if (claim.status !== "INITIATED") return { claimId: claim.id, account: null };
+    if (claim.status !== "INITIATED")
+      return { claimId: claim.id, account: null };
 
     advance(db, claim, "UNDER_REVIEW", session, "Review started");
 
@@ -942,7 +946,8 @@ export async function startClaimReview(
     return { claimId: claim.id, account };
   });
 
-  if (!claimId || !account) return { ok: false, error: "Claim not found or not in Initiated status." };
+  if (!claimId || !account)
+    return { ok: false, error: "Claim not found or not in Initiated status." };
 
   await recordEvent({
     accountId,
@@ -1205,57 +1210,6 @@ async function notify(
     accountId,
     unreadFor: msg.unreadFor,
   });
-}
-
-/**
- * A lender asking IMGC a question about their own claim.
- *
- * Deliberately not `raiseQuery`: a formal query is IMGC halting the claim and demanding a
- * response, and letting a lender do that to their own claim would let them park it and stop the
- * clock. This records the question, notifies IMGC and leaves the status exactly where it was.
- */
-export async function askClaimQuestion(
-  session: AppSession,
-  claimId: string,
-  question: string
-): Promise<Outcome> {
-  const guard = await assertLenderOwns(session, claimId);
-  if (!guard.ok) return guard;
-  const body = question.trim();
-  if (!body) return { ok: false, error: "Write your question first." };
-
-  const db = await readDb();
-  const claim = db.claims.find((c) => c.id === claimId);
-  if (!claim) return { ok: false, error: "Claim not found." };
-
-  await writeDb((fresh) => {
-    fresh.remarks.unshift({
-      id: newId("rmk"),
-      accountId: claim.accountId,
-      authorId: session.userId,
-      authorName: session.name,
-      authorRole: session.role,
-      body: `Question on ${claim.claimNo}: ${body}`,
-      createdAt: nowIso(),
-    });
-    const row = fresh.claims.find((c) => c.id === claimId);
-    if (row) row.lastUpdatedAt = nowIso();
-  });
-
-  await recordEvent({
-    accountId: claim.accountId,
-    actor: session,
-    type: "REMARK_ADDED",
-    summary: `Lender raised a question on ${claim.claimNo} — ${body}`,
-    meta: { claimId },
-  });
-  await notify(claim.accountId, {
-    subject: `Question raised on claim ${claim.claimNo}`,
-    body: `${session.name} asked: ${body}`,
-    event: "CLAIM_QUESTION_RAISED",
-    unreadFor: ["IMGC"],
-  });
-  return { ok: true, claimId, accountId: claim.accountId };
 }
 
 /* ── lender-added additional documents ─────────────────────────────── */

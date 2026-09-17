@@ -4,16 +4,15 @@ import { notFound } from "next/navigation";
 
 import { ClaimDetailSinglePage } from "@/components/portal/ClaimDetailSinglePage";
 import { ClaimDetailTabs } from "@/components/portal/ClaimDetailTabs";
-import { ClaimDocuments } from "@/components/portal/ClaimDocuments";
 import { ClaimDocumentsTable } from "@/components/portal/ClaimDocumentsTable";
 import { ClaimHistory } from "@/components/portal/ClaimHistory";
-import { ClaimQueryDialog } from "@/components/portal/ClaimQueryDialog";
 import { ClaimStatusHistoryGraph } from "@/components/portal/ClaimStatusHistoryGraph";
 import { LenderClaimStatusPanel } from "@/components/portal/LenderClaimStatusPanel";
 import { LoanDetailsCard } from "@/components/portal/LoanDetailsCard";
 import { Panel } from "@/components/portal/Panel";
 import { PortalShell } from "@/components/portal/PortalShell";
-import { QueryResponseSection } from "@/components/portal/QueryResponseSection";
+import { QueriedButton } from "@/components/portal/QueriedButton";
+import { ResubmitClaimButton } from "@/components/portal/ResubmitClaimButton";
 import { StatusPill } from "@/components/portal/StatusPill";
 import {
   Table,
@@ -23,14 +22,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { claimConfig } from "@/config/claimConfig";
 import { ROUTES } from "@/constants/route";
 import { Link } from "@/i18n/navigation";
 import { requireSession } from "@/lib/auth/appSession";
 import { getAccount } from "@/services/portal/accounts.server";
 import { getClaim, listQueries } from "@/services/portal/claimFlow.server";
 import { listClaimDocuments } from "@/services/portal/requirements.server";
-import { listRemarks } from "@/services/portal/remarks.server";
 
 export const dynamic = "force-dynamic";
 
@@ -60,13 +57,11 @@ export default async function ClaimDetailsPage({
   const claim = await getClaim(session, claimId);
   if (!claim) notFound();
 
-  const [documents, queries, account, remarks] = await Promise.all([
+  const [documents, queries, account] = await Promise.all([
     listClaimDocuments(session, claim.id),
     listQueries(claim.id),
     getAccount(session, claim.accountId),
-    listRemarks(claim.accountId),
   ]);
-  const config = claimConfig(claim.claimType);
   const isLender = session.role === "LENDER";
   // Deleting an uploaded file is a draft-only act: after the lender submits, the file is part of
   // what IMGC is reviewing. A wrong file is corrected by re-uploading over it, which keeps the
@@ -84,19 +79,15 @@ export default async function ClaimDetailsPage({
   const refundReceivedEntry =
     claim.status === "REFUND_RECEIVED_BY_IMGC"
       ? [...claim.statusHistory]
-        .reverse()
-        .find((h) => h.status === "REFUND_RECEIVED_BY_IMGC")
+          .reverse()
+          .find((h) => h.status === "REFUND_RECEIVED_BY_IMGC")
       : undefined;
 
   const layoutContent = isSingleView ? (
     <ClaimDetailSinglePage
       isLender={isLender}
       showSectionNav={isLender}
-      loanDetails={
-        account ? (
-          <LoanDetailsCard account={account} />
-        ) : null
-      }
+      loanDetails={account ? <LoanDetailsCard account={account} /> : null}
       backLink={
         <div className="flex items-center gap-3">
           {isLender && (
@@ -108,12 +99,7 @@ export default async function ClaimDetailsPage({
             </Link>
           )}
           {!terminal && !isLender && (
-            <ClaimQueryDialog
-              claimId={claim.id}
-              claimNo={claim.claimNo}
-              role={session.role}
-              requestableDocuments={config.documents.map((d) => d.name)}
-            />
+            <QueriedButton claimId={claim.id} claimNo={claim.claimNo} />
           )}
         </div>
       }
@@ -168,23 +154,18 @@ export default async function ClaimDetailsPage({
               locked={terminal}
               allowDelete={canDeleteFiles}
             />
-            <div key="query-response" className="flex flex-col">
-              <QueryResponseSection
-                accountId={claim.accountId}
-                claimId={claim.id}
-                claimStatus={claim.status}
-                openQuery={claim.openQuery}
-                queries={queries.sort((a, b) =>
-                  a.raisedAt.localeCompare(b.raisedAt)
-                )}
-                claimRemarks={remarks.filter(
-                  (remark) => remark.claimId === claim.id
-                )}
-                savedResponse={claim.fields.__queryResponse ?? ""}
-                documents={documents}
-                isLender={isLender}
-              />
-            </div>
+            {(claim.status === "QUERY_INITIATED" ||
+              claim.status === "QUERY_UNDER_REVIEW") && (
+              <div
+                key="query-response"
+                className="flex justify-end mt-2 p-4 border-t border-neutral-100 bg-white"
+              >
+                <ResubmitClaimButton
+                  accountId={claim.accountId}
+                  claimId={claim.id}
+                />
+              </div>
+            )}
           </div>
         ) : (
           <Panel title="Documents">
@@ -244,7 +225,9 @@ export default async function ClaimDetailsPage({
                             <EyeIcon className="size-3" /> View
                           </a>
                         ) : (
-                          <span className="text-[11px] text-neutral-400">—</span>
+                          <span className="text-[11px] text-neutral-400">
+                            —
+                          </span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -261,18 +244,17 @@ export default async function ClaimDetailsPage({
             title="Claim History"
             description="Every status change and query on this claim, in order."
           >
-            <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
+            <ClaimHistory
+              statusHistory={claim.statusHistory}
+              queries={queries}
+            />
           </Panel>
         ) : null
       }
     />
   ) : (
     <ClaimDetailTabs
-      loanDetails={
-        account ? (
-          <LoanDetailsCard account={account} />
-        ) : null
-      }
+      loanDetails={account ? <LoanDetailsCard account={account} /> : null}
       backLink={
         <div className="flex items-center gap-3">
           {isLender && (
@@ -284,12 +266,7 @@ export default async function ClaimDetailsPage({
             </Link>
           )}
           {!terminal && !isLender && (
-            <ClaimQueryDialog
-              claimId={claim.id}
-              claimNo={claim.claimNo}
-              role={session.role}
-              requestableDocuments={config.documents.map((d) => d.name)}
-            />
+            <QueriedButton claimId={claim.id} claimNo={claim.claimNo} />
           )}
         </div>
       }
@@ -333,24 +310,18 @@ export default async function ClaimDetailsPage({
             </Panel>
           )}
 
-          <div key="query-response" className="flex-1 min-h-0 flex flex-col">
-            <QueryResponseSection
-              accountId={claim.accountId}
-              claimId={claim.id}
-              claimStatus={claim.status}
-              openQuery={claim.openQuery}
-              queries={queries.sort((a, b) =>
-                a.raisedAt.localeCompare(b.raisedAt)
-              )}
-              claimRemarks={remarks.filter(
-                (remark) => remark.claimId === claim.id
-              )}
-              savedResponse={claim.fields.__queryResponse ?? ""}
-              documents={documents}
-              isLender={isLender}
-              fillLayout
-            />
-          </div>
+          {(claim.status === "QUERY_INITIATED" ||
+            claim.status === "QUERY_UNDER_REVIEW") && (
+            <div
+              key="query-response"
+              className="flex justify-end mt-2 p-4 border-t border-neutral-100 bg-white"
+            >
+              <ResubmitClaimButton
+                accountId={claim.accountId}
+                claimId={claim.id}
+              />
+            </div>
+          )}
         </>
       }
       documents={
@@ -422,7 +393,9 @@ export default async function ClaimDetailsPage({
                             <EyeIcon className="size-3" /> View
                           </a>
                         ) : (
-                          <span className="text-[11px] text-neutral-400">—</span>
+                          <span className="text-[11px] text-neutral-400">
+                            —
+                          </span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -439,7 +412,10 @@ export default async function ClaimDetailsPage({
             title="Claim History"
             description="Every status change and query on this claim, in order."
           >
-            <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
+            <ClaimHistory
+              statusHistory={claim.statusHistory}
+              queries={queries}
+            />
           </Panel>
         ) : null
       }
@@ -450,18 +426,14 @@ export default async function ClaimDetailsPage({
     <PortalShell
       activeKey="initiate-claim"
       title={
-        isLender
-          ? `Claim No. ${claim.claimNo}`
-          : `Claim No. ${claim.claimNo}`
+        isLender ? `Claim No. ${claim.claimNo}` : `Claim No. ${claim.claimNo}`
       }
     >
       <div
         className={
           isSingleView ? "flex flex-col" : "flex flex-col overflow-hidden"
         }
-        style={
-          isSingleView ? undefined : { height: "calc(100vh - 5.5rem)" }
-        }
+        style={isSingleView ? undefined : { height: "calc(100vh - 5.5rem)" }}
       >
         {layoutContent}
       </div>

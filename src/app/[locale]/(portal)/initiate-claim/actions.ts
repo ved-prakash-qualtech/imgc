@@ -8,7 +8,6 @@ import { runAction } from "@/lib/actions/runAction";
 import { requireSession } from "@/lib/auth/appSession";
 import {
   addLenderDocument,
-  askClaimQuestion,
   createClaim,
   markRefundReceived,
   raiseQuery,
@@ -144,24 +143,6 @@ export async function raiseQueryAction(
   return runAction(async () => {
     const session = await requireSession();
     const result = await raiseQuery(session, claimId, input);
-    if (result.ok) refreshAll(result.accountId, claimId);
-    return result;
-  });
-}
-
-/**
- * Lender only — a question to IMGC about their own claim.
- *
- * Separate from `raiseQueryAction` on purpose: a formal query halts the claim, and a lender must
- * not be able to do that to their own.
- */
-export async function askQuestionAction(
-  claimId: string,
-  question: string
-): Promise<Outcome> {
-  return runAction(async () => {
-    const session = await requireSession();
-    const result = await askClaimQuestion(session, claimId, question);
     if (result.ok) refreshAll(result.accountId, claimId);
     return result;
   });

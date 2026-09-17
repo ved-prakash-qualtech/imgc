@@ -5,7 +5,10 @@ import { useCallback, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
-import { setClaimStatusAction, startClaimReviewAction } from "@/app/[locale]/(portal)/accounts/[accountId]/actions";
+import {
+  setClaimStatusAction,
+  startClaimReviewAction,
+} from "@/app/[locale]/(portal)/accounts/[accountId]/actions";
 
 import { AuditTrailTab } from "@/app/[locale]/(portal)/accounts/[accountId]/AuditTrailTab";
 import { InitialClaimsTab } from "@/app/[locale]/(portal)/accounts/[accountId]/InitialClaimsTab";
@@ -13,15 +16,13 @@ import { InitialClaimsTab } from "@/app/[locale]/(portal)/accounts/[accountId]/I
 // it is lender-specific, so IMGC's Query/Decision tab shows the identical bar.
 import { LenderClaimStatusPanel as ClaimStatusBar } from "@/components/portal/LenderClaimStatusPanel";
 import { Panel } from "@/components/portal/Panel";
-import { QueryResponseSection } from "@/components/portal/QueryResponseSection";
-import { StatusPill } from "@/components/portal/StatusPill";
+import { QueriedButton } from "@/components/portal/QueriedButton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
 import type { DocumentRow } from "@/services/portal/claims.server";
 import type { ClaimRow } from "@/services/portal/claimFlow.server";
-import type { RequirementRow } from "@/services/portal/requirements.server";
-import type { AuditEvent, ClaimQuery, Remark, Role } from "@/server/mock/types";
+import type { AuditEvent, Role } from "@/server/mock/types";
 
 const TABS = ["Loan Details", "Decision/Query", "Audit Trail"] as const;
 
@@ -48,9 +49,7 @@ type Props = Readonly<{
   docs: DocumentRow[];
   events: AuditEvent[];
   claim: ClaimRow | null;
-  queries: ClaimQuery[];
-  remarks: Remark[];
-  claimDocuments: RequirementRow[];
+
   canSubmit: boolean;
   retentionDays: number;
   /** Names of documents an open query already covers — so a rejection from before that sync
@@ -65,9 +64,7 @@ export function AccountWorkspace({
   docs,
   events,
   claim,
-  queries,
-  remarks,
-  claimDocuments,
+
   canSubmit,
   retentionDays,
   queriedDocNames,
@@ -120,9 +117,6 @@ export function AccountWorkspace({
           account={account}
           role={role}
           claim={claim}
-          queries={queries}
-          remarks={remarks}
-          claimDocuments={claimDocuments}
           documentsSection={
             <InitialClaimsTab
               accountId={account.id}
@@ -147,17 +141,11 @@ function QueryTrailTab({
   account,
   role,
   claim,
-  queries,
-  remarks,
-  claimDocuments,
   documentsSection,
 }: Readonly<{
   account: AccountRow;
   role: Role;
   claim: ClaimRow | null;
-  queries: ClaimQuery[];
-  remarks: Remark[];
-  claimDocuments: RequirementRow[];
   documentsSection: React.ReactNode;
 }>) {
   const [pending, startTransition] = useTransition();
@@ -230,7 +218,9 @@ function QueryTrailTab({
               startTransition(async () => {
                 const result = await startClaimReviewAction(account.id);
                 if (!result.ok) {
-                  toast.error(result.error ?? "The claim review could not be started.");
+                  toast.error(
+                    result.error ?? "The claim review could not be started."
+                  );
                   return;
                 }
                 toast.success("Review started.");
@@ -261,19 +251,9 @@ function QueryTrailTab({
             Reject
           </Button>
         )}
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => decide("QUERIED")}
-          disabled={pending || refundReceived}
-          title={
-            refundReceived
-              ? "The refund has been received — this claim is closed out."
-              : undefined
-          }
-        >
-          Raise a query
-        </Button>
+        {claim && !refundReceived && (
+          <QueriedButton claimId={claim.id} claimNo={claim.claimNo} />
+        )}
       </div>
       {noteError && (
         <p className="text-[12.5px] font-medium text-red-500">{noteError}</p>
@@ -295,30 +275,9 @@ function QueryTrailTab({
       {documentsSection}
 
       {claim ? (
-        <div className="min-w-0">
-          {/* No fixed height: the panel is as tall as its conversation, and the message list
-              scrolls on its own once it gets long (see QueryResponseSection). */}
-          <QueryResponseSection
-            accountId={account.id}
-            claimId={claim.id}
-            claimStatus={claim.status}
-            openQuery={claim.openQuery ?? null}
-            queries={queries}
-            claimRemarks={remarks.filter(
-              (remark) => remark.source === "CLAIM_INITIATION"
-            )}
-            savedResponse={claim.fields.__queryResponse ?? ""}
-            documents={claimDocuments}
-            isLender={false}
-            imgcComposer={imgcComposer}
-            title="Query Management"
-            constrainedLayout
-          />
-        </div>
+        <Panel title="Decision Management">{imgcComposer}</Panel>
       ) : (
-        <Panel title="Query Management">
-          {imgcComposer}
-        </Panel>
+        <Panel title="Decision Management">{imgcComposer}</Panel>
       )}
     </div>
   );
@@ -327,32 +286,6 @@ function QueryTrailTab({
 /* ── Overview ──────────────────────────────────────────────────────── */
 
 import { LoanDetailsCard } from "@/components/portal/LoanDetailsCard";
-
-
-
-function Fact({
-  label,
-  value,
-  className,
-}: Readonly<{ label: string; value: React.ReactNode; className?: string }>) {
-  return (
-    <div className={cn("px-5 py-3.5", className)}>
-      <p className="text-[11.5px] font-medium uppercase tracking-wide text-neutral-400">
-        {label}
-      </p>
-      <p className="mt-1 text-[13.5px] font-medium text-neutral-900">{value}</p>
-    </div>
-  );
-}
-
-function formatDate(iso: string | undefined): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
 
 function OverviewTab({
   account,
