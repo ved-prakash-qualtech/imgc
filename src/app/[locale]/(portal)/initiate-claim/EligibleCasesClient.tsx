@@ -37,6 +37,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  useRememberFilters,
+  CLAIMS_FILTER_KEY,
+} from "@/lib/hooks/useRememberedFilters";
 import type { EligibleRow } from "@/types/portal/eligibleClaim";
 import type { Bucket, ClaimStatus } from "@/server/mock/types";
 
@@ -400,6 +404,8 @@ export function EligibleCasesClient({
 }: Readonly<{ accounts: EligibleRow[]; trackView?: "tabs" | "single" }>) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  // Same as the IMGC grid: recorded here, re-applied by the workspace's Back link.
+  useRememberFilters(CLAIMS_FILTER_KEY);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter[]>(() =>
     statusFromParam(searchParams.get("status"))

@@ -44,6 +44,10 @@ import {
   formatDpd,
   type DpdBand,
 } from "@/lib/dpd";
+import {
+  useRememberFilters,
+  ACCOUNTS_FILTER_KEY,
+} from "@/lib/hooks/useRememberedFilters";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
 import type { ClaimStatus, Role } from "@/server/mock/types";
@@ -348,6 +352,8 @@ export function AccountsClient({
 }: Readonly<{ accounts: AccountRow[]; role: Role }>) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  // Recorded here, re-applied by the case page's "All accounts" link.
+  useRememberFilters(ACCOUNTS_FILTER_KEY);
   const [query, setQuery] = useState("");
   const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>(
     (searchParams.get("bucket") as (typeof BUCKETS)[number] | null) ?? "ALL"

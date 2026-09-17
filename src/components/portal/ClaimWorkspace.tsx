@@ -25,6 +25,10 @@ import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
 import { claimConfig, fieldVisible } from "@/config/claimConfig";
+import {
+  useRememberedHref,
+  CLAIMS_FILTER_KEY,
+} from "@/lib/hooks/useRememberedFilters";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
 import type { RequirementRow } from "@/services/portal/requirements.server";
@@ -104,6 +108,9 @@ export function ClaimWorkspace({
   );
   const canSubmit = missingDocs.length === 0 && missingFieldLabels.length === 0;
 
+  // Back to the claims grid as the lender left it — same filter, not the unfiltered list.
+  const rememberedBackHref = useRememberedHref(backHref, CLAIMS_FILTER_KEY);
+
   const resubmitting = status === "QUERY_RAISED";
   const locked =
     status === "APPROVED" ||
@@ -158,7 +165,7 @@ export function ClaimWorkspace({
       {/* ── Tab bar row: Back link + underline tabs on one line ── */}
       <div className="flex items-center gap-3 border-b border-neutral-200">
         <Link
-          href={backHref}
+          href={rememberedBackHref}
           className="-mb-px inline-flex shrink-0 items-center gap-1 border-b-2 border-transparent py-2.5 text-[12.5px] font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
         >
           <ArrowLeftIcon className="size-3" /> Back

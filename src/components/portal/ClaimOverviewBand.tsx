@@ -95,7 +95,6 @@ export function ClaimOverviewBand({
           icon: <FilePlus2Icon className="size-4" />,
           tone: "blue",
         }, // started, not yet submitted
-        TILES[1]!, // Under Review — with IMGC
         {
           key: "initiated",
           label: "Initiated",
@@ -108,7 +107,7 @@ export function ClaimOverviewBand({
           icon: <ClipboardListIcon className="size-4" />,
           tone: "amber",
         },
-        TILES[1]!,
+        TILES[1]!, // Under Review — with IMGC, after the query it may have come back from
         TILES[2]!,
         TILES[3]!,
       ] as const)

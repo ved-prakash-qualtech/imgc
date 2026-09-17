@@ -1,11 +1,11 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeftIcon } from "lucide-react";
 
 import { AccountWorkspace } from "@/app/[locale]/(portal)/accounts/[accountId]/AccountWorkspace";
+import { GridBackLink } from "@/components/portal/GridBackLink";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { ROUTES } from "@/constants/route";
 import { requireSession } from "@/lib/auth/appSession";
+import { ACCOUNTS_FILTER_KEY } from "@/lib/hooks/useRememberedFilters";
 import { RETENTION_DAYS } from "@/server/mock/retention";
 import { getAccount } from "@/services/portal/accounts.server";
 import { listAuditForAccount } from "@/services/portal/audit.server";
@@ -58,12 +58,12 @@ export default async function AccountPage({
       <div className="space-y-3">
         <AccountWorkspace
           backLink={
-            <Link
+            <GridBackLink
               href={ROUTES.accounts}
+              storageKey={ACCOUNTS_FILTER_KEY}
+              label="All accounts"
               className="-mt-1 inline-flex items-center gap-1.5 text-[13px] font-medium text-neutral-500 hover:text-neutral-800"
-            >
-              <ArrowLeftIcon className="size-3.5" /> All accounts
-            </Link>
+            />
           }
           account={account}
           claim={claim}

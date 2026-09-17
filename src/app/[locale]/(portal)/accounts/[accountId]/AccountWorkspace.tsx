@@ -9,6 +9,9 @@ import { setClaimStatusAction, startClaimReviewAction } from "@/app/[locale]/(po
 
 import { AuditTrailTab } from "@/app/[locale]/(portal)/accounts/[accountId]/AuditTrailTab";
 import { InitialClaimsTab } from "@/app/[locale]/(portal)/accounts/[accountId]/InitialClaimsTab";
+// Named for the screen it was written for, but it takes only a history and a status — nothing in
+// it is lender-specific, so IMGC's Query/Decision tab shows the identical bar.
+import { LenderClaimStatusPanel as ClaimStatusBar } from "@/components/portal/LenderClaimStatusPanel";
 import { Panel } from "@/components/portal/Panel";
 import { QueryResponseSection } from "@/components/portal/QueryResponseSection";
 import { StatusPill } from "@/components/portal/StatusPill";
@@ -280,6 +283,15 @@ function QueryTrailTab({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* The same status bar the lender reads on Track Claim — IMGC decides on this tab, so where
+          the claim currently stands belongs on it too, rather than only on the claim detail page. */}
+      {claim && (
+        <ClaimStatusBar
+          history={claim.statusHistory}
+          currentStatus={claim.status}
+        />
+      )}
+
       {documentsSection}
 
       {claim ? (
