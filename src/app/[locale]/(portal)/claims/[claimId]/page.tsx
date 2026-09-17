@@ -68,6 +68,10 @@ export default async function ClaimDetailsPage({
   ]);
   const config = claimConfig(claim.claimType);
   const isLender = session.role === "LENDER";
+  // Deleting an uploaded file is a draft-only act: after the lender submits, the file is part of
+  // what IMGC is reviewing. A wrong file is corrected by re-uploading over it, which keeps the
+  // superseded copy in the audit trail, rather than by making it disappear.
+  const canDeleteFiles = claim.status === "DRAFT";
   const terminal =
     claim.status === "APPROVED" ||
     claim.status === "REJECTED" ||
@@ -162,6 +166,7 @@ export default async function ClaimDetailsPage({
               claimId={claim.id}
               documents={documents}
               locked={terminal}
+              allowDelete={canDeleteFiles}
             />
             <div key="query-response" className="flex flex-col">
               <QueryResponseSection
@@ -356,6 +361,7 @@ export default async function ClaimDetailsPage({
               claimId={claim.id}
               documents={documents}
               locked={terminal}
+              allowDelete={canDeleteFiles}
             />
           </div>
         ) : (

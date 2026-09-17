@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { AddLenderDocumentDialog } from "@/components/portal/AddLenderDocumentDialog";
 import { Panel } from "@/components/portal/Panel";
+import { useConfirmDelete } from "@/components/portal/useConfirmDelete";
 import { UploadDialog } from "@/components/portal/UploadDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -153,12 +154,16 @@ export function ClaimDocumentsTable({
   claimId,
   documents,
   locked,
+  allowDelete = true,
   bare = false,
 }: Readonly<{
   accountId: string;
   claimId: string;
   documents: RequirementRow[];
   locked: boolean;
+  /** Draft-only: once the claim is submitted the file belongs to IMGC's review and can be
+   *  superseded by a re-upload, never removed. */
+  allowDelete?: boolean;
   bare?: boolean;
 }>) {
   const [sortField, setSortField] = useState<SortField>("name");
@@ -208,7 +213,9 @@ export function ClaimDocumentsTable({
   // second file.
   const [deleting, startDelete] = useTransition();
 
-  const onDelete = useCallback(
+  const { ask, dialog: confirmDialog } = useConfirmDelete();
+
+  const removeFile = useCallback(
     (accId: string, documentId: string, fileId: string) => {
       startDelete(async () => {
         const { deleteDocumentFileAction } = await import(
@@ -223,6 +230,20 @@ export function ClaimDocumentsTable({
       });
     },
     []
+  );
+
+  // Deleting a file is not undoable, so the trash icon asks first.
+  const onDelete = useCallback(
+    (accId: string, documentId: string, fileId: string, fileName?: string) => {
+      ask({
+        description: fileName
+          ? `"${fileName}" will be permanently deleted. This cannot be undone.`
+          : "This file will be permanently deleted. This cannot be undone.",
+        confirmLabel: "Delete file",
+        onConfirm: () => removeFile(accId, documentId, fileId),
+      });
+    },
+    [ask, removeFile]
   );
 
 
@@ -331,13 +352,13 @@ export function ClaimDocumentsTable({
             </TableCell>
             <TableCell className="py-3 align-middle">
               <div className="flex items-center gap-1.5">
-                {!locked && (
+                {!locked && allowDelete && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                     // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                    onClick={() => onDelete(accountId, doc.id, file.id)}
+                    onClick={() => onDelete(accountId, doc.id, file.id, file.originalName)}
                     aria-label="Delete file"
                     disabled={deleting}
                     title="Delete file"
@@ -345,11 +366,7 @@ export function ClaimDocumentsTable({
                     <TrashIcon className="size-3.5" />
                   </Button>
                 )}
-                {isFirst && mainAction && (
-                  <div className="ml-1 border-l border-neutral-200 pl-2">
-                    {mainAction}
-                  </div>
-                )}
+                {isFirst && mainAction && <div>{mainAction}</div>}
               </div>
             </TableCell>
           </TableRow>
@@ -400,6 +417,8 @@ export function ClaimDocumentsTable({
         // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
         onOpenChange={(next) => !next && setUploadTarget(null)}
       />
+
+      {confirmDialog}
     </div>
   );
 }

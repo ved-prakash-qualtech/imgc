@@ -291,6 +291,10 @@ export interface DocumentFile {
   documentNumber?: string;
   documentDate?: string;
   uploadRemarks?: string;
+  /** Which side uploaded it — so `uploadRemarks` can be attributed in Query Management the same
+   *  way a remark is. Absent on files uploaded before this was recorded; read those as LENDER,
+   *  which is who uploads in every flow that existed then. */
+  uploadedByRole?: Role;
   /** Why this version was superseded, copied from the decision that rejected it. */
   supersededReason?: string;
 }

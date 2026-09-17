@@ -21,6 +21,7 @@ import { toast } from "sonner";
 
 import { AddLenderDocumentDialog } from "@/components/portal/AddLenderDocumentDialog";
 import { Panel } from "@/components/portal/Panel";
+import { useConfirmDelete } from "@/components/portal/useConfirmDelete";
 import { UploadDialog } from "@/components/portal/UploadDialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/twMergeUtils";
@@ -79,6 +80,7 @@ export function ClaimDocuments({
   claimId,
   documents,
   locked,
+  allowDelete = true,
   bare = false,
   variant = "accordion",
 }: Readonly<{
@@ -86,6 +88,9 @@ export function ClaimDocuments({
   claimId: string;
   documents: RequirementRow[];
   locked: boolean;
+  /** Deleting an uploaded file is a draft-only act: once the claim is submitted the file is part
+   *  of what IMGC is reviewing, so it can be superseded by a re-upload but never removed. */
+  allowDelete?: boolean;
   /** Drop the card's own border/shadow — for when it's already nested inside another panel
    *  (Query Response's Attachments), where the default chrome reads as a card inside a card. */
   bare?: boolean;
@@ -120,7 +125,9 @@ export function ClaimDocuments({
     []
   );
 
-  const onDelete = useCallback(
+  const { ask, dialog: confirmDialog } = useConfirmDelete();
+
+  const removeFile = useCallback(
     (accountId: string, documentId: string, fileId: string) => {
       startDelete(async () => {
         const { deleteDocumentFileAction } =
@@ -138,6 +145,20 @@ export function ClaimDocuments({
       });
     },
     []
+  );
+
+  // Every trash button on this screen goes through here, so the confirmation covers all of them.
+  const onDelete = useCallback(
+    (accountId: string, documentId: string, fileId: string, fileName?: string) => {
+      ask({
+        description: fileName
+          ? `"${fileName}" will be permanently deleted. This cannot be undone.`
+          : "This file will be permanently deleted. This cannot be undone.",
+        confirmLabel: "Delete file",
+        onConfirm: () => removeFile(accountId, documentId, fileId),
+      });
+    },
+    [ask, removeFile]
   );
 
   const applicable = required.filter((d) => d.required && d.active);
@@ -158,6 +179,7 @@ export function ClaimDocuments({
             docs={required}
             indexed
             locked={locked}
+            allowDelete={allowDelete}
             onUpload={setUploadTarget}
             onDelete={onDelete}
             deleting={deleting}
@@ -172,6 +194,7 @@ export function ClaimDocuments({
                 accountId={accountId}
                 claimId={claimId}
                 locked={locked}
+                allowDelete={allowDelete}
                 open={openId === doc.id}
                 onToggle={toggle}
                 onUpload={setUploadTarget}
@@ -196,6 +219,7 @@ export function ClaimDocuments({
           <DocumentsTable
             docs={additional}
             locked={locked}
+            allowDelete={allowDelete}
             onUpload={setUploadTarget}
             onDelete={onDelete}
             deleting={deleting}
@@ -209,6 +233,7 @@ export function ClaimDocuments({
                 accountId={accountId}
                 claimId={claimId}
                 locked={locked}
+                allowDelete={allowDelete}
                 open={openId === doc.id}
                 onToggle={toggle}
                 onUpload={setUploadTarget}
@@ -228,6 +253,8 @@ export function ClaimDocuments({
         // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
         onOpenChange={(next) => !next && setUploadTarget(null)}
       />
+
+      {confirmDialog}
     </>
   );
 }
@@ -240,6 +267,7 @@ function DocAccordionItem({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   claimId: _claimId,
   locked,
+  allowDelete,
   open,
   onToggle,
   onUpload,
@@ -258,7 +286,13 @@ function DocAccordionItem({
     mode: "upload" | "add" | "replace";
     replaceFileId?: string;
   }) => void;
-  onDelete: (accountId: string, documentId: string, fileId: string) => void;
+  onDelete: (
+    accountId: string,
+    documentId: string,
+    fileId: string,
+    fileName?: string
+  ) => void;
+  allowDelete: boolean;
   /** A delete is running — every delete button stays disabled until it settles. */
   deleting: boolean;
 }>) {
@@ -459,11 +493,11 @@ function DocAccordionItem({
                       >
                         View Document
                       </a>
-                      {!locked && doc.status !== "APPROVED" && (
+                      {!locked && allowDelete && doc.status !== "APPROVED" && (
                         <button
                           type="button"
                           // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                          onClick={() => onDelete(doc.accountId, doc.id, f.id)}
+                          onClick={() => onDelete(doc.accountId, doc.id, f.id, f.originalName)}
                           title="Delete this file"
                           disabled={deleting}
                           className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-400 transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive focus:outline-none focus:ring-2 focus:ring-destructive/20"
@@ -555,6 +589,7 @@ function DocumentsTable({
   docs,
   indexed = false,
   locked,
+  allowDelete,
   onUpload,
   onDelete,
   deleting,
@@ -568,7 +603,13 @@ function DocumentsTable({
     mode: "upload" | "add" | "replace";
     replaceFileId?: string;
   }) => void;
-  onDelete: (accountId: string, documentId: string, fileId: string) => void;
+  onDelete: (
+    accountId: string,
+    documentId: string,
+    fileId: string,
+    fileName?: string
+  ) => void;
+  allowDelete: boolean;
   /** A delete is running — every delete button stays disabled until it settles. */
   deleting: boolean;
 }>) {
@@ -640,6 +681,7 @@ function DocumentsTable({
               index={indexed ? i + 1 : undefined}
               doc={doc}
               locked={locked}
+              allowDelete={allowDelete}
               onUpload={onUpload}
               onDelete={onDelete}
               deleting={deleting}
@@ -656,6 +698,7 @@ function DocTableRows({
   index,
   locked,
   onUpload,
+  allowDelete,
   onDelete,
   deleting,
 }: Readonly<{
@@ -667,7 +710,13 @@ function DocTableRows({
     mode: "upload" | "add" | "replace";
     replaceFileId?: string;
   }) => void;
-  onDelete: (accountId: string, documentId: string, fileId: string) => void;
+  onDelete: (
+    accountId: string,
+    documentId: string,
+    fileId: string,
+    fileName?: string
+  ) => void;
+  allowDelete: boolean;
   /** A delete is running — every delete button stays disabled until it settles. */
   deleting: boolean;
 }>) {
@@ -802,12 +851,12 @@ function DocTableRows({
                         <UploadIcon /> Re-upload
                       </Button>
                     )}
-                    {!locked && doc.status !== "APPROVED" && (
+                    {!locked && allowDelete && doc.status !== "APPROVED" && (
                       <Button
                         size="xs"
                         variant="outline"
                         // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                        onClick={() => onDelete(doc.accountId, doc.id, f.id)}
+                        onClick={() => onDelete(doc.accountId, doc.id, f.id, f.originalName)}
                         title="Delete this file"
                         disabled={deleting}
                         className="size-7 p-0 text-neutral-400 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
@@ -842,13 +891,13 @@ function DocTableRows({
                             <UploadIcon /> Re-upload
                           </Button>
                         )}
-                        {!locked && doc.status !== "APPROVED" && (
+                        {!locked && allowDelete && doc.status !== "APPROVED" && (
                           <Button
                             size="xs"
                             variant="outline"
                             // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                             onClick={() =>
-                              onDelete(doc.accountId, doc.id, f.id)
+                              onDelete(doc.accountId, doc.id, f.id, f.originalName)
                             }
                             title="Delete this file"
                             disabled={deleting}

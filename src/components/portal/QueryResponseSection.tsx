@@ -1,7 +1,7 @@
 "use client";
 
 import { type ChangeEvent, useCallback, useState, useTransition } from "react";
-import { SendIcon, FileTextIcon } from "lucide-react";
+import { SendIcon, FileTextIcon, PaperclipIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { submitClaimAction } from "@/app/[locale]/(portal)/initiate-claim/actions";
@@ -107,7 +107,11 @@ export function QueryResponseSection({
     });
   }, [accountId, claimId, response]);
 
-  if (queries.length === 0 && claimRemarks.length === 0) {
+  const hasUploadRemarks = documents.some((doc) =>
+    doc.files.some((file) => file.uploadRemarks?.trim())
+  );
+
+  if (queries.length === 0 && claimRemarks.length === 0 && !hasUploadRemarks) {
     if (!isLender && imgcComposer) {
       return (
         <Panel
@@ -136,6 +140,40 @@ export function QueryResponseSection({
    *  own rows to show what state each one is actually in. */
   const docByName = new Map(documents.map((doc) => [doc.name, doc]));
 
+  /**
+   * Remarks typed on the upload form, shown in the thread alongside the typed-out ones.
+   *
+   * They are part of the same conversation — "here is the statement you asked for, page 3 is the
+   * one that matters" — but they were only visible to IMGC inside the review drawer, so the
+   * lender could not see what they had written and IMGC had to open a document to find it.
+   * Attributed by who uploaded the file; a file from before that was recorded reads as the
+   * lender's, which is who uploaded in every flow that existed then.
+   */
+  const documentRemarks = documents.flatMap((doc) =>
+    doc.files
+      .filter((file) => file.uploadRemarks?.trim())
+      .map((file) => ({
+        id: `upload_${file.id}`,
+        createdAt: file.uploadedAt,
+        authorName: file.uploadedByName,
+        authorRole: file.uploadedByRole ?? ("LENDER" as const),
+        body: file.uploadRemarks!.trim(),
+        documentLabel: `${doc.name} · ${file.originalName}`,
+      }))
+  );
+
+  const messages = [
+    ...claimRemarks.map((remark) => ({
+      id: remark.id,
+      createdAt: remark.createdAt,
+      authorName: remark.authorName,
+      authorRole: remark.authorRole,
+      body: remark.body,
+      documentLabel: undefined as string | undefined,
+    })),
+    ...documentRemarks,
+  ].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
   return (
     <Panel
       title={title}
@@ -154,9 +192,7 @@ export function QueryResponseSection({
             : "max-h-[360px] overflow-y-auto space-y-3 px-4 py-4 custom-scrollbar"
         }
       >
-        {claimRemarks
-          .slice()
-          .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        {messages
           .map((remark) => {
             const isLender = remark.authorRole === "LENDER";
             return isLender ? (
@@ -169,6 +205,12 @@ export function QueryResponseSection({
                       &middot; Lender
                     </span>
                   </div>
+                  {remark.documentLabel && (
+                    <p className="mb-0.5 text-right text-[11px] font-medium text-neutral-500">
+                      <PaperclipIcon className="mr-1 inline size-3 align-[-1px]" />
+                      {remark.documentLabel}
+                    </p>
+                  )}
                   <p className="whitespace-pre-wrap text-[12px] font-semibold text-neutral-800">
                     {remark.body}
                   </p>
@@ -184,6 +226,12 @@ export function QueryResponseSection({
                     <span>&middot; {remark.authorName}</span>
                     <span>&middot; {when(remark.createdAt)}</span>
                   </div>
+                  {remark.documentLabel && (
+                    <p className="mb-0.5 text-[11px] font-medium text-neutral-500">
+                      <PaperclipIcon className="mr-1 inline size-3 align-[-1px]" />
+                      {remark.documentLabel}
+                    </p>
+                  )}
                   <p className="whitespace-pre-wrap text-[12px] font-semibold text-neutral-800">
                     {remark.body}
                   </p>

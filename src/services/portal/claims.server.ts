@@ -269,6 +269,7 @@ export async function uploadDocument(
       mime: upload.mime,
       uploadedBy: session.userId,
       uploadedByName: session.name,
+      uploadedByRole: session.role,
       uploadedAt: nowIso(),
       version: next,
       documentNumber: meta.documentNumber?.trim() || undefined,
@@ -340,6 +341,21 @@ export async function deleteDocumentFile(
   const db = await readDb();
   const doc = db.claimDocuments.find((d) => d.id === documentId);
   if (!doc) return { ok: false, error: "Document not found." };
+
+  // Draft-only, and checked here rather than trusted from the screen that hides the button: once
+  // the claim is submitted the file is part of what IMGC is reviewing, and removing it would take
+  // evidence out of a review already under way. A wrong file is replaced by uploading over it,
+  // which supersedes it and leaves the old version in the audit trail.
+  if (doc.claimId) {
+    const claim = db.claims.find((c) => c.id === doc.claimId);
+    if (claim && claim.status !== "DRAFT") {
+      return {
+        ok: false,
+        error:
+          "This claim has been submitted — upload a new version instead of deleting the file.",
+      };
+    }
+  }
 
   const fileRow = db.documentFiles.find(
     (f) => f.id === fileId && f.documentId === documentId

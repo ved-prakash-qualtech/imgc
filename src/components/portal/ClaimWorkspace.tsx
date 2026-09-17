@@ -211,6 +211,7 @@ export function ClaimWorkspace({
               claimId={claimId}
               documents={documents}
               locked={locked}
+              allowDelete={status === "DRAFT"}
               variant="table"
             />
 

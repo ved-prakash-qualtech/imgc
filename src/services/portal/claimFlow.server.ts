@@ -1340,6 +1340,7 @@ export async function addLenderDocument(
       mime: upload.mime,
       uploadedBy: session.userId,
       uploadedByName: session.name,
+      uploadedByRole: session.role,
       uploadedAt: nowIso(),
       version: 1,
       uploadRemarks: input.remarks.trim() || undefined,

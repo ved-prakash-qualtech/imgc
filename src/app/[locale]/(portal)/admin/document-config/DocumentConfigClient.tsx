@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { saveLenderDocumentConfigAction } from "@/app/[locale]/(portal)/admin/document-config/actions";
 import { Panel } from "@/components/portal/Panel";
+import { useConfirmDelete } from "@/components/portal/useConfirmDelete";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -60,6 +61,7 @@ export function DocumentConfigClient({
   const router = useRouter();
   const [rows, setRows] = useState<DraftRow[]>(() => toDraft(initialRows));
   const [addOpen, setAddOpen] = useState(false);
+  const { ask, dialog: confirmDialog } = useConfirmDelete();
   const [pending, startTransition] = useTransition();
 
   const selectedLenderName =
@@ -83,8 +85,13 @@ export function DocumentConfigClient({
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, required } : r)));
   }
 
-  function onRemove(key: string) {
-    setRows((prev) => prev.filter((r) => r.key !== key));
+  function onRemove(key: string, name: string) {
+    ask({
+      title: "Remove this document?",
+      description: `"${name}" will be dropped from this lender's checklist when you save. Claims already in progress keep it.`,
+      confirmLabel: "Remove",
+      onConfirm: () => setRows((prev) => prev.filter((r) => r.key !== key)),
+    });
   }
 
   function onCancel() {
@@ -219,7 +226,7 @@ export function DocumentConfigClient({
                         type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() => onRemove(row.key)}
+                        onClick={() => onRemove(row.key, row.name)}
                         className="h-7 text-destructive hover:border-destructive/40 hover:bg-destructive/5"
                       >
                         <Trash2Icon className="size-3.5" /> Remove
@@ -269,6 +276,8 @@ export function DocumentConfigClient({
           </div>
         </div>
       </Panel>
+
+      {confirmDialog}
 
       <AddDocumentDialog
         open={addOpen}
