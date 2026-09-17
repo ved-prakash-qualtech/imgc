@@ -93,8 +93,10 @@ function sortFromParam(value: string | null): {
 const STATUS_OPTIONS = [
   "NOT_STARTED",
   "DRAFT",
+  "INITIATED",
+  "QUERY_INITIATED",
   "UNDER_REVIEW",
-  "QUERY_RAISED",
+  "QUERY_UNDER_REVIEW",
   "APPROVED",
   "REJECTED",
 ] as const;
@@ -107,6 +109,7 @@ type StatusFilter =
 const URL_STATUS_VALUES = new Set<string>([
   ...STATUS_OPTIONS,
   "DOCUMENTS_RESUBMITTED",
+  "QUERY_RAISED", // keep so old bookmarked URLs still parse safely
   "ACTIVE_NPA",
   "UNDER_PROGRESS",
 ]);

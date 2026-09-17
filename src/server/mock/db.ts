@@ -54,6 +54,18 @@ interface Loaded {
  * time something reads it — same idea as an optional field on a row, just for a whole collection.
  */
 function normalize(db: MockDb): MockDb {
+  // Legacy migration: rename CLAIM_INITIATED to INITIATED
+  for (const claim of db.claims ?? []) {
+    if (claim.status === ("CLAIM_INITIATED" as string)) {
+      claim.status = "INITIATED";
+    }
+  }
+  for (const account of db.accounts ?? []) {
+    if (account.claimStatus === ("CLAIM_INITIATED" as string)) {
+      account.claimStatus = "INITIATED";
+    }
+  }
+
   return {
     ...db,
     lenderDocumentRequirements: db.lenderDocumentRequirements ?? [],

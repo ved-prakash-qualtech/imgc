@@ -208,6 +208,7 @@ function LenderUnderProgressTable({
           <tr>
             <th className="px-1 py-1.5 font-medium">Loan ID</th>
             <th className="px-1 py-1.5 font-medium">Applicant</th>
+            <th className="px-1 py-1.5 font-medium">Status</th>
             <th className="px-1 py-1.5 text-right font-medium">
               Latest Query Date
             </th>
@@ -232,6 +233,7 @@ function LenderUnderProgressTable({
                 {row.loanId}
               </td>
               <td className="px-1 py-1.5">{row.applicant}</td>
+              <td className="px-1 py-1.5 text-neutral-500">{row.status}</td>
               <td className="px-1 py-1.5 text-right tabular-nums">
                 {formatQueryDate(row.latestQueryDate)}
               </td>
