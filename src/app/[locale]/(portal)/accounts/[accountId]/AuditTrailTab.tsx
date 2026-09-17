@@ -20,7 +20,6 @@ const GROUPS: ReadonlyArray<{ label: string; types: AuditType[] | null }> = [
     ],
   },
   { label: "Remarks", types: ["REMARK_ADDED"] },
-  { label: "PAS", types: ["PAS_VALUE_UPDATED"] },
   {
     label: "Processing",
     types: ["BUCKET_SHIFTED", "CLAIM_SUBMITTED", "CLAIM_STATUS_CHANGED"],
@@ -55,7 +54,7 @@ export function AuditTrailTab({ events }: Readonly<{ events: AuditEvent[] }>) {
   return (
     <Panel
       title="Audit trail"
-      description="Every upload, decision, remark and PAS write on this account."
+      description="Every upload, decision and remark on this account."
       actions={
         <div
           className="flex flex-wrap items-center gap-0.5 rounded-lg border border-neutral-200 p-0.5"

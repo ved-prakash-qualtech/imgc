@@ -49,36 +49,37 @@ export function LoanDetailsCard({ account }: Readonly<{ account: AccountRow }>) 
   const orderedFields = (
     <>
       {/* Row 1 */}
-      <Row label="Loan Account Number" value={account.loanNo} />
+      <Row label="Lender" value={account.lenderOrgName} />
       <Row
         label="EMI Amount"
         value={inr.format(25000 + (account.loanAmount % 5000))}
       />
       {/* Row 2 */}
-      <Row label="Customer Name" value={account.borrowerName} />
+      <Row label="Loan Account Number" value={account.loanNo} />
       <Row
         label="DPD"
         value={account.dpd !== undefined ? String(account.dpd) : "—"}
       />
       {/* Row 3 */}
-      <Row label="Property Type" value={account.propertyType} />
+      <Row label="Customer Name" value={account.borrowerName} />
       <Row label="NPA" value="Yes" />
       {/* Row 4 */}
-      <Row label="Property Status" value={account.propertyStatus} />
+      <Row label="Property Type" value={account.propertyType} />
       <Row label="Product" value={account.product} />
       {/* Row 5 */}
-      <Row label="Loan Amount" value={inr.format(account.loanAmount)} />
+      <Row label="Property Status" value={account.propertyStatus} />
       <Row label="Disbursement Date" value={date(account.disbursementDate)} />
       {/* Row 6 */}
-      <Row
-        label="Outstanding Amount"
-        value={inr.format(account.outstandingAmount)}
-      />
+      <Row label="Loan Amount" value={inr.format(account.loanAmount)} />
       <Row
         label="IMGC Approval Date"
         value={date(imgcApprovalDate(account.disbursementDate))}
       />
       {/* Row 7 */}
+      <Row
+        label="Outstanding Amount"
+        value={inr.format(account.outstandingAmount)}
+      />
       <Row label="Tenure" value={years(account.tenureMonths)} />
     </>
   );

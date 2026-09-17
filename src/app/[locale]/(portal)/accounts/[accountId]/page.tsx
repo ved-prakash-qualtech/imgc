@@ -54,7 +54,14 @@ export default async function AccountPage({
   }
 
   return (
-    <PortalShell activeKey="accounts" title={account.loanNo}>
+    <PortalShell
+      activeKey="accounts"
+      title={
+        session.role === "IMGC" && account.claimNo
+          ? `Claim No. ${account.claimNo}`
+          : account.loanNo
+      }
+    >
       <div className="space-y-3">
         <AccountWorkspace
           backLink={

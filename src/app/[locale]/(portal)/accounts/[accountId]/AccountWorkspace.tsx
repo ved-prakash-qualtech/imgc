@@ -20,22 +20,22 @@ import type { ClaimRow } from "@/services/portal/claimFlow.server";
 import type { RequirementRow } from "@/services/portal/requirements.server";
 import type { AuditEvent, ClaimQuery, Remark, Role } from "@/server/mock/types";
 
-const TABS = ["Loan Details", "Query/Decision", "Audit Trail"] as const;
+const TABS = ["Loan Details", "Decision/Query", "Audit Trail"] as const;
 
 /** URL-friendly slugs for `?tab=` — a notification linking into an account picks the tab that
  *  actually shows what it's about (see notifications/page.tsx's `tabSlugForEvent`). */
 const TAB_SLUGS: Record<(typeof TABS)[number], string> = {
   "Loan Details": "overview",
-  "Query/Decision": "query-trail",
+  "Decision/Query": "query-trail",
   "Audit Trail": "audit-trail",
 };
 
 function tabFromSlug(slug: string | null, role: Role): (typeof TABS)[number] {
-  if (slug === "initial-claims") return "Query/Decision";
+  if (slug === "initial-claims") return "Decision/Query";
   return (
     // eslint-disable-next-line security/detect-object-injection
     TABS.find((t) => TAB_SLUGS[t] === slug) ??
-    (role === "IMGC" ? "Query/Decision" : "Loan Details")
+    (role === "IMGC" ? "Decision/Query" : "Loan Details")
   );
 }
 
@@ -112,7 +112,7 @@ export function AccountWorkspace({
 
       {tab === "Loan Details" && <OverviewTab account={account} />}
 
-      {tab === "Query/Decision" && (
+      {tab === "Decision/Query" && (
         <QueryTrailTab
           account={account}
           role={role}
@@ -349,25 +349,6 @@ function OverviewTab({
 }>) {
   return (
     <div className="space-y-4">
-      <Panel title="Claim Details">
-        <div className="grid divide-y divide-neutral-100 sm:grid-cols-3 sm:divide-y-0 lg:grid-cols-5">
-          <Fact label="Claim No" value={account.claimNo || "—"} />
-          <Fact label="Lender" value={account.lenderOrgName} />
-          <Fact
-            label="Processing bucket"
-            value={<StatusPill status={account.bucket} />}
-          />
-          <Fact
-            label="Claim status"
-            value={<StatusPill status={account.claimStatus} />}
-          />
-          <Fact
-            label="Initiation Date"
-            value={formatDate(account.submittedAt)}
-          />
-        </div>
-      </Panel>
-
       <LoanDetailsCard account={account} />
 
       {account.pushRecipients.length > 0 && (
