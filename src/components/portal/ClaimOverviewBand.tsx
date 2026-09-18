@@ -201,10 +201,10 @@ export function ClaimOverviewBand({
                 )}
                 {/* Claim amount across exactly the claims this tile counts. */}
                 <p
-                  className="mt-1 truncate text-[11px] font-semibold tabular-nums text-neutral-700"
+                  className="mt-1 text-[11px] font-semibold leading-tight tabular-nums text-neutral-700"
                   title={`Claim amount: ₹${exactInr.format(counts.claimAmount[tile.key])}`}
                 >
-                  <span className="font-medium text-neutral-400">Claim </span>
+                  <span className="block text-[10px] font-medium text-neutral-400">Claim Amount</span>
                   {crore(counts.claimAmount[tile.key])}
                 </p>
               </div>

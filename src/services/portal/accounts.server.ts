@@ -1,4 +1,3 @@
-"use client";
 import "server-only";
 
 import { readDb, writeDb } from "@/server/mock/db";
