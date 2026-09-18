@@ -156,6 +156,7 @@ export function ClaimDocumentsTable({
   locked,
   allowDelete = true,
   bare = false,
+  claimStatus,
 }: Readonly<{
   accountId: string;
   claimId: string;
@@ -165,6 +166,7 @@ export function ClaimDocumentsTable({
    *  superseded by a re-upload, never removed. */
   allowDelete?: boolean;
   bare?: boolean;
+  claimStatus?: string;
 }>) {
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
@@ -260,6 +262,15 @@ export function ClaimDocumentsTable({
       const conditionalNotRequired = doc.conditional && !doc.required;
       
       const rowStyle = conditionalNotRequired ? "bg-neutral-50/50" : "";
+
+      const canModifyDocuments = !claimStatus ||
+        claimStatus === "DRAFT" ||
+        claimStatus === "QUERY_INITIATED" ||
+        claimStatus === "QUERY_UNDER_REVIEW" ||
+        doc.status === "REJECTED" ||
+        doc.status === "REUPLOAD_REQUIRED";
+
+      const isDisabled = claimStatus ? !canModifyDocuments : false;
       
       const docNameCell = (
         <div className="flex flex-col gap-1">
@@ -284,6 +295,7 @@ export function ClaimDocumentsTable({
             variant="outline"
             size="sm"
             className="h-7 px-2.5 text-[11px]"
+            disabled={isDisabled}
             onClick={() => setUploadTarget({ row: doc, mode: "upload" })}
           >
             <UploadIcon className="mr-1.5 size-3" /> Upload
@@ -293,6 +305,7 @@ export function ClaimDocumentsTable({
             variant="outline"
             size="sm"
             className="h-7 px-2.5 text-[11px]"
+            disabled={isDisabled}
             onClick={() => setUploadTarget({ row: doc, mode: "add" })}
           >
             {doc.status === "REJECTED" ? (
@@ -352,15 +365,15 @@ export function ClaimDocumentsTable({
             </TableCell>
             <TableCell className="py-3 align-middle">
               <div className="flex items-center gap-1.5">
-                {!locked && allowDelete && (
+                {!locked && (allowDelete || claimStatus !== undefined) && doc.status !== "APPROVED" && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:hover:bg-transparent disabled:hover:text-destructive/50 disabled:opacity-50"
                     // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                     onClick={() => onDelete(accountId, doc.id, file.id, file.originalName)}
                     aria-label="Delete file"
-                    disabled={deleting}
+                    disabled={deleting || (claimStatus !== undefined && isDisabled && !allowDelete)}
                     title="Delete file"
                   >
                     <TrashIcon className="size-3.5" />

@@ -80,6 +80,7 @@ export function ClaimDocuments({
   claimId,
   documents,
   locked,
+  claimStatus,
   allowDelete = true,
   bare = false,
   variant = "accordion",
@@ -88,6 +89,7 @@ export function ClaimDocuments({
   claimId: string;
   documents: RequirementRow[];
   locked: boolean;
+  claimStatus?: string;
   /** Deleting an uploaded file is a draft-only act: once the claim is submitted the file is part
    *  of what IMGC is reviewing, so it can be superseded by a re-upload but never removed. */
   allowDelete?: boolean;
@@ -183,6 +185,7 @@ export function ClaimDocuments({
             onUpload={setUploadTarget}
             onDelete={onDelete}
             deleting={deleting}
+            claimStatus={claimStatus}
           />
         ) : (
           <ol className="divide-y divide-neutral-100">
@@ -200,6 +203,7 @@ export function ClaimDocuments({
                 onUpload={setUploadTarget}
                 onDelete={onDelete}
                 deleting={deleting}
+                claimStatus={claimStatus}
               />
             ))}
           </ol>
@@ -223,6 +227,7 @@ export function ClaimDocuments({
             onUpload={setUploadTarget}
             onDelete={onDelete}
             deleting={deleting}
+            claimStatus={claimStatus}
           />
         ) : (
           <ol className="divide-y divide-neutral-100">
@@ -239,6 +244,7 @@ export function ClaimDocuments({
                 onUpload={setUploadTarget}
                 onDelete={onDelete}
                 deleting={deleting}
+                claimStatus={claimStatus}
               />
             ))}
           </ol>
@@ -273,6 +279,7 @@ function DocAccordionItem({
   onUpload,
   onDelete,
   deleting,
+  claimStatus,
 }: Readonly<{
   doc: RequirementRow;
   index?: number;
@@ -295,6 +302,7 @@ function DocAccordionItem({
   allowDelete: boolean;
   /** A delete is running — every delete button stays disabled until it settles. */
   deleting: boolean;
+  claimStatus?: string;
 }>) {
   const hasFiles = doc.files.length > 0;
   const conditionalNotRequired = doc.conditional && !doc.required;
@@ -311,6 +319,15 @@ function DocAccordionItem({
         ? { mode: "upload" as const, label: "Upload", icon: <UploadIcon /> }
         : { mode: "add" as const, label: "Add File", icon: <PlusIcon /> }
       : null;
+
+  const canModifyDocuments = !claimStatus ||
+    claimStatus === "DRAFT" ||
+    claimStatus === "QUERY_INITIATED" ||
+    claimStatus === "QUERY_UNDER_REVIEW" ||
+    doc.status === "REJECTED" ||
+    doc.status === "REUPLOAD_REQUIRED";
+
+  const isDisabled = claimStatus ? !canModifyDocuments : false;
 
   return (
     <li className={cn(conditionalNotRequired && "bg-neutral-25")}>
@@ -366,6 +383,7 @@ function DocAccordionItem({
           <Button
             size="xs"
             variant={action.mode === "upload" ? "default" : "outline"}
+            disabled={isDisabled}
             // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
             onClick={() => onUpload({ row: doc, mode: action.mode })}
           >
@@ -493,14 +511,14 @@ function DocAccordionItem({
                       >
                         View Document
                       </a>
-                      {!locked && allowDelete && doc.status !== "APPROVED" && (
+                      {!locked && (allowDelete || claimStatus !== undefined) && doc.status !== "APPROVED" && (
                         <button
                           type="button"
                           // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                           onClick={() => onDelete(doc.accountId, doc.id, f.id, f.originalName)}
                           title="Delete this file"
-                          disabled={deleting}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-400 transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive focus:outline-none focus:ring-2 focus:ring-destructive/20"
+                          disabled={deleting || (claimStatus !== undefined && isDisabled && !allowDelete)}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-400 transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive focus:outline-none focus:ring-2 focus:ring-destructive/20 disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:border-neutral-200 disabled:hover:text-neutral-400"
                         >
                           <TrashIcon className="size-3.5" />
                         </button>
@@ -593,11 +611,13 @@ function DocumentsTable({
   onUpload,
   onDelete,
   deleting,
+  claimStatus,
 }: Readonly<{
   docs: RequirementRow[];
   /** Number the rows 1., 2., 3. — only the required-documents list does this. */
   indexed?: boolean;
   locked: boolean;
+  claimStatus?: string;
   onUpload: (t: {
     row: RequirementRow;
     mode: "upload" | "add" | "replace";
@@ -685,6 +705,7 @@ function DocumentsTable({
               onUpload={onUpload}
               onDelete={onDelete}
               deleting={deleting}
+              claimStatus={claimStatus}
             />
           ))}
         </tbody>
@@ -701,6 +722,7 @@ function DocTableRows({
   allowDelete,
   onDelete,
   deleting,
+  claimStatus,
 }: Readonly<{
   doc: RequirementRow;
   index?: number;
@@ -719,10 +741,20 @@ function DocTableRows({
   allowDelete: boolean;
   /** A delete is running — every delete button stays disabled until it settles. */
   deleting: boolean;
+  claimStatus?: string;
 }>) {
   const hasFiles = doc.files.length > 0;
   const canAddMore = !locked && doc.status !== "APPROVED";
   const rowSpan = hasFiles ? doc.files.length : 1;
+
+  const canModifyDocuments = !claimStatus ||
+    claimStatus === "DRAFT" ||
+    claimStatus === "QUERY_INITIATED" ||
+    claimStatus === "QUERY_UNDER_REVIEW" ||
+    doc.status === "REJECTED" ||
+    doc.status === "REUPLOAD_REQUIRED";
+
+  const isDisabled = claimStatus ? !canModifyDocuments : false;
 
   const nameCell = (
     <td rowSpan={rowSpan} className="px-4 py-3 align-top">
@@ -755,6 +787,7 @@ function DocTableRows({
           <Button
             size="xs"
             variant={hasFiles ? "outline" : "default"}
+            disabled={isDisabled}
             // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
             onClick={() =>
               onUpload({ row: doc, mode: hasFiles ? "add" : "upload" })
@@ -851,15 +884,15 @@ function DocTableRows({
                         <UploadIcon /> Re-upload
                       </Button>
                     )}
-                    {!locked && allowDelete && doc.status !== "APPROVED" && (
+                    {!locked && (allowDelete || claimStatus !== undefined) && doc.status !== "APPROVED" && (
                       <Button
                         size="xs"
                         variant="outline"
                         // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                         onClick={() => onDelete(doc.accountId, doc.id, f.id, f.originalName)}
                         title="Delete this file"
-                        disabled={deleting}
-                        className="size-7 p-0 text-neutral-400 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
+                        disabled={deleting || (claimStatus !== undefined && isDisabled && !allowDelete)}
+                        className="size-7 p-0 text-neutral-400 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive disabled:hover:bg-transparent disabled:hover:border-neutral-200 disabled:hover:text-neutral-400 disabled:opacity-50"
                       >
                         <TrashIcon className="size-3.5" />
                       </Button>
@@ -891,7 +924,7 @@ function DocTableRows({
                             <UploadIcon /> Re-upload
                           </Button>
                         )}
-                        {!locked && allowDelete && doc.status !== "APPROVED" && (
+                        {!locked && (allowDelete || claimStatus !== undefined) && doc.status !== "APPROVED" && (
                           <Button
                             size="xs"
                             variant="outline"
@@ -900,8 +933,8 @@ function DocTableRows({
                               onDelete(doc.accountId, doc.id, f.id, f.originalName)
                             }
                             title="Delete this file"
-                            disabled={deleting}
-                            className="size-7 p-0 text-neutral-400 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
+                            disabled={deleting || (claimStatus !== undefined && isDisabled && !allowDelete)}
+                            className="size-7 p-0 text-neutral-400 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive disabled:hover:bg-transparent disabled:hover:border-neutral-200 disabled:hover:text-neutral-400 disabled:opacity-50"
                           >
                             <TrashIcon className="size-3.5" />
                           </Button>

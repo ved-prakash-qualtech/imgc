@@ -102,7 +102,7 @@ function toRow(
     files: history.filter((f) => !f.supersededAt),
     history,
     slug: doc.slug,
-    multiple: doc.multiple ?? false,
+    multiple: doc.multiple || ["lod", "legal-collection-feedback", "latest-technical-report", "income-banking", "noc"].includes(doc.slug || ""),
     conditional: doc.conditional ?? false,
     conditionReason: doc.conditionReason,
     refNo: doc.refNo,

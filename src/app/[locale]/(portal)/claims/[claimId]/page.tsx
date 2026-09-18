@@ -146,19 +146,20 @@ export default async function ClaimDetailsPage({
       }
       documents={
         isLender ? (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-3">
             <ClaimDocumentsTable
               accountId={claim.accountId}
               claimId={claim.id}
               documents={documents}
               locked={terminal}
               allowDelete={canDeleteFiles}
+              claimStatus={claim.status}
             />
             {(claim.status === "QUERY_INITIATED" ||
               claim.status === "QUERY_UNDER_REVIEW") && (
               <div
                 key="query-response"
-                className="flex justify-end mt-2 p-4 border-t border-neutral-100 bg-white"
+                className="flex justify-end"
               >
                 <ResubmitClaimButton
                   accountId={claim.accountId}
@@ -314,7 +315,7 @@ export default async function ClaimDetailsPage({
             claim.status === "QUERY_UNDER_REVIEW") && (
             <div
               key="query-response"
-              className="flex justify-end mt-2 p-4 border-t border-neutral-100 bg-white"
+              className="flex justify-end"
             >
               <ResubmitClaimButton
                 accountId={claim.accountId}
