@@ -28,3 +28,29 @@ export function FileDecisionNote({
     </p>
   );
 }
+
+/**
+ * What the lender wrote when uploading this file, shown to IMGC under the file name.
+ *
+ * It is the lender's context for the reviewer — "page 3 is the one that matters", "statement
+ * for the co-borrower" — and it belongs next to the file it describes, where the decision on
+ * that file is taken, rather than somewhere IMGC has to go looking for it.
+ */
+export function LenderRemarkNote({
+  remarks,
+  className,
+}: Readonly<{ remarks?: string; className?: string }>) {
+  const text = remarks?.trim();
+  if (!text) return null;
+  return (
+    <p
+      className={cn(
+        "mt-0.5 line-clamp-2 text-[11px] font-normal leading-snug text-neutral-500",
+        className
+      )}
+      title={`Lender remark: ${text}`}
+    >
+      <span className="font-semibold text-neutral-600">Lender remark:</span> {text}
+    </p>
+  );
+}

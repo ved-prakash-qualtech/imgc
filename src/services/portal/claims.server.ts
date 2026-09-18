@@ -570,13 +570,22 @@ function applyDerivedStatus(
   const previous = row.status;
   row.status = status;
 
+  // The requirement's remark is the one that explains its status: when it is rejected, that is
+  // the latest rejected file's reason — not whatever file happened to be decided last, which may
+  // well be an acceptance on another file.
+  const rejected = live
+    .filter((f) => f.review?.decision === "REJECTED")
+    .sort((a, b) => (b.review?.at ?? "").localeCompare(a.review?.at ?? ""))[0];
+  const explaining = status === "REJECTED" ? (rejected?.review ?? null) : null;
+  const reason = explaining?.remarks ?? remarks;
+
   if (status === "APPROVED" || status === "REJECTED") {
     row.review = {
       decision: status,
-      by: session.userId,
-      byName: session.name,
-      at: nowIso(),
-      remarks,
+      by: explaining?.by ?? session.userId,
+      byName: explaining?.byName ?? session.name,
+      at: explaining?.at ?? nowIso(),
+      remarks: reason,
       version: row.version ?? 1,
     };
   } else {
@@ -587,7 +596,14 @@ function applyDerivedStatus(
   // rejected, keep it running while it stays rejected, and stop it the moment it is not.
   if (status === "REJECTED") {
     if (previous !== "REJECTED" || !row.rejection) {
-      row.rejection = { at: nowIso(), by: session.name, reason: remarks };
+      row.rejection = {
+        at: nowIso(),
+        by: explaining?.byName ?? session.name,
+        reason,
+      };
+    } else {
+      // Still rejected, clock keeps running — but the reason follows the current rejected file.
+      row.rejection.reason = reason;
     }
   } else {
     row.rejection = undefined;

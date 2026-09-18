@@ -33,7 +33,7 @@ import { addRemarkAction,
   submitClaimAction,
   uploadDocumentAction,
 } from "@/app/[locale]/(portal)/accounts/[accountId]/actions";
-import { FileDecisionNote } from "@/components/portal/FileDecisionNote";
+import { FileDecisionNote, LenderRemarkNote } from "@/components/portal/FileDecisionNote";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
@@ -821,11 +821,16 @@ function ImgcDocumentRowItem({
     decision: "APPROVED" | "REJECTED";
   } | null>(null);
   const [previewingFileId, setPreviewingFileId] = useState<string | null>(null);
+  // The one file whose decision or undo is in flight. Each file is decided on its own, so only
+  // that file's buttons lock while it runs; the others stay usable. The row-wide `busy` still
+  // guards the requirement-level actions (withdraw, reinstate, query).
+  const [busyFileId, setBusyFileId] = useState<string | null>(null);
 
   const working = busy;
 
   const decide = useCallback(
     (fileId: string, decision: "APPROVED" | "REJECTED", remarks: string) => {
+      setBusyFileId(fileId);
       startTransition(async () => {
         const result = await decideFileAction(
           accountId,
@@ -834,6 +839,7 @@ function ImgcDocumentRowItem({
           decision,
           remarks
         );
+        setBusyFileId(null);
         if (!result.ok) {
           toast.error(result.error ?? "That decision could not be recorded.");
           return;
@@ -847,8 +853,10 @@ function ImgcDocumentRowItem({
 
   const onUndoFile = useCallback(
     (fileId: string) => {
+      setBusyFileId(fileId);
       startTransition(async () => {
         const result = await undoFileDecisionAction(accountId, doc.id, fileId);
+        setBusyFileId(null);
         if (!result.ok) {
           toast.error(result.error ?? "That decision could not be undone.");
           return;
@@ -878,17 +886,6 @@ function ImgcDocumentRowItem({
         return;
       }
       toast.success(`"${doc.name}" is back under review.`);
-    });
-  }, [accountId, doc.id, doc.name]);
-
-  const onRaiseQuery = useCallback(() => {
-    startTransition(async () => {
-      const result = await raiseQueryForRejectedDocumentAction(accountId, doc.id);
-      if (!result.ok) {
-        toast.error(result.error ?? "That query could not be raised.");
-        return;
-      }
-      toast.success(`Query raised for "${doc.name}".`);
     });
   }, [accountId, doc.id, doc.name]);
 
@@ -965,6 +962,7 @@ function ImgcDocumentRowItem({
                     <button type="button" onClick={() => setPreviewingFileId(f.id)} className="w-full truncate text-left hover:text-brand-primary hover:underline">{f.originalName}</button>
                   )}
                 </div>
+                <LenderRemarkNote remarks={f.uploadRemarks} />
                 <FileDecisionNote review={f.review} />
               </div>
               <div className="w-[60px] shrink-0 text-[11.5px] text-neutral-500">{bytes(f.size)}</div>
@@ -1017,13 +1015,13 @@ function ImgcDocumentRowItem({
                     requirement-level decision and its Undo, rather than being offered Accept again. */}
                 {!inactive && !f.review && doc.status === "UNDER_REVIEW" && deciding?.fileId !== f.id && (
                   <>
-                    <Button size="xs" variant="success" onClick={() => setDeciding({ fileId: f.id, fileName: f.originalName, decision: "APPROVED" })} disabled={working} className="size-7 p-0" title="Accept this file"><CheckIcon className="size-4" /></Button>
-                    <Button size="xs" variant="outline" onClick={() => setDeciding({ fileId: f.id, fileName: f.originalName, decision: "REJECTED" })} disabled={working} className="size-7 p-0 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive" title="Reject this file"><XIcon className="size-4" /></Button>
+                    <Button size="xs" variant="success" onClick={() => setDeciding({ fileId: f.id, fileName: f.originalName, decision: "APPROVED" })} disabled={busyFileId === f.id}className="size-7 p-0" title="Accept this file"><CheckIcon className="size-4" /></Button>
+                    <Button size="xs" variant="outline" onClick={() => setDeciding({ fileId: f.id, fileName: f.originalName, decision: "REJECTED" })} disabled={busyFileId === f.id}className="size-7 p-0 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive" title="Reject this file"><XIcon className="size-4" /></Button>
                   </>
                 )}
 
                 {f.review && (
-                  <Button size="xs" variant="outline" onClick={() => onUndoFile(f.id)} disabled={working} title={f.review.decision === "APPROVED" ? "Undo the acceptance of this file" : "Undo the rejection of this file"} className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
+                  <Button size="xs" variant="outline" onClick={() => onUndoFile(f.id)} disabled={busyFileId === f.id}title={f.review.decision === "APPROVED" ? "Undo the acceptance of this file" : "Undo the rejection of this file"} className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
                 )}
 
                 {!f.review && doc.status === "REJECTED" && (
@@ -1033,9 +1031,6 @@ function ImgcDocumentRowItem({
                   <Button size="xs" variant="outline" onClick={onUndoAccepted} disabled={working} title="Undo the acceptance" className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
                 )}
 
-                {i === 0 && doc.status === "REJECTED" && !hasOpenQuery && (
-                  <Button size="xs" variant="outline" onClick={onRaiseQuery} disabled={working} className="h-7 px-2.5 text-[11px]"><MessageSquareWarningIcon className="mr-1 size-3" /> Query</Button>
-                )}
 
                 {doc.addedBy === "IMGC" && (
                   <Button size="xs" variant="outline" onClick={() => onToggleActive(inactive)} disabled={working} className="h-7 px-2.5 text-[11px]">
@@ -1092,7 +1087,7 @@ function ImgcDocumentRowItem({
             type="submit"
             size="sm"
             variant={deciding.decision === "APPROVED" ? "success" : "destructive"}
-            disabled={working}
+            disabled={busyFileId === deciding.fileId}
           >
             {deciding.decision === "APPROVED" ? "Accept file" : "Reject file"}
           </Button>

@@ -24,22 +24,22 @@ import type { DocumentRow } from "@/services/portal/claims.server";
 import type { ClaimRow } from "@/services/portal/claimFlow.server";
 import type { AuditEvent, Role } from "@/server/mock/types";
 
-const TABS = ["Loan Details", "Decision Remarks", "Audit Trail"] as const;
+const TABS = ["Loan Details", "Decision", "Audit Trail"] as const;
 
 /** URL-friendly slugs for `?tab=` — a notification linking into an account picks the tab that
  *  actually shows what it's about (see notifications/page.tsx's `tabSlugForEvent`). */
 const TAB_SLUGS: Record<(typeof TABS)[number], string> = {
   "Loan Details": "overview",
-  "Decision Remarks": "query-trail",
+  "Decision": "query-trail",
   "Audit Trail": "audit-trail",
 };
 
 function tabFromSlug(slug: string | null, role: Role): (typeof TABS)[number] {
-  if (slug === "initial-claims") return "Decision Remarks";
+  if (slug === "initial-claims") return "Decision";
   return (
     // eslint-disable-next-line security/detect-object-injection
     TABS.find((t) => TAB_SLUGS[t] === slug) ??
-    (role === "IMGC" ? "Decision Remarks" : "Loan Details")
+    (role === "IMGC" ? "Decision" : "Loan Details")
   );
 }
 
@@ -112,7 +112,7 @@ export function AccountWorkspace({
 
       {tab === "Loan Details" && <OverviewTab account={account} />}
 
-      {tab === "Decision Remarks" && (
+      {tab === "Decision" && (
         <QueryTrailTab
           account={account}
           role={role}
