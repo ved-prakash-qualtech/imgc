@@ -49,11 +49,38 @@ export function LenderClaimStatusPanel({
           <h2 className="text-[14.5px] font-semibold text-neutral-950">
             Claim Status
           </h2>
-          <div className="flex items-center rounded-full border border-brand-primary/50 bg-brand-light/70 px-2 py-1">
-            <p className="text-[11.5px] leading-tight font-semibold whitespace-nowrap text-brand-primary">
+          <div
+            className={cn(
+              "flex items-center rounded-full border px-2 py-1",
+              visualCurrentStatus === "APPROVED"
+                ? "border-success-500/50 bg-success/10"
+                : visualCurrentStatus === "REJECTED"
+                  ? "border-destructive/50 bg-destructive/5"
+                  : "border-brand-primary/50 bg-brand-light/70"
+            )}
+          >
+            <p
+              className={cn(
+                "text-[11.5px] leading-tight font-semibold whitespace-nowrap",
+                visualCurrentStatus === "APPROVED"
+                  ? "text-success-700"
+                  : visualCurrentStatus === "REJECTED"
+                    ? "text-destructive"
+                    : "text-brand-primary"
+              )}
+            >
               {/* eslint-disable-next-line security/detect-object-injection */}
               {CLAIM_STATUS_LABELS[visualCurrentStatus]}
-              <span className="ml-1.5 rounded-full bg-brand-primary/15 px-1 py-0.5 text-[8px] font-bold tracking-wide text-brand-primary uppercase">
+              <span
+                className={cn(
+                  "ml-1.5 rounded-full px-1 py-0.5 text-[8px] font-bold tracking-wide uppercase",
+                  visualCurrentStatus === "APPROVED"
+                    ? "bg-success/20 text-success-700"
+                    : visualCurrentStatus === "REJECTED"
+                      ? "bg-destructive/15 text-destructive"
+                      : "bg-brand-primary/15 text-brand-primary"
+                )}
+              >
                 Current
               </span>
             </p>

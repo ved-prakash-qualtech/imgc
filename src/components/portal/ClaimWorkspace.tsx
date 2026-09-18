@@ -213,6 +213,7 @@ export function ClaimWorkspace({
               locked={locked}
               allowDelete={status === "DRAFT"}
               variant="table"
+              claimStatus={status}
             />
 
             <Panel
