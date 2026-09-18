@@ -22,7 +22,6 @@ import { ClaimDocuments } from "@/components/portal/ClaimDocuments";
 
 import { LoanDetailsCard } from "@/components/portal/LoanDetailsCard";
 import { Panel } from "@/components/portal/Panel";
-import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
 import { claimConfig, fieldVisible } from "@/config/claimConfig";
 import {
@@ -127,7 +126,7 @@ export function ClaimWorkspace({
       }
       toast.success("Claim saved.");
     });
-  }, [accountId, claimId, router, values]);
+  }, [accountId, claimId, values]);
 
   const onSubmit = useCallback(() => {
     startTransition(async () => {
@@ -200,12 +199,9 @@ export function ClaimWorkspace({
 
       {/* ── Initiate Claim tab — single column, viewport-fit ── */}
       {activeTab === "initiate-claim" && (
-        <div
-          className="flex flex-col gap-3 overflow-hidden"
-          style={{ height: "calc(100vh - 8.5rem)" }}
-        >
-          {/* Scrollable document + remarks area */}
-          <div className="flex-1 overflow-y-auto pr-0.5">
+        <div className="flex flex-col gap-3">
+          {/* Document + remarks area */}
+          <div className="flex-1 pr-0.5">
             <ClaimDocuments
               accountId={accountId}
               claimId={claimId}
@@ -216,10 +212,7 @@ export function ClaimWorkspace({
               claimStatus={status}
             />
 
-            <Panel
-              title="Remarks"
-              className="mt-3"
-            >
+            <Panel title="Remarks" className="mt-3">
               <div className="px-4 py-3">
                 <textarea
                   value={values.__initiationRemark ?? ""}
@@ -242,7 +235,7 @@ export function ClaimWorkspace({
 
           {/* Pinned action bar */}
           {!locked && (
-            <div className="flex shrink-0 items-center justify-between gap-3 rounded-xl border border-neutral-100 bg-white px-5 py-2.5 shadow-sm">
+            <div className="sticky bottom-0 z-20 mt-4 flex shrink-0 items-center justify-between gap-3 pt-2">
               <div className="min-w-0 text-[12.5px]">
                 {canSubmit && (
                   <p className="flex items-center gap-1.5 font-medium text-success-700">

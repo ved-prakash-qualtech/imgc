@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement, useCallback, useState } from "react";
+import { createElement, useCallback, useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import {
   ArchiveIcon,
@@ -105,7 +105,9 @@ function SidebarNavLink({
       aria-current={active ? "page" : undefined}
       className={cn(
         "relative flex items-center gap-2.5 rounded-full text-left text-[13.5px] font-medium transition-colors",
-        collapsed ? "w-full justify-center px-0 py-2.5" : "w-full px-3.5 py-2.5",
+        collapsed
+          ? "w-full justify-center px-0 py-2.5"
+          : "w-full px-3.5 py-2.5",
         active
           ? "bg-[linear-gradient(90deg,var(--color-brand-primary)_0%,var(--color-brand-dark)_100%)] text-white shadow-[0_4px_10px_-2px_rgb(0_0_0/25%)]"
           : "text-sidebar-text-muted hover:bg-white/5 hover:text-white"
@@ -236,17 +238,41 @@ export function AppSidebar({
   onClose,
 }: AppSidebarProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [isHovered, setIsHovered] = useState(false);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleToggle = useCallback(() => {
     if (overlay) {
       onClose?.();
     } else {
-      setCollapsed((prev) => !prev);
+      setCollapsed((prev) => {
+        if (!prev) setIsHovered(false);
+        return !prev;
+      });
     }
   }, [overlay, onClose]);
 
-  /** In overlay mode the sidebar is always "expanded" visually. */
-  const isCollapsed = overlay ? false : collapsed;
+  const handleMouseEnter = useCallback(() => {
+    if (overlay || !collapsed) return;
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsHovered(true);
+    }, 300);
+  }, [overlay, collapsed]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    if (!overlay && collapsed) {
+      setIsHovered(false);
+    }
+  }, [overlay, collapsed]);
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    };
+  }, []);
+
+  const isVisuallyCollapsed = overlay ? false : collapsed && !isHovered;
 
   if (overlay) {
     return (
@@ -284,15 +310,17 @@ export function AppSidebar({
   return (
     <aside
       className={cn(
-        "sticky top-0 flex h-screen shrink-0 flex-col bg-gradient-to-b from-[#5c5c5c] to-[#383838] text-white transition-[width] duration-200",
-        isCollapsed ? "w-16" : "w-sidebar-w"
+        "sticky top-0 flex h-screen shrink-0 flex-col bg-gradient-to-b from-[#5c5c5c] to-[#383838] text-white transition-[width] duration-200 z-30 overflow-x-hidden",
+        isVisuallyCollapsed ? "w-16" : "w-sidebar-w"
       )}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <SidebarContents
         items={items}
         activeKey={activeKey}
         sectionLabel={sectionLabel}
-        collapsed={isCollapsed}
+        collapsed={isVisuallyCollapsed}
         onToggle={handleToggle}
         badges={badges}
       />
@@ -321,7 +349,12 @@ function SidebarContents({
     <>
       {/* Header — logo mark and portal name on the same line. 
           The logo is a white squircle with the IMGC mark. */}
-      <div className={cn("flex items-center gap-3 pt-5 pb-4", collapsed ? "justify-center px-2" : "px-5")}>
+      <div
+        className={cn(
+          "flex items-center gap-3 pt-5 pb-4",
+          collapsed ? "justify-center px-2" : "px-5"
+        )}
+      >
         <div
           className={cn(
             "flex shrink-0 items-center justify-center rounded-xl bg-white shadow-sm",
@@ -329,7 +362,11 @@ function SidebarContents({
           )}
         >
           <Image
-            src={collapsed ? "/assets/icons/imgc-mark.svg" : "/assets/icons/logo.png"}
+            src={
+              collapsed
+                ? "/assets/icons/imgc-mark.svg"
+                : "/assets/icons/logo.png"
+            }
             alt="IMGC Logo"
             width={collapsed ? 20 : 32}
             height={collapsed ? 20 : 32}
