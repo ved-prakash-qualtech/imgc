@@ -5,6 +5,7 @@ import { ArrowUpDownIcon, ChevronDownIcon, ChevronUpIcon, FileIcon, PlusIcon, Tr
 import { toast } from "sonner";
 
 import { AddLenderDocumentDialog } from "@/components/portal/AddLenderDocumentDialog";
+import { FileDecisionNote } from "@/components/portal/FileDecisionNote";
 import { Panel } from "@/components/portal/Panel";
 import { useConfirmDelete } from "@/components/portal/useConfirmDelete";
 import { UploadDialog } from "@/components/portal/UploadDialog";
@@ -343,6 +344,7 @@ export function ClaimDocumentsTable({
                   {file.originalName}
                 </span>
               </a>
+              <FileDecisionNote review={file.review} className="max-w-[260px] pl-6" />
             </TableCell>
             <TableCell className="py-3 text-[12.5px] text-neutral-600 align-middle whitespace-nowrap">
               {formatBytes(file.size)}

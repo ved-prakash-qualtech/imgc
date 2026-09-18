@@ -22,6 +22,8 @@ import { toast } from "sonner";
 
 import { addRemarkAction,
   decideDocumentAction,
+  decideFileAction,
+  undoFileDecisionAction,
   decideReinstateAction,
   raiseQueryForRejectedDocumentAction,
   reactivateDocumentAction,
@@ -31,6 +33,7 @@ import { addRemarkAction,
   submitClaimAction,
   uploadDocumentAction,
 } from "@/app/[locale]/(portal)/accounts/[accountId]/actions";
+import { FileDecisionNote } from "@/components/portal/FileDecisionNote";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
@@ -810,29 +813,50 @@ function ImgcDocumentRowItem({
   hasOpenQuery: boolean;
 }>) {
   const [busy, startTransition] = useTransition();
-  const [rejecting, setRejecting] = useState(false);
+  // Which file IMGC is deciding, and which way. Each file under a requirement is judged on its
+  // own, and both decisions need a remark before they can be recorded.
+  const [deciding, setDeciding] = useState<{
+    fileId: string;
+    fileName: string;
+    decision: "APPROVED" | "REJECTED";
+  } | null>(null);
   const [previewingFileId, setPreviewingFileId] = useState<string | null>(null);
-  
+
   const working = busy;
 
   const decide = useCallback(
-    (decision: "APPROVED" | "REJECTED", reason: string) => {
+    (fileId: string, decision: "APPROVED" | "REJECTED", remarks: string) => {
       startTransition(async () => {
-        const result = await decideDocumentAction(
+        const result = await decideFileAction(
           accountId,
           doc.id,
+          fileId,
           decision,
-          reason
+          remarks
         );
         if (!result.ok) {
           toast.error(result.error ?? "That decision could not be recorded.");
           return;
         }
-        toast.success(`"${doc.name}" ${decision.toLowerCase()}.`);
-        setRejecting(false);
+        toast.success(decision === "APPROVED" ? "File accepted." : "File rejected.");
+        setDeciding(null);
       });
     },
-    [accountId, doc.id, doc.name]
+    [accountId, doc.id]
+  );
+
+  const onUndoFile = useCallback(
+    (fileId: string) => {
+      startTransition(async () => {
+        const result = await undoFileDecisionAction(accountId, doc.id, fileId);
+        if (!result.ok) {
+          toast.error(result.error ?? "That decision could not be undone.");
+          return;
+        }
+        toast.success("File is back under review.");
+      });
+    },
+    [accountId, doc.id]
   );
 
   const onReactivate = useCallback(() => {
@@ -933,12 +957,15 @@ function ImgcDocumentRowItem({
           
           {doc.files.length > 0 && doc.files.map((f, i) => (
             <div key={f.id} className={cn("flex flex-1 items-center justify-between px-4 py-3", i > 0 && "border-t border-neutral-100")}>
-              <div className="w-[220px] shrink-0 truncate text-[12.5px] font-medium text-neutral-700" title={f.originalName}>
-                {f.storedPath ? (
-                  <a href={`/api/portal/files/${f.id}`} target="_blank" rel="noopener noreferrer" className="hover:text-brand-primary hover:underline">{f.originalName}</a>
-                ) : (
-                  <button type="button" onClick={() => setPreviewingFileId(f.id)} className="w-full truncate text-left hover:text-brand-primary hover:underline">{f.originalName}</button>
-                )}
+              <div className="w-[220px] shrink-0 text-[12.5px] font-medium text-neutral-700" title={f.originalName}>
+                <div className="truncate">
+                  {f.storedPath ? (
+                    <a href={`/api/portal/files/${f.id}`} target="_blank" rel="noopener noreferrer" className="hover:text-brand-primary hover:underline">{f.originalName}</a>
+                  ) : (
+                    <button type="button" onClick={() => setPreviewingFileId(f.id)} className="w-full truncate text-left hover:text-brand-primary hover:underline">{f.originalName}</button>
+                  )}
+                </div>
+                <FileDecisionNote review={f.review} />
               </div>
               <div className="w-[60px] shrink-0 text-[11.5px] text-neutral-500">{bytes(f.size)}</div>
               <div className="w-[110px] shrink-0 truncate text-[11.5px] text-neutral-500" title={f.uploadedByName}>{f.uploadedByName}</div>
@@ -985,24 +1012,29 @@ function ImgcDocumentRowItem({
                   </>
                 )}
 
-                {doc.status === "UNDER_REVIEW" && !rejecting && (
+                {/* Decided one file at a time. A file carries its own decision; a file with none that
+                    sits under a requirement decided before decisions were per file keeps that
+                    requirement-level decision and its Undo, rather than being offered Accept again. */}
+                {!inactive && !f.review && doc.status === "UNDER_REVIEW" && deciding?.fileId !== f.id && (
                   <>
-                    <Button size="xs" variant="success" onClick={() => decide("APPROVED", "")} disabled={working} className="size-7 p-0" title="Accept"><CheckIcon className="size-4" /></Button>
-                    <Button size="xs" variant="outline" onClick={() => setRejecting(true)} disabled={working} className="size-7 p-0 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive" title="Reject"><XIcon className="size-4" /></Button>
-                  </>
-                )}
-                
-                {doc.status === "REJECTED" && (
-                  <>
-                    <Button size="xs" variant="outline" onClick={onReactivate} disabled={working} title="Undo the rejection" className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
-                    {!hasOpenQuery && (
-                      <Button size="xs" variant="outline" onClick={onRaiseQuery} disabled={working} className="h-7 px-2.5 text-[11px]"><MessageSquareWarningIcon className="mr-1 size-3" /> Query</Button>
-                    )}
+                    <Button size="xs" variant="success" onClick={() => setDeciding({ fileId: f.id, fileName: f.originalName, decision: "APPROVED" })} disabled={working} className="size-7 p-0" title="Accept this file"><CheckIcon className="size-4" /></Button>
+                    <Button size="xs" variant="outline" onClick={() => setDeciding({ fileId: f.id, fileName: f.originalName, decision: "REJECTED" })} disabled={working} className="size-7 p-0 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive" title="Reject this file"><XIcon className="size-4" /></Button>
                   </>
                 )}
 
-                {doc.status === "APPROVED" && (
+                {f.review && (
+                  <Button size="xs" variant="outline" onClick={() => onUndoFile(f.id)} disabled={working} title={f.review.decision === "APPROVED" ? "Undo the acceptance of this file" : "Undo the rejection of this file"} className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
+                )}
+
+                {!f.review && doc.status === "REJECTED" && (
+                  <Button size="xs" variant="outline" onClick={onReactivate} disabled={working} title="Undo the rejection" className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
+                )}
+                {!f.review && doc.status === "APPROVED" && (
                   <Button size="xs" variant="outline" onClick={onUndoAccepted} disabled={working} title="Undo the acceptance" className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
+                )}
+
+                {i === 0 && doc.status === "REJECTED" && !hasOpenQuery && (
+                  <Button size="xs" variant="outline" onClick={onRaiseQuery} disabled={working} className="h-7 px-2.5 text-[11px]"><MessageSquareWarningIcon className="mr-1 size-3" /> Query</Button>
                 )}
 
                 {doc.addedBy === "IMGC" && (
@@ -1023,32 +1055,48 @@ function ImgcDocumentRowItem({
           ))}
         </div>
       </div>
-      {rejecting && (
+      {deciding && (
         <form
+          key={`${deciding.fileId}-${deciding.decision}`}
           className="m-3 flex flex-wrap items-end gap-2 rounded-lg border border-neutral-200 bg-neutral-25 p-3"
           onSubmit={(e) => {
             e.preventDefault();
-            const reason = String(new FormData(e.currentTarget).get("reason") ?? "");
-            decide("REJECTED", reason);
+            const remarks = String(new FormData(e.currentTarget).get("remarks") ?? "").trim();
+            if (!remarks) {
+              toast.error("A remark is required.");
+              return;
+            }
+            decide(deciding.fileId, deciding.decision, remarks);
           }}
         >
           <label className="min-w-[260px] flex-1">
             <span className="mb-1 block text-[12px] font-medium text-neutral-700">
-              Reason for rejection
+              {deciding.decision === "APPROVED" ? "Remark for accepting" : "Reason for rejecting"}{" "}
+              <span className="font-semibold text-neutral-900">{deciding.fileName}</span>
+              <span className="text-destructive"> *</span>
             </span>
             <input
-              name="reason"
+              name="remarks"
               required
               // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
-              placeholder="e.g. Valuation report is older than 6 months"
+              placeholder={
+                deciding.decision === "APPROVED"
+                  ? "e.g. Statement covers all 12 months, figures verified"
+                  : "e.g. Valuation report is older than 6 months"
+              }
               className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
             />
           </label>
-          <Button type="submit" size="sm" variant="destructive" disabled={working}>
-            Reject document
+          <Button
+            type="submit"
+            size="sm"
+            variant={deciding.decision === "APPROVED" ? "success" : "destructive"}
+            disabled={working}
+          >
+            {deciding.decision === "APPROVED" ? "Accept file" : "Reject file"}
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => setRejecting(false)}>
+          <Button type="button" size="sm" variant="outline" onClick={() => setDeciding(null)}>
             Cancel
           </Button>
         </form>

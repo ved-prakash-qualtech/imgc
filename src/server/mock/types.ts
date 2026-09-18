@@ -297,6 +297,25 @@ export interface DocumentFile {
   uploadedByRole?: Role;
   /** Why this version was superseded, copied from the decision that rejected it. */
   supersededReason?: string;
+  /**
+   * IMGC's current decision on this one file. A requirement can hold several files, and each is
+   * judged on its own — accepting the bank statement for one borrower says nothing about the
+   * statement for the next. The requirement's status is derived from these (see
+   * `deriveDocumentStatus`), never set independently of them.
+   */
+  review?: FileReview;
+  /** Every decision ever taken on this file, oldest first. Append-only: an undo clears `review`
+   *  but leaves the history, so the remarks behind an earlier decision are never lost. */
+  reviews?: FileReview[];
+}
+
+/** One IMGC decision on one file. The remark is mandatory either way and is shown to the lender. */
+export interface FileReview {
+  decision: "APPROVED" | "REJECTED";
+  by: string;
+  byName: string;
+  at: string;
+  remarks: string;
 }
 
 export interface Remark {

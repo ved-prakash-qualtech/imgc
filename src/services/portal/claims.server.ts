@@ -432,6 +432,9 @@ export async function decideDocument(
 ): Promise<Outcome> {
   if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
   const note = remarks.trim();
+  if (decision === "APPROVED" && !note) {
+    return { ok: false, error: "Add a remark before accepting the document." };
+  }
   if (decision === "REJECTED" && !note) {
     return { ok: false, error: "A rejection needs a reason." };
   }
@@ -449,6 +452,23 @@ export async function decideDocument(
     }
     if (!row.currentFileId) {
       return { ok: false as const, error: "Nothing has been uploaded to review yet." };
+    }
+
+    // A whole-requirement decision is the same decision on each of its live files, so the
+    // per-file view and the requirement never disagree about where things stand.
+    if (decision === "APPROVED" || decision === "REJECTED") {
+      const review = {
+        decision,
+        by: session.userId,
+        byName: session.name,
+        at: nowIso(),
+        remarks: note,
+      };
+      for (const file of db.documentFiles) {
+        if (file.documentId !== row.id || file.supersededAt) continue;
+        file.review = review;
+        file.reviews = [...(file.reviews ?? []), review];
+      }
     }
 
     // Rule 3/4/5 — the decision is the status.
@@ -513,6 +533,216 @@ export async function decideDocument(
   if (account) {
     await notifyDocumentDecision(account, outcome.name, decision, note, session);
   }
+  return { ok: true };
+}
+
+/* ── per-file review ───────────────────────────────────────────────── */
+
+/**
+ * A requirement's status, read off its live files.
+ *
+ * Several files can sit under one requirement, and IMGC decides each one separately. The
+ * requirement is only as far along as its least-settled file: anything still undecided keeps it
+ * under review, one rejected file makes it rejected (the lender has something to fix), and it is
+ * approved only when every file is. Derived rather than stored separately, so a file decision can
+ * never leave the requirement saying something its files do not.
+ */
+export function deriveDocumentStatus(
+  files: ReadonlyArray<Pick<DocumentFile, "review">>
+): DocStatus {
+  if (files.length === 0) return "PENDING_UPLOAD";
+  if (files.some((f) => !f.review)) return "UNDER_REVIEW";
+  if (files.some((f) => f.review?.decision === "REJECTED")) return "REJECTED";
+  return "APPROVED";
+}
+
+/** Re-derives a requirement from its live files after one of them changed. */
+function applyDerivedStatus(
+  db: { documentFiles: DocumentFile[] },
+  row: ClaimDocument,
+  session: AppSession,
+  remarks: string
+): DocStatus {
+  const live = db.documentFiles.filter(
+    (f) => f.documentId === row.id && !f.supersededAt
+  );
+  const status = deriveDocumentStatus(live);
+  const previous = row.status;
+  row.status = status;
+
+  if (status === "APPROVED" || status === "REJECTED") {
+    row.review = {
+      decision: status,
+      by: session.userId,
+      byName: session.name,
+      at: nowIso(),
+      remarks,
+      version: row.version ?? 1,
+    };
+  } else {
+    row.review = undefined;
+  }
+
+  // The 90-day retention clock belongs to a rejection. Start it when the requirement first turns
+  // rejected, keep it running while it stays rejected, and stop it the moment it is not.
+  if (status === "REJECTED") {
+    if (previous !== "REJECTED" || !row.rejection) {
+      row.rejection = { at: nowIso(), by: session.name, reason: remarks };
+    }
+  } else {
+    row.rejection = undefined;
+  }
+  return status;
+}
+
+/**
+ * IMGC accepts or rejects ONE file.
+ *
+ * The remark is mandatory for both decisions — an acceptance is a judgement too, and the lender
+ * reads the remark either way. It is appended to the file's own history rather than overwriting
+ * the last one, so what was said about an earlier version stays on the record.
+ */
+export async function decideFile(
+  session: AppSession,
+  accountId: string,
+  documentId: string,
+  fileId: string,
+  decision: "APPROVED" | "REJECTED",
+  remarks: string
+): Promise<Outcome> {
+  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  const note = remarks.trim();
+  if (!note) {
+    return {
+      ok: false,
+      error:
+        decision === "APPROVED"
+          ? "Add a remark before accepting the file."
+          : "Add a remark before rejecting the file.",
+    };
+  }
+
+  const outcome = await writeDb((db) => {
+    const row = db.claimDocuments.find(
+      (d) => d.id === documentId && d.accountId === accountId
+    );
+    if (!row) return { ok: false as const, error: "Document not found." };
+    if (row.active === false) {
+      return { ok: false as const, error: "That requirement has been withdrawn." };
+    }
+    const file = db.documentFiles.find(
+      (f) => f.id === fileId && f.documentId === documentId
+    );
+    if (!file || file.supersededAt) {
+      return { ok: false as const, error: "That file is no longer current." };
+    }
+
+    const review = {
+      decision,
+      by: session.userId,
+      byName: session.name,
+      at: nowIso(),
+      remarks: note,
+    };
+    file.review = review;
+    file.reviews = [...(file.reviews ?? []), review];
+
+    const status = applyDerivedStatus(db, row, session, note);
+    return {
+      ok: true as const,
+      name: row.name,
+      fileName: file.originalName,
+      status,
+    };
+  });
+  if (!outcome.ok) return outcome;
+
+  await recordEvent({
+    accountId,
+    actor: session,
+    type: decision === "APPROVED" ? "DOC_APPROVED" : "DOC_REJECTED",
+    summary: `${decision === "APPROVED" ? "Accepted" : "Rejected"} file "${outcome.fileName}" on "${outcome.name}" — ${note}`,
+    meta: {
+      document: outcome.name,
+      file: outcome.fileName,
+      fileId,
+      status: decision,
+      documentStatus: outcome.status,
+      remarks: note,
+    },
+  });
+
+  // The requirement-level side effects follow the requirement, not the file: the lender is told,
+  // and a rejection is raised with them, only when the requirement itself turns rejected.
+  if (outcome.status === "REJECTED" && decision === "REJECTED") {
+    await syncQueryForDocumentDecision(
+      session,
+      accountId,
+      outcome.name,
+      "REJECTED",
+      note
+    );
+  }
+
+  const db = await readDb();
+  const account = db.accounts.find((a) => a.id === accountId);
+  if (account) {
+    await notifyDocumentDecision(
+      account,
+      `${outcome.name} (${outcome.fileName})`,
+      decision,
+      note,
+      session
+    );
+  }
+  return { ok: true };
+}
+
+/**
+ * IMGC takes back their own decision on one file — it goes back to awaiting review. The history
+ * keeps the decision that was undone; only the current one is cleared.
+ */
+export async function undoFileDecision(
+  session: AppSession,
+  accountId: string,
+  documentId: string,
+  fileId: string
+): Promise<Outcome> {
+  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+
+  const outcome = await writeDb((db) => {
+    const row = db.claimDocuments.find(
+      (d) => d.id === documentId && d.accountId === accountId
+    );
+    if (!row) return { ok: false as const, error: "Document not found." };
+    const file = db.documentFiles.find(
+      (f) => f.id === fileId && f.documentId === documentId
+    );
+    if (!file || file.supersededAt) {
+      return { ok: false as const, error: "That file is no longer current." };
+    }
+    if (!file.review) {
+      return { ok: false as const, error: "That file has no decision to undo." };
+    }
+    const undone = file.review.decision;
+    file.review = undefined;
+    applyDerivedStatus(db, row, session, "");
+    return {
+      ok: true as const,
+      name: row.name,
+      fileName: file.originalName,
+      undone,
+    };
+  });
+  if (!outcome.ok) return outcome;
+
+  await recordEvent({
+    accountId,
+    actor: session,
+    type: "DOC_STATUS_CHANGED",
+    summary: `Undid ${outcome.undone === "APPROVED" ? "acceptance" : "rejection"} of file "${outcome.fileName}" on "${outcome.name}". Back under review.`,
+    meta: { document: outcome.name, file: outcome.fileName, fileId },
+  });
   return { ok: true };
 }
 

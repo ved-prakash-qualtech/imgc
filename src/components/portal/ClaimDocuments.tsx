@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 
 import { AddLenderDocumentDialog } from "@/components/portal/AddLenderDocumentDialog";
+import { FileDecisionNote } from "@/components/portal/FileDecisionNote";
 import { Panel } from "@/components/portal/Panel";
 import { useConfirmDelete } from "@/components/portal/useConfirmDelete";
 import { UploadDialog } from "@/components/portal/UploadDialog";
@@ -440,6 +441,7 @@ function DocAccordionItem({
                             </span>
                           )}
                         </p>
+                        <FileDecisionNote review={f.review} />
                         <p
                           className={cn(
                             "truncate text-[11px]",
@@ -811,7 +813,10 @@ function DocTableRows({
               >
                 {f.originalName}
               </a>
-              {needsFix && doc.review?.remarks && (
+              <FileDecisionNote review={f.review} className="max-w-[260px]" />
+              {/* The requirement-level reason, only for files decided before decisions were per
+                  file - a file with its own decision already shows its own remark above. */}
+              {needsFix && !f.review && doc.review?.remarks && (
                 <p className="mt-0.5 max-w-[240px] truncate text-[11px] text-neutral-500">
                   {isRejected ? "Reason: " : "Query: "}
                   {doc.review.remarks}

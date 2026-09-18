@@ -11,6 +11,8 @@ import {
   setRequirementActive,
   type RequirementInput,
   decideDocument,
+  decideFile,
+  undoFileDecision,
   decideReinstate,
   raiseQueryForRejectedDocument,
   requestReinstate,
@@ -88,6 +90,52 @@ export async function setRequirementActiveAction(
       active
     );
     if (result.ok) refresh(accountId);
+    return result;
+  });
+}
+
+/**
+ * IMGC decides ONE file under a requirement. Revalidates the lender's side as well, because the
+ * remark is theirs to read and the requirement's status may have moved with it.
+ */
+export async function decideFileAction(
+  accountId: string,
+  documentId: string,
+  fileId: string,
+  decision: "APPROVED" | "REJECTED",
+  remarks: string
+): Promise<Result> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await decideFile(
+      session,
+      accountId,
+      documentId,
+      fileId,
+      decision,
+      remarks
+    );
+    if (result.ok) {
+      refresh(accountId);
+      revalidatePath(ROUTES.initiateClaim);
+      revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
+    }
+    return result;
+  });
+}
+
+export async function undoFileDecisionAction(
+  accountId: string,
+  documentId: string,
+  fileId: string
+): Promise<Result> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await undoFileDecision(session, accountId, documentId, fileId);
+    if (result.ok) {
+      refresh(accountId);
+      revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
+    }
     return result;
   });
 }
