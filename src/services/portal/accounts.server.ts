@@ -1,3 +1,4 @@
+"use client";
 import "server-only";
 
 import { readDb, writeDb } from "@/server/mock/db";
@@ -159,13 +160,7 @@ export async function listAccounts(session: AppSession): Promise<AccountRow[]> {
   return db.accounts
     .filter((a) => inScope(session, a))
     .map((a) =>
-      decorate(
-        a,
-        db.lenderOrgs,
-        db.claimDocuments,
-        db.claims,
-        db.claimQueries
-      )
+      decorate(a, db.lenderOrgs, db.claimDocuments, db.claims, db.claimQueries)
     )
     .sort((a, b) => a.loanNo.localeCompare(b.loanNo));
 }
@@ -247,9 +242,6 @@ export async function setClaimStatus(
   if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
 
   const trimmedNote = note.trim();
-  if (!trimmedNote) {
-    return { ok: false, error: "Note is required before you can proceed." };
-  }
 
   const outcome = await writeDb((db) => {
     const account = db.accounts.find((a) => a.id === accountId);

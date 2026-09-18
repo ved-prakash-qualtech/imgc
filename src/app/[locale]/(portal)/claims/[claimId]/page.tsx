@@ -159,7 +159,7 @@ export default async function ClaimDetailsPage({
               claim.status === "QUERY_UNDER_REVIEW") && (
               <div
                 key="query-response"
-                className="flex justify-end"
+                className="sticky bottom-0 z-20 mt-4 flex justify-end pt-2"
               >
                 <ResubmitClaimButton
                   accountId={claim.accountId}
@@ -315,7 +315,7 @@ export default async function ClaimDetailsPage({
             claim.status === "QUERY_UNDER_REVIEW") && (
             <div
               key="query-response"
-              className="flex justify-end"
+              className="sticky bottom-0 z-20 mt-4 flex justify-end pt-2"
             >
               <ResubmitClaimButton
                 accountId={claim.accountId}
@@ -435,7 +435,6 @@ export default async function ClaimDetailsPage({
         className={
           isSingleView ? "flex flex-col" : "flex flex-col overflow-hidden"
         }
-        style={isSingleView ? undefined : { height: "calc(100vh - 5.5rem)" }}
       >
         {layoutContent}
       </div>

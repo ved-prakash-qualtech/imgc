@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
 import type { DocumentRow } from "@/services/portal/claims.server";
 import type { ClaimRow } from "@/services/portal/claimFlow.server";
-import type { AuditEvent, Role } from "@/server/mock/types";
+import type { AuditEvent, Role, ClaimQuery } from "@/server/mock/types";
 
 const TABS = ["Loan Details", "Decision", "Audit Trail"] as const;
 
@@ -31,7 +31,7 @@ const TABS = ["Loan Details", "Decision", "Audit Trail"] as const;
  *  actually shows what it's about (see notifications/page.tsx's `tabSlugForEvent`). */
 const TAB_SLUGS: Record<(typeof TABS)[number], string> = {
   "Loan Details": "overview",
-  "Decision": "query-trail",
+  Decision: "query-trail",
   "Audit Trail": "audit-trail",
 };
 
@@ -43,6 +43,8 @@ function tabFromSlug(slug: string | null, role: Role): (typeof TABS)[number] {
     (role === "IMGC" ? "Decision" : "Loan Details")
   );
 }
+
+export type OpenQuery = ClaimQuery & { overdue: boolean };
 
 type Props = Readonly<{
   account: AccountRow;
@@ -56,6 +58,7 @@ type Props = Readonly<{
   /** Names of documents an open query already covers — so a rejection from before that sync
    *  existed can offer to raise one, and a fresh rejection (already covered) doesn't. */
   queriedDocNames: string[];
+  openQueries: OpenQuery[];
   backLink?: React.ReactNode;
 }>;
 
@@ -69,6 +72,8 @@ export function AccountWorkspace({
   canSubmit,
   retentionDays,
   queriedDocNames,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  openQueries,
   backLink,
 }: Props) {
   // A notification deep-links here with `?tab=initial-claims` etc. — land on that tab instead of
@@ -154,35 +159,19 @@ function QueryTrailTab({
   documentsSection: React.ReactNode;
 }>) {
   const [pending, startTransition] = useTransition();
-  const [note, setNote] = useState("");
-  const [noteError, setNoteError] = useState("");
 
   const decide = useCallback(
     (status: "APPROVED" | "QUERIED" | "REJECTED") => {
-      const trimmedNote = note.trim();
-      if (!trimmedNote) {
-        setNoteError(
-          status === "APPROVED"
-            ? "Please enter a note before marking the case as approved."
-            : status === "REJECTED"
-              ? "Please enter a note before rejecting the case."
-              : "Please enter a note before raising a query."
-        );
-        return;
-      }
-
       startTransition(async () => {
-        const result = await setClaimStatusAction(account.id, status, note);
+        const result = await setClaimStatusAction(account.id, status, "");
         if (!result.ok) {
           toast.error(result.error ?? "That status could not be set.");
           return;
         }
-        setNote("");
-        setNoteError("");
         toast.success(`Claim marked ${status.toLowerCase()}.`);
       });
     },
-    [account.id, note]
+    [account.id]
   );
 
   if (role !== "IMGC") return null;
@@ -198,24 +187,6 @@ function QueryTrailTab({
   const imgcComposer = (
     <div className="flex flex-col gap-0.5 px-2 py-1">
       <div className="flex flex-wrap items-end gap-1">
-        <label className="min-w-[280px] flex-1">
-          <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-            Note <span className="text-red-500">*</span>
-          </span>
-          <input
-            value={note}
-            onChange={(e) => {
-              setNote(e.target.value);
-              if (noteError) setNoteError("");
-            }}
-            placeholder="e.g. Valuation clarified with the lender on call"
-            className={`h-9 w-full rounded-lg border px-3 text-[13px] outline-none transition-colors ${
-              noteError
-                ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
-                : "border-neutral-200 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-            }`}
-          />
-        </label>
         {claim?.status === "INITIATED" && (
           <Button
             size="sm"
@@ -260,9 +231,6 @@ function QueryTrailTab({
           <QueriedButton claimId={claim.id} claimNo={claim.claimNo} />
         )}
       </div>
-      {noteError && (
-        <p className="text-[12.5px] font-medium text-red-500">{noteError}</p>
-      )}
     </div>
   );
 
@@ -285,11 +253,7 @@ function QueryTrailTab({
 
       {documentsSection}
 
-      {claim ? (
-        <Panel title="Decision Management">{imgcComposer}</Panel>
-      ) : (
-        <Panel title="Decision Management">{imgcComposer}</Panel>
-      )}
+      <div className="sticky bottom-0 z-20 mt-4 pt-2">{imgcComposer}</div>
     </div>
   );
 }
