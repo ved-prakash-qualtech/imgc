@@ -166,7 +166,21 @@ export function ClaimDocuments({
 
   const applicable = required.filter((d) => d.required && d.active);
 
-  const additionalActions = !locked ? (
+  // The lender can add documents only while the claim is still open to them: a draft, or a query
+  // they are answering. Once it is initiated and with IMGC, there is nothing to add here - so the
+  // Add button goes, and an Additional documents panel with nothing in it goes too.
+  const claimOpenForChanges =
+    !claimStatus ||
+    claimStatus === "DRAFT" ||
+    claimStatus === "QUERY_INITIATED" ||
+    claimStatus === "QUERY_UNDER_REVIEW";
+  // An empty Additional documents panel belongs to a draft only: once the claim has been
+  // initiated - including while a query is being worked on - an empty panel is noise. A panel
+  // that already holds documents always stays, so they remain visible.
+  const showAdditional =
+    !claimStatus || claimStatus === "DRAFT" || additional.length > 0;
+
+  const additionalActions = !locked && claimOpenForChanges ? (
     <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
   ) : null;
 
@@ -211,6 +225,7 @@ export function ClaimDocuments({
         )}
       </Panel>
 
+      {showAdditional && (
       <Panel
         title="Additional documents"
         className={bare ? "mt-6 border-neutral-200 shadow-none" : undefined}
@@ -251,6 +266,7 @@ export function ClaimDocuments({
           </ol>
         )}
       </Panel>
+      )}
 
       <UploadDialog
         row={uploadTarget?.row ?? null}
@@ -380,11 +396,12 @@ function DocAccordionItem({
 
         <StatusChip status={doc.status} />
 
-        {action && (
+        {/* Not offered at all while the claim is not open for changes - a greyed-out button
+            only invites a click that cannot do anything. */}
+        {action && !isDisabled && (
           <Button
             size="xs"
             variant={action.mode === "upload" ? "default" : "outline"}
-            disabled={isDisabled}
             // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
             onClick={() => onUpload({ row: doc, mode: action.mode })}
           >
@@ -513,13 +530,13 @@ function DocAccordionItem({
                       >
                         View Document
                       </a>
-                      {!locked && (allowDelete || claimStatus !== undefined) && doc.status !== "APPROVED" && (
+                      {!locked && (allowDelete || claimStatus !== undefined) && doc.status !== "APPROVED" && !(claimStatus !== undefined && isDisabled && !allowDelete) && (
                         <button
                           type="button"
                           // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                           onClick={() => onDelete(doc.accountId, doc.id, f.id, f.originalName)}
                           title="Delete this file"
-                          disabled={deleting || (claimStatus !== undefined && isDisabled && !allowDelete)}
+                          disabled={deleting}
                           className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-400 transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive focus:outline-none focus:ring-2 focus:ring-destructive/20 disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:border-neutral-200 disabled:hover:text-neutral-400"
                         >
                           <TrashIcon className="size-3.5" />
@@ -785,11 +802,10 @@ function DocTableRows({
     <td className="px-4 py-3 align-top">
       <div className="flex flex-wrap gap-1.5">
         {extra}
-        {canAddMore && (
+        {canAddMore && !isDisabled && (
           <Button
             size="xs"
             variant={hasFiles ? "outline" : "default"}
-            disabled={isDisabled}
             // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
             onClick={() =>
               onUpload({ row: doc, mode: hasFiles ? "add" : "upload" })
@@ -889,14 +905,14 @@ function DocTableRows({
                         <UploadIcon /> Re-upload
                       </Button>
                     )}
-                    {!locked && (allowDelete || claimStatus !== undefined) && doc.status !== "APPROVED" && (
+                    {!locked && (allowDelete || claimStatus !== undefined) && doc.status !== "APPROVED" && !(claimStatus !== undefined && isDisabled && !allowDelete) && (
                       <Button
                         size="xs"
                         variant="outline"
                         // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                         onClick={() => onDelete(doc.accountId, doc.id, f.id, f.originalName)}
                         title="Delete this file"
-                        disabled={deleting || (claimStatus !== undefined && isDisabled && !allowDelete)}
+                        disabled={deleting}
                         className="size-7 p-0 text-neutral-400 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive disabled:hover:bg-transparent disabled:hover:border-neutral-200 disabled:hover:text-neutral-400 disabled:opacity-50"
                       >
                         <TrashIcon className="size-3.5" />
@@ -929,7 +945,7 @@ function DocTableRows({
                             <UploadIcon /> Re-upload
                           </Button>
                         )}
-                        {!locked && (allowDelete || claimStatus !== undefined) && doc.status !== "APPROVED" && (
+                        {!locked && (allowDelete || claimStatus !== undefined) && doc.status !== "APPROVED" && !(claimStatus !== undefined && isDisabled && !allowDelete) && (
                           <Button
                             size="xs"
                             variant="outline"
@@ -938,7 +954,7 @@ function DocTableRows({
                               onDelete(doc.accountId, doc.id, f.id, f.originalName)
                             }
                             title="Delete this file"
-                            disabled={deleting || (claimStatus !== undefined && isDisabled && !allowDelete)}
+                            disabled={deleting}
                             className="size-7 p-0 text-neutral-400 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive disabled:hover:bg-transparent disabled:hover:border-neutral-200 disabled:hover:text-neutral-400 disabled:opacity-50"
                           >
                             <TrashIcon className="size-3.5" />

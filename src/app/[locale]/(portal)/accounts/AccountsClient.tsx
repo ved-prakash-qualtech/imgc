@@ -48,6 +48,7 @@ import {
   useRememberFilters,
   ACCOUNTS_FILTER_KEY,
 } from "@/lib/hooks/useRememberedFilters";
+import { claimAmountFor } from "@/config/claimConfig";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
 import type { ClaimStatus, Role } from "@/server/mock/types";
@@ -105,12 +106,23 @@ type SortKey =
   | "borrowerName"
   | "lender"
   | "purpose"
+  | "loanAmount"
   | "outstandingAmount"
+  | "claimAmount"
   | "submittedAt"
   | "dpd"
   | "bucket"
   | "status";
 type SortDirection = "asc" | "desc" | null;
+
+/** 4500000 becomes 45,00,000 — Indian grouping, no currency symbol, same as the lender's grid. */
+const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
+
+/** Lender names run long ("ABC Housing Finance"); the column shows the first 10 characters and
+ *  the full name sits in the cell's tooltip. */
+function shortName(name: string, max = 10): string {
+  return name.length > max ? `${name.slice(0, max).trimEnd()}...` : name;
+}
 
 function date(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", {
@@ -134,7 +146,9 @@ function downloadCsv(rows: AccountRow[], role: Role): void {
     "Borrower",
     ...(role === "IMGC" ? ["Lender"] : []),
     "Loan Type",
-    "Outstanding",
+    "Loan Amount",
+    "O/S Amount",
+    "Claim Amount",
     "Claim Initiation Date",
     "DPD",
     "Owner",
@@ -147,7 +161,9 @@ function downloadCsv(rows: AccountRow[], role: Role): void {
       a.borrowerName,
       ...(role === "IMGC" ? [a.lenderOrgName] : []),
       a.product,
+      a.loanAmount,
       a.outstandingAmount,
+      claimAmountFor(a.loanAmount),
       a.submittedAt ? a.submittedAt.slice(0, 10) : "",
       a.dpd ?? "",
       a.bucket,
@@ -520,9 +536,17 @@ export function AccountsClient({
             valA = a.borrowerName;
             valB = b.borrowerName;
             break;
+          case "loanAmount":
+            valA = a.loanAmount;
+            valB = b.loanAmount;
+            break;
           case "outstandingAmount":
             valA = a.outstandingAmount;
             valB = b.outstandingAmount;
+            break;
+          case "claimAmount":
+            valA = claimAmountFor(a.loanAmount);
+            valB = claimAmountFor(b.loanAmount);
             break;
           case "submittedAt":
             valA = a.submittedAt ?? "";
@@ -735,6 +759,27 @@ export function AccountsClient({
                 onToggle={toggleSort}
               />
               <SortableTableHead
+                column="loanAmount"
+                label="Loan Amount"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="outstandingAmount"
+                label="O/S Amount"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="claimAmount"
+                label="Claim Amount"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
                 column="submittedAt"
                 label="Initiation Date"
                 sortKey={sortKey}
@@ -769,7 +814,7 @@ export function AccountsClient({
             {currentRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={role === "IMGC" ? 9 : 8}
+                  colSpan={role === "IMGC" ? 12 : 11}
                   className="py-12 text-center text-[13px] text-neutral-500"
                 >
                   No accounts match those filters.
@@ -794,12 +839,33 @@ export function AccountsClient({
                       {a.borrowerName}
                     </TableCell>
                     {role === "IMGC" && (
-                      <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap">
-                        {a.lenderOrgName}
+                      <TableCell
+                        className="px-1.5 py-1.5 text-[12px] whitespace-nowrap"
+                        title={a.lenderOrgName}
+                      >
+                        {shortName(a.lenderOrgName)}
                       </TableCell>
                     )}
                     <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
                       {a.product}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-[12px]">
+                      <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-success-700">
+                        {inr.format(a.loanAmount)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-[12px]">
+                      <span className="inline-flex items-center rounded-full bg-warning/10 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-warning">
+                        {inr.format(a.outstandingAmount)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-[12px]">
+                      <span
+                        className="inline-flex items-center rounded-full bg-brand-primary/10 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-brand-primary"
+                        title="20% of the loan amount"
+                      >
+                        {inr.format(claimAmountFor(a.loanAmount))}
+                      </span>
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
                       {a.submittedAt ? date(a.submittedAt) : "—"}
@@ -820,6 +886,7 @@ export function AccountsClient({
                       <StatusPill
                         status={claimStatusDisplay(a)}
                         className="px-1.5 py-0.5 text-[10.5px]"
+                        maxChars={10}
                       />
                     </TableCell>
                   </TableRow>

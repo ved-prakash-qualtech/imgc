@@ -78,10 +78,18 @@ const LABELS = new Map<string, string>([
 export function StatusPill({
   status,
   className,
+  maxChars,
 }: Readonly<{
   status: DocStatus | ClaimStatus | Bucket | string;
   className?: string;
+  /** Cap the visible label (e.g. in a narrow grid column); the full label moves to a tooltip. */
+  maxChars?: number;
 }>) {
+  const label = LABELS.get(status) ?? status;
+  const clipped =
+    maxChars && label.length > maxChars
+      ? `${label.slice(0, maxChars).trimEnd()}...`
+      : label;
   return (
     <span
       className={cn(
@@ -89,9 +97,10 @@ export function StatusPill({
         TONES.get(status) ?? "bg-neutral-100 text-neutral-600",
         className
       )}
+      title={clipped !== label ? label : undefined}
     >
       <span className="size-1.5 rounded-full bg-current opacity-70" />
-      {LABELS.get(status) ?? status}
+      {clipped}
     </span>
   );
 }

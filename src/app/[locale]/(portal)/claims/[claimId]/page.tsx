@@ -334,6 +334,7 @@ export default async function ClaimDetailsPage({
               documents={documents}
               locked={terminal}
               allowDelete={canDeleteFiles}
+              claimStatus={claim.status}
             />
           </div>
         ) : (

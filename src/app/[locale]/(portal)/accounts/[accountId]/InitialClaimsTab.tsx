@@ -33,7 +33,7 @@ import { addRemarkAction,
   submitClaimAction,
   uploadDocumentAction,
 } from "@/app/[locale]/(portal)/accounts/[accountId]/actions";
-import { FileDecisionNote, LenderRemarkNote } from "@/components/portal/FileDecisionNote";
+import { clip, FileDecisionNote } from "@/components/portal/FileDecisionNote";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
 import { Button } from "@/components/ui/button";
@@ -211,15 +211,17 @@ export function InitialClaimsTab({
       <Panel>
         {role === "IMGC" ? (
           <div className="overflow-x-auto">
-            <div className="flex min-w-[900px] flex-col divide-y divide-neutral-100 text-left text-[13px]">
-              <div className="flex items-center justify-between bg-neutral-50 px-4 py-2 text-[11.5px] font-medium text-neutral-500">
-                <div className="w-[160px] shrink-0">Document Type</div>
-                <div className="w-[110px] shrink-0">Status</div>
-                <div className="w-[220px] shrink-0">File Name</div>
-                <div className="w-[60px] shrink-0">Size</div>
-                <div className="w-[110px] shrink-0">Uploaded By</div>
-                <div className="w-[110px] shrink-0">Date/Time</div>
-                <div className="w-[150px] shrink-0">Actions</div>
+            <div className="flex min-w-[960px] flex-col divide-y divide-neutral-100 text-left text-[13px]">
+              <div className="flex items-center bg-neutral-50 py-2 text-[11.5px] font-medium text-neutral-500">
+                <div className="w-[140px] shrink-0 px-3">Document Type</div>
+                <div className="flex flex-1 items-center justify-between gap-2 px-3">
+                  <div className="w-[140px] shrink-0">File Name</div>
+                  <div className="w-[140px] shrink-0">Lender Remark</div>
+                  <div className="w-[140px] shrink-0">IMGC Remark</div>
+                  <div className="w-[85px] shrink-0">Uploaded By</div>
+                  <div className="w-[100px] shrink-0">Date/Time</div>
+                  <div className="w-[140px] shrink-0">Actions</div>
+                </div>
               </div>
               {docs
                 .filter((d) => d.status !== "PENDING_UPLOAD" || d.addedBy === "IMGC")
@@ -923,25 +925,24 @@ function ImgcDocumentRowItem({
   return (
     <div className={cn("flex flex-col border-b border-neutral-100 last:border-b-0", inactive && "bg-neutral-25/60 opacity-70")}>
       <div className="flex items-stretch">
-        <div className="flex w-[160px] shrink-0 flex-col items-start gap-1.5 border-r border-neutral-100 px-4 py-3">
+        <div className="flex w-[140px] shrink-0 flex-col items-start gap-1.5 border-r border-neutral-100 px-3 py-3">
           <span className="line-clamp-2 font-semibold leading-tight text-neutral-950" title={doc.name}>
             {doc.name}
             {doc.required && <span className="text-destructive ml-1">*</span>}
           </span>
-          {inactive && <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">Withdrawn</span>}
-        </div>
-        <div className="w-[140px] shrink-0 border-r border-neutral-100 px-4 py-3">
           <StatusPill status={doc.status === "APPROVED" ? "ACCEPTED" : doc.status} />
+          {inactive && <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">Withdrawn</span>}
         </div>
 
         <div className="flex flex-1 flex-col">
           {doc.files.length === 0 && (
-            <div className="flex flex-1 items-center justify-between px-4 py-3">
-              <div className="w-[220px] shrink-0 text-[12px] text-neutral-400">Nothing uploaded yet.</div>
-              <div className="w-[60px] shrink-0" />
-              <div className="w-[110px] shrink-0" />
-              <div className="w-[110px] shrink-0" />
-              <div className="flex w-[150px] shrink-0 flex-wrap gap-2">
+            <div className="flex flex-1 items-center justify-between gap-2 px-3 py-3">
+              <div className="w-[140px] shrink-0 text-[12px] text-neutral-400">Nothing uploaded yet.</div>
+              <div className="w-[140px] shrink-0" />
+              <div className="w-[140px] shrink-0" />
+              <div className="w-[85px] shrink-0" />
+              <div className="w-[100px] shrink-0" />
+              <div className="flex w-[140px] shrink-0 flex-wrap gap-2">
                 {doc.addedBy === "IMGC" && (
                    <Button size="xs" variant="outline" onClick={() => onToggleActive(inactive)} disabled={working} className="h-7 px-2.5 text-[11px]">
                      {inactive ? <RotateCcwIcon className="mr-1 size-3" /> : <BanIcon className="mr-1 size-3" />}
@@ -953,23 +954,38 @@ function ImgcDocumentRowItem({
           )}
           
           {doc.files.length > 0 && doc.files.map((f, i) => (
-            <div key={f.id} className={cn("flex flex-1 items-center justify-between px-4 py-3", i > 0 && "border-t border-neutral-100")}>
-              <div className="w-[220px] shrink-0 text-[12.5px] font-medium text-neutral-700" title={f.originalName}>
+            <div key={f.id} className={cn("flex flex-1 items-center justify-between gap-2 px-3 py-3", i > 0 && "border-t border-neutral-100")}>
+              <div className="w-[140px] shrink-0 text-[12.5px] font-medium text-neutral-700" title={f.originalName}>
                 <div className="truncate">
                   {f.storedPath ? (
-                    <a href={`/api/portal/files/${f.id}`} target="_blank" rel="noopener noreferrer" className="hover:text-brand-primary hover:underline">{f.originalName}</a>
+                    <a href={`/api/portal/files/${f.id}`} target="_blank" rel="noopener noreferrer" className="hover:text-brand-primary hover:underline" title={f.originalName}>{clip(f.originalName, 20)}</a>
                   ) : (
-                    <button type="button" onClick={() => setPreviewingFileId(f.id)} className="w-full truncate text-left hover:text-brand-primary hover:underline">{f.originalName}</button>
+                    <button type="button" onClick={() => setPreviewingFileId(f.id)} className="w-full truncate text-left hover:text-brand-primary hover:underline" title={f.originalName}>{clip(f.originalName, 20)}</button>
                   )}
                 </div>
-                <LenderRemarkNote remarks={f.uploadRemarks} />
-                <FileDecisionNote review={f.review} />
+                <span className="text-[11px] font-normal text-neutral-400">{bytes(f.size)}</span>
               </div>
-              <div className="w-[60px] shrink-0 text-[11.5px] text-neutral-500">{bytes(f.size)}</div>
-              <div className="w-[110px] shrink-0 truncate text-[11.5px] text-neutral-500" title={f.uploadedByName}>{f.uploadedByName}</div>
-              <div className="w-[110px] shrink-0 text-[11.5px] text-neutral-500">{when(f.uploadedAt)}</div>
+              <div
+                className="w-[140px] shrink-0 line-clamp-3 text-[11.5px] text-neutral-600"
+                title={f.uploadRemarks?.trim() || undefined}
+              >
+                {f.uploadRemarks?.trim() ? (
+                  clip(f.uploadRemarks.trim(), 34)
+                ) : (
+                  <span className="text-neutral-300">—</span>
+                )}
+              </div>
+              <div className="w-[140px] shrink-0">
+                {f.review ? (
+                  <FileDecisionNote review={f.review} className="mt-0" maxChars={34} />
+                ) : (
+                  <span className="text-[11.5px] text-neutral-300">—</span>
+                )}
+              </div>
+              <div className="w-[85px] shrink-0 truncate text-[11.5px] text-neutral-500" title={f.uploadedByName}>{f.uploadedByName}</div>
+              <div className="w-[100px] shrink-0 text-[11.5px] text-neutral-500">{when(f.uploadedAt)}</div>
               
-              <div className="flex w-[150px] shrink-0 flex-wrap gap-1.5">
+              <div className="flex w-[140px] shrink-0 flex-wrap gap-1.5">
                 {f.storedPath ? (
                   <>
                     <a

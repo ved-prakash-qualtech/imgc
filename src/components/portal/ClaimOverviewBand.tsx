@@ -8,7 +8,22 @@ import {
 
 import { CommandBand } from "@/components/portal/CommandBand";
 import { cn } from "@/lib/utils/twMergeUtils";
-import type { ClaimOverviewCounts } from "@/services/portal/claimFlow.server";
+import type {
+  ClaimOverviewCounts,
+  OverviewTileKey,
+} from "@/services/portal/claimFlow.server";
+
+/**
+ * Rupees in the Indian short scale a claims desk reads in: 4,62,00,000 is "₹4.62 Cr",
+ * 7,35,000 is "₹7.35 L". Exact figures sit in the tile's tooltip.
+ */
+function crore(amount: number): string {
+  if (amount >= 1_00_00_000) return `₹${(amount / 1_00_00_000).toFixed(2)} Cr`;
+  if (amount >= 1_00_000) return `₹${(amount / 1_00_000).toFixed(2)} L`;
+  return `₹${amount.toLocaleString("en-IN")}`;
+}
+
+const exactInr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 
 /**
  * A claim-status KPI band — used on both the Claim page and the Dashboard, so the two never show
@@ -34,7 +49,7 @@ const TONE: Record<Tone, { bg: string; icon: string }> = {
 };
 
 const TILES: ReadonlyArray<{
-  key: keyof ClaimOverviewCounts;
+  key: OverviewTileKey;
   label: string;
   icon: React.ReactNode;
   tone: Tone;
@@ -184,6 +199,14 @@ export function ClaimOverviewBand({
                     </div>
                   </div>
                 )}
+                {/* Claim amount across exactly the claims this tile counts. */}
+                <p
+                  className="mt-1 truncate text-[11px] font-semibold tabular-nums text-neutral-700"
+                  title={`Claim amount: ₹${exactInr.format(counts.claimAmount[tile.key])}`}
+                >
+                  <span className="font-medium text-neutral-400">Claim </span>
+                  {crore(counts.claimAmount[tile.key])}
+                </p>
               </div>
             </>
           );

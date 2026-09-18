@@ -1,4 +1,5 @@
 /* eslint-disable react-perf/jsx-no-jsx-as-prop */
+import { claimAmountFor } from "@/config/claimConfig";
 import { ClaimDashboardLenderPicker } from "@/app/[locale]/(portal)/claim-dashboard/ClaimDashboardLenderPicker";
 import { ClaimDashboardView } from "@/app/[locale]/(portal)/claim-dashboard/ClaimDashboardView";
 import { ClaimOverviewBand } from "@/components/portal/ClaimOverviewBand";
@@ -121,6 +122,7 @@ export default async function ClaimDashboardPage({
           claim: claim
             ? { status: claim.status, hasProgress: claim.hasProgress }
             : null,
+          claimAmount: claimAmountFor(a.loanAmount),
         };
       }
 
@@ -130,6 +132,7 @@ export default async function ClaimDashboardPage({
           status: status as ClaimStatus,
           hasProgress: a.claimHasProgress,
         },
+        claimAmount: claimAmountFor(a.loanAmount),
       };
     });
   const counts = summariseClaimOverview(eligible);

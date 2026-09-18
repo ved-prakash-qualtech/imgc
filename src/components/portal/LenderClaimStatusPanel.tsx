@@ -28,9 +28,12 @@ function when(iso: string): string {
 export function LenderClaimStatusPanel({
   history,
   currentStatus,
+  action,
 }: Readonly<{
   history: readonly ClaimStatusEntry[];
   currentStatus: ClaimStatusEntry["status"];
+  /** Right-hand slot on the bar (e.g. IMGC's Export CSV on the Decision tab). */
+  action?: React.ReactNode;
 }>) {
   const entries = timelineEntries(history, currentStatus);
   const visualCurrentStatus =
@@ -168,6 +171,7 @@ export function LenderClaimStatusPanel({
             </div>
           </DialogContent>
         </Dialog>
+        {action && <div className="ml-auto">{action}</div>}
       </div>
     </Panel>
   );

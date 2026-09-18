@@ -15,6 +15,7 @@ import { InitialClaimsTab } from "@/app/[locale]/(portal)/accounts/[accountId]/I
 // Named for the screen it was written for, but it takes only a history and a status — nothing in
 // it is lender-specific, so IMGC's Query/Decision tab shows the identical bar.
 import { LenderClaimStatusPanel as ClaimStatusBar } from "@/components/portal/LenderClaimStatusPanel";
+import { ExportDocumentsCsvButton } from "@/components/portal/ExportDocumentsCsvButton";
 import { Panel } from "@/components/portal/Panel";
 import { QueriedButton } from "@/components/portal/QueriedButton";
 import { Button } from "@/components/ui/button";
@@ -117,6 +118,7 @@ export function AccountWorkspace({
           account={account}
           role={role}
           claim={claim}
+          claimDocs={claimDocs}
           documentsSection={
             <InitialClaimsTab
               accountId={account.id}
@@ -141,11 +143,14 @@ function QueryTrailTab({
   account,
   role,
   claim,
+  claimDocs,
   documentsSection,
 }: Readonly<{
   account: AccountRow;
   role: Role;
   claim: ClaimRow | null;
+  /** The same rows the document table shows, for its Export CSV. */
+  claimDocs: DocumentRow[];
   documentsSection: React.ReactNode;
 }>) {
   const [pending, startTransition] = useTransition();
@@ -269,6 +274,12 @@ function QueryTrailTab({
         <ClaimStatusBar
           history={claim.statusHistory}
           currentStatus={claim.status}
+          action={
+            <ExportDocumentsCsvButton
+              docs={claimDocs}
+              fileName={`${claim.claimNo || account.loanNo}-documents.csv`}
+            />
+          }
         />
       )}
 

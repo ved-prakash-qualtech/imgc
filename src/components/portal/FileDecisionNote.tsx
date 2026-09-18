@@ -8,10 +8,21 @@ import type { FileReview } from "@/server/mock/types";
  * accepted or rejected without anyone having to relay it. Nothing renders for a file that has
  * not been decided yet.
  */
+/** Cuts text to `max` characters with "..." — the full text goes in the element's tooltip. */
+export function clip(text: string, max?: number): string {
+  return max && text.length > max ? `${text.slice(0, max).trimEnd()}...` : text;
+}
+
 export function FileDecisionNote({
   review,
   className,
-}: Readonly<{ review?: FileReview; className?: string }>) {
+  maxChars,
+}: Readonly<{
+  review?: FileReview;
+  className?: string;
+  /** Cap the remark's visible length (the "Accepted:"/"Rejected:" label is not counted). */
+  maxChars?: number;
+}>) {
   if (!review) return null;
   const accepted = review.decision === "APPROVED";
   return (
@@ -24,7 +35,7 @@ export function FileDecisionNote({
       title={`${accepted ? "Accepted" : "Rejected"} by ${review.byName}: ${review.remarks}`}
     >
       <span className="font-semibold">{accepted ? "Accepted" : "Rejected"}:</span>{" "}
-      {review.remarks}
+      {clip(review.remarks, maxChars)}
     </p>
   );
 }

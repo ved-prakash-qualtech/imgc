@@ -193,6 +193,19 @@ export async function listQueries(claimId: string): Promise<ClaimQuery[]> {
 
 /* ── claim overview (shared by the Claim page and the Dashboard) ─────── */
 
+/** The tiles a claim can be counted under — every count except the running total and the
+ *  refunded sub-count, which have no tile of their own. */
+export type OverviewTileKey =
+  | "initiation"
+  | "draft"
+  | "initiated"
+  | "underReview"
+  | "queried"
+  | "queryInitiated"
+  | "queryUnderReview"
+  | "approved"
+  | "rejected";
+
 export interface ClaimOverviewCounts {
   total: number;
   initiation: number;
@@ -207,6 +220,12 @@ export interface ClaimOverviewCounts {
   /** Claims IMGC has confirmed the refund for (`REFUND_RECEIVED_BY_IMGC`) — a subset of
    *  `approved`, not a sixth mutually-exclusive outcome, so it stays counted there too. */
   refunded: number;
+  /**
+   * Claim amount (in rupees) summed over exactly the accounts each tile counts. Built in the same
+   * pass as the counts, so a tile's number and its amount can never be taken over two different
+   * sets of claims.
+   */
+  claimAmount: Record<OverviewTileKey, number>;
 }
 
 /**
@@ -225,8 +244,21 @@ export interface ClaimOverviewCounts {
 export function summariseClaimOverview(
   rows: ReadonlyArray<{
     claim: { status: ClaimStatus; hasProgress?: boolean } | null;
+    /** The account's claim amount; absent counts as zero. */
+    claimAmount?: number;
   }>
 ): ClaimOverviewCounts {
+  const claimAmount: Record<OverviewTileKey, number> = {
+    initiation: 0,
+    draft: 0,
+    initiated: 0,
+    underReview: 0,
+    queried: 0,
+    queryInitiated: 0,
+    queryUnderReview: 0,
+    approved: 0,
+    rejected: 0,
+  };
   let initiation = 0;
   let underReview = 0;
   let approved = 0;
@@ -241,17 +273,25 @@ export function summariseClaimOverview(
   for (const row of rows) {
     const status = row.claim?.status;
     const isNotStarted = !row.claim || !row.claim.hasProgress;
+    const amount = row.claimAmount ?? 0;
 
     if (isNotStarted) {
       initiation += 1;
+      claimAmount.initiation += amount;
     } else if (status === "INITIATED") {
       initiated += 1;
+      claimAmount.initiated += amount;
     } else if (status === "UNDER_REVIEW") {
       underReview += 1;
+      claimAmount.underReview += amount;
     } else if (status === "QUERY_INITIATED") {
       queryInitiated += 1;
+      claimAmount.queryInitiated += amount;
+      claimAmount.queried += amount;
     } else if (status === "QUERY_UNDER_REVIEW" || status === "QUERY_RAISED") {
       queryUnderReview += 1; // QUERY_RAISED is legacy fallback
+      claimAmount.queryUnderReview += amount;
+      claimAmount.queried += amount;
     } else if (status === "DOCUMENTS_RESUBMITTED") {
       docsResubmitted += 1;
     } else if (
@@ -260,11 +300,14 @@ export function summariseClaimOverview(
       status === "REFUND_RECEIVED_BY_IMGC"
     ) {
       approved += 1;
+      claimAmount.approved += amount;
       if (status === "REFUND_RECEIVED_BY_IMGC") refunded += 1;
     } else if (status === "REJECTED") {
       rejected += 1;
+      claimAmount.rejected += amount;
     } else if (status === "DRAFT") {
       draft += 1;
+      claimAmount.draft += amount;
     }
   }
 
@@ -290,6 +333,7 @@ export function summariseClaimOverview(
     queryInitiated,
     queryUnderReview,
     refunded,
+    claimAmount,
   };
 }
 

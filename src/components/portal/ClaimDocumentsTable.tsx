@@ -105,11 +105,14 @@ function TableLayout({
   sortField,
   sortDirection,
   onSort,
+  showActions,
 }: {
   children: React.ReactNode;
   sortField: SortField;
   sortDirection: "asc" | "desc";
   onSort: (field: SortField) => void;
+  /** Drop the Actions column entirely when nothing in the table can be acted on. */
+  showActions: boolean;
 }) {
   const head = (field: SortField, label: string) => (
     <TableHead className="h-9 bg-neutral-50 px-3 text-[11px] uppercase tracking-wider text-neutral-500">
@@ -139,7 +142,9 @@ function TableLayout({
             {head("fileName", "File Name")}
             {head("size", "Size")}
             {head("dateTime", "Date/Time")}
-            <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Actions</TableHead>
+            {showActions && (
+              <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Actions</TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -253,26 +258,53 @@ export function ClaimDocumentsTable({
 
   const requiredActions = null;
 
-  const additionalActions = !locked ? (
+  /**
+   * Whether the lender may change this document now: while the claim is a draft or a query is
+   * open with them, or when this document itself was sent back. Outside that, the buttons are not
+   * shown at all — a greyed-out button only invites a click that cannot do anything.
+   */
+  const isModifiable = (doc: RequirementRow) =>
+    !claimStatus ||
+    claimStatus === "DRAFT" ||
+    claimStatus === "QUERY_INITIATED" ||
+    claimStatus === "QUERY_UNDER_REVIEW" ||
+    doc.status === "REJECTED" ||
+    doc.status === "REUPLOAD_REQUIRED";
+  const canUpload = (doc: RequirementRow) =>
+    !locked && doc.status !== "APPROVED" && isModifiable(doc);
+  const canDelete = (doc: RequirementRow) =>
+    !locked &&
+    doc.status !== "APPROVED" &&
+    (allowDelete || (claimStatus !== undefined && isModifiable(doc)));
+  const hasAnyAction = (docs: RequirementRow[]) =>
+    docs.some((d) => canUpload(d) || (canDelete(d) && d.files.length > 0));
+
+  // The lender can add documents only while the claim is still open to them: a draft, or a query
+  // they are answering. Once it is initiated and with IMGC, there is nothing to add here - so the
+  // Add button goes, and an Additional documents panel with nothing in it goes too.
+  const claimOpenForChanges =
+    !claimStatus ||
+    claimStatus === "DRAFT" ||
+    claimStatus === "QUERY_INITIATED" ||
+    claimStatus === "QUERY_UNDER_REVIEW";
+  // An empty Additional documents panel belongs to a draft only: once the claim has been
+  // initiated - including while a query is being worked on - an empty panel is noise. A panel
+  // that already holds documents always stays, so they remain visible.
+  const showAdditional =
+    !claimStatus || claimStatus === "DRAFT" || additional.length > 0;
+
+  const additionalActions = !locked && claimOpenForChanges ? (
     <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
   ) : null;
 
-  const renderTableRows = (docs: RequirementRow[]) => {
+  const renderTableRows = (docs: RequirementRow[], showActions: boolean) => {
     return docs.flatMap((doc, docIndex) => {
       const hasFiles = doc.files.length > 0;
       const conditionalNotRequired = doc.conditional && !doc.required;
       
       const rowStyle = conditionalNotRequired ? "bg-neutral-50/50" : "";
 
-      const canModifyDocuments = !claimStatus ||
-        claimStatus === "DRAFT" ||
-        claimStatus === "QUERY_INITIATED" ||
-        claimStatus === "QUERY_UNDER_REVIEW" ||
-        doc.status === "REJECTED" ||
-        doc.status === "REUPLOAD_REQUIRED";
 
-      const isDisabled = claimStatus ? !canModifyDocuments : false;
-      
       const docNameCell = (
         <div className="flex flex-col gap-1">
           <span className="text-[12.5px] font-semibold text-neutral-900">
@@ -290,13 +322,12 @@ export function ClaimDocumentsTable({
 
       const statusCell = <StatusChip status={doc.status} />;
       
-      const mainAction = !locked && doc.status !== "APPROVED" ? (
+      const mainAction = canUpload(doc) ? (
         !hasFiles ? (
           <Button
             variant="outline"
             size="sm"
             className="h-7 px-2.5 text-[11px]"
-            disabled={isDisabled}
             onClick={() => setUploadTarget({ row: doc, mode: "upload" })}
           >
             <UploadIcon className="mr-1.5 size-3" /> Upload
@@ -306,7 +337,6 @@ export function ClaimDocumentsTable({
             variant="outline"
             size="sm"
             className="h-7 px-2.5 text-[11px]"
-            disabled={isDisabled}
             onClick={() => setUploadTarget({ row: doc, mode: "add" })}
           >
             {doc.status === "REJECTED" ? (
@@ -326,7 +356,7 @@ export function ClaimDocumentsTable({
             <TableCell className="py-3 text-[12px] text-neutral-400 align-top">Nothing uploaded yet.</TableCell>
             <TableCell className="py-3 text-[12px] text-neutral-400 align-top">—</TableCell>
             <TableCell className="py-3 text-[12px] text-neutral-400 align-top">—</TableCell>
-            <TableCell className="py-3 align-top">{mainAction}</TableCell>
+            {showActions && <TableCell className="py-3 align-top">{mainAction}</TableCell>}
           </TableRow>
         ];
       }
@@ -365,9 +395,10 @@ export function ClaimDocumentsTable({
             <TableCell className="py-3 text-[12.5px] text-neutral-600 align-middle whitespace-nowrap">
               {when(file.uploadedAt)}
             </TableCell>
+            {showActions && (
             <TableCell className="py-3 align-middle">
               <div className="flex items-center gap-1.5">
-                {!locked && (allowDelete || claimStatus !== undefined) && doc.status !== "APPROVED" && (
+                {canDelete(doc) && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -375,7 +406,7 @@ export function ClaimDocumentsTable({
                     // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                     onClick={() => onDelete(accountId, doc.id, file.id, file.originalName)}
                     aria-label="Delete file"
-                    disabled={deleting || (claimStatus !== undefined && isDisabled && !allowDelete)}
+                    disabled={deleting}
                     title="Delete file"
                   >
                     <TrashIcon className="size-3.5" />
@@ -384,6 +415,7 @@ export function ClaimDocumentsTable({
                 {isFirst && mainAction && <div>{mainAction}</div>}
               </div>
             </TableCell>
+            )}
           </TableRow>
         );
       });
@@ -402,12 +434,13 @@ export function ClaimDocumentsTable({
         className={bare ? "border-neutral-200 shadow-none" : undefined}
         actions={requiredActions}
       >
-        <TableLayout sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
-          {renderTableRows(required)}
+        <TableLayout sortField={sortField} sortDirection={sortDirection} onSort={handleSort} showActions={hasAnyAction(required)}>
+          {renderTableRows(required, hasAnyAction(required))}
         </TableLayout>
       </Panel>
 
       {/* ── Additional documents ─────────────────────────────── */}
+      {showAdditional && (
       <Panel
         title="Additional documents"
         className={bare ? "border-neutral-200 shadow-none" : undefined}
@@ -418,11 +451,12 @@ export function ClaimDocumentsTable({
             No additional documents added.
           </p>
         ) : (
-          <TableLayout sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
-            {renderTableRows(additional)}
+          <TableLayout sortField={sortField} sortDirection={sortDirection} onSort={handleSort} showActions={hasAnyAction(additional)}>
+            {renderTableRows(additional, hasAnyAction(additional))}
           </TableLayout>
         )}
       </Panel>
+      )}
 
       <UploadDialog
         row={uploadTarget?.row ?? null}

@@ -41,6 +41,7 @@ import {
   useRememberFilters,
   CLAIMS_FILTER_KEY,
 } from "@/lib/hooks/useRememberedFilters";
+import { claimAmountFor } from "@/config/claimConfig";
 import type { EligibleRow } from "@/types/portal/eligibleClaim";
 import type { Bucket, ClaimStatus } from "@/server/mock/types";
 
@@ -50,6 +51,8 @@ type SortKey =
   | "borrowerName"
   | "purpose"
   | "loanAmount"
+  | "outstandingAmount"
+  | "claimAmount"
   | "dpd"
   | "status"
   | "bucket"
@@ -77,6 +80,8 @@ function sortFromParam(value: string | null): {
     "borrowerName",
     "purpose",
     "loanAmount",
+    "outstandingAmount",
+    "claimAmount",
     "dpd",
     "status",
     "bucket",
@@ -197,7 +202,9 @@ function downloadCsv(rows: EligibleRow[]): void {
     "Claim No",
     "Applicant",
     "Loan Type",
-    "Amount",
+    "Loan Amount",
+    "O/S Amount",
+    "Claim Amount",
     "DPD",
     "Status",
     "Owner",
@@ -210,6 +217,8 @@ function downloadCsv(rows: EligibleRow[]): void {
       a.borrowerName,
       a.product,
       a.loanAmount,
+      a.outstandingAmount,
+      claimAmountFor(a.loanAmount),
       a.dpd ?? "",
       isNotStarted(a)
         ? "NOT_STARTED"
@@ -586,6 +595,14 @@ export function EligibleCasesClient({
             valA = a.loanAmount;
             valB = b.loanAmount;
             break;
+          case "claimAmount":
+            valA = claimAmountFor(a.loanAmount);
+            valB = claimAmountFor(b.loanAmount);
+            break;
+          case "outstandingAmount":
+            valA = a.outstandingAmount;
+            valB = b.outstandingAmount;
+            break;
           case "dpd":
             valA = a.dpd ?? 0;
             valB = b.dpd ?? 0;
@@ -711,7 +728,21 @@ export function EligibleCasesClient({
               />
               <SortableTableHead
                 column="loanAmount"
-                label="Amount"
+                label="Loan Amount"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="outstandingAmount"
+                label="O/S Amount"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="claimAmount"
+                label="Claim Amount"
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
@@ -753,7 +784,7 @@ export function EligibleCasesClient({
             {currentRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
+                  colSpan={11}
                   className="py-12 text-center text-[13px] text-neutral-500"
                 >
                   No claims match your search.
@@ -781,6 +812,21 @@ export function EligibleCasesClient({
                       {inr.format(a.loanAmount)}
                     </span>
                   </TableCell>
+                  {/* Outstanding is what the claim is actually about - principal plus interest still
+                      owed today - so it reads in the warning tone, apart from the sanctioned amount. */}
+                  <TableCell className="px-1 py-1.5 text-[12px]">
+                    <span className="inline-flex items-center rounded-full bg-warning/10 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-warning">
+                      {inr.format(a.outstandingAmount)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="px-1 py-1.5 text-[12px]">
+                    <span
+                      className="inline-flex items-center rounded-full bg-brand-primary/10 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-brand-primary"
+                      title="20% of the loan amount"
+                    >
+                      {inr.format(claimAmountFor(a.loanAmount))}
+                    </span>
+                  </TableCell>
                   <TableCell className="px-1 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
                     {a.dpd ? `${a.dpd} days` : "—"}
                   </TableCell>
@@ -789,11 +835,15 @@ export function EligibleCasesClient({
                       <StatusPill
                         status={a.claim.status}
                         className="px-1 py-0.5 text-[10.5px]"
+                        maxChars={10}
                       />
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-1 py-0.5 text-[10.5px] font-medium whitespace-nowrap text-neutral-600">
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-1 py-0.5 text-[10.5px] font-medium whitespace-nowrap text-neutral-600"
+                        title="Not started"
+                      >
                         <span className="size-1.5 rounded-full bg-neutral-400" />
-                        Not started
+                        Not starte...
                       </span>
                     )}
                   </TableCell>

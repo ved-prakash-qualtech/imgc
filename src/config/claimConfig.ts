@@ -314,3 +314,16 @@ export function toAccountClaimStatus(status: ClaimStatus): ClaimStatus {
   if (status === "QUERY_INITIATED") return "QUERIED";
   return status === "QUERY_RAISED" ? "QUERIED" : status;
 }
+
+/**
+ * The claim amount: the share of the sanctioned loan amount the guarantee pays out on.
+ *
+ * A flat 20% for now, pending the real claim computation (which would read the guarantee cover,
+ * outstanding and recoveries). Kept here as one rate so every screen, sort and export derives
+ * the same figure — change it here and they all move together.
+ */
+export const CLAIM_AMOUNT_RATE = 0.2;
+
+export function claimAmountFor(loanAmount: number): number {
+  return Math.round(loanAmount * CLAIM_AMOUNT_RATE);
+}

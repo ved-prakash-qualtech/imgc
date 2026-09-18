@@ -1,11 +1,7 @@
 /* eslint-disable react-perf/jsx-no-jsx-as-prop, react-perf/jsx-no-new-array-as-prop */
 import { notFound } from "next/navigation";
 
-import {
-  AccountWorkspace,
-  type OpenQuery,
-} from "@/app/[locale]/(portal)/accounts/[accountId]/AccountWorkspace";
-import type { ClaimQuery } from "@/server/mock/types";
+import { AccountWorkspace } from "@/app/[locale]/(portal)/accounts/[accountId]/AccountWorkspace";
 import { GridBackLink } from "@/components/portal/GridBackLink";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { ROUTES } from "@/constants/route";
@@ -22,16 +18,6 @@ import { canSubmit, listDocuments } from "@/services/portal/claims.server";
 
 export const dynamic = "force-dynamic";
 
-/** Unanswered queries, each marked overdue or not against the time of this request. */
-function openQueriesWithDue(queries: ClaimQuery[]): OpenQuery[] {
-  const now = Date.now();
-  return queries
-    .filter((q) => !q.respondedAt)
-    .map((q) => ({
-      ...q,
-      overdue: q.dueDate ? Date.parse(q.dueDate) < now : false,
-    }));
-}
 
 export default async function AccountPage({
   params,
@@ -92,7 +78,6 @@ export default async function AccountPage({
           canSubmit={canSubmit(docs)}
           retentionDays={RETENTION_DAYS}
           queriedDocNames={[...queriedDocNames]}
-          openQueries={openQueriesWithDue(queries)}
         />
       </div>
     </PortalShell>
