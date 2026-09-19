@@ -223,7 +223,7 @@ function QueryTrailTab({
   const footerHasActions =
     (claim?.status === "INITIATED" && allDocsAccepted) ||
     claim?.status === "UNDER_REVIEW" ||
-    Boolean(claim && !claimDecided && hasOpenDocs);
+    Boolean(claim && !claimDecided);
 
   const imgcComposer = (
     <div className="flex flex-col gap-0.5">
@@ -268,7 +268,7 @@ function QueryTrailTab({
             Reject
           </Button>
         )}
-        {claim && !claimDecided && hasOpenDocs && (
+        {claim && !claimDecided && (
           <QueriedButton claimId={claim.id} claimNo={claim.claimNo} />
         )}
       </div>

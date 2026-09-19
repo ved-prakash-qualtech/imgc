@@ -269,6 +269,18 @@ export async function uploadDocument(
       }
     }
 
+    // Reupload on a rejected document (no specific file named) answers the rejection: the
+    // rejected files are replaced by the new one. Left live, they kept the document Rejected
+    // even after IMGC accepted the new upload.
+    if (!meta.replaceFileId && (row.status === "REJECTED" || row.status === "REUPLOAD_REQUIRED")) {
+      for (const f of fresh.documentFiles) {
+        if (f.documentId === documentId && !f.supersededAt && f.review?.decision === "REJECTED") {
+          f.supersededAt = nowIso();
+          f.supersededReason = f.review.remarks;
+        }
+      }
+    }
+
     fresh.documentFiles.push({
       id: fileId,
       documentId,

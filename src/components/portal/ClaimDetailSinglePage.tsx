@@ -32,7 +32,7 @@ export function ClaimDetailSinglePage({
 
   const navItems = [
     { id: "loan-details", label: "Loan Details" },
-    { id: "status-query", label: "Status/Query" },
+    { id: "status-query", label: "Track Claim" },
   ];
   if (history && !isLender) {
     navItems.push({ id: "history", label: "Audit Trail" });
@@ -142,7 +142,7 @@ export function ClaimDetailSinglePage({
           {/* Status & Query Section */}
           <section id="status-query" className="scroll-mt-4 mb-4">
             <h2 className="mb-3 text-lg font-semibold text-neutral-900 border-b border-neutral-200 pb-2">
-              Status/Query
+              Track Claim
             </h2>
             <div className="flex flex-col gap-4">{statusAndQuery}</div>
           </section>

@@ -208,9 +208,13 @@ export function ClaimDocumentsTable({
     });
   }, [sortField, sortDirection]);
 
+  const isDraftStage = !claimStatus || claimStatus === "DRAFT";
   const required = useMemo(
-    () => sortDocs(documents.filter((d) => d.addedBy !== "LENDER")),
-    [documents, sortDocs]
+    () => sortDocs(documents.filter((d) =>
+          d.addedBy !== "LENDER" &&
+          // Once the claim is initiated, an optional document nobody uploaded is just noise.
+          (isDraftStage || d.required || d.files.length > 0))),
+    [documents, isDraftStage, sortDocs]
   );
   const additional = useMemo(
     () => sortDocs(documents.filter((d) => d.addedBy === "LENDER")),
@@ -272,16 +276,20 @@ export function ClaimDocumentsTable({
   const isModifiable = (doc: RequirementRow) =>
     !claimStatus ||
     claimStatus === "DRAFT" ||
-    claimStatus === "QUERY_INITIATED" ||
-    claimStatus === "QUERY_UNDER_REVIEW" ||
+    // In a query, a document IMGC has not decided on yet stays as it is — only a pending or
+    // rejected one is the lender's to change.
+    ((claimStatus === "QUERY_INITIATED" || claimStatus === "QUERY_UNDER_REVIEW") &&
+      doc.status !== "UNDER_REVIEW") ||
     doc.status === "REJECTED" ||
     doc.status === "REUPLOAD_REQUIRED";
   const canUpload = (doc: RequirementRow) =>
     !locked && doc.status !== "APPROVED" && isModifiable(doc);
+  // Deleting is a draft-only act: once the claim is initiated a file is part of the record —
+  // a rejected one is answered with Reupload, never removed.
   const canDelete = (doc: RequirementRow) =>
     !locked &&
     doc.status !== "APPROVED" &&
-    (allowDelete || (claimStatus !== undefined && isModifiable(doc)));
+    (!claimStatus || claimStatus === "DRAFT");
   const hasImgcDecision = (docs: RequirementRow[]) =>
     docs.some((d) => d.files.some((f) => f.review));
   const hasAnyAction = (docs: RequirementRow[]) =>
@@ -295,11 +303,12 @@ export function ClaimDocumentsTable({
     claimStatus === "DRAFT" ||
     claimStatus === "QUERY_INITIATED" ||
     claimStatus === "QUERY_UNDER_REVIEW";
-  // An empty Additional documents panel belongs to a draft only: once the claim has been
-  // initiated - including while a query is being worked on - an empty panel is noise. A panel
-  // that already holds documents always stays, so they remain visible.
-  const showAdditional =
-    !claimStatus || claimStatus === "DRAFT" || additional.length > 0;
+  // Same rule as ClaimDocuments: the Additional documents panel shows at initiation (draft), during
+  // a query, or while a document stands rejected — otherwise hidden.
+  const hasRejectedDoc = documents.some(
+    (d) => d.status === "REJECTED" || d.status === "REUPLOAD_REQUIRED"
+  );
+  const showAdditional = claimOpenForChanges || hasRejectedDoc;
 
   const additionalActions = !locked && claimOpenForChanges ? (
     <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
@@ -347,18 +356,27 @@ export function ClaimDocumentsTable({
             <UploadIcon className="mr-1.5 size-3" /> Upload
           </Button>
         ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 px-2.5 text-[11px]"
-            onClick={() => setUploadTarget({ row: doc, mode: "add" })}
-          >
-            {doc.status === "REJECTED" ? (
-              <><RotateCwIcon className="mr-1.5 size-3" /> Reupload</>
-            ) : (
-              <><PlusIcon className="mr-1.5 size-3" /> Add File</>
-            )}
-          </Button>
+          doc.status === "REJECTED" ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-[11px]"
+              onClick={() => setUploadTarget({ row: doc, mode: "add" })}
+            >
+              <RotateCwIcon className="mr-1.5 size-3" /> Reupload
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="xs"
+              className="size-7 p-0"
+              title="Add file"
+              aria-label="Add file"
+              onClick={() => setUploadTarget({ row: doc, mode: "add" })}
+            >
+              <PlusIcon className="size-4" />
+            </Button>
+          )
         )
       ) : null;
 

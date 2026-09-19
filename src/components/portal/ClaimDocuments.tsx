@@ -101,9 +101,13 @@ export function ClaimDocuments({
    *  screen) instead of the collapsible accordion — used by the Initiate Claim workspace. */
   variant?: "accordion" | "table";
 }>) {
+  const isDraftStage = !claimStatus || claimStatus === "DRAFT";
   const required = useMemo(
-    () => documents.filter((d) => d.addedBy !== "LENDER"),
-    [documents]
+    () => documents.filter((d) =>
+          d.addedBy !== "LENDER" &&
+          // Once the claim is initiated, an optional document nobody uploaded is just noise.
+          (isDraftStage || d.required || d.files.length > 0)),
+    [documents, isDraftStage]
   );
   const additional = useMemo(
     () => documents.filter((d) => d.addedBy === "LENDER"),
@@ -174,11 +178,12 @@ export function ClaimDocuments({
     claimStatus === "DRAFT" ||
     claimStatus === "QUERY_INITIATED" ||
     claimStatus === "QUERY_UNDER_REVIEW";
-  // An empty Additional documents panel belongs to a draft only: once the claim has been
-  // initiated - including while a query is being worked on - an empty panel is noise. A panel
-  // that already holds documents always stays, so they remain visible.
-  const showAdditional =
-    !claimStatus || claimStatus === "DRAFT" || additional.length > 0;
+  // The Additional documents panel is only for the stages where the lender is adding to the
+  // claim: initiation (draft), a query, or while a document stands rejected. Otherwise hidden.
+  const hasRejectedDoc = documents.some(
+    (d) => d.status === "REJECTED" || d.status === "REUPLOAD_REQUIRED"
+  );
+  const showAdditional = claimOpenForChanges || hasRejectedDoc;
 
   const additionalActions = !locked && claimOpenForChanges ? (
     <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
