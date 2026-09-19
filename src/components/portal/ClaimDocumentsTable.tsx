@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { ArrowUpDownIcon, ChevronDownIcon, ChevronUpIcon, FileIcon, PlusIcon, TrashIcon, UploadIcon, RotateCwIcon } from "lucide-react";
+import { ArrowUpDownIcon, ChevronDownIcon, ChevronUpIcon, PlusIcon, TrashIcon, UploadIcon, RotateCwIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { AddLenderDocumentDialog } from "@/components/portal/AddLenderDocumentDialog";
-import { FileDecisionNote } from "@/components/portal/FileDecisionNote";
+import { clip, FileDecisionNote } from "@/components/portal/FileDecisionNote";
 import { Panel } from "@/components/portal/Panel";
 import { useConfirmDelete } from "@/components/portal/useConfirmDelete";
 import { UploadDialog } from "@/components/portal/UploadDialog";
@@ -85,7 +85,7 @@ function HeaderSortIcon({
   sortDirection,
 }: Readonly<{
   field: SortField;
-  sortField: SortField;
+  sortField: SortField | null;
   sortDirection: "asc" | "desc";
 }>) {
   if (sortField !== field) {
@@ -106,21 +106,25 @@ function TableLayout({
   sortDirection,
   onSort,
   showActions,
+  showImgcRemark,
 }: {
   children: React.ReactNode;
-  sortField: SortField;
+  sortField: SortField | null;
   sortDirection: "asc" | "desc";
   onSort: (field: SortField) => void;
   /** Drop the Actions column entirely when nothing in the table can be acted on. */
   showActions: boolean;
+  /** IMGC's column appears once IMGC has decided at least one file in this table. */
+  showImgcRemark: boolean;
 }) {
+  const plain = "h-8 bg-neutral-50 px-3 text-[10.5px] font-medium text-neutral-500";
   const head = (field: SortField, label: string) => (
-    <TableHead className="h-9 bg-neutral-50 px-3 text-[11px] uppercase tracking-wider text-neutral-500">
+    <TableHead className={plain}>
       <button
         type="button"
         // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
         onClick={() => onSort(field)}
-        className="flex select-none items-center uppercase hover:text-neutral-700"
+        className="flex select-none items-center hover:text-neutral-700"
       >
         {label}
         <HeaderSortIcon
@@ -138,13 +142,12 @@ function TableLayout({
         <TableHeader className="sticky top-0 bg-white shadow-sm z-10">
           <TableRow>
             {head("name", "Document Type")}
-            {head("status", "Status")}
             {head("fileName", "File Name")}
-            {head("size", "Size")}
+            <TableHead className={plain}>Lender Remark</TableHead>
+            {showImgcRemark && <TableHead className={plain}>IMGC Remark</TableHead>}
+            <TableHead className={plain}>Uploaded By</TableHead>
             {head("dateTime", "Date/Time")}
-            {showActions && (
-              <TableHead className="h-9 px-3 text-[11px] uppercase tracking-wider text-neutral-500 bg-neutral-50">Actions</TableHead>
-            )}
+            {showActions && <TableHead className={plain}>Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -174,7 +177,9 @@ export function ClaimDocumentsTable({
   bare?: boolean;
   claimStatus?: string;
 }>) {
-  const [sortField, setSortField] = useState<SortField>("name");
+  // No sort until a header is clicked: the list arrives mandatory-first in IMGC's configured
+  // order, and that is the order the lender should work down.
+  const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const handleSort = useCallback((field: SortField) => {
@@ -187,6 +192,7 @@ export function ClaimDocumentsTable({
   }, [sortField]);
 
   const sortDocs = useCallback((docs: RequirementRow[]) => {
+    if (!sortField) return docs;
     return [...docs].sort((a, b) => {
       const aFile = a.files[0];
       const bFile = b.files[0];
@@ -276,6 +282,8 @@ export function ClaimDocumentsTable({
     !locked &&
     doc.status !== "APPROVED" &&
     (allowDelete || (claimStatus !== undefined && isModifiable(doc)));
+  const hasImgcDecision = (docs: RequirementRow[]) =>
+    docs.some((d) => d.files.some((f) => f.review));
   const hasAnyAction = (docs: RequirementRow[]) =>
     docs.some((d) => canUpload(d) || (canDelete(d) && d.files.length > 0));
 
@@ -297,7 +305,11 @@ export function ClaimDocumentsTable({
     <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
   ) : null;
 
-  const renderTableRows = (docs: RequirementRow[], showActions: boolean) => {
+  const renderTableRows = (
+    docs: RequirementRow[],
+    showActions: boolean,
+    showImgcRemark: boolean
+  ) => {
     return docs.flatMap((doc, docIndex) => {
       const hasFiles = doc.files.length > 0;
       const conditionalNotRequired = doc.conditional && !doc.required;
@@ -307,9 +319,12 @@ export function ClaimDocumentsTable({
 
       const docNameCell = (
         <div className="flex flex-col gap-1">
-          <span className="text-[12.5px] font-semibold text-neutral-900">
+          <span className="text-[12px] font-semibold leading-tight text-neutral-900">
             {doc.name}{doc.required && <span className="text-destructive ml-1">*</span>}
           </span>
+          <div>
+            <StatusChip status={doc.status} />
+          </div>
           <div className="flex flex-wrap gap-1 mt-1">
             {doc.refNo && (
               <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-semibold text-neutral-500">
@@ -320,8 +335,7 @@ export function ClaimDocumentsTable({
         </div>
       );
 
-      const statusCell = <StatusChip status={doc.status} />;
-      
+
       const mainAction = canUpload(doc) ? (
         !hasFiles ? (
           <Button
@@ -351,12 +365,14 @@ export function ClaimDocumentsTable({
       if (!hasFiles) {
         return [
           <TableRow key={doc.id} className={rowStyle}>
-            <TableCell className="w-[30%] py-3 align-top">{docNameCell}</TableCell>
-            <TableCell className="py-3 align-top">{statusCell}</TableCell>
-            <TableCell className="py-3 text-[12px] text-neutral-400 align-top">Nothing uploaded yet.</TableCell>
-            <TableCell className="py-3 text-[12px] text-neutral-400 align-top">—</TableCell>
-            <TableCell className="py-3 text-[12px] text-neutral-400 align-top">—</TableCell>
-            {showActions && <TableCell className="py-3 align-top">{mainAction}</TableCell>}
+            <TableCell className="w-[22%] px-3 py-2 align-top">{docNameCell}</TableCell>
+            <TableCell
+              colSpan={showImgcRemark ? 5 : 4}
+              className="px-3 py-2 text-[11.5px] text-neutral-400 align-top"
+            >
+              Nothing uploaded yet.
+            </TableCell>
+            {showActions && <TableCell className="px-3 py-2 align-top">{mainAction}</TableCell>}
           </TableRow>
         ];
       }
@@ -367,36 +383,53 @@ export function ClaimDocumentsTable({
           <TableRow key={file.id} className={rowStyle}>
             {isFirst && (
               <>
-                <TableCell rowSpan={doc.files.length} className="w-[30%] py-3 align-top border-r border-neutral-100">
+                <TableCell rowSpan={doc.files.length} className="w-[22%] px-3 py-2 align-top border-r border-neutral-100">
                   {docNameCell}
-                </TableCell>
-                <TableCell rowSpan={doc.files.length} className="py-3 align-top border-r border-neutral-100">
-                  {statusCell}
                 </TableCell>
               </>
             )}
-            <TableCell className="py-3 text-[12.5px] font-medium align-middle">
+            <TableCell className="px-3 py-2 text-[11.5px] font-medium align-top">
               <a
                 href={`/api/portal/files/${file.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-brand-primary transition-colors hover:text-brand-dark hover:underline"
+                title={file.originalName}
+                className="text-brand-primary transition-colors hover:text-brand-dark hover:underline"
               >
-                <FileIcon className="size-4 shrink-0 text-neutral-400" />
-                <span className="truncate max-w-[150px] sm:max-w-[200px]" title={file.originalName}>
-                  {file.originalName}
-                </span>
+                {clip(file.originalName, 20)}
               </a>
-              <FileDecisionNote review={file.review} className="max-w-[260px] pl-6" />
+              {/* Size sits under the name, as on IMGC's Decision tab - no column of its own. */}
+              <span className="block text-[11px] font-normal text-neutral-400">
+                {formatBytes(file.size)}
+              </span>
             </TableCell>
-            <TableCell className="py-3 text-[12.5px] text-neutral-600 align-middle whitespace-nowrap">
-              {formatBytes(file.size)}
+            <TableCell
+              className="max-w-[190px] px-3 py-2 text-[11px] text-neutral-600 align-top"
+              title={file.uploadRemarks?.trim() || undefined}
+            >
+              {file.uploadRemarks?.trim() ? (
+                clip(file.uploadRemarks.trim(), 34)
+              ) : (
+                <span className="text-neutral-300">—</span>
+              )}
             </TableCell>
-            <TableCell className="py-3 text-[12.5px] text-neutral-600 align-middle whitespace-nowrap">
+            {showImgcRemark && (
+              <TableCell className="max-w-[190px] px-3 py-2 align-top">
+                {file.review ? (
+                  <FileDecisionNote review={file.review} className="mt-0" maxChars={34} />
+                ) : (
+                  <span className="text-[11px] text-neutral-300">—</span>
+                )}
+              </TableCell>
+            )}
+            <TableCell className="px-3 py-2 text-[11px] text-neutral-500 align-top whitespace-nowrap">
+              {file.uploadedByName || "—"}
+            </TableCell>
+            <TableCell className="px-3 py-2 text-[11px] text-neutral-500 align-top whitespace-nowrap">
               {when(file.uploadedAt)}
             </TableCell>
             {showActions && (
-            <TableCell className="py-3 align-middle">
+            <TableCell className="px-3 py-2 align-top">
               <div className="flex items-center gap-1.5">
                 {canDelete(doc) && (
                   <Button
@@ -434,8 +467,8 @@ export function ClaimDocumentsTable({
         className={bare ? "border-neutral-200 shadow-none" : undefined}
         actions={requiredActions}
       >
-        <TableLayout sortField={sortField} sortDirection={sortDirection} onSort={handleSort} showActions={hasAnyAction(required)}>
-          {renderTableRows(required, hasAnyAction(required))}
+        <TableLayout sortField={sortField} sortDirection={sortDirection} onSort={handleSort} showActions={hasAnyAction(required)} showImgcRemark={hasImgcDecision(required)}>
+          {renderTableRows(required, hasAnyAction(required), hasImgcDecision(required))}
         </TableLayout>
       </Panel>
 
@@ -451,8 +484,8 @@ export function ClaimDocumentsTable({
             No additional documents added.
           </p>
         ) : (
-          <TableLayout sortField={sortField} sortDirection={sortDirection} onSort={handleSort} showActions={hasAnyAction(additional)}>
-            {renderTableRows(additional, hasAnyAction(additional))}
+          <TableLayout sortField={sortField} sortDirection={sortDirection} onSort={handleSort} showActions={hasAnyAction(additional)} showImgcRemark={hasImgcDecision(additional)}>
+            {renderTableRows(additional, hasAnyAction(additional), hasImgcDecision(additional))}
           </TableLayout>
         )}
       </Panel>

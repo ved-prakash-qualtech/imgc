@@ -1,5 +1,6 @@
 /* eslint-disable react-perf/jsx-no-jsx-as-prop */
 import { claimAmountFor } from "@/config/claimConfig";
+import { OverviewTotals } from "@/components/portal/OverviewTotals";
 import { ClaimDashboardLenderPicker } from "@/app/[locale]/(portal)/claim-dashboard/ClaimDashboardLenderPicker";
 import { ClaimDashboardView } from "@/app/[locale]/(portal)/claim-dashboard/ClaimDashboardView";
 import { ClaimOverviewBand } from "@/components/portal/ClaimOverviewBand";
@@ -96,7 +97,7 @@ export default async function ClaimDashboardPage({
   // the band here and the grid there can never disagree. Narrowed to the hero-banner's selected
   // lender when one is picked, so the tiles track the dropdown the same way the widgets do.
   const claimByAccountId = new Map(claims.map((c) => [c.accountId, c]));
-  const eligible = accounts
+  const inScope = accounts
     .filter((a) => (a.dpd ?? 0) > 90)
     .filter((a) => !lenderOrgId || a.lenderOrgId === lenderOrgId)
     // The Lender's own Claims grid deliberately hides `DOCUMENTS_RESUBMITTED` and `CLOSED`
@@ -114,7 +115,14 @@ export default async function ClaimDashboardPage({
       return (
         claimStatus !== "DOCUMENTS_RESUBMITTED" && claimStatus !== "CLOSED"
       );
-    })
+    });
+  // Totals over exactly the accounts the tiles count, so the header and the tiles agree.
+  const totals = {
+    loan: inScope.reduce((n, a) => n + a.loanAmount, 0),
+    outstanding: inScope.reduce((n, a) => n + a.outstandingAmount, 0),
+    claim: inScope.reduce((n, a) => n + claimAmountFor(a.loanAmount), 0),
+  };
+  const eligible = inScope
     .map((a) => {
       if (session.role !== "IMGC") {
         const claim = claimByAccountId.get(a.id);
@@ -156,12 +164,15 @@ export default async function ClaimDashboardPage({
               : "Overview"
           }
           action={
-            data.canFilterByLender ? (
-              <ClaimDashboardLenderPicker
-                lenders={data.lenders}
-                value={lenderOrgId}
-              />
-            ) : undefined
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <OverviewTotals totals={totals} />
+              {data.canFilterByLender && (
+                <ClaimDashboardLenderPicker
+                  lenders={data.lenders}
+                  value={lenderOrgId}
+                />
+              )}
+            </div>
           }
         />
         <ClaimDashboardView

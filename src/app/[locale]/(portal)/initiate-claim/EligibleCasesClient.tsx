@@ -669,7 +669,7 @@ export function EligibleCasesClient({
         </div>
         <StatusMultiSelect value={status} onChange={handleStatusChange} />
         <FilterSelect
-          label="Purpose"
+          label="Loan Types"
           options={["ALL", ...products] as const}
           value={product}
           onChange={handleProductChange}
@@ -721,7 +721,7 @@ export function EligibleCasesClient({
               />
               <SortableTableHead
                 column="purpose"
-                label="Purpose"
+                label="Loan Types"
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}

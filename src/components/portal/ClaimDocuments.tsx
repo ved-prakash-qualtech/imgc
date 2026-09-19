@@ -20,7 +20,7 @@ import {
 import { toast } from "sonner";
 
 import { AddLenderDocumentDialog } from "@/components/portal/AddLenderDocumentDialog";
-import { FileDecisionNote } from "@/components/portal/FileDecisionNote";
+import { clip, FileDecisionNote } from "@/components/portal/FileDecisionNote";
 import { Panel } from "@/components/portal/Panel";
 import { useConfirmDelete } from "@/components/portal/useConfirmDelete";
 import { UploadDialog } from "@/components/portal/UploadDialog";
@@ -607,7 +607,7 @@ function SortIcon({
   sortDirection,
 }: Readonly<{
   field: DocSortField;
-  sortField: DocSortField;
+  sortField: DocSortField | null;
   sortDirection: "asc" | "desc";
 }>) {
   if (sortField !== field) {
@@ -652,10 +652,17 @@ function DocumentsTable({
   /** A delete is running — every delete button stays disabled until it settles. */
   deleting: boolean;
 }>) {
-  const [sortField, setSortField] = useState<DocSortField>("name");
+  // No sort until a header is clicked: the list arrives mandatory-first in IMGC's configured
+  // order, and that is the order the lender should work down.
+  const [sortField, setSortField] = useState<DocSortField | null>(null);
+
+  // IMGC's column only earns its place once IMGC has actually decided something here: while the
+  // lender is still initiating the claim it would be a column of dashes.
+  const showImgcRemark = docs.some((d) => d.files.some((f) => f.review));
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const sortedDocs = useMemo(() => {
+    if (!sortField) return docs;
     return [...docs].sort((a, b) => {
       const aFile = a.files[0];
       const bFile = b.files[0];
@@ -682,7 +689,7 @@ function DocumentsTable({
   }, [sortField]);
 
   const sortable = (field: DocSortField, label: string) => (
-    <th className="px-4 py-2.5">
+    <th className="px-3 py-2">
       <button
         type="button"
         // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
@@ -701,16 +708,16 @@ function DocumentsTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[860px] text-left text-[12.5px]">
-        <thead className="bg-neutral-50 text-[11px] font-medium text-neutral-500">
+      <table className="w-full min-w-[980px] text-left text-[11.5px]">
+        <thead className="bg-neutral-50 text-[10.5px] font-medium text-neutral-500">
           <tr>
             {sortable("name", "Document Type")}
-            {sortable("status", "Status")}
             {sortable("fileName", "File Name")}
-            {sortable("size", "Size")}
+            <th className="px-3 py-2">Lender Remark</th>
+            {showImgcRemark && <th className="px-3 py-2">IMGC Remark</th>}
             {sortable("uploadedBy", "Uploaded By")}
             {sortable("dateTime", "Date/Time")}
-            <th className="px-4 py-2.5">Actions</th>
+            <th className="px-3 py-2">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">
@@ -725,6 +732,7 @@ function DocumentsTable({
               onDelete={onDelete}
               deleting={deleting}
               claimStatus={claimStatus}
+              showImgcRemark={showImgcRemark}
             />
           ))}
         </tbody>
@@ -742,6 +750,7 @@ function DocTableRows({
   onDelete,
   deleting,
   claimStatus,
+  showImgcRemark,
 }: Readonly<{
   doc: RequirementRow;
   index?: number;
@@ -761,6 +770,7 @@ function DocTableRows({
   /** A delete is running — every delete button stays disabled until it settles. */
   deleting: boolean;
   claimStatus?: string;
+  showImgcRemark: boolean;
 }>) {
   const hasFiles = doc.files.length > 0;
   const canAddMore = !locked && doc.status !== "APPROVED";
@@ -776,12 +786,15 @@ function DocTableRows({
   const isDisabled = claimStatus ? !canModifyDocuments : false;
 
   const nameCell = (
-    <td rowSpan={rowSpan} className="px-4 py-3 align-top">
+    <td rowSpan={rowSpan} className="px-3 py-2 align-top">
       <span className="font-semibold text-neutral-950">
         {index ? `${index}. ` : ""}
         {doc.name}
         {doc.required && <span className="text-destructive">*</span>}
       </span>
+      <div className="mt-1.5">
+        <StatusChip status={doc.status} />
+      </div>
       {doc.refNo && (
         <div className="mt-1">
           <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-semibold text-neutral-500">
@@ -792,27 +805,27 @@ function DocTableRows({
     </td>
   );
 
-  const statusCell = (
-    <td rowSpan={rowSpan} className="px-4 py-3 align-top">
-      <StatusChip status={doc.status} />
-    </td>
-  );
 
   const actionsCell = (extra?: ReactNode) => (
-    <td className="px-4 py-3 align-top">
+    <td className="px-3 py-2 align-top">
       <div className="flex flex-wrap gap-1.5">
         {extra}
         {canAddMore && !isDisabled && (
           <Button
             size="xs"
             variant={hasFiles ? "outline" : "default"}
+            // Adding another file is an icon, like Delete beside it; the first upload keeps its
+            // label, since on an empty row it is the one thing to do.
+            className={hasFiles ? "size-7 p-0" : "h-7 px-2 text-[11px]"}
+            title={hasFiles ? "Add file" : undefined}
+            aria-label={hasFiles ? "Add file" : undefined}
             // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
             onClick={() =>
               onUpload({ row: doc, mode: hasFiles ? "add" : "upload" })
             }
           >
             {hasFiles ? <PlusIcon /> : <UploadIcon />}
-            {hasFiles ? "Add File" : "Upload"}
+            {!hasFiles && "Upload"}
           </Button>
         )}
       </div>
@@ -823,8 +836,7 @@ function DocTableRows({
     return (
       <tr>
         {nameCell}
-        {statusCell}
-        <td className="px-4 py-3 text-neutral-400" colSpan={4}>
+        <td className="px-3 py-2 text-neutral-400" colSpan={showImgcRemark ? 5 : 4}>
           Nothing uploaded yet.
         </td>
         {actionsCell()}
@@ -845,8 +857,7 @@ function DocTableRows({
         return (
           <tr key={f.id}>
             {i === 0 && nameCell}
-            {i === 0 && statusCell}
-            <td className="px-4 py-3 align-top">
+            <td className="px-3 py-2 align-top">
               <a
                 href={`/api/portal/files/${f.id}`}
                 target="_blank"
@@ -859,10 +870,12 @@ function DocTableRows({
                       ? "text-warning-700"
                       : "text-brand-dark"
                 )}
+                title={f.originalName}
               >
-                {f.originalName}
+                {clip(f.originalName, 20)}
               </a>
-              <FileDecisionNote review={f.review} className="max-w-[260px]" />
+              {/* Size sits under the name, as on IMGC's Decision tab - no column of its own. */}
+              <span className="block text-[11px] text-neutral-400">{bytes(f.size)}</span>
               {/* The requirement-level reason, only for files decided before decisions were per
                   file - a file with its own decision already shows its own remark above. */}
               {needsFix && !f.review && doc.review?.remarks && (
@@ -872,13 +885,31 @@ function DocTableRows({
                 </p>
               )}
             </td>
-            <td className="px-4 py-3 align-top text-neutral-500">
-              {bytes(f.size)}
+            {/* What the lender wrote on upload, and what IMGC said on accepting or rejecting this
+                file - the same two columns IMGC reads on its Decision tab. */}
+            <td
+              className="max-w-[200px] px-3 py-2 align-top text-[11px] text-neutral-600"
+              title={f.uploadRemarks?.trim() || undefined}
+            >
+              {f.uploadRemarks?.trim() ? (
+                clip(f.uploadRemarks.trim(), 34)
+              ) : (
+                <span className="text-neutral-300">—</span>
+              )}
             </td>
-            <td className="px-4 py-3 align-top text-neutral-500">
+            {showImgcRemark && (
+              <td className="max-w-[200px] px-3 py-2 align-top">
+                {f.review ? (
+                  <FileDecisionNote review={f.review} className="mt-0" maxChars={34} />
+                ) : (
+                  <span className="text-[11px] text-neutral-300">—</span>
+                )}
+              </td>
+            )}
+            <td className="px-3 py-2 align-top text-neutral-500">
               {f.uploadedByName || "—"}
             </td>
-            <td className="px-4 py-3 align-top text-neutral-500">
+            <td className="px-3 py-2 align-top text-neutral-500">
               {when(f.uploadedAt)}
             </td>
             {i === 0
@@ -922,7 +953,7 @@ function DocTableRows({
                 )
               : (() => {
                   const cell = (
-                    <td className="px-4 py-3 align-top">
+                    <td className="px-3 py-2 align-top">
                       <div className="flex flex-wrap gap-1.5">
                         {needsFix && !locked && (
                           <Button

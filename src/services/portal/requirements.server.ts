@@ -2,6 +2,7 @@ import "server-only";
 
 import { readDb } from "@/server/mock/db";
 import { isActive } from "@/services/portal/claims.server";
+import { configuredOrder } from "@/services/portal/claimFlow.server";
 import type { AppSession } from "@/lib/auth/appSession";
 import type {
   ClaimDocument,
@@ -170,9 +171,10 @@ export async function listClaimDocuments(
     return [];
   }
 
-  // Config order for the system checklist — the doc id is `<claimId>_doc<N>`. Lender-added
-  // documents (no such index) trail, in the order they were added.
-  const configIndex = (id: string): number => {
+  // Mandatory first, then the order IMGC set in Document Configuration (as it stands now, not as
+  // it stood when the claim was created). Lender-added documents trail in the order they were added.
+  const rank = configuredOrder(db, claim.claimType, account.lenderOrgId);
+  const materialised = (id: string): number => {
     const m = /_doc(\d+)$/.exec(id);
     return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER;
   };
@@ -182,8 +184,10 @@ export async function listClaimDocuments(
     .filter((d) => session.role === "IMGC" || isActive(d))
     .map((d) => toRow(d, db))
     .sort((a, b) => {
-      const ai = configIndex(a.id);
-      const bi = configIndex(b.id);
+      if (a.required !== b.required) return a.required ? -1 : 1;
+      const ar = rank(a), br = rank(b);
+      if (ar !== br) return ar - br;
+      const ai = materialised(a.id), bi = materialised(b.id);
       if (ai !== bi) return ai - bi;
       return a.addedOn.localeCompare(b.addedOn);
     });

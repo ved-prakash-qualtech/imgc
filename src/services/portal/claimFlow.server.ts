@@ -557,6 +557,138 @@ function documentSpecsFor(
   return claimConfig(claimType).documents;
 }
 
+/**
+ * Where each document sits in the lender's CURRENT configuration — by slug, and by name for rows
+ * that predate slugs. Screens order a claim's checklist by this (mandatory first), so the lender's
+ * list reads the way IMGC set it up in Document Configuration rather than alphabetically.
+ */
+export function configuredOrder(
+  db: MockDb,
+  claimType: ClaimTypeKey,
+  lenderOrgId: string | undefined
+): (doc: { slug?: string; name: string }) => number {
+  const specs = documentSpecsFor(db, claimType, lenderOrgId);
+  const bySlug = new Map(specs.map((s, i) => [s.slug, i]));
+  const byName = new Map(specs.map((s, i) => [s.name.trim().toLowerCase(), i]));
+  return (doc) =>
+    (doc.slug !== undefined ? bySlug.get(doc.slug) : undefined) ??
+    byName.get(doc.name.trim().toLowerCase()) ??
+    Number.MAX_SAFE_INTEGER;
+}
+
+/**
+ * Keeps a DRAFT claim's checklist in step with the lender's Document Configuration.
+ *
+ * A checklist is materialised when the claim is created, so without this a lender who opened
+ * their claim before IMGC changed the configuration kept working against the old list. While
+ * the claim is still a draft nothing has been submitted against it, so it follows the current
+ * configuration: newly configured documents are added, Mandatory/Optional and descriptions are
+ * brought up to date, and a document IMGC removed is withdrawn — unless files were already
+ * uploaded to it, which are never taken away. Once submitted, the checklist is left as it was.
+ *
+ * Reads first and writes only when something actually differs, so opening an up-to-date claim
+ * costs nothing.
+ */
+export async function syncDraftChecklist(claimId: string): Promise<void> {
+  type Op =
+    | { kind: "add"; spec: ClaimDocumentSpec; required: boolean }
+    | { kind: "update"; docId: string; spec: ClaimDocumentSpec; required: boolean }
+    | { kind: "withdraw"; docId: string };
+
+  const plan = (db: MockDb): Op[] => {
+    const claim = db.claims.find((c) => c.id === claimId);
+    if (!claim || claim.status !== "DRAFT") return [];
+    const account = db.accounts.find((a) => a.id === claim.accountId);
+    const loan = (account ?? {}) as unknown as Record<string, unknown>;
+    const specs = documentSpecsFor(db, claim.claimType, account?.lenderOrgId);
+    const system = db.claimDocuments.filter(
+      (d) => d.claimId === claimId && d.addedBy === "SYSTEM"
+    );
+    const matches = (d: (typeof system)[number], s: ClaimDocumentSpec) =>
+      (d.slug !== undefined && d.slug === s.slug) ||
+      d.name.trim().toLowerCase() === s.name.trim().toLowerCase();
+
+    const ops: Op[] = [];
+    const matched = new Set<string>();
+    for (const spec of specs) {
+      const required = spec.required && docConditionMet(spec.condition, loan);
+      const doc = system.find((d) => matches(d, spec));
+      if (!doc) {
+        ops.push({ kind: "add", spec, required });
+        continue;
+      }
+      matched.add(doc.id);
+      if (
+        doc.required !== required ||
+        doc.name !== spec.name ||
+        (doc.description ?? "") !== (spec.description ?? "") ||
+        doc.active === false
+      ) {
+        ops.push({ kind: "update", docId: doc.id, spec, required });
+      }
+    }
+    for (const doc of system) {
+      if (matched.has(doc.id) || doc.active === false) continue;
+      const hasFiles = db.documentFiles.some(
+        (f) => f.documentId === doc.id && !f.supersededAt
+      );
+      if (!hasFiles) ops.push({ kind: "withdraw", docId: doc.id });
+    }
+    return ops;
+  };
+
+  if (plan(await readDb()).length === 0) return;
+
+  await writeDb((fresh) => {
+    const claim = fresh.claims.find((c) => c.id === claimId);
+    if (!claim) return;
+    const used = new Set(
+      fresh.claimDocuments.filter((d) => d.claimId === claimId).map((d) => d.id)
+    );
+    let next = 0;
+    const freshId = () => {
+      while (used.has(`${claimId}_doc${next}`)) next += 1;
+      const id = `${claimId}_doc${next}`;
+      used.add(id);
+      return id;
+    };
+    for (const op of plan(fresh)) {
+      if (op.kind === "add") {
+        fresh.claimDocuments.push({
+          id: freshId(),
+          accountId: claim.accountId,
+          claimId,
+          slug: op.spec.slug,
+          name: op.spec.name,
+          category: op.spec.category,
+          description: op.spec.description,
+          required: op.required,
+          multiple: op.spec.multiple ?? false,
+          conditional: Boolean(op.spec.condition),
+          conditionReason: op.spec.condition
+            ? conditionReason(op.spec.condition)
+            : undefined,
+          addedBy: "SYSTEM",
+          status: "PENDING_UPLOAD",
+          version: 0,
+          active: true,
+          createdAt: nowIso(),
+        });
+      } else if (op.kind === "update") {
+        const doc = fresh.claimDocuments.find((d) => d.id === op.docId);
+        if (!doc) continue;
+        doc.name = op.spec.name;
+        doc.description = op.spec.description;
+        doc.required = op.required;
+        doc.active = true;
+      } else {
+        const doc = fresh.claimDocuments.find((d) => d.id === op.docId);
+        if (doc) doc.active = false;
+      }
+    }
+  });
+}
+
 function materialiseChecklist(
   fresh: MockDb,
   claimId: string,

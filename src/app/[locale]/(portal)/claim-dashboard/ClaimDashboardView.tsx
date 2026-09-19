@@ -54,7 +54,7 @@ function MonthlyBars({
 }: Readonly<{ data: ClaimDashboardData["monthly"] }>) {
   const max = Math.max(1, ...data.map((d) => d.count));
   const W = 640;
-  const H = 200;
+  const H = 160;
   const padL = 28;
   const padB = 24;
   const padT = 12;
@@ -309,7 +309,7 @@ export function ClaimDashboardView({
           </div>
         }
       >
-        <div className="max-h-[280px] overflow-auto px-4 py-2">
+        <div className="max-h-[220px] overflow-auto px-4 py-2">
           <MonthlyBars data={data.monthly} />
         </div>
       </Panel>
@@ -318,7 +318,7 @@ export function ClaimDashboardView({
         size="compact"
         title={data.isLender ? "Query Raised · Not Responded" : "Claim Under Review"}
       >
-        <div className="max-h-[280px] overflow-auto px-4 py-3">
+        <div className="max-h-[220px] overflow-auto px-4 py-3">
           {data.isLender ? (
             <LenderUnderProgressTable
               rows={data.lenderUnderProgress}

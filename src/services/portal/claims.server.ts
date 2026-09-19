@@ -8,7 +8,10 @@ import {
 } from "@/server/mock/storage";
 import { newId, nowIso } from "@/server/mock/ids";
 import { recordEvent } from "@/services/portal/audit.server";
-import { syncQueryForDocumentDecision } from "@/services/portal/claimFlow.server";
+import {
+  configuredOrder,
+  syncQueryForDocumentDecision,
+} from "@/services/portal/claimFlow.server";
 import {
   notifyBucketShift,
   notifyClaimSubmitted,
@@ -57,6 +60,9 @@ export async function listDocuments(
   if (!access.ok) return [];
 
   const db = await readDb();
+  const account = db.accounts.find((a) => a.id === accountId);
+  const claim = db.claims.find((c) => c.accountId === accountId);
+  const rank = configuredOrder(db, claim?.claimType ?? "INITIAL", account?.lenderOrgId);
   return db.claimDocuments
     .filter((d) => d.accountId === accountId)
     // A withdrawn requirement is no longer being asked for, so the lender does not see it at
@@ -73,10 +79,14 @@ export async function listDocuments(
         history,
       };
     })
-    // Required first, then alphabetical — the checklist reads as a to-do list.
-    .sort((a, b) =>
-      a.required === b.required ? a.name.localeCompare(b.name) : a.required ? -1 : 1
-    );
+    // Mandatory first, then the order IMGC set in Document Configuration — the same order the
+    // lender sees, so both sides walk the checklist identically. Anything the configuration does
+    // not know (IMGC or lender additions) follows, alphabetically.
+    .sort((a, b) => {
+      if (a.required !== b.required) return a.required ? -1 : 1;
+      const ar = rank(a), br = rank(b);
+      return ar !== br ? ar - br : a.name.localeCompare(b.name);
+    });
 }
 
 /** BRD: IMGC can add a requirement (e.g. NOC) that the lender then uploads against. */

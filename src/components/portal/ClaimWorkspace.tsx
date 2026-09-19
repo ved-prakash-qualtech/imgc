@@ -21,8 +21,9 @@ import {
 import { ClaimDocuments } from "@/components/portal/ClaimDocuments";
 
 import { LoanDetailsCard } from "@/components/portal/LoanDetailsCard";
-import { Panel } from "@/components/portal/Panel";
 import { Button } from "@/components/ui/button";
+import { ActionFooter } from "@/components/portal/ActionFooter";
+import { Panel } from "@/components/portal/Panel";
 import { claimConfig, fieldVisible } from "@/config/claimConfig";
 import {
   useRememberedHref,
@@ -37,8 +38,9 @@ import type {
   ClaimTypeKey,
 } from "@/server/mock/types";
 
-type WorkspaceTab = "loan-details" | "initiate-claim";
 const INITIATION_REMARK_MAX = 2000;
+
+type WorkspaceTab = "loan-details" | "initiate-claim";
 
 /** A required document is still outstanding until it is with IMGC or approved. */
 function outstanding(doc: RequirementRow): boolean {
@@ -199,7 +201,7 @@ export function ClaimWorkspace({
 
       {/* ── Initiate Claim tab — single column, viewport-fit ── */}
       {activeTab === "initiate-claim" && (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 pb-4">
           {/* Document + remarks area */}
           <div className="flex-1 pr-0.5">
             <ClaimDocuments
@@ -231,21 +233,22 @@ export function ClaimWorkspace({
                 </p>
               </div>
             </Panel>
+
           </div>
 
           {/* Pinned action bar */}
           {!locked && (
-            <div className="sticky bottom-0 z-20 mt-4 flex shrink-0 items-center justify-between gap-3 pt-2">
-              <div className="min-w-0 text-[12.5px]">
-                {canSubmit && (
+            <ActionFooter
+              message={
+                canSubmit ? (
                   <p className="flex items-center gap-1.5 font-medium text-success-700">
                     <CheckCircle2Icon className="size-4" />
                     Every mandatory document is in — you can{" "}
                     {resubmitting ? "resubmit" : "submit"} this claim.
                   </p>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
+                ) : null
+              }
+            >
                 <Button
                   variant="outline"
                   size="sm"
@@ -275,8 +278,7 @@ export function ClaimWorkspace({
                   <SendIcon />{" "}
                   {resubmitting ? "Save & Resubmit" : "Save & Submit"}
                 </Button>
-              </div>
-            </div>
+            </ActionFooter>
           )}
         </div>
       )}

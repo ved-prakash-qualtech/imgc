@@ -11,6 +11,7 @@ import { getAccount } from "@/services/portal/accounts.server";
 import {
   createClaim,
   getClaimForAccount,
+  syncDraftChecklist,
 } from "@/services/portal/claimFlow.server";
 import { listClaimDocuments } from "@/services/portal/requirements.server";
 
@@ -48,6 +49,9 @@ export default async function ClaimWorkspacePage({
     if (created.ok) claim = await getClaimForAccount(session, accountId);
   }
 
+  // A draft follows IMGC's Document Configuration as it stands now — documents IMGC added or
+  // re-flagged since the claim was opened show up here (a no-op when nothing changed).
+  if (claim) await syncDraftChecklist(claim.id);
   const documents = claim ? await listClaimDocuments(session, claim.id) : [];
   const config = claim ? claimConfig(claim.claimType) : null;
 

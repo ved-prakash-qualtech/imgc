@@ -150,7 +150,7 @@ export function ClaimOverviewBand({
           const href = hrefs?.[tile.key];
           const className = cn(
             "flex flex-col rounded-xl border bg-white shadow-sm transition-all duration-300",
-            activeTiles.length >= 6 ? "px-2.5 py-1.5" : "px-3.5 py-2",
+            activeTiles.length >= 6 ? "px-2.5 py-1" : "px-3.5 py-1.5",
             tone.bg,
             href &&
               "hover:-translate-y-1 hover:shadow-md hover:bg-neutral-50 cursor-pointer"
@@ -178,7 +178,7 @@ export function ClaimOverviewBand({
                   {tile.icon}
                 </span>
               </div>
-              <div className="mt-auto pt-1">
+              <div className="mt-auto pt-0.5">
                 <p
                   className={cn(
                     "truncate font-medium text-neutral-500",
@@ -187,24 +187,19 @@ export function ClaimOverviewBand({
                 >
                   {tile.label}
                 </p>
+                {/* One line, not two: the tallest tile sets the whole band's height. */}
                 {isQueried && (
-                  <div className="mt-1 flex flex-col gap-0.5 text-[9px] font-medium text-neutral-500">
-                    <div className="flex justify-between">
-                      <span>Initiated:</span>
-                      <span>{counts.queryInitiated ?? 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Under Review:</span>
-                      <span>{counts.queryUnderReview ?? 0}</span>
-                    </div>
-                  </div>
+                  <p className="mt-0.5 truncate text-[9px] font-medium text-neutral-500">
+                    Initiated {counts.queryInitiated ?? 0} · Under Review{" "}
+                    {counts.queryUnderReview ?? 0}
+                  </p>
                 )}
                 {/* Claim amount across exactly the claims this tile counts. */}
                 <p
-                  className="mt-1 text-[11px] font-semibold leading-tight tabular-nums text-neutral-700"
+                  className="mt-0.5 text-[11px] font-semibold leading-tight tabular-nums text-neutral-700"
                   title={`Claim amount: ₹${exactInr.format(counts.claimAmount[tile.key])}`}
                 >
-                  <span className="block text-[10px] font-medium text-neutral-400">Claim Amount</span>
+                  <span className="block text-[9.5px] font-medium leading-tight text-neutral-400">Claim Amount</span>
                   {crore(counts.claimAmount[tile.key])}
                 </p>
               </div>

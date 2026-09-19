@@ -91,9 +91,18 @@ async function pg(): Promise<Sql> {
   return sqlClient;
 }
 
+/**
+ * Which row this deployment's data lives in.
+ *
+ * Several deployments can share one Neon database — the frozen demo and a working copy beside it
+ * — so each keeps its own rows: `SNAPSHOT_NAMESPACE` prefixes them. A deployment without one uses
+ * the bare `db`/`audit` rows, which is exactly what the original deployment has always used, so
+ * setting a namespace on a new project can never reach into the old one's data.
+ */
 function rowName(name: SnapshotName): string {
-  if (IS_SERVERLESS) return name;
-  return `${process.env.SNAPSHOT_NAMESPACE || "local"}:${name}`;
+  const namespace = process.env.SNAPSHOT_NAMESPACE;
+  if (IS_SERVERLESS) return namespace ? `${namespace}:${name}` : name;
+  return `${namespace || "local"}:${name}`;
 }
 
 const pgTimeout = () => ({

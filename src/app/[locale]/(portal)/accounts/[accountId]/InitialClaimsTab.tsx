@@ -211,8 +211,8 @@ export function InitialClaimsTab({
       <Panel>
         {role === "IMGC" ? (
           <div className="overflow-x-auto">
-            <div className="flex min-w-[960px] flex-col divide-y divide-neutral-100 text-left text-[13px]">
-              <div className="flex items-center bg-neutral-50 py-2 text-[11.5px] font-medium text-neutral-500">
+            <div className="flex min-w-[960px] flex-col divide-y divide-neutral-100 text-left text-[12px]">
+              <div className="flex items-center bg-neutral-50 py-2 text-[10.5px] font-medium text-neutral-500">
                 <div className="w-[140px] shrink-0 px-3">Document Type</div>
                 <div className="flex flex-1 items-center justify-between gap-2 px-3">
                   <div className="w-[140px] shrink-0">File Name</div>
@@ -926,7 +926,7 @@ function ImgcDocumentRowItem({
     <div className={cn("flex flex-col border-b border-neutral-100 last:border-b-0", inactive && "bg-neutral-25/60 opacity-70")}>
       <div className="flex items-stretch">
         <div className="flex w-[140px] shrink-0 flex-col items-start gap-1.5 border-r border-neutral-100 px-3 py-3">
-          <span className="line-clamp-2 font-semibold leading-tight text-neutral-950" title={doc.name}>
+          <span className="line-clamp-2 text-[12px] font-semibold leading-tight text-neutral-950" title={doc.name}>
             {doc.name}
             {doc.required && <span className="text-destructive ml-1">*</span>}
           </span>
@@ -937,7 +937,7 @@ function ImgcDocumentRowItem({
         <div className="flex flex-1 flex-col">
           {doc.files.length === 0 && (
             <div className="flex flex-1 items-center justify-between gap-2 px-3 py-3">
-              <div className="w-[140px] shrink-0 text-[12px] text-neutral-400">Nothing uploaded yet.</div>
+              <div className="w-[140px] shrink-0 text-[11.5px] text-neutral-400">Nothing uploaded yet.</div>
               <div className="w-[140px] shrink-0" />
               <div className="w-[140px] shrink-0" />
               <div className="w-[85px] shrink-0" />
@@ -955,7 +955,7 @@ function ImgcDocumentRowItem({
           
           {doc.files.length > 0 && doc.files.map((f, i) => (
             <div key={f.id} className={cn("flex flex-1 items-center justify-between gap-2 px-3 py-3", i > 0 && "border-t border-neutral-100")}>
-              <div className="w-[140px] shrink-0 text-[12.5px] font-medium text-neutral-700" title={f.originalName}>
+              <div className="w-[140px] shrink-0 text-[11.5px] font-medium text-neutral-700" title={f.originalName}>
                 <div className="truncate">
                   {f.storedPath ? (
                     <a href={`/api/portal/files/${f.id}`} target="_blank" rel="noopener noreferrer" className="hover:text-brand-primary hover:underline" title={f.originalName}>{clip(f.originalName, 20)}</a>
@@ -966,7 +966,7 @@ function ImgcDocumentRowItem({
                 <span className="text-[11px] font-normal text-neutral-400">{bytes(f.size)}</span>
               </div>
               <div
-                className="w-[140px] shrink-0 line-clamp-3 text-[11.5px] text-neutral-600"
+                className="w-[140px] shrink-0 line-clamp-3 text-[11px] text-neutral-600"
                 title={f.uploadRemarks?.trim() || undefined}
               >
                 {f.uploadRemarks?.trim() ? (
@@ -979,11 +979,11 @@ function ImgcDocumentRowItem({
                 {f.review ? (
                   <FileDecisionNote review={f.review} className="mt-0" maxChars={34} />
                 ) : (
-                  <span className="text-[11.5px] text-neutral-300">—</span>
+                  <span className="text-[11px] text-neutral-300">—</span>
                 )}
               </div>
-              <div className="w-[85px] shrink-0 truncate text-[11.5px] text-neutral-500" title={f.uploadedByName}>{f.uploadedByName}</div>
-              <div className="w-[100px] shrink-0 text-[11.5px] text-neutral-500">{when(f.uploadedAt)}</div>
+              <div className="w-[85px] shrink-0 truncate text-[11px] text-neutral-500" title={f.uploadedByName}>{f.uploadedByName}</div>
+              <div className="w-[100px] shrink-0 text-[11px] text-neutral-500">{when(f.uploadedAt)}</div>
               
               <div className="flex w-[140px] shrink-0 flex-wrap gap-1.5">
                 {f.storedPath ? (

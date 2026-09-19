@@ -16,6 +16,7 @@ import { InitialClaimsTab } from "@/app/[locale]/(portal)/accounts/[accountId]/I
 // it is lender-specific, so IMGC's Query/Decision tab shows the identical bar.
 import { LenderClaimStatusPanel as ClaimStatusBar } from "@/components/portal/LenderClaimStatusPanel";
 import { ExportDocumentsCsvButton } from "@/components/portal/ExportDocumentsCsvButton";
+import { ActionFooter } from "@/components/portal/ActionFooter";
 import { Panel } from "@/components/portal/Panel";
 import { QueriedButton } from "@/components/portal/QueriedButton";
 import { Button } from "@/components/ui/button";
@@ -185,8 +186,8 @@ function QueryTrailTab({
   const refundReceived = claim?.status === "REFUND_RECEIVED_BY_IMGC";
 
   const imgcComposer = (
-    <div className="flex flex-col gap-0.5 px-2 py-1">
-      <div className="flex flex-wrap items-end gap-1">
+    <div className="flex flex-col gap-0.5">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {claim?.status === "INITIATED" && (
           <Button
             size="sm"
@@ -253,7 +254,24 @@ function QueryTrailTab({
 
       {documentsSection}
 
-      <div className="sticky bottom-0 z-20 mt-4 pt-2">{imgcComposer}</div>
+      {/* The lender's own remark on the claim, from the Remarks box on their Initiate Claim screen.
+          Read-only here: IMGC's own note goes in the decision bar below. */}
+      {claim && (
+        <Panel title="Remarks">
+          <div className="px-4 py-3 text-[12.5px]">
+            {claim.fields.__initiationRemark?.trim() ? (
+              <p className="whitespace-pre-wrap text-neutral-800">
+                <span className="mr-1.5 font-semibold text-neutral-500">Lender:</span>
+                {claim.fields.__initiationRemark.trim()}
+              </p>
+            ) : (
+              <p className="text-neutral-400">No remarks from the lender.</p>
+            )}
+          </div>
+        </Panel>
+      )}
+
+      <ActionFooter className="mt-4">{imgcComposer}</ActionFooter>
     </div>
   );
 }

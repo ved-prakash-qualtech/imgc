@@ -1,5 +1,5 @@
 /* eslint-disable react-perf/jsx-no-jsx-as-prop */
-import { ArrowLeftIcon, EyeIcon } from "lucide-react";
+import { EyeIcon } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { ClaimDetailSinglePage } from "@/components/portal/ClaimDetailSinglePage";
@@ -10,6 +10,8 @@ import { ClaimStatusHistoryGraph } from "@/components/portal/ClaimStatusHistoryG
 import { LenderClaimStatusPanel } from "@/components/portal/LenderClaimStatusPanel";
 import { LoanDetailsCard } from "@/components/portal/LoanDetailsCard";
 import { Panel } from "@/components/portal/Panel";
+import { ActionFooter } from "@/components/portal/ActionFooter";
+import { GridBackLink } from "@/components/portal/GridBackLink";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { QueriedButton } from "@/components/portal/QueriedButton";
 import { ResubmitClaimButton } from "@/components/portal/ResubmitClaimButton";
@@ -23,8 +25,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ROUTES } from "@/constants/route";
-import { Link } from "@/i18n/navigation";
 import { requireSession } from "@/lib/auth/appSession";
+import { CLAIMS_FILTER_KEY } from "@/lib/hooks/useRememberedFilters";
 import { getAccount } from "@/services/portal/accounts.server";
 import { getClaim, listQueries } from "@/services/portal/claimFlow.server";
 import { listClaimDocuments } from "@/services/portal/requirements.server";
@@ -91,12 +93,14 @@ export default async function ClaimDetailsPage({
       backLink={
         <div className="flex items-center gap-3">
           {isLender && (
-            <Link
+            // Back to the claims grid as the lender left it - a tile's filter (e.g. Initiated)
+            // survives the round trip into a claim and out again.
+            <GridBackLink
               href={ROUTES.initiateClaim}
+              storageKey={CLAIMS_FILTER_KEY}
+              label="Back"
               className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
-            >
-              <ArrowLeftIcon className="size-3" /> Back
-            </Link>
+            />
           )}
           {!terminal && !isLender && (
             <QueriedButton claimId={claim.id} claimNo={claim.claimNo} />
@@ -157,15 +161,12 @@ export default async function ClaimDetailsPage({
             />
             {(claim.status === "QUERY_INITIATED" ||
               claim.status === "QUERY_UNDER_REVIEW") && (
-              <div
-                key="query-response"
-                className="sticky bottom-0 z-20 mt-4 flex justify-end pt-2"
-              >
+              <ActionFooter key="query-response" className="mt-4">
                 <ResubmitClaimButton
                   accountId={claim.accountId}
                   claimId={claim.id}
                 />
-              </div>
+              </ActionFooter>
             )}
           </div>
         ) : (
@@ -259,12 +260,14 @@ export default async function ClaimDetailsPage({
       backLink={
         <div className="flex items-center gap-3">
           {isLender && (
-            <Link
+            // Back to the claims grid as the lender left it - a tile's filter (e.g. Initiated)
+            // survives the round trip into a claim and out again.
+            <GridBackLink
               href={ROUTES.initiateClaim}
+              storageKey={CLAIMS_FILTER_KEY}
+              label="Back"
               className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
-            >
-              <ArrowLeftIcon className="size-3" /> Back
-            </Link>
+            />
           )}
           {!terminal && !isLender && (
             <QueriedButton claimId={claim.id} claimNo={claim.claimNo} />
@@ -313,15 +316,12 @@ export default async function ClaimDetailsPage({
 
           {(claim.status === "QUERY_INITIATED" ||
             claim.status === "QUERY_UNDER_REVIEW") && (
-            <div
-              key="query-response"
-              className="sticky bottom-0 z-20 mt-4 flex justify-end pt-2"
-            >
+            <ActionFooter key="query-response" className="mt-4">
               <ResubmitClaimButton
                 accountId={claim.accountId}
                 claimId={claim.id}
               />
-            </div>
+            </ActionFooter>
           )}
         </>
       }
