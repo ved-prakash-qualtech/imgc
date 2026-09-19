@@ -285,6 +285,11 @@ export async function uploadDocument(
       documentNumber: meta.documentNumber?.trim() || undefined,
       documentDate: meta.documentDate || undefined,
       uploadRemarks: meta.remarks?.trim() || undefined,
+      pendingSave:
+        session.role === "LENDER" &&
+        fresh.claims.some((c) => c.id === row.claimId && c.status === "DRAFT")
+          ? true
+          : undefined,
     });
     row.currentFileId = fileId;
     row.version = next;
@@ -525,18 +530,8 @@ export async function decideDocument(
     },
   });
 
-  // A rejection or a re-upload request is the lender's to fix — sync it into the Claim entity as
-  // a real query, or the claim's own Progress rail and Query Response section never learn this
-  // happened at all (see `syncQueryForDocumentDecision`).
-  if (decision === "REJECTED" || decision === "REUPLOAD_REQUESTED") {
-    await syncQueryForDocumentDecision(
-      session,
-      accountId,
-      outcome.name,
-      decision,
-      note
-    );
-  }
+  // A rejection no longer raises a query by itself: the claim's status stays where it is until
+  // IMGC deliberately clicks "Queried". The reason is on the file for the lender to read.
 
   const db = await readDb();
   const account = db.accounts.find((a) => a.id === accountId);
@@ -698,17 +693,8 @@ export async function decideFile(
     },
   });
 
-  // The requirement-level side effects follow the requirement, not the file: the lender is told,
-  // and a rejection is raised with them, only when the requirement itself turns rejected.
-  if (outcome.status === "REJECTED" && decision === "REJECTED") {
-    await syncQueryForDocumentDecision(
-      session,
-      accountId,
-      outcome.name,
-      "REJECTED",
-      note
-    );
-  }
+  // A rejection no longer raises a query by itself: the claim's status stays where it is until
+  // IMGC deliberately clicks "Queried". The reason is on the file for the lender to read.
 
   const db = await readDb();
   const account = db.accounts.find((a) => a.id === accountId);
@@ -1157,5 +1143,28 @@ export async function updateRequirement(
     summary: `Requirement updated: "${trimmed}"${input.required ? " (mandatory)" : " (optional)"}`,
     meta: { document: trimmed },
   });
+  return { ok: true };
+}
+
+/**
+ * Removes a Draft claim's uploads that Save Draft never kept — the lender left Initiate Claim
+ * (another tab, Back, a refresh, a closed tab) without saving.
+ */
+export async function discardUnsavedUploads(
+  session: AppSession,
+  accountId: string,
+  claimId: string
+): Promise<Outcome> {
+  if (session.role !== "LENDER") return { ok: true };
+  const db = await readDb();
+  const docIds = new Set(
+    db.claimDocuments.filter((d) => d.claimId === claimId).map((d) => d.id)
+  );
+  const pending = db.documentFiles.filter(
+    (f) => f.pendingSave && !f.supersededAt && docIds.has(f.documentId)
+  );
+  for (const f of pending) {
+    await deleteDocumentFile(session, accountId, f.documentId, f.id);
+  }
   return { ok: true };
 }

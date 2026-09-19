@@ -103,7 +103,12 @@ function toRow(
     files: history.filter((f) => !f.supersededAt),
     history,
     slug: doc.slug,
-    multiple: doc.multiple || ["lod", "legal-collection-feedback", "latest-technical-report", "income-banking", "noc"].includes(doc.slug || ""),
+    // Several files per document: the configured checklist, and every additional document the
+    // lender adds - both use the same multi-select upload dialog behind the "+" button.
+    multiple:
+      doc.multiple ||
+      doc.addedBy === "LENDER" ||
+      ["lod", "legal-collection-feedback", "latest-technical-report", "income-banking", "noc"].includes(doc.slug || ""),
     conditional: doc.conditional ?? false,
     conditionReason: doc.conditionReason,
     refNo: doc.refNo,

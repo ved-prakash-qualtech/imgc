@@ -87,14 +87,10 @@ export function ExportDocumentsCsvButton({
     URL.revokeObjectURL(url);
   }, [docs, fileName]);
 
+  // Nothing to export means no button, rather than a greyed-out one.
+  if (docs.length === 0) return null;
   return (
-    <Button
-      type="button"
-      size="sm"
-      variant="outline"
-      onClick={onExport}
-      disabled={docs.length === 0}
-    >
+    <Button type="button" size="sm" variant="outline" onClick={onExport}>
       <DownloadIcon /> Export CSV
     </Button>
   );

@@ -7,14 +7,14 @@ function crore(amount: number): string {
 
 const exact = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 
-/** Loan, O/S and claim totals in the Overview header, on the band's dark ground. */
+/** Claim totals beside "Overview", on the band's dark ground. */
 export function OverviewTotals({
   totals,
-}: Readonly<{ totals: { loan: number; outstanding: number; claim: number } }>) {
+}: Readonly<{ totals: { total: number; approved: number; rejected: number } }>) {
   const items = [
-    ["Loan Amount", totals.loan],
-    ["O/S Amount", totals.outstanding],
-    ["Claim Amount", totals.claim],
+    ["Total Claim Amount", totals.total],
+    ["Approved Amount", totals.approved],
+    ["Rejected Amount", totals.rejected],
   ] as const;
   return (
     <div className="flex items-center gap-4">

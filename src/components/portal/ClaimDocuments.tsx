@@ -228,7 +228,7 @@ export function ClaimDocuments({
       {showAdditional && (
       <Panel
         title="Additional documents"
-        className={bare ? "mt-6 border-neutral-200 shadow-none" : undefined}
+        className={bare ? "mt-6 border-neutral-200 shadow-none" : "mt-1.5"}
         actions={additionalActions}
       >
         {additional.length === 0 ? (

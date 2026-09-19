@@ -1,7 +1,7 @@
 /* eslint-disable react-perf/jsx-no-new-function-as-prop */
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -118,6 +118,39 @@ export function ClaimWorkspace({
     status === "REJECTED" ||
     status === "CLOSED" ||
     status === "REFUND_RECEIVED_BY_IMGC";
+
+  // A draft's uploads only count once Save Draft (or Save & Submit) keeps them. The server marks
+  // them unsaved; leaving Initiate Claim — another tab, Back, Cancel — drops them, and so does
+  // opening the screen again after a refresh or a closed tab.
+  const isDraft = status === "DRAFT";
+  const discardUnsaved = useCallback(() => {
+    if (!isDraft) return;
+    void (async () => {
+      const { discardUnsavedUploadsAction } =
+        await import("@/app/[locale]/(portal)/additional-documents/actions");
+      await discardUnsavedUploadsAction(accountId, claimId);
+      router.refresh();
+    })();
+  }, [isDraft, accountId, claimId, router]);
+
+  useEffect(() => {
+    if (activeTab !== "initiate-claim") discardUnsaved();
+  }, [activeTab, discardUnsaved]);
+  // While this screen is open, its own refreshes keep the unsaved uploads (the page drops them on
+  // any other load). Cleared on leaving — in-app navigation or a browser refresh/close.
+  useEffect(() => {
+    if (!isDraft) return;
+    const clear = () => {
+      document.cookie = "imgc-draft-open=; path=/; max-age=0; secure; samesite=lax";
+    };
+    document.cookie = `imgc-draft-open=${claimId}; path=/; secure; samesite=lax`;
+    window.addEventListener("pagehide", clear);
+    return () => {
+      window.removeEventListener("pagehide", clear);
+      clear();
+      discardUnsaved();
+    };
+  }, [isDraft, claimId, discardUnsaved]);
 
   const onSave = useCallback(() => {
     startTransition(async () => {
@@ -263,21 +296,15 @@ export function ClaimWorkspace({
                   onClick={onSave}
                   disabled={pending}
                 >
-                  <SaveIcon /> Save
+                  <SaveIcon /> Save Draft
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={onSubmit}
-                  disabled={pending || !canSubmit}
-                  title={
-                    canSubmit
-                      ? undefined
-                      : "Upload the outstanding mandatory documents first."
-                  }
-                >
-                  <SendIcon />{" "}
-                  {resubmitting ? "Save & Resubmit" : "Save & Submit"}
-                </Button>
+                {/* Offered only once every mandatory document is in — hidden, not greyed out. */}
+                {canSubmit && (
+                  <Button size="sm" onClick={onSubmit} disabled={pending}>
+                    <SendIcon />{" "}
+                    {resubmitting ? "Save & Resubmit" : "Save & Submit"}
+                  </Button>
+                )}
             </ActionFooter>
           )}
         </div>

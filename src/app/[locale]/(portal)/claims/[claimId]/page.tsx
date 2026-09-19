@@ -11,6 +11,7 @@ import { LenderClaimStatusPanel } from "@/components/portal/LenderClaimStatusPan
 import { LoanDetailsCard } from "@/components/portal/LoanDetailsCard";
 import { Panel } from "@/components/portal/Panel";
 import { ActionFooter } from "@/components/portal/ActionFooter";
+import { ClaimRemarksPanel } from "@/components/portal/ClaimRemarksPanel";
 import { GridBackLink } from "@/components/portal/GridBackLink";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { QueriedButton } from "@/components/portal/QueriedButton";
@@ -158,6 +159,11 @@ export default async function ClaimDetailsPage({
               locked={terminal}
               allowDelete={canDeleteFiles}
               claimStatus={claim.status}
+            />
+            <ClaimRemarksPanel
+              lender={claim.fields.__initiationRemark}
+              imgc={claim.fields.__imgcReviewRemark}
+              decision={claim.fields.__imgcDecisionRemark}
             />
             {(claim.status === "QUERY_INITIATED" ||
               claim.status === "QUERY_UNDER_REVIEW") && (
@@ -335,6 +341,11 @@ export default async function ClaimDetailsPage({
               locked={terminal}
               allowDelete={canDeleteFiles}
               claimStatus={claim.status}
+            />
+            <ClaimRemarksPanel
+              lender={claim.fields.__initiationRemark}
+              imgc={claim.fields.__imgcReviewRemark}
+              decision={claim.fields.__imgcDecisionRemark}
             />
           </div>
         ) : (

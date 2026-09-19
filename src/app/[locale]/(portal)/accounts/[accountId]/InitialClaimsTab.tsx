@@ -231,6 +231,7 @@ export function InitialClaimsTab({
                     doc={doc}
                     accountId={accountId}
                     retentionDays={retentionDays}
+                    locked={["APPROVED", "REJECTED", "REFUND_RECEIVED_BY_IMGC"].includes(claimStatus)}
                     hasOpenQuery={queriedDocNames.includes(doc.name)}
                   />
                 ))}
@@ -276,18 +277,11 @@ export function InitialClaimsTab({
             <Button variant="outline" size="sm" onClick={onSave} disabled={pending}>
               Save
             </Button>
-            <Button
-              size="sm"
-              onClick={onSaveAndSubmit}
-              disabled={pending || !canSubmit || submitted}
-              title={
-                canSubmit
-                  ? undefined
-                  : "Every mandatory document must be uploaded first"
-              }
-            >
-              {submitted ? "Submitted" : "Save & Submit"}
-            </Button>
+            {canSubmit && !submitted && (
+              <Button size="sm" onClick={onSaveAndSubmit} disabled={pending}>
+                Save & Submit
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -807,9 +801,11 @@ function DocumentRowItem({
 }
 
 function ImgcDocumentRowItem({
-  doc, accountId, retentionDays, hasOpenQuery
+  doc, accountId, retentionDays, hasOpenQuery, locked
 }: Readonly<{
   doc: DocumentRow;
+  /** The claim is decided — its document decisions are final, so no Accept/Reject/Undo. */
+  locked: boolean;
   accountId: string;
   retentionDays: number;
   hasOpenQuery: boolean;
@@ -1029,22 +1025,22 @@ function ImgcDocumentRowItem({
                 {/* Decided one file at a time. A file carries its own decision; a file with none that
                     sits under a requirement decided before decisions were per file keeps that
                     requirement-level decision and its Undo, rather than being offered Accept again. */}
-                {!inactive && !f.review && doc.status === "UNDER_REVIEW" && deciding?.fileId !== f.id && (
+                {!locked && !inactive && !f.review && doc.status === "UNDER_REVIEW" && deciding?.fileId !== f.id && (
                   <>
                     <Button size="xs" variant="success" onClick={() => setDeciding({ fileId: f.id, fileName: f.originalName, decision: "APPROVED" })} disabled={busyFileId === f.id}className="size-7 p-0" title="Accept this file"><CheckIcon className="size-4" /></Button>
                     <Button size="xs" variant="outline" onClick={() => setDeciding({ fileId: f.id, fileName: f.originalName, decision: "REJECTED" })} disabled={busyFileId === f.id}className="size-7 p-0 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive" title="Reject this file"><XIcon className="size-4" /></Button>
                   </>
                 )}
 
-                {f.review && (
-                  <Button size="xs" variant="outline" onClick={() => onUndoFile(f.id)} disabled={busyFileId === f.id}title={f.review.decision === "APPROVED" ? "Undo the acceptance of this file" : "Undo the rejection of this file"} className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
+                {!locked && f.review && (
+                  <Button size="xs" variant="outline" onClick={() => onUndoFile(f.id)} disabled={busyFileId === f.id}title={f.review.decision === "APPROVED" ? "Undo the acceptance of this file" : "Undo the rejection of this file"} className="size-7 p-0" aria-label="Undo"><RotateCcwIcon className="size-4" /></Button>
                 )}
 
-                {!f.review && doc.status === "REJECTED" && (
-                  <Button size="xs" variant="outline" onClick={onReactivate} disabled={working} title="Undo the rejection" className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
+                {!locked && !f.review && doc.status === "REJECTED" && (
+                  <Button size="xs" variant="outline" onClick={onReactivate} disabled={working} title="Undo the rejection" className="size-7 p-0" aria-label="Undo"><RotateCcwIcon className="size-4" /></Button>
                 )}
-                {!f.review && doc.status === "APPROVED" && (
-                  <Button size="xs" variant="outline" onClick={onUndoAccepted} disabled={working} title="Undo the acceptance" className="h-7 px-2.5 text-[11px]"><RotateCcwIcon className="mr-1 size-3" /> Undo</Button>
+                {!locked && !f.review && doc.status === "APPROVED" && (
+                  <Button size="xs" variant="outline" onClick={onUndoAccepted} disabled={working} title="Undo the acceptance" className="size-7 p-0" aria-label="Undo"><RotateCcwIcon className="size-4" /></Button>
                 )}
 
 

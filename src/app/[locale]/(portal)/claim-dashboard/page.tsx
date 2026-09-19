@@ -163,16 +163,24 @@ export default async function ClaimDashboardPage({
               ? (selectedLenderName ?? "Every Lender")
               : "Overview"
           }
+          // Left, beside "Overview": the total claim amount, and the approved and rejected shares
+          // of it - the latter two from the same buckets the Approved and Rejected tiles count.
+          titleAside={
+            <OverviewTotals
+              totals={{
+                total: totals.claim,
+                approved: counts.claimAmount.approved,
+                rejected: counts.claimAmount.rejected,
+              }}
+            />
+          }
           action={
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              <OverviewTotals totals={totals} />
-              {data.canFilterByLender && (
-                <ClaimDashboardLenderPicker
-                  lenders={data.lenders}
-                  value={lenderOrgId}
-                />
-              )}
-            </div>
+            data.canFilterByLender ? (
+              <ClaimDashboardLenderPicker
+                lenders={data.lenders}
+                value={lenderOrgId}
+              />
+            ) : undefined
           }
         />
         <ClaimDashboardView

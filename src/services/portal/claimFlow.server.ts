@@ -409,6 +409,11 @@ export async function syncClaimForAccountDecision(
     );
     if (!claim) return;
 
+    // IMGC's optional note from the Approve/Reject dialog — both sides read it under Remarks.
+    if (note && status !== "QUERIED") {
+      claim.fields = { ...claim.fields, __imgcDecisionRemark: note };
+    }
+
     if (status === "APPROVED") {
       advance(db, claim, "APPROVED", session, note || undefined);
       claim.decision = {
@@ -864,6 +869,13 @@ export async function saveClaimDraft(
     claim.fields = { ...claim.fields, ...fields };
     claim.lastUpdatedAt = nowIso();
     claim.draftSaved = true;
+    // Saving keeps every upload made so far.
+    const docIds = new Set(
+      db.claimDocuments.filter((d) => d.claimId === claimId).map((d) => d.id)
+    );
+    for (const f of db.documentFiles) {
+      if (f.pendingSave && docIds.has(f.documentId)) delete f.pendingSave;
+    }
 
     // A query response draft is not a workflow transition. In particular, submitClaim calls this
     // helper before it records the successful QUERY_RAISED -> UNDER_REVIEW transition, so adding a
@@ -1089,9 +1101,11 @@ export async function submitClaim(
 
 export async function startClaimReview(
   session: AppSession,
-  accountId: string
+  accountId: string,
+  note: string
 ): Promise<Outcome> {
   if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  const remark = note.trim();
 
   const claimIdLookup = await writeDb((db) => {
     const claim = db.claims.find((c) => c.accountId === accountId);
@@ -1116,7 +1130,9 @@ export async function startClaimReview(
     if (claim.status !== "INITIATED")
       return { claimId: claim.id, account: null };
 
-    advance(db, claim, "UNDER_REVIEW", session, "Review started");
+    advance(db, claim, "UNDER_REVIEW", session, remark || undefined);
+    // Kept on the claim so the lender reads IMGC's note under Remarks on their own screen.
+    if (remark) claim.fields = { ...claim.fields, __imgcReviewRemark: remark };
 
     const account = db.accounts.find((a) => a.id === claim.accountId);
     return { claimId: claim.id, account };
@@ -1451,7 +1467,7 @@ export async function addLenderDocument(
       category: "Additional Document",
       description: input.description.trim() || undefined,
       required: false,
-      multiple: false,
+      multiple: true,
       addedBy: "LENDER",
       addedByName: session.name,
       status: "UNDER_REVIEW",

@@ -17,9 +17,19 @@ import { InitialClaimsTab } from "@/app/[locale]/(portal)/accounts/[accountId]/I
 import { LenderClaimStatusPanel as ClaimStatusBar } from "@/components/portal/LenderClaimStatusPanel";
 import { ExportDocumentsCsvButton } from "@/components/portal/ExportDocumentsCsvButton";
 import { ActionFooter } from "@/components/portal/ActionFooter";
+import { ClaimRemarksPanel } from "@/components/portal/ClaimRemarksPanel";
 import { Panel } from "@/components/portal/Panel";
 import { QueriedButton } from "@/components/portal/QueriedButton";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
 import type { DocumentRow } from "@/services/portal/claims.server";
@@ -160,15 +170,20 @@ function QueryTrailTab({
   documentsSection: React.ReactNode;
 }>) {
   const [pending, startTransition] = useTransition();
+  // Approve/Reject open a dialog for an optional note; both sides read it under Remarks.
+  const [deciding, setDeciding] = useState<"APPROVED" | "REJECTED" | null>(null);
+  const [note, setNote] = useState("");
 
   const decide = useCallback(
-    (status: "APPROVED" | "QUERIED" | "REJECTED") => {
+    (status: "APPROVED" | "REJECTED", decisionNote: string) => {
       startTransition(async () => {
-        const result = await setClaimStatusAction(account.id, status, "");
+        const result = await setClaimStatusAction(account.id, status, decisionNote);
         if (!result.ok) {
           toast.error(result.error ?? "That status could not be set.");
           return;
         }
+        setDeciding(null);
+        setNote("");
         toast.success(`Claim marked ${status.toLowerCase()}.`);
       });
     },
@@ -184,16 +199,41 @@ function QueryTrailTab({
   // and there is nothing left to query.
   const isApproved = claim?.status === "APPROVED";
   const refundReceived = claim?.status === "REFUND_RECEIVED_BY_IMGC";
+  // Review can only start once every required document is accepted — the service refuses it
+  // otherwise, so the button waits for the same condition instead of offering a click that fails.
+  const requiredDocs = claimDocs.filter((d) => d.required && d.active !== false);
+  const allRequiredAccepted =
+    requiredDocs.length > 0 && requiredDocs.every((d) => d.status === "APPROVED");
+
+  // Queried is only for a document still waiting on IMGC or one IMGC turned down — and never
+  // once the claim itself is decided.
+  const hasOpenDocs = claimDocs.some(
+    (d) =>
+      d.active !== false &&
+      ["PENDING_UPLOAD", "UNDER_REVIEW", "REJECTED", "REUPLOAD_REQUIRED"].includes(d.status)
+  );
+  const claimDecided =
+    isApproved || refundReceived || claim?.status === "REJECTED";
+
+  // Submit for Review waits for every document, optional ones included, to be accepted.
+  const activeDocs = claimDocs.filter((d) => d.active !== false);
+  const allDocsAccepted =
+    allRequiredAccepted && activeDocs.every((d) => d.status === "APPROVED");
+
+  const footerHasActions =
+    (claim?.status === "INITIATED" && allDocsAccepted) ||
+    claim?.status === "UNDER_REVIEW" ||
+    Boolean(claim && !claimDecided && hasOpenDocs);
 
   const imgcComposer = (
     <div className="flex flex-col gap-0.5">
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {claim?.status === "INITIATED" && (
+        {claim?.status === "INITIATED" && allDocsAccepted && (
           <Button
             size="sm"
             onClick={() => {
               startTransition(async () => {
-                const result = await startClaimReviewAction(account.id);
+                const result = await startClaimReviewAction(account.id, "");
                 if (!result.ok) {
                   toast.error(
                     result.error ?? "The claim review could not be started."
@@ -212,7 +252,7 @@ function QueryTrailTab({
           <Button
             size="sm"
             variant="success"
-            onClick={() => decide("APPROVED")}
+            onClick={() => setDeciding("APPROVED")}
             disabled={pending}
           >
             Mark approved
@@ -222,13 +262,13 @@ function QueryTrailTab({
           <Button
             size="sm"
             variant="destructive"
-            onClick={() => decide("REJECTED")}
+            onClick={() => setDeciding("REJECTED")}
             disabled={pending}
           >
             Reject
           </Button>
         )}
-        {claim && !refundReceived && (
+        {claim && !claimDecided && hasOpenDocs && (
           <QueriedButton claimId={claim.id} claimNo={claim.claimNo} />
         )}
       </div>
@@ -254,24 +294,72 @@ function QueryTrailTab({
 
       {documentsSection}
 
-      {/* The lender's own remark on the claim, from the Remarks box on their Initiate Claim screen.
-          Read-only here: IMGC's own note goes in the decision bar below. */}
       {claim && (
-        <Panel title="Remarks">
-          <div className="px-4 py-3 text-[12.5px]">
-            {claim.fields.__initiationRemark?.trim() ? (
-              <p className="whitespace-pre-wrap text-neutral-800">
-                <span className="mr-1.5 font-semibold text-neutral-500">Lender:</span>
-                {claim.fields.__initiationRemark.trim()}
-              </p>
-            ) : (
-              <p className="text-neutral-400">No remarks from the lender.</p>
-            )}
-          </div>
-        </Panel>
+        <ClaimRemarksPanel
+          lender={claim.fields.__initiationRemark}
+          imgc={claim.fields.__imgcReviewRemark}
+          decision={claim.fields.__imgcDecisionRemark}
+        />
       )}
 
-      <ActionFooter className="mt-4">{imgcComposer}</ActionFooter>
+      {/* No actions on offer means no bar, rather than an empty one. */}
+      {footerHasActions && (
+        <ActionFooter className="mt-4">{imgcComposer}</ActionFooter>
+      )}
+
+      <Dialog
+        open={deciding !== null}
+        onOpenChange={(open) => {
+          if (!open && !pending) {
+            setDeciding(null);
+            setNote("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {deciding === "APPROVED" ? "Mark approved" : "Reject claim"}
+            </DialogTitle>
+            <DialogDescription>
+              A note is required. The lender sees it under Remarks.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Note (required)"
+            rows={3}
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setDeciding(null);
+                setNote("");
+              }}
+              disabled={pending}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant={deciding === "APPROVED" ? "success" : "destructive"}
+              onClick={() => {
+                if (!note.trim()) {
+                  toast.error("Add a note before you continue.");
+                  return;
+                }
+                if (deciding) decide(deciding, note.trim());
+              }}
+              disabled={pending}
+            >
+              {deciding === "APPROVED" ? "Approve" : "Reject"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

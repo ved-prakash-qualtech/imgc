@@ -89,6 +89,7 @@ export function ClaimOverviewBand({
   title = "Claims Overview",
   subtitle,
   action,
+  titleAside,
 }: Readonly<{
   counts: ClaimOverviewCounts;
   /** Where each tile drills into — the grid below reads the same `?status=` value back out
@@ -100,6 +101,8 @@ export function ClaimOverviewBand({
   /** Top-right of the band, on the gradient — the Claim Dashboard's lender lens goes here, same
    *  slot the main Dashboard's lender filter uses. Unused by the Claims-grid callers. */
   action?: React.ReactNode;
+  /** Beside the band's title, on the left. */
+  titleAside?: React.ReactNode;
 }>) {
   const activeTiles = showDraftQueryKpis
     ? ([
@@ -134,6 +137,7 @@ export function ClaimOverviewBand({
       subtitle={subtitle}
       stats={EMPTY_STATS}
       action={action}
+      titleAside={titleAside}
     >
       <div
         className={cn(

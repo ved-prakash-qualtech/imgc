@@ -14,9 +14,12 @@ export function CommandBand({
   subtitle,
   stats,
   action,
+  titleAside,
   children,
 }: Readonly<{
   title: string;
+  /** Sits beside the title on the left, e.g. the dashboard's amount totals. */
+  titleAside?: ReactNode;
   subtitle?: ReactNode;
   stats: readonly BandStatProps[];
   action?: ReactNode;
@@ -35,9 +38,12 @@ export function CommandBand({
         >
           <div className="min-w-0">
             {title && (
-              <h2 className="font-outfit text-[17px] font-bold text-white">
-                {title}
-              </h2>
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+                <h2 className="font-outfit text-[17px] font-bold text-white">
+                  {title}
+                </h2>
+                {titleAside}
+              </div>
             )}
             {subtitle && (
               <p className="text-[12.5px] text-white/55">{subtitle}</p>

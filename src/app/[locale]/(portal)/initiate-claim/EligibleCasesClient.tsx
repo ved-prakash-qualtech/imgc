@@ -1,6 +1,7 @@
 /* eslint-disable react-perf/jsx-no-new-function-as-prop */
 "use client";
 
+import { ownerForStatus } from "@/config/claimOwner";
 import { useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -187,7 +188,8 @@ function isNotStarted(a: EligibleRow): boolean {
  * too, so the column and the filter can never say different things about the same row.
  */
 function ownerOf(a: EligibleRow): Bucket {
-  return isNotStarted(a) ? "LENDER" : (a.claim as NonNullable<EligibleRow["claim"]>).bucket;
+  if (isNotStarted(a)) return "LENDER";
+  return ownerForStatus((a.claim as NonNullable<EligibleRow["claim"]>).status);
 }
 
 /** Escapes a value for one CSV field. */

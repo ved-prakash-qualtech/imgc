@@ -165,3 +165,17 @@ export async function deleteDocumentFileAction(
     return result;
   });
 }
+
+/** Lender only — drops a Draft claim's uploads that Save Draft never kept. */
+export async function discardUnsavedUploadsAction(
+  accountId: string,
+  claimId: string
+): Promise<Result> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const { discardUnsavedUploads } = await import("@/services/portal/claims.server");
+    const result = await discardUnsavedUploads(session, accountId, claimId);
+    if (result.ok) refreshAll(accountId);
+    return result;
+  });
+}

@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { ClaimWorkspace } from "@/components/portal/ClaimWorkspace";
@@ -13,6 +14,7 @@ import {
   getClaimForAccount,
   syncDraftChecklist,
 } from "@/services/portal/claimFlow.server";
+import { discardUnsavedUploads } from "@/services/portal/claims.server";
 import { listClaimDocuments } from "@/services/portal/requirements.server";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +54,13 @@ export default async function ClaimWorkspacePage({
   // A draft follows IMGC's Document Configuration as it stands now — documents IMGC added or
   // re-flagged since the claim was opened show up here (a no-op when nothing changed).
   if (claim) await syncDraftChecklist(claim.id);
+  // Unsaved uploads survive only a refresh made by the open workspace itself (it marks itself
+  // with this cookie while mounted). A fresh open drops them before anything renders, so a file
+  // the lender left without Save Draft never flashes back on screen.
+  if (claim?.status === "DRAFT") {
+    const open = (await cookies()).get("imgc-draft-open")?.value;
+    if (open !== claim.id) await discardUnsavedUploads(session, accountId, claim.id);
+  }
   const documents = claim ? await listClaimDocuments(session, claim.id) : [];
   const config = claim ? claimConfig(claim.claimType) : null;
 

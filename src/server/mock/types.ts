@@ -297,6 +297,9 @@ export interface DocumentFile {
   uploadedByRole?: Role;
   /** Why this version was superseded, copied from the decision that rejected it. */
   supersededReason?: string;
+  /** Uploaded to a Draft claim and not yet kept by Save Draft / Save & Submit — removed when the
+   *  lender leaves Initiate Claim without saving. */
+  pendingSave?: boolean;
   /**
    * IMGC's current decision on this one file. A requirement can hold several files, and each is
    * judged on its own — accepting the bank statement for one borrower says nothing about the

@@ -1,6 +1,7 @@
 /* eslint-disable security/detect-object-injection, react-perf/jsx-no-new-function-as-prop */
 "use client";
 
+import { ownerForStatus } from "@/config/claimOwner";
 import { useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -166,7 +167,7 @@ function downloadCsv(rows: AccountRow[], role: Role): void {
       claimAmountFor(a.loanAmount),
       a.submittedAt ? a.submittedAt.slice(0, 10) : "",
       a.dpd ?? "",
-      a.bucket,
+      ownerOf(a),
       a.claimStatus,
     ]
       .map(csvField)
@@ -216,6 +217,11 @@ function statusDisplay(v: StatusOption): string {
  * so the label a row shows and the filter option that selects it always agree. Only the label
  * moves: nothing here writes `claimStatus`, and the stored value stays `DRAFT`.
  */
+/** Who holds the claim — one status→owner rule shared with the lender's grid. */
+function ownerOf(a: AccountRow): AccountRow["bucket"] {
+  return ownerForStatus(claimStatusDisplay(a));
+}
+
 function claimStatusDisplay(a: AccountRow): ClaimStatus | "NOT_STARTED" {
   return a.claimStatus === "DRAFT" && !a.claimHasProgress
     ? "NOT_STARTED"
@@ -347,7 +353,7 @@ const SortableTableHead = ({
     onClick={() => onToggle(column)}
     title={title}
     className={cn(
-      "h-8 cursor-pointer select-none px-1.5 text-[10.5px] transition-colors hover:bg-neutral-50",
+      "h-8 cursor-pointer select-none px-1 text-[10.5px] transition-colors hover:bg-neutral-50",
       className
     )}
   >
@@ -466,7 +472,7 @@ export function AccountsClient({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let result = accounts.filter((a) => {
-      if (bucket !== "ALL" && a.bucket !== bucket) return false;
+      if (bucket !== "ALL" && ownerOf(a) !== bucket) return false;
       if (lender !== "ALL" && a.lenderOrgId !== lender) return false;
       if (status.length > 0) {
         if (status.includes("ACTIVE_NPA")) {
@@ -567,8 +573,8 @@ export function AccountsClient({
             valB = b.product;
             break;
           case "bucket":
-            valA = a.bucket;
-            valB = b.bucket;
+            valA = ownerOf(a);
+            valB = ownerOf(b);
             break;
           case "status":
             valA = a.claimStatus;
@@ -829,37 +835,37 @@ export function AccountsClient({
                     onClick={() => router.push(ROUTES.account(a.id))}
                     className="cursor-pointer transition-colors hover:bg-neutral-50"
                   >
-                    <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
+                    <TableCell className="px-1 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
                       {a.loanNo}
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
+                    <TableCell className="px-1 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
                       {a.claimNo || "—"}
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap">
+                    <TableCell className="px-1 py-1.5 text-[12px] whitespace-nowrap">
                       {a.borrowerName}
                     </TableCell>
                     {role === "IMGC" && (
                       <TableCell
-                        className="px-1.5 py-1.5 text-[12px] whitespace-nowrap"
+                        className="px-1 py-1.5 text-[12px] whitespace-nowrap"
                         title={a.lenderOrgName}
                       >
                         {shortName(a.lenderOrgName)}
                       </TableCell>
                     )}
-                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
+                    <TableCell className="px-1 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
                       {a.product}
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px]">
+                    <TableCell className="px-1 py-1.5 text-[12px]">
                       <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-success-700">
                         {inr.format(a.loanAmount)}
                       </span>
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px]">
+                    <TableCell className="px-1 py-1.5 text-[12px]">
                       <span className="inline-flex items-center rounded-full bg-warning/10 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-warning">
                         {inr.format(a.outstandingAmount)}
                       </span>
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px]">
+                    <TableCell className="px-1 py-1.5 text-[12px]">
                       <span
                         className="inline-flex items-center rounded-full bg-brand-primary/10 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-brand-primary"
                         title="20% of the loan amount"
@@ -867,22 +873,22 @@ export function AccountsClient({
                         {inr.format(claimAmountFor(a.loanAmount))}
                       </span>
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
+                    <TableCell className="px-1 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
                       {a.submittedAt ? date(a.submittedAt) : "—"}
                     </TableCell>
                     <TableCell
                       title="DPD = Days Past Due"
-                      className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-700"
+                      className="px-1 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-700"
                     >
                       {formatDpd(a.dpd)}
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5">
+                    <TableCell className="px-1 py-1.5">
                       <StatusPill
-                        status={a.bucket}
+                        status={ownerOf(a)}
                         className="px-1.5 py-0.5 text-[10.5px]"
                       />
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5">
+                    <TableCell className="px-1 py-1.5">
                       <StatusPill
                         status={claimStatusDisplay(a)}
                         className="px-1.5 py-0.5 text-[10.5px]"

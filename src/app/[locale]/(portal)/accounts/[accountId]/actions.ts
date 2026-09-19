@@ -228,10 +228,13 @@ export async function submitClaimAction(accountId: string): Promise<Result> {
   });
 }
 
-export async function startClaimReviewAction(accountId: string): Promise<Result> {
+export async function startClaimReviewAction(
+  accountId: string,
+  note: string
+): Promise<Result> {
   return runAction(async () => {
     const session = await requireSession();
-    const result = await startClaimReview(session, accountId);
+    const result = await startClaimReview(session, accountId, note);
     if (result.ok) {
       revalidatePath(ROUTES.initiateClaim);
       revalidatePath(ROUTES.accounts);

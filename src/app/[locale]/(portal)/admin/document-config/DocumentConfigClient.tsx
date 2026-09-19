@@ -240,15 +240,18 @@ export function DocumentConfigClient({
         </div>
 
         <div className="flex items-center justify-between border-t border-neutral-100 px-5 py-2.5">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setAddOpen(true)}
-            disabled={!selectedLenderId}
-          >
-            <PlusIcon className="size-3.5" /> Add Document
-          </Button>
+          {selectedLenderId ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setAddOpen(true)}
+            >
+              <PlusIcon className="size-3.5" /> Add Document
+            </Button>
+          ) : (
+            <span />
+          )}
 
           <div className="flex items-center gap-2">
             {dirty && (
@@ -256,23 +259,22 @@ export function DocumentConfigClient({
                 Unsaved changes
               </span>
             )}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={onCancel}
-              disabled={pending || !dirty}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={onSave}
-              disabled={pending || !selectedLenderId}
-            >
-              {pending ? "Saving…" : "Save Configuration"}
-            </Button>
+            {dirty && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onCancel}
+                disabled={pending}
+              >
+                Cancel
+              </Button>
+            )}
+            {selectedLenderId && (
+              <Button type="button" size="sm" onClick={onSave} disabled={pending}>
+                {pending ? "Saving…" : "Save Configuration"}
+              </Button>
+            )}
           </div>
         </div>
       </Panel>

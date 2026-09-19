@@ -241,6 +241,9 @@ export async function setClaimStatus(
   if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
 
   const trimmedNote = note.trim();
+  if (status !== "QUERIED" && !trimmedNote) {
+    return { ok: false, error: "Add a note before you continue." };
+  }
 
   const outcome = await writeDb((db) => {
     const account = db.accounts.find((a) => a.id === accountId);
