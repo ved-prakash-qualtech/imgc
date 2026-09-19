@@ -10,6 +10,7 @@ import {
   addRequirement,
   decideDocument,
   deleteDocumentFile,
+  discardUnsavedUploads,
   setRequirementActive,
   updateRequirement,
   uploadDocument,
@@ -173,7 +174,6 @@ export async function discardUnsavedUploadsAction(
 ): Promise<Result> {
   return runAction(async () => {
     const session = await requireSession();
-    const { discardUnsavedUploads } = await import("@/services/portal/claims.server");
     const result = await discardUnsavedUploads(session, accountId, claimId);
     if (result.ok) refreshAll(accountId);
     return result;

@@ -216,7 +216,12 @@ function QueryTrailTab({
     isApproved || refundReceived || claim?.status === "REJECTED";
 
   // Submit for Review waits for every document, optional ones included, to be accepted.
-  const activeDocs = claimDocs.filter((d) => d.active !== false);
+  // An optional document nobody uploaded isn't on the table at all (it is hidden), so it can't
+  // hold Submit for Review back — only what is shown has to be accepted.
+  const activeDocs = claimDocs.filter(
+    (d) =>
+      d.active !== false && !(!d.required && d.status === "PENDING_UPLOAD")
+  );
   const allDocsAccepted =
     allRequiredAccepted && activeDocs.every((d) => d.status === "APPROVED");
 

@@ -18,6 +18,7 @@ import {
   saveDraftAction,
   submitClaimAction,
 } from "@/app/[locale]/(portal)/initiate-claim/actions";
+import { discardUnsavedUploadsAction } from "@/app/[locale]/(portal)/additional-documents/actions";
 import { ClaimDocuments } from "@/components/portal/ClaimDocuments";
 
 import { LoanDetailsCard } from "@/components/portal/LoanDetailsCard";
@@ -125,12 +126,11 @@ export function ClaimWorkspace({
   const isDraft = status === "DRAFT";
   const discardUnsaved = useCallback(() => {
     if (!isDraft) return;
-    void (async () => {
-      const { discardUnsavedUploadsAction } =
-        await import("@/app/[locale]/(portal)/additional-documents/actions");
-      await discardUnsavedUploadsAction(accountId, claimId);
-      router.refresh();
-    })();
+    void discardUnsavedUploadsAction(accountId, claimId)
+      .then(() => router.refresh())
+      .catch(() => {
+        // Best effort — the page drops unsaved uploads again on the next open.
+      });
   }, [isDraft, accountId, claimId, router]);
 
   useEffect(() => {
