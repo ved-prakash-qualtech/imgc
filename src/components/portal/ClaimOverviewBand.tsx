@@ -194,7 +194,7 @@ export function ClaimOverviewBand({
                   </p>
                   {(tile.key === "approved" || tile.key === "rejected") && (
                     <span className="shrink-0 rounded bg-brand-primary/10 px-1 py-[1px] text-[7.5px] font-bold uppercase tracking-wider text-brand-primary border border-brand-primary/20">
-                      Current FY
+                      CFY
                     </span>
                   )}
                 </div>

@@ -568,8 +568,8 @@ export function deriveDocumentStatus(
   files: ReadonlyArray<Pick<DocumentFile, "review">>
 ): DocStatus {
   if (files.length === 0) return "PENDING_UPLOAD";
-  if (files.some((f) => !f.review)) return "UNDER_REVIEW";
   if (files.some((f) => f.review?.decision === "REJECTED")) return "REJECTED";
+  if (files.some((f) => !f.review)) return "UNDER_REVIEW";
   return "APPROVED";
 }
 

@@ -18,14 +18,16 @@ export function OverviewTotals({
   ] as const;
   return (
     <div className="flex items-center gap-4">
-      <div className="mr-2 flex items-center rounded bg-brand-primary/20 px-2 py-1 border border-brand-primary/30">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-[#ffc48a]">
-          Current Financial Year
-        </span>
-      </div>
       {items.map(([label, value]) => (
         <div key={label} className="leading-tight" title={`${label}: ₹${exact.format(value)}`}>
-          <p className="text-[10px] font-medium text-white/60">{label}</p>
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <p className="text-[10px] font-medium text-white/60">{label}</p>
+            {(label === "Approved Amount" || label === "Rejected Amount") && (
+              <span className="rounded bg-brand-primary/20 px-1 py-[1px] text-[7.5px] font-bold uppercase tracking-wider text-[#ffc48a] border border-brand-primary/30">
+                CFY
+              </span>
+            )}
+          </div>
           <p className="text-[13px] font-semibold tabular-nums text-white">{crore(value)}</p>
         </div>
       ))}

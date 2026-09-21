@@ -231,7 +231,7 @@ export function InitialClaimsTab({
                     doc={doc}
                     accountId={accountId}
                     retentionDays={retentionDays}
-                    locked={["APPROVED", "REJECTED", "REFUND_RECEIVED_BY_IMGC"].includes(claimStatus)}
+                    locked={["UNDER_REVIEW", "APPROVED", "REJECTED", "REFUND_RECEIVED_BY_IMGC"].includes(claimStatus)}
                     hasOpenQuery={queriedDocNames.includes(doc.name)}
                   />
                 ))}
@@ -917,6 +917,7 @@ function ImgcDocumentRowItem({
 
   const reinstate = doc.rejection?.reinstate;
   const inactive = doc.active === false;
+  const isLegacyDecision = !doc.files.some((f) => f.review) && !!doc.review;
   
   return (
     <div className={cn("flex flex-col border-b border-neutral-100 last:border-b-0", inactive && "bg-neutral-25/60 opacity-70")}>
@@ -1025,7 +1026,7 @@ function ImgcDocumentRowItem({
                 {/* Decided one file at a time. A file carries its own decision; a file with none that
                     sits under a requirement decided before decisions were per file keeps that
                     requirement-level decision and its Undo, rather than being offered Accept again. */}
-                {!locked && !inactive && !f.review && doc.status === "UNDER_REVIEW" && deciding?.fileId !== f.id && (
+                {!locked && !inactive && !f.review && !isLegacyDecision && deciding?.fileId !== f.id && (
                   <>
                     <Button size="xs" variant="success" onClick={() => setDeciding({ fileId: f.id, fileName: f.originalName, decision: "APPROVED" })} disabled={busyFileId === f.id}className="size-7 p-0" title="Accept this file"><CheckIcon className="size-4" /></Button>
                     <Button size="xs" variant="outline" onClick={() => setDeciding({ fileId: f.id, fileName: f.originalName, decision: "REJECTED" })} disabled={busyFileId === f.id}className="size-7 p-0 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive" title="Reject this file"><XIcon className="size-4" /></Button>
@@ -1036,10 +1037,10 @@ function ImgcDocumentRowItem({
                   <Button size="xs" variant="outline" onClick={() => onUndoFile(f.id)} disabled={busyFileId === f.id}title={f.review.decision === "APPROVED" ? "Undo the acceptance of this file" : "Undo the rejection of this file"} className="size-7 p-0" aria-label="Undo"><RotateCcwIcon className="size-4" /></Button>
                 )}
 
-                {!locked && !f.review && doc.status === "REJECTED" && (
+                {!locked && !f.review && isLegacyDecision && doc.status === "REJECTED" && (
                   <Button size="xs" variant="outline" onClick={onReactivate} disabled={working} title="Undo the rejection" className="size-7 p-0" aria-label="Undo"><RotateCcwIcon className="size-4" /></Button>
                 )}
-                {!locked && !f.review && doc.status === "APPROVED" && (
+                {!locked && !f.review && isLegacyDecision && doc.status === "APPROVED" && (
                   <Button size="xs" variant="outline" onClick={onUndoAccepted} disabled={working} title="Undo the acceptance" className="size-7 p-0" aria-label="Undo"><RotateCcwIcon className="size-4" /></Button>
                 )}
 
