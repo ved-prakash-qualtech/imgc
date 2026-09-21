@@ -1,8 +1,17 @@
 "use client";
+/* eslint-disable react-perf/jsx-no-new-function-as-prop --
+   Handlers here close over the row they act on, so hoisting them out of the map
+   would mean threading the row back through a prop for no gain; this table renders
+   a bounded page of rows, never the full dataset. */
 
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "@/i18n/navigation";
-import { ArrowDownIcon, ArrowUpIcon, ArrowUpDownIcon, SearchIcon } from "lucide-react";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ArrowUpDownIcon,
+  SearchIcon,
+} from "lucide-react";
 
 import { Panel } from "@/components/portal/Panel";
 import {
@@ -42,7 +51,9 @@ const SortIcon = ({
   sortDirection: SortDirection;
 }) => {
   if (sortKey !== column)
-    return <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />;
+    return (
+      <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />
+    );
   return sortDirection === "asc" ? (
     <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
   ) : (
@@ -71,7 +82,11 @@ const SortableTableHead = ({
   >
     <div className="flex items-center">
       {label}
-      <SortIcon column={column} sortKey={sortKey} sortDirection={sortDirection} />
+      <SortIcon
+        column={column}
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+      />
     </div>
   </TableHead>
 );
@@ -118,16 +133,28 @@ export function AuditTrailClient({
         e.actorName.toLowerCase().includes(q)
       );
     });
-    
+
     if (sortKey && sortDirection) {
       result = [...result].sort((a, b) => {
         let valA: string | number;
         let valB: string | number;
         switch (sortKey) {
-          case "timestamp": valA = a.at; valB = b.at; break;
-          case "account": valA = accountMap[a.accountId]?.loanNo || ""; valB = accountMap[b.accountId]?.loanNo || ""; break;
-          case "activity": valA = a.summary; valB = b.summary; break;
-          case "user": valA = a.actorName; valB = b.actorName; break;
+          case "timestamp":
+            valA = a.at;
+            valB = b.at;
+            break;
+          case "account":
+            valA = accountMap[a.accountId]?.loanNo || "";
+            valB = accountMap[b.accountId]?.loanNo || "";
+            break;
+          case "activity":
+            valA = a.summary;
+            valB = b.summary;
+            break;
+          case "user":
+            valA = a.actorName;
+            valB = b.actorName;
+            break;
         }
         if (typeof valA === "string" && typeof valB === "string") {
           valA = valA.toLowerCase();
@@ -180,10 +207,37 @@ export function AuditTrailClient({
       <Table>
         <TableHeader>
           <TableRow>
-            <SortableTableHead column="timestamp" label="Timestamp" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} className="w-[160px] shrink-0" />
-            <SortableTableHead column="account" label="Account" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} className="w-[150px]" />
-            <SortableTableHead column="activity" label="Activity" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-            <SortableTableHead column="user" label="User" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} className="w-[150px]" />
+            <SortableTableHead
+              column="timestamp"
+              label="Timestamp"
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              onToggle={toggleSort}
+              className="w-[160px] shrink-0"
+            />
+            <SortableTableHead
+              column="account"
+              label="Account"
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              onToggle={toggleSort}
+              className="w-[150px]"
+            />
+            <SortableTableHead
+              column="activity"
+              label="Activity"
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              onToggle={toggleSort}
+            />
+            <SortableTableHead
+              column="user"
+              label="User"
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              onToggle={toggleSort}
+              className="w-[150px]"
+            />
             <TableHead className="w-[100px]">Action</TableHead>
           </TableRow>
         </TableHeader>
@@ -265,21 +319,32 @@ export function AuditTrailClient({
       </Table>
 
       <div className="flex items-center justify-between border-t border-neutral-100 bg-neutral-25 px-5 py-3">
-        <div className="flex items-center gap-3 text-[13px] text-neutral-500">
+        <div className="flex items-center gap-3 text-[12px] text-neutral-500">
           <div className="flex items-center gap-2">
             <span>Rows per page</span>
             <Select
               value={String(pageSize)}
               onValueChange={handlePageSizeChange}
             >
-              <SelectTrigger size="sm" className="h-8 w-[70px] bg-white">
+              <SelectTrigger
+                size="sm"
+                className="h-8 w-[70px] bg-white text-[12px]"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="5">5</SelectItem>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="20">20</SelectItem>
-                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="5" className="text-[12px]">
+                  5
+                </SelectItem>
+                <SelectItem value="10" className="text-[12px]">
+                  10
+                </SelectItem>
+                <SelectItem value="20" className="text-[12px]">
+                  20
+                </SelectItem>
+                <SelectItem value="50" className="text-[12px]">
+                  50
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -290,7 +355,7 @@ export function AuditTrailClient({
         </div>
 
         <div className="flex items-center gap-4">
-          <span className="hidden text-[13px] text-neutral-500 sm:inline">
+          <span className="hidden text-[12px] text-neutral-500 sm:inline">
             Page {page} of {pageCount}
           </span>
           <PaginationNumbers

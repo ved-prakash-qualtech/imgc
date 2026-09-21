@@ -48,16 +48,17 @@ const STATUS_TONE: Record<DocStatus, string> = {
   REUPLOAD_REQUIRED: "bg-warning/15 text-warning",
 };
 
+/** Flat colored text, no pill and no dot — a dense, non-interactive table column, matching the
+ *  same `flat` treatment `StatusPill` uses elsewhere in the portal's tables. */
 function StatusChip({ status }: Readonly<{ status: DocStatus }>) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold",
+        "text-[10.5px] font-semibold",
         // eslint-disable-next-line security/detect-object-injection
-        STATUS_TONE[status]
+        STATUS_TONE[status].split(" ").find((c) => c.startsWith("text-"))
       )}
     >
-      <span className="size-1.5 rounded-full bg-current opacity-70" />
       {/* eslint-disable-next-line security/detect-object-injection */}
       {STATUS_LABEL[status]}
     </span>

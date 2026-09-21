@@ -37,7 +37,7 @@ function PaginationLink({
       data-slot="pagination-link"
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "inline-flex size-8 items-center justify-center rounded-md text-sm font-medium transition-colors",
+        "inline-flex size-8 items-center justify-center rounded-md text-[12px] font-medium transition-colors",
         isActive
           ? "bg-brand-primary text-white"
           : "text-neutral-700 hover:bg-neutral-50",
@@ -72,7 +72,7 @@ function PaginationPrevious({
       type="button"
       variant="ghost"
       size="sm"
-      className={cn("gap-1 px-2 text-neutral-700", className)}
+      className={cn("gap-1 px-2 text-[12px] text-neutral-700", className)}
       {...props}
     >
       <ChevronLeftIcon className="size-4" />
@@ -90,7 +90,7 @@ function PaginationNext({
       type="button"
       variant="ghost"
       size="sm"
-      className={cn("gap-1 px-2 text-neutral-700", className)}
+      className={cn("gap-1 px-2 text-[12px] text-neutral-700", className)}
       {...props}
     >
       Next

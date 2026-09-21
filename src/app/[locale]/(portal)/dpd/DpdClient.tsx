@@ -31,7 +31,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { DPD_BANDS, DPD_BAND_LABEL, dpdInBand, formatDpd, type DpdBand } from "@/lib/dpd";
+import {
+  DPD_BANDS,
+  DPD_BAND_LABEL,
+  dpdInBand,
+  formatDpd,
+  type DpdBand,
+} from "@/lib/dpd";
 import type { EligibleRow } from "@/types/portal/eligibleClaim";
 import type { Role } from "@/server/mock/types";
 
@@ -50,7 +56,18 @@ function dpdBandDisplay(v: DpdBand): string {
   return v === "ALL" ? "All DPD" : DPD_BAND_LABEL[v];
 }
 
-type SortKey = "loanNo" | "borrowerName" | "lender" | "loanAmount" | "outstandingAmount" | "dpd" | "product" | "npa" | "loanStatus" | "lastUpdatedAt" | "tat";
+type SortKey =
+  | "loanNo"
+  | "borrowerName"
+  | "lender"
+  | "loanAmount"
+  | "outstandingAmount"
+  | "dpd"
+  | "product"
+  | "npa"
+  | "loanStatus"
+  | "lastUpdatedAt"
+  | "tat";
 type SortDirection = "asc" | "desc" | null;
 
 const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
@@ -113,7 +130,9 @@ function downloadCsv(rows: EligibleRow[], role: Role): void {
       a.outstandingAmount,
       a.dpd ?? "",
       a.npa ? "Yes" : "No",
-      isNotStarted(a) ? "NOT_STARTED" : (a.claim as NonNullable<EligibleRow["claim"]>).status,
+      isNotStarted(a)
+        ? "NOT_STARTED"
+        : (a.claim as NonNullable<EligibleRow["claim"]>).status,
       a.claim?.lastUpdatedAt.slice(0, 10) ?? "",
       claimTatDays(a.claim) ?? "",
     ]
@@ -142,7 +161,9 @@ const SortIcon = ({
   sortDirection: SortDirection;
 }) => {
   if (sortKey !== column)
-    return <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />;
+    return (
+      <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />
+    );
   return sortDirection === "asc" ? (
     <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
   ) : (
@@ -172,7 +193,11 @@ const SortableTableHead = ({
   >
     <div className="flex items-center">
       {label}
-      <SortIcon column={column} sortKey={sortKey} sortDirection={sortDirection} />
+      <SortIcon
+        column={column}
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+      />
     </div>
   </TableHead>
 );
@@ -200,7 +225,9 @@ export function DpdClient({
   // Holds a `lenderOrgId`, not a display name — matches the `?lender=` param the Dashboard's own
   // KPI rings/tiles link here with (see `withLender` in dashboard.server.ts), so a ring counted
   // against one lender and the grid it opens always agree.
-  const [lender, setLender] = useState(() => searchParams.get("lender") ?? "ALL");
+  const [lender, setLender] = useState(
+    () => searchParams.get("lender") ?? "ALL"
+  );
   const [npaFilter, setNpaFilter] = useState<"ALL" | "YES" | "NO">(() => {
     const param = searchParams.get("npa");
     return param === "YES" || param === "NO" ? param : "ALL";
@@ -270,7 +297,9 @@ export function DpdClient({
       if (loanStatusFilter === "Active") {
         result = result.filter((a) => a.isActive);
       } else if (loanStatusFilter === "In Progress") {
-        result = result.filter((a) => ["New", "Underwriting", "Queried", "Approved"].includes(a.loanStatus));
+        result = result.filter((a) =>
+          ["New", "Underwriting", "Queried", "Approved"].includes(a.loanStatus)
+        );
       } else {
         result = result.filter((a) => a.loanStatus === loanStatusFilter);
       }
@@ -353,7 +382,17 @@ export function DpdClient({
       });
     }
     return result;
-  }, [accounts, query, dpdBand, npaFilter, loanStatusFilter, product, lender, sortKey, sortDirection]);
+  }, [
+    accounts,
+    query,
+    dpdBand,
+    npaFilter,
+    loanStatusFilter,
+    product,
+    lender,
+    sortKey,
+    sortDirection,
+  ]);
 
   const pageCount = Math.ceil(rows.length / pageSize) || 1;
   const currentPage = Math.min(page, pageCount);
@@ -362,10 +401,13 @@ export function DpdClient({
     currentPage * pageSize
   );
 
-  const handleQueryChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setQuery(e.target.value);
-    setPage(1);
-  }, []);
+  const handleQueryChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setQuery(e.target.value);
+      setPage(1);
+    },
+    []
+  );
   const handleDpdBandChange = useCallback((v: DpdBand) => {
     setDpdBand(v);
     setPage(1);
@@ -374,10 +416,13 @@ export function DpdClient({
     setNpaFilter(v);
     setPage(1);
   }, []);
-  const handleLoanStatusChange = useCallback((v: typeof LOAN_STATUSES[number] | "ALL") => {
-    setLoanStatusFilter(v);
-    setPage(1);
-  }, []);
+  const handleLoanStatusChange = useCallback(
+    (v: (typeof LOAN_STATUSES)[number] | "ALL") => {
+      setLoanStatusFilter(v);
+      setPage(1);
+    },
+    []
+  );
   const handleProductChange = useCallback((v: string) => {
     setProduct(v);
     setPage(1);
@@ -452,7 +497,9 @@ export function DpdClient({
               options={["ALL", ...lenders.map((l) => l.id)] as const}
               value={lender}
               onChange={handleLenderChange}
-              display={(v) => (v === "ALL" ? "All Lenders" : (lenderNameById.get(v) ?? v))}
+              display={(v) =>
+                v === "ALL" ? "All Lenders" : (lenderNameById.get(v) ?? v)
+              }
             />
           )}
           <button
@@ -478,27 +525,93 @@ export function DpdClient({
           <Table>
             <TableHeader>
               <TableRow>
-                <SortableTableHead column="loanNo" label="Loan Account" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <SortableTableHead column="borrowerName" label="Customer" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                <SortableTableHead
+                  column="loanNo"
+                  label="Loan Account"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="borrowerName"
+                  label="Customer"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
                 {role === "IMGC" && (
-                  <SortableTableHead column="lender" label="Lender" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
+                  <SortableTableHead
+                    column="lender"
+                    label="Lender"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                  />
                 )}
-                <SortableTableHead column="product" label="Product" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <SortableTableHead column="loanAmount" label="Loan Amount" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <SortableTableHead column="outstandingAmount" label="Outstanding" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <SortableTableHead column="dpd" label="DPD" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} title="DPD = Days Past Due" />
-                <SortableTableHead column="loanStatus" label="Loan Status" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <SortableTableHead column="lastUpdatedAt" label="Last Updated" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <SortableTableHead column="tat" label="TAT" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} title="TAT = Turn Around Time (claim submitted → decision; running for claims still open)" />
-
+                <SortableTableHead
+                  column="product"
+                  label="Product"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="loanAmount"
+                  label="Loan Amount"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="outstandingAmount"
+                  label="Outstanding"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="dpd"
+                  label="DPD"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  title="DPD = Days Past Due"
+                />
+                <SortableTableHead
+                  column="loanStatus"
+                  label="Loan Status"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="lastUpdatedAt"
+                  label="Last Updated"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="tat"
+                  label="TAT"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  title="TAT = Turn Around Time (claim submitted → decision; running for claims still open)"
+                />
               </TableRow>
             </TableHeader>
             <TableBody>
               {currentRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={role === "IMGC" ? 10 : 9} className="py-14 text-center">
+                  <TableCell
+                    colSpan={role === "IMGC" ? 10 : 9}
+                    className="py-14 text-center"
+                  >
                     <CalendarClockIcon className="mx-auto mb-2 size-6 text-neutral-300" />
-                    <p className="text-[13px] font-medium text-neutral-700">No accounts found</p>
+                    <p className="text-[13px] font-medium text-neutral-700">
+                      No accounts found
+                    </p>
                     <p className="mt-0.5 text-[12.5px] text-neutral-500">
                       No loans match the selected DPD criteria.
                     </p>
@@ -540,7 +653,9 @@ export function DpdClient({
                       {date(a.claim?.lastUpdatedAt)}
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-700">
-                      {claimTatDays(a.claim) === null ? "—" : `${claimTatDays(a.claim)}d`}
+                      {claimTatDays(a.claim) === null
+                        ? "—"
+                        : `${claimTatDays(a.claim)}d`}
                     </TableCell>
                   </TableRow>
                 ))
@@ -550,17 +665,29 @@ export function DpdClient({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-2">
-          <div className="flex items-center gap-3 text-[13px] text-neutral-500">
+          <div className="flex items-center gap-3 text-[12px] text-neutral-500">
             <div className="flex items-center gap-2">
               <span>Rows per page</span>
-              <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
-                <SelectTrigger size="sm" className="h-8 w-[70px] bg-white">
+              <Select
+                value={String(pageSize)}
+                onValueChange={handlePageSizeChange}
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="h-8 w-[70px] bg-white text-[12px]"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="10" className="text-[12px]">
+                    10
+                  </SelectItem>
+                  <SelectItem value="20" className="text-[12px]">
+                    20
+                  </SelectItem>
+                  <SelectItem value="50" className="text-[12px]">
+                    50
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -570,10 +697,14 @@ export function DpdClient({
           </div>
 
           <div className="flex items-center gap-4">
-            <span className="hidden text-[13px] text-neutral-500 sm:inline">
+            <span className="hidden text-[12px] text-neutral-500 sm:inline">
               Page {currentPage} of {pageCount}
             </span>
-            <PaginationNumbers page={currentPage} pageCount={pageCount} onPageChange={setPage} />
+            <PaginationNumbers
+              page={currentPage}
+              pageCount={pageCount}
+              onPageChange={setPage}
+            />
           </div>
         </div>
       </Panel>

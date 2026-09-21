@@ -1,4 +1,8 @@
 "use client";
+/* eslint-disable react-perf/jsx-no-new-function-as-prop --
+   This dialog mounts once per Add Additional Document button, not in a list, so a fresh
+   handler each render costs nothing; the alternative is threading every inline handler
+   out to a useCallback purely to satisfy the rule. */
 
 import { useCallback, useRef, useState, useTransition } from "react";
 import { PaperclipIcon, PlusIcon, UploadIcon } from "lucide-react";
@@ -117,31 +121,20 @@ export function AddLenderDocumentDialog({
         <DialogHeader>
           <DialogTitle>Add additional document</DialogTitle>
           <DialogDescription>
-            Add one document at a time. It sits alongside the required list — it does not change
-            it.
+            Add one document at a time. It sits alongside the required list — it
+            does not change it.
           </DialogDescription>
         </DialogHeader>
 
         <form ref={formRef} onSubmit={submit} className="space-y-3">
           <label className="block">
             <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-              Document Name *
+              Document Type *
             </span>
             <input
               name="name"
               required
               placeholder="e.g. NOC"
-              className={FIELD}
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-              Description
-            </span>
-            <input
-              name="description"
-              placeholder="e.g. No Objection Certificate from the builder"
               className={FIELD}
             />
           </label>
@@ -183,7 +176,10 @@ export function AddLenderDocumentDialog({
               )}
             </label>
             {error && (
-              <p role="alert" className="mt-1 text-[12px] font-medium text-destructive">
+              <p
+                role="alert"
+                className="mt-1 text-[12px] font-medium text-destructive"
+              >
                 {error}
               </p>
             )}

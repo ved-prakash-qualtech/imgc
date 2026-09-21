@@ -868,13 +868,15 @@ export function AccountsClient({
                     <TableCell className="px-1 py-1">
                       <StatusPill
                         status={ownerOf(a)}
-                        className="px-1 py-0.5 text-[10px]"
+                        flat
+                        className="text-[10px]"
                       />
                     </TableCell>
                     <TableCell className="px-1 py-1">
                       <StatusPill
                         status={claimStatusDisplay(a)}
-                        className="px-1 py-0.5 text-[10px]"
+                        flat
+                        className="text-[10px]"
                         maxChars={10}
                       />
                     </TableCell>
@@ -894,13 +896,22 @@ export function AccountsClient({
               value={String(pageSize)}
               onValueChange={handlePageSizeChange}
             >
-              <SelectTrigger size="sm" className="h-7 w-[62px] bg-white">
+              <SelectTrigger
+                size="sm"
+                className="h-7 w-[62px] bg-white text-[12px]"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="20">20</SelectItem>
-                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="10" className="text-[12px]">
+                  10
+                </SelectItem>
+                <SelectItem value="20" className="text-[12px]">
+                  20
+                </SelectItem>
+                <SelectItem value="50" className="text-[12px]">
+                  50
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>

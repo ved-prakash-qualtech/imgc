@@ -833,15 +833,15 @@ export function EligibleCasesClient({
                     {!isNotStarted(a) && a.claim ? (
                       <StatusPill
                         status={a.claim.status}
-                        className="px-1 py-0.5 text-[10px]"
+                        flat
+                        className="text-[10px]"
                         maxChars={10}
                       />
                     ) : (
                       <span
-                        className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-1 py-0.5 text-[10px] font-medium whitespace-nowrap text-neutral-600"
+                        className="text-[10px] font-semibold whitespace-nowrap text-neutral-500"
                         title="Not started"
                       >
-                        <span className="size-1.5 rounded-full bg-neutral-400" />
                         Not starte...
                       </span>
                     )}
@@ -849,7 +849,8 @@ export function EligibleCasesClient({
                   <TableCell className="px-1 py-1">
                     <StatusPill
                       status={ownerOf(a)}
-                      className="px-1 py-0.5 text-[10px]"
+                      flat
+                      className="text-[10px]"
                     />
                   </TableCell>
                   <TableCell className="px-1 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-500">
@@ -881,13 +882,22 @@ export function EligibleCasesClient({
               value={String(pageSize)}
               onValueChange={handlePageSizeChange}
             >
-              <SelectTrigger size="sm" className="h-7 w-[62px] bg-white">
+              <SelectTrigger
+                size="sm"
+                className="h-7 w-[62px] bg-white text-[12px]"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="20">20</SelectItem>
-                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="10" className="text-[12px]">
+                  10
+                </SelectItem>
+                <SelectItem value="20" className="text-[12px]">
+                  20
+                </SelectItem>
+                <SelectItem value="50" className="text-[12px]">
+                  50
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>

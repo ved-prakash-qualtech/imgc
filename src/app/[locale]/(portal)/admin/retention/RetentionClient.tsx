@@ -522,16 +522,16 @@ export function RetentionClient({
                         </span>
                       </TableCell>
                       <TableCell className="px-1.5 py-1.5">
-                        {row.replaced ? (
+                        {row.rejection.archived ? (
+                          <span className="text-[11.5px] font-medium whitespace-nowrap text-neutral-500">
+                            Kept
+                          </span>
+                        ) : row.replaced ? (
                           <span
                             className="text-[11.5px] font-medium whitespace-nowrap text-neutral-500"
                             title="Replaced by a re-upload — its requirement is back under review, so the retention sweep will never purge it."
                           >
                             Not swept
-                          </span>
-                        ) : row.rejection.archived ? (
-                          <span className="text-[11.5px] font-medium whitespace-nowrap text-neutral-500">
-                            Kept
                           </span>
                         ) : row.held ? (
                           <span className="text-[11.5px] font-medium whitespace-nowrap text-warning">
@@ -573,7 +573,8 @@ export function RetentionClient({
                         ) : row.rejection.reinstate ? (
                           <StatusPill
                             status={row.rejection.reinstate.status}
-                            className="px-1.5 py-0.5 text-[10.5px]"
+                            flat
+                            className="text-[10.5px]"
                           />
                         ) : row.rejection.archived ? (
                           <span
@@ -602,21 +603,32 @@ export function RetentionClient({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-2">
-            <div className="flex items-center gap-3 text-[13px] text-neutral-500">
+            <div className="flex items-center gap-3 text-[12px] text-neutral-500">
               <div className="flex items-center gap-2">
                 <span>Rows per page</span>
                 <Select
                   value={String(pageSize)}
                   onValueChange={handlePageSizeChange}
                 >
-                  <SelectTrigger size="sm" className="h-8 w-[70px] bg-white">
+                  <SelectTrigger
+                    size="sm"
+                    className="h-8 w-[70px] bg-white text-[12px]"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="20">20</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="5" className="text-[12px]">
+                      5
+                    </SelectItem>
+                    <SelectItem value="10" className="text-[12px]">
+                      10
+                    </SelectItem>
+                    <SelectItem value="20" className="text-[12px]">
+                      20
+                    </SelectItem>
+                    <SelectItem value="50" className="text-[12px]">
+                      50
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -627,7 +639,7 @@ export function RetentionClient({
             </div>
 
             <div className="flex items-center gap-4">
-              <span className="hidden text-[13px] text-neutral-500 sm:inline">
+              <span className="hidden text-[12px] text-neutral-500 sm:inline">
                 Page {currentPage} of {pageCount}
               </span>
               <PaginationNumbers

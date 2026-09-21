@@ -75,29 +75,62 @@ const LABELS = new Map<string, string>([
   ["DENIED", "Reinstate denied"],
 ]);
 
+/** Every `TONES` entry is "bg-* text-*" — pull just the text color back out for `flat`. */
+function textToneOf(tone: string): string {
+  return (
+    tone.split(" ").find((cls) => cls.startsWith("text-")) ?? "text-neutral-600"
+  );
+}
+
 export function StatusPill({
   status,
   className,
   maxChars,
+  flat = false,
 }: Readonly<{
   status: DocStatus | ClaimStatus | Bucket | string;
   className?: string;
   /** Cap the visible label (e.g. in a narrow grid column); the full label moves to a tooltip. */
   maxChars?: number;
+  /**
+   * Plain colored text, no pill background and no dot — for a dense, non-interactive table
+   * column where a full pill costs more width than the status is worth. Never use this on
+   * something clickable: a flat label carries no visual affordance that it's a button, which the
+   * bg-filled pill (deliberately) does.
+   */
+  flat?: boolean;
 }>) {
   const label = LABELS.get(status) ?? status;
   const clipped =
     maxChars && label.length > maxChars
       ? `${label.slice(0, maxChars).trimEnd()}...`
       : label;
+  const tone = TONES.get(status) ?? "bg-neutral-100 text-neutral-600";
+  const title = clipped !== label ? label : undefined;
+
+  if (flat) {
+    return (
+      <span
+        className={cn(
+          "text-[11.5px] font-semibold whitespace-nowrap",
+          textToneOf(tone),
+          className
+        )}
+        title={title}
+      >
+        {clipped}
+      </span>
+    );
+  }
+
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap",
-        TONES.get(status) ?? "bg-neutral-100 text-neutral-600",
+        tone,
         className
       )}
-      title={clipped !== label ? label : undefined}
+      title={title}
     >
       <span className="size-1.5 rounded-full bg-current opacity-70" />
       {clipped}

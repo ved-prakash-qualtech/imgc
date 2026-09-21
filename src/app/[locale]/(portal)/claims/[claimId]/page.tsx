@@ -254,7 +254,8 @@ export default async function ClaimDetailsPage({
                       <TableCell className="px-1.5 py-1.5">
                         <StatusPill
                           status={d.status}
-                          className="px-1.5 py-0.5 text-[10.5px]"
+                          flat
+                          className="text-[10.5px]"
                         />
                       </TableCell>
                       <TableCell className="px-1.5 py-1.5">
@@ -429,7 +430,8 @@ export default async function ClaimDetailsPage({
                       <TableCell className="px-1.5 py-1.5">
                         <StatusPill
                           status={d.status}
-                          className="px-1.5 py-0.5 text-[10.5px]"
+                          flat
+                          className="text-[10.5px]"
                         />
                       </TableCell>
                       <TableCell className="px-1.5 py-1.5">

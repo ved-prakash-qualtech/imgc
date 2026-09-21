@@ -1,4 +1,9 @@
 "use client";
+/* eslint-disable react-perf/jsx-no-new-function-as-prop, react-perf/jsx-no-jsx-as-prop,
+   react-perf/jsx-no-new-object-as-prop, react-perf/jsx-no-new-array-as-prop --
+   Handlers/objects here close over the row they act on, so hoisting them out of the map
+   would mean threading the row back through a prop for no gain; this table renders a
+   bounded page of rows, never the full dataset. */
 
 import { useCallback, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
@@ -62,16 +67,15 @@ const STATUSES: ReadonlyArray<DocStatus> = [
   "REUPLOAD_REQUIRED",
 ];
 
-const STATUS_LABEL: Record<DocStatus, string> = {
-  NOT_REQUESTED: "Not requested",
-  PENDING_UPLOAD: "Pending upload",
-  UNDER_REVIEW: "Under review",
-  APPROVED: "Approved",
-  REJECTED: "Rejected",
-  REUPLOAD_REQUIRED: "Reupload req.",
-};
-
-type SortKey = "caseId" | "customerName" | "documentName" | "required" | "status" | "lenderName" | "addedByName" | "addedOn";
+type SortKey =
+  | "caseId"
+  | "customerName"
+  | "documentName"
+  | "required"
+  | "status"
+  | "lenderName"
+  | "addedByName"
+  | "addedOn";
 type SortDirection = "asc" | "desc" | null;
 
 const SortIcon = ({
@@ -84,7 +88,9 @@ const SortIcon = ({
   sortDirection: SortDirection;
 }) => {
   if (sortKey !== column)
-    return <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />;
+    return (
+      <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />
+    );
   return sortDirection === "asc" ? (
     <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
   ) : (
@@ -116,7 +122,11 @@ const SortableTableHead = ({
   >
     <div className="flex items-center">
       {label}
-      <SortIcon column={column} sortKey={sortKey} sortDirection={sortDirection} />
+      <SortIcon
+        column={column}
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+      />
     </div>
   </TableHead>
 );
@@ -293,20 +303,44 @@ export function AdditionalDocumentsClient({
       if (from && Date.parse(r.addedOn) < Date.parse(from)) return false;
       return true;
     });
-    
+
     if (sortKey && sortDirection) {
       result = [...result].sort((a, b) => {
         let valA: string | number = "";
         let valB: string | number = "";
         switch (sortKey) {
-          case "caseId": valA = a.caseId; valB = b.caseId; break;
-          case "customerName": valA = a.customerName; valB = b.customerName; break;
-          case "documentName": valA = a.name; valB = b.name; break;
-          case "required": valA = a.required ? 1 : 0; valB = b.required ? 1 : 0; break;
-          case "status": valA = a.active ? a.status : "DEACTIVATED"; valB = b.active ? b.status : "DEACTIVATED"; break;
-          case "lenderName": valA = a.lenderName; valB = b.lenderName; break;
-          case "addedByName": valA = a.addedByName; valB = b.addedByName; break;
-          case "addedOn": valA = a.addedOn; valB = b.addedOn; break;
+          case "caseId":
+            valA = a.caseId;
+            valB = b.caseId;
+            break;
+          case "customerName":
+            valA = a.customerName;
+            valB = b.customerName;
+            break;
+          case "documentName":
+            valA = a.name;
+            valB = b.name;
+            break;
+          case "required":
+            valA = a.required ? 1 : 0;
+            valB = b.required ? 1 : 0;
+            break;
+          case "status":
+            valA = a.active ? a.status : "DEACTIVATED";
+            valB = b.active ? b.status : "DEACTIVATED";
+            break;
+          case "lenderName":
+            valA = a.lenderName;
+            valB = b.lenderName;
+            break;
+          case "addedByName":
+            valA = a.addedByName;
+            valB = b.addedByName;
+            break;
+          case "addedOn":
+            valA = a.addedOn;
+            valB = b.addedOn;
+            break;
         }
         if (typeof valA === "string" && typeof valB === "string") {
           valA = valA.toLowerCase();
@@ -318,10 +352,30 @@ export function AdditionalDocumentsClient({
       });
     }
     return result;
-  }, [rows, query, caseId, lender, product, document, status, necessity, from, sortKey, sortDirection]);
+  }, [
+    rows,
+    query,
+    caseId,
+    lender,
+    product,
+    document,
+    status,
+    necessity,
+    from,
+    sortKey,
+    sortDirection,
+  ]);
 
-  const anyFilter =
-    Boolean(query || caseId || lender || product || document || status || necessity || from);
+  const anyFilter = Boolean(
+    query ||
+    caseId ||
+    lender ||
+    product ||
+    document ||
+    status ||
+    necessity ||
+    from
+  );
 
   const clearFilters = useCallback(() => {
     setQuery("");
@@ -361,29 +415,30 @@ export function AdditionalDocumentsClient({
   const onEdit = useCallback(
     async (input: RequirementInput) => {
       if (!editing) return { ok: false, error: "Nothing selected." };
-      const result = await updateRequirementAction(editing.accountId, editing.id, input);
+      const result = await updateRequirementAction(
+        editing.accountId,
+        editing.id,
+        input
+      );
       return result;
     },
     [editing]
   );
 
-  const onToggle = useCallback(
-    (row: RequirementRow) => {
-      startTransition(async () => {
-        const result = await setActiveAction(row.accountId, row.id, !row.active);
-        if (!result.ok) {
-          toast.error(result.error ?? "That change failed.");
-          return;
-        }
-        toast.success(
-          row.active
-            ? `"${row.name}" deactivated — the lender no longer sees it.`
-            : `"${row.name}" reactivated.`
-        );
-      });
-    },
-    []
-  );
+  const onToggle = useCallback((row: RequirementRow) => {
+    startTransition(async () => {
+      const result = await setActiveAction(row.accountId, row.id, !row.active);
+      if (!result.ok) {
+        toast.error(result.error ?? "That change failed.");
+        return;
+      }
+      toast.success(
+        row.active
+          ? `"${row.name}" deactivated — the lender no longer sees it.`
+          : `"${row.name}" reactivated.`
+      );
+    });
+  }, []);
 
   return (
     <>
@@ -516,15 +571,65 @@ export function AdditionalDocumentsClient({
           <Table>
             <TableHeader>
               <TableRow>
-                <SortableTableHead column="caseId" label="Case ID" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <SortableTableHead column="customerName" label="Customer" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <SortableTableHead column="documentName" label="Document" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <SortableTableHead column="required" label="Required" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <SortableTableHead column="status" label="Status" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <SortableTableHead column="lenderName" label="Lender" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <SortableTableHead column="addedByName" label="Added by" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <SortableTableHead column="addedOn" label="Added on" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                <TableHead className="h-8 px-1.5 text-[10.5px]">Action</TableHead>
+                <SortableTableHead
+                  column="caseId"
+                  label="Case ID"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="customerName"
+                  label="Customer"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="documentName"
+                  label="Document"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="required"
+                  label="Required"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="status"
+                  label="Status"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="lenderName"
+                  label="Lender"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="addedByName"
+                  label="Added by"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="addedOn"
+                  label="Added on"
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <TableHead className="h-8 px-1.5 text-[10.5px]">
+                  Action
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -544,7 +649,10 @@ export function AdditionalDocumentsClient({
                 </TableRow>
               ) : (
                 currentRows.map((r) => (
-                  <TableRow key={r.id} className={cn(!r.active && "opacity-55")}>
+                  <TableRow
+                    key={r.id}
+                    className={cn(!r.active && "opacity-55")}
+                  >
                     <TableCell className="px-1.5 py-1.5">
                       <Link
                         href={ROUTES.account(r.accountId)}
@@ -579,7 +687,11 @@ export function AdditionalDocumentsClient({
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5">
                       {r.active ? (
-                        <StatusPill status={r.status} className="px-1.5 py-0.5 text-[10.5px]" />
+                        <StatusPill
+                          status={r.status}
+                          flat
+                          className="text-[10.5px]"
+                        />
                       ) : (
                         <span className="rounded-full bg-neutral-200 px-1.5 py-0.5 text-[10.5px] font-semibold whitespace-nowrap text-neutral-600">
                           Deactivated
@@ -601,7 +713,11 @@ export function AdditionalDocumentsClient({
                           size="xs"
                           variant="outline"
                           onClick={() => setReviewing(r)}
-                          title={r.file ? "Review the uploaded document" : "View the requirement"}
+                          title={
+                            r.file
+                              ? "Review the uploaded document"
+                              : "View the requirement"
+                          }
                         >
                           <EyeIcon />
                           {r.file ? "Review" : "View"}
@@ -636,28 +752,43 @@ export function AdditionalDocumentsClient({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-2">
-          <div className="flex items-center gap-3 text-[13px] text-neutral-500">
+          <div className="flex items-center gap-3 text-[12px] text-neutral-500">
             <div className="flex items-center gap-2">
               <span>Rows per page</span>
-              <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
-                <SelectTrigger size="sm" className="h-8 w-[70px] bg-white">
+              <Select
+                value={String(pageSize)}
+                onValueChange={handlePageSizeChange}
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="h-8 w-[70px] bg-white text-[12px]"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="10" className="text-[12px]">
+                    10
+                  </SelectItem>
+                  <SelectItem value="20" className="text-[12px]">
+                    20
+                  </SelectItem>
+                  <SelectItem value="50" className="text-[12px]">
+                    50
+                  </SelectItem>
+                  <SelectItem value="100" className="text-[12px]">
+                    100
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <span className="hidden sm:inline">
-              Total {filtered.length} requirement{filtered.length === 1 ? "" : "s"}
+              Total {filtered.length} requirement
+              {filtered.length === 1 ? "" : "s"}
             </span>
           </div>
 
           <div className="flex items-center gap-4">
-            <span className="hidden text-[13px] text-neutral-500 sm:inline">
+            <span className="hidden text-[12px] text-neutral-500 sm:inline">
               Page {currentPage} of {pageCount}
             </span>
             <PaginationNumbers
