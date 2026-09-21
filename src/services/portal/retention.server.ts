@@ -8,7 +8,11 @@ import {
   sweepExpiredRejections,
 } from "@/server/mock/retention";
 import type { AppSession } from "@/lib/auth/appSession";
-import type { ClaimDocument, Rejection } from "@/server/mock/types";
+import type {
+  ClaimDocument,
+  DocumentFile,
+  Rejection,
+} from "@/server/mock/types";
 
 export { RETENTION_DAYS, sweepExpiredRejections };
 
@@ -24,6 +28,41 @@ export interface RejectedDocRow extends ClaimDocument {
   /** Set when this row is a rejected file the lender has since replaced by a re-upload — kept
    *  visible here so the rejection stays on record. */
   replaced?: { fileId: string; fileName: string; at: string };
+  /**
+   * The file the rejection was actually about. This screen exists to hold document history, so
+   * it always names the version IMGC rejected — never a newer one the lender uploaded after the
+   * fact, which is a different file that nobody has rejected.
+   */
+  rejectedFile?: {
+    id: string;
+    name: string;
+    version: number;
+    uploadedAt: string;
+    superseded: boolean;
+  };
+}
+
+/**
+ * Which file a rejection was about.
+ *
+ * Preference order matters: an explicit per-file REJECTED review is the fact, so it wins. Older
+ * seed data recorded the rejection on the document alone, and there the rejected file is whichever
+ * version was live *at the moment of rejection* — so candidates uploaded after `rejectedAt` are
+ * excluded rather than falling back to "the newest file", which is exactly the replacement this
+ * screen must never present as the rejected document.
+ */
+function rejectedFileFor(
+  files: readonly DocumentFile[],
+  rejectedAt: string
+): DocumentFile | undefined {
+  const reviewed = files
+    .filter((f) => f.review?.decision === "REJECTED")
+    .sort((a, b) => (b.review?.at ?? "").localeCompare(a.review?.at ?? ""));
+  if (reviewed.length > 0) return reviewed[0];
+
+  return files
+    .filter((f) => f.uploadedAt <= rejectedAt)
+    .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))[0];
 }
 
 /**
@@ -42,15 +81,24 @@ export async function listRejectedDocuments(
   );
   const byId = new Map(accounts.map((a) => [a.id, a]));
 
+  const filesByDoc = new Map<string, DocumentFile[]>();
+  for (const f of db.documentFiles) {
+    const list = filesByDoc.get(f.documentId);
+    if (list) list.push(f);
+    else filesByDoc.set(f.documentId, [f]);
+  }
+
   const current: RejectedDocRow[] = db.claimDocuments
-    .filter((d): d is ClaimDocument & { rejection: Rejection } =>
-      Boolean(d.rejection) &&
-      d.status === "REJECTED" &&
-      Boolean(d.claimId) &&
-      byId.has(d.accountId)
+    .filter(
+      (d): d is ClaimDocument & { rejection: Rejection } =>
+        Boolean(d.rejection) &&
+        d.status === "REJECTED" &&
+        Boolean(d.claimId) &&
+        byId.has(d.accountId)
     )
     .map((d) => {
       const account = byId.get(d.accountId)!;
+      const file = rejectedFileFor(filesByDoc.get(d.id) ?? [], d.rejection.at);
       return {
         ...d,
         accountLoanNo: account.loanNo,
@@ -60,6 +108,13 @@ export async function listRejectedDocuments(
         daysLeft: daysLeft(d.rejection.at),
         held: isHeld(d),
         rowKey: d.id,
+        rejectedFile: file && {
+          id: file.id,
+          name: file.originalName,
+          version: file.version,
+          uploadedAt: file.uploadedAt,
+          superseded: Boolean(file.supersededAt),
+        },
       };
     });
 
@@ -81,15 +136,31 @@ export async function listRejectedDocuments(
           at: f.review.at,
           by: f.review.byName,
           reason: f.review.remarks || f.supersededReason || "—",
+          // Archiving a replaced row pins the *file*, so surface that through the same field the
+          // document-level rows use — the screen then needs no second notion of "archived".
+          archived: f.review.archived,
         },
         accountLoanNo: account.loanNo,
         borrowerName: account.borrowerName,
         lenderOrgName:
           db.lenderOrgs.find((o) => o.id === account.lenderOrgId)?.name ?? "—",
         daysLeft: daysLeft(f.review.at),
-        held: false,
+        // The sweep only purges documents still sitting at REJECTED; a replaced file's document
+        // has moved back under review, so nothing will ever purge it.
+        held: true,
         rowKey: f.id,
-        replaced: { fileId: f.id, fileName: f.originalName, at: f.supersededAt },
+        replaced: {
+          fileId: f.id,
+          fileName: f.originalName,
+          at: f.supersededAt,
+        },
+        rejectedFile: {
+          id: f.id,
+          name: f.originalName,
+          version: f.version,
+          uploadedAt: f.uploadedAt,
+          superseded: true,
+        },
       },
     ];
   });

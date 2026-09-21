@@ -112,10 +112,7 @@ const STATUS_OPTIONS = [
 ] as const;
 type StatusOption = (typeof STATUS_OPTIONS)[number];
 type StatusFilter =
-  | StatusOption
-  | "DOCUMENTS_RESUBMITTED"
-  | "ACTIVE_NPA"
-  | "UNDER_PROGRESS";
+  StatusOption | "DOCUMENTS_RESUBMITTED" | "ACTIVE_NPA" | "UNDER_PROGRESS";
 const URL_STATUS_VALUES = new Set<string>([
   ...STATUS_OPTIONS,
   "DOCUMENTS_RESUBMITTED",
@@ -254,12 +251,12 @@ const SortIcon = ({
 }) => {
   if (sortKey !== column)
     return (
-      <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />
+      <ArrowUpDownIcon className="ml-px size-2.5 shrink-0 text-neutral-400" />
     );
   return sortDirection === "asc" ? (
-    <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+    <ArrowUpIcon className="ml-px size-2.5 shrink-0 text-neutral-800" />
   ) : (
-    <ArrowDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+    <ArrowDownIcon className="ml-px size-2.5 shrink-0 text-neutral-800" />
   );
 };
 
@@ -284,7 +281,7 @@ const SortableTableHead = ({
     <TableHead
       onClick={handleClick}
       title={title}
-      className="h-8 cursor-pointer select-none px-1 text-[10.5px] transition-colors hover:bg-neutral-50"
+      className="h-7 cursor-pointer select-none px-1 text-[10px] transition-colors hover:bg-neutral-50"
     >
       <div className="flex items-center">
         {label}
@@ -317,7 +314,7 @@ function FilterSelect<T extends string>({
         aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
-        className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-[12.5px] font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+        className="h-7 appearance-none rounded-full border border-neutral-200 bg-white pl-2.5 pr-7 text-center text-[11.5px] font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
       >
         {options.map((option) => (
           <option key={option} value={option}>
@@ -366,7 +363,7 @@ function StatusMultiSelect({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         aria-label="All Claim Status"
-        className="inline-flex h-8 max-w-[190px] items-center gap-2 rounded-full border border-neutral-200 bg-white px-3.5 text-[12.5px] font-medium text-neutral-700 outline-none transition-colors hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+        className="inline-flex h-7 max-w-[170px] items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-[11.5px] font-medium text-neutral-700 outline-none transition-colors hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
       >
         <span className="truncate">{label}</span>
         <ChevronDownIcon className="size-3.5 shrink-0 text-neutral-400" />
@@ -427,7 +424,9 @@ export function EligibleCasesClient({
   // Initialise sort from the URL param so that returning from claim submission
   // (with ?sort=lastUpdatedAt_desc) immediately shows the newest claim at row 1.
   const initialSort = sortFromParam(searchParams.get("sort"));
-  const [sortKey, setSortKey] = useState<SortKey | null>(initialSort.key ?? "submittedAt");
+  const [sortKey, setSortKey] = useState<SortKey | null>(
+    initialSort.key ?? "submittedAt"
+  );
   const [sortDirection, setSortDirection] = useState<SortDirection>(
     initialSort.dir ?? "desc"
   );
@@ -666,7 +665,7 @@ export function EligibleCasesClient({
             onChange={handleQueryChange}
             placeholder="Loan ID, claim no. or applicant"
             aria-label="Search cases"
-            className="h-8 w-[230px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            className="h-7 w-[215px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-[12px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           />
         </div>
         <StatusMultiSelect value={status} onChange={handleStatusChange} />
@@ -690,7 +689,7 @@ export function EligibleCasesClient({
         <button
           type="button"
           onClick={handleExport}
-          className="ml-auto inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 text-[12.5px] font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+          className="ml-auto inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-[11.5px] font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
         >
           <DownloadIcon className="size-3.5" /> Export CSV
         </button>
@@ -777,9 +776,7 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <TableHead className="h-8 px-1 text-[10.5px]">
-                Actions
-              </TableHead>
+              <TableHead className="h-7 px-1 text-[10px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -795,53 +792,53 @@ export function EligibleCasesClient({
             ) : (
               currentRows.map((a) => (
                 <TableRow key={a.id}>
-                  <TableCell className="px-1 py-1.5 text-[12px]">
-                    <span className="inline-flex items-center rounded-full bg-info/12 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap text-info">
+                  <TableCell className="px-1 py-1 text-[11.5px]">
+                    <span className="inline-flex items-center rounded-full bg-info/12 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap text-info">
                       {a.loanNo}
                     </span>
                   </TableCell>
-                  <TableCell className="px-1 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
+                  <TableCell className="px-1 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
                     {a.claim?.claimNo || "—"}
                   </TableCell>
-                  <TableCell className="px-1 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-900">
+                  <TableCell className="px-1 py-1 text-[11.5px] font-medium whitespace-nowrap text-neutral-900">
                     {a.borrowerName}
                   </TableCell>
-                  <TableCell className="px-1 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
+                  <TableCell className="px-1 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
                     {a.product}
                   </TableCell>
-                  <TableCell className="px-1 py-1.5 text-[12px]">
-                    <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-success-700">
+                  <TableCell className="px-1 py-1 text-[11.5px]">
+                    <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-success-700">
                       {inr.format(a.loanAmount)}
                     </span>
                   </TableCell>
                   {/* Outstanding is what the claim is actually about - principal plus interest still
                       owed today - so it reads in the warning tone, apart from the sanctioned amount. */}
-                  <TableCell className="px-1 py-1.5 text-[12px]">
-                    <span className="inline-flex items-center rounded-full bg-warning/10 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-warning">
+                  <TableCell className="px-1 py-1 text-[11.5px]">
+                    <span className="inline-flex items-center rounded-full bg-warning/10 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-warning">
                       {inr.format(a.outstandingAmount)}
                     </span>
                   </TableCell>
-                  <TableCell className="px-1 py-1.5 text-[12px]">
+                  <TableCell className="px-1 py-1 text-[11.5px]">
                     <span
-                      className="inline-flex items-center rounded-full bg-brand-primary/10 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-brand-primary"
+                      className="inline-flex items-center rounded-full bg-brand-primary/10 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-brand-primary"
                       title="20% of the loan amount"
                     >
                       {inr.format(claimAmountFor(a.loanAmount))}
                     </span>
                   </TableCell>
-                  <TableCell className="px-1 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
+                  <TableCell className="px-1 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-500">
                     {a.dpd ? `${a.dpd} days` : "—"}
                   </TableCell>
-                  <TableCell className="px-1 py-1.5">
+                  <TableCell className="px-1 py-1">
                     {!isNotStarted(a) && a.claim ? (
                       <StatusPill
                         status={a.claim.status}
-                        className="px-1 py-0.5 text-[10.5px]"
+                        className="px-1 py-0.5 text-[10px]"
                         maxChars={10}
                       />
                     ) : (
                       <span
-                        className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-1 py-0.5 text-[10.5px] font-medium whitespace-nowrap text-neutral-600"
+                        className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-1 py-0.5 text-[10px] font-medium whitespace-nowrap text-neutral-600"
                         title="Not started"
                       >
                         <span className="size-1.5 rounded-full bg-neutral-400" />
@@ -849,16 +846,16 @@ export function EligibleCasesClient({
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="px-1 py-1.5">
+                  <TableCell className="px-1 py-1">
                     <StatusPill
                       status={ownerOf(a)}
-                      className="px-1 py-0.5 text-[10.5px]"
+                      className="px-1 py-0.5 text-[10px]"
                     />
                   </TableCell>
-                  <TableCell className="px-1 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
+                  <TableCell className="px-1 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-500">
                     {dateOrDash(a.submittedAt)}
                   </TableCell>
-                  <TableCell className="px-1 py-1.5">
+                  <TableCell className="px-1 py-1">
                     <ClaimRowActions
                       accountId={a.id}
                       claimId={a.claim?.id}
@@ -876,15 +873,15 @@ export function EligibleCasesClient({
         </Table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-2">
-        <div className="flex items-center gap-3 text-[13px] text-neutral-500">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-3 py-1.5">
+        <div className="flex items-center gap-2 text-[12px] text-neutral-500">
           <div className="flex items-center gap-2">
             <span>Rows per page</span>
             <Select
               value={String(pageSize)}
               onValueChange={handlePageSizeChange}
             >
-              <SelectTrigger size="sm" className="h-8 w-[70px] bg-white">
+              <SelectTrigger size="sm" className="h-7 w-[62px] bg-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -900,7 +897,7 @@ export function EligibleCasesClient({
         </div>
 
         <div className="flex items-center gap-4">
-          <span className="hidden text-[13px] text-neutral-500 sm:inline">
+          <span className="hidden text-[12px] text-neutral-500 sm:inline">
             Page {currentPage} of {pageCount}
           </span>
           <PaginationNumbers

@@ -1278,14 +1278,37 @@ export async function discardUnsavedUploads(
   return { ok: true };
 }
 
-/** IMGC only — archives a rejected document so it is kept on record and never purged. */
+/**
+ * IMGC only — archives a rejection so it is kept on record and never purged.
+ *
+ * `fileId` addresses a rejected file the lender has since replaced. Its document has moved back
+ * under review, so there is no document-level rejection left to flag — the pin goes on the file's
+ * own review, which is the only place that rejection still exists.
+ */
 export async function archiveRejectedDocument(
   session: AppSession,
   accountId: string,
-  documentId: string
+  documentId: string,
+  fileId?: string
 ): Promise<Outcome> {
   if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
   const outcome = await writeDb((db) => {
+    if (fileId) {
+      const file = db.documentFiles.find(
+        (f) => f.id === fileId && f.accountId === accountId
+      );
+      if (!file || file.review?.decision !== "REJECTED") {
+        return {
+          ok: false as const,
+          error: "Only a rejected file can be archived.",
+        };
+      }
+      if (file.review.archived)
+        return { ok: false as const, error: "Already archived." };
+      file.review.archived = { at: nowIso(), by: session.name };
+      return { ok: true as const, name: file.originalName };
+    }
+
     const doc = db.claimDocuments.find(
       (d) => d.id === documentId && d.accountId === accountId
     );
@@ -1306,7 +1329,7 @@ export async function archiveRejectedDocument(
     actor: session,
     type: "DOC_ARCHIVED",
     summary: `Rejected document "${outcome.name}" archived — kept on record`,
-    meta: { documentId },
+    meta: fileId ? { documentId, fileId } : { documentId },
   });
   return { ok: true };
 }

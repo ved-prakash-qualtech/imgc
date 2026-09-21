@@ -1,8 +1,21 @@
 "use client";
+/* eslint-disable react-perf/jsx-no-new-function-as-prop, react-perf/jsx-no-jsx-as-prop --
+   Handlers here close over the row they act on, so hoisting them out of the map would mean
+   threading the row back through a prop for no gain; this table renders at most 50 rows. */
 
 import { useCallback, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowDownIcon, ArrowUpIcon, ArrowUpDownIcon, ArchiveIcon, BrushCleaningIcon, ChevronDownIcon, DownloadIcon, EyeIcon, SearchIcon } from "lucide-react";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ArrowUpDownIcon,
+  ArchiveIcon,
+  BrushCleaningIcon,
+  ChevronDownIcon,
+  DownloadIcon,
+  EyeIcon,
+  SearchIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -46,7 +59,9 @@ const SortIcon = ({
   sortDirection: SortDirection;
 }) => {
   if (sortKey !== column)
-    return <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />;
+    return (
+      <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />
+    );
   return sortDirection === "asc" ? (
     <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
   ) : (
@@ -75,7 +90,11 @@ const SortableTableHead = ({
   >
     <div className="flex items-center">
       {label}
-      <SortIcon column={column} sortKey={sortKey} sortDirection={sortDirection} />
+      <SortIcon
+        column={column}
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+      />
     </div>
   </TableHead>
 );
@@ -87,7 +106,14 @@ function csvField(value: string | number): string {
 }
 
 function downloadCsv(rows: RejectedDocRow[]): void {
-  const headers = ["Document", "Loan No", "Borrower", "Lender", "Reason", "Days Left"];
+  const headers = [
+    "Document",
+    "Loan No",
+    "Borrower",
+    "Lender",
+    "Reason",
+    "Days Left",
+  ];
   const lines = rows.map((r) =>
     [
       r.name,
@@ -208,11 +234,26 @@ export function RetentionClient({
         let valA: string | number;
         let valB: string | number;
         switch (sortKey) {
-          case "document": valA = a.name; valB = b.name; break;
-          case "account": valA = a.accountLoanNo; valB = b.accountLoanNo; break;
-          case "lender": valA = a.lenderOrgName; valB = b.lenderOrgName; break;
-          case "reason": valA = a.rejection.reason; valB = b.rejection.reason; break;
-          case "retention": valA = a.held ? Infinity : a.daysLeft; valB = b.held ? Infinity : b.daysLeft; break;
+          case "document":
+            valA = a.name;
+            valB = b.name;
+            break;
+          case "account":
+            valA = a.accountLoanNo;
+            valB = b.accountLoanNo;
+            break;
+          case "lender":
+            valA = a.lenderOrgName;
+            valB = b.lenderOrgName;
+            break;
+          case "reason":
+            valA = a.rejection.reason;
+            valB = b.rejection.reason;
+            break;
+          case "retention":
+            valA = a.held ? Infinity : a.daysLeft;
+            valB = b.held ? Infinity : b.daysLeft;
+            break;
         }
         if (typeof valA === "string" && typeof valB === "string") {
           valA = valA.toLowerCase();
@@ -252,7 +293,11 @@ export function RetentionClient({
 
   const onArchive = useCallback((row: RejectedDocRow) => {
     startTransition(async () => {
-      const result = await archiveDocumentAction(row.accountId, row.id);
+      const result = await archiveDocumentAction(
+        row.accountId,
+        row.id,
+        row.replaced?.fileId
+      );
       if (!result.ok) {
         toast.error(result.error ?? "That document could not be archived.");
         return;
@@ -261,24 +306,21 @@ export function RetentionClient({
     });
   }, []);
 
-  const onDecide = useCallback(
-    (row: RejectedDocRow, approve: boolean) => {
-      startTransition(async () => {
-        const result = await decideReinstateAction(
-          row.accountId,
-          row.id,
-          approve,
-          ""
-        );
-        if (!result.ok) {
-          toast.error(result.error ?? "That decision could not be recorded.");
-          return;
-        }
-        toast.success(approve ? "Document reinstated." : "Reinstatement denied.");
-      });
-    },
-    []
-  );
+  const onDecide = useCallback((row: RejectedDocRow, approve: boolean) => {
+    startTransition(async () => {
+      const result = await decideReinstateAction(
+        row.accountId,
+        row.id,
+        approve,
+        ""
+      );
+      if (!result.ok) {
+        toast.error(result.error ?? "That decision could not be recorded.");
+        return;
+      }
+      toast.success(approve ? "Document reinstated." : "Reinstatement denied.");
+    });
+  }, []);
 
   return (
     <Panel
@@ -288,7 +330,12 @@ export function RetentionClient({
           <Button variant="outline" size="sm" onClick={handleExport}>
             <DownloadIcon /> Export CSV
           </Button>
-          <Button size="sm" variant="outline" onClick={onSweep} disabled={pending}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onSweep}
+            disabled={pending}
+          >
             <BrushCleaningIcon /> Run sweep
           </Button>
         </div>
@@ -354,18 +401,53 @@ export function RetentionClient({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortableTableHead column="document" label="Document" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                  <SortableTableHead column="account" label="Account" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                  <SortableTableHead column="lender" label="Lender" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                  <SortableTableHead column="reason" label="Reason" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                  <SortableTableHead column="retention" label="Retention" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                  <TableHead className="h-8 px-1.5 text-[10.5px]">Retained</TableHead>
+                  <SortableTableHead
+                    column="document"
+                    label="Document"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                  />
+                  <SortableTableHead
+                    column="account"
+                    label="Account"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                  />
+                  <SortableTableHead
+                    column="lender"
+                    label="Lender"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                  />
+                  <SortableTableHead
+                    column="reason"
+                    label="Reason"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                  />
+                  <SortableTableHead
+                    column="retention"
+                    label="Retention"
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                  />
+                  <TableHead className="h-8 px-1.5 text-[10.5px]">
+                    Retained
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {currentRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-12 text-center text-[13px] text-neutral-500">
+                    <TableCell
+                      colSpan={6}
+                      className="py-12 text-center text-[13px] text-neutral-500"
+                    >
                       No documents match your search.
                     </TableCell>
                   </TableRow>
@@ -374,17 +456,31 @@ export function RetentionClient({
                     <TableRow key={row.rowKey}>
                       <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
                         {row.name}
-                        {row.replaced && (
+                        {/* The requirement name alone ("Property Documents") does not say which
+                            file was rejected, and the requirement may since hold a newer one. The
+                            server resolves the rejected version and only that version is offered
+                            here, so the row always opens the document history, never its
+                            replacement. */}
+                        {row.rejectedFile ? (
                           <a
-                            href={`/api/portal/files/${row.replaced.fileId}`}
+                            href={`/api/portal/files/${row.rejectedFile.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex max-w-[220px] items-center gap-1 text-[10.5px] font-medium text-brand-primary hover:underline"
-                            title={`View the replaced file — ${row.replaced.fileName}`}
+                            title={`View the rejected file — ${row.rejectedFile.name} (v${row.rejectedFile.version}, uploaded ${new Date(row.rejectedFile.uploadedAt).toLocaleDateString("en-IN")})`}
                           >
                             <EyeIcon className="size-3 shrink-0" />
-                            <span className="truncate">{row.replaced.fileName}</span>
+                            <span className="truncate">
+                              {row.rejectedFile.name}
+                            </span>
+                            <span className="shrink-0 font-normal text-neutral-400">
+                              v{row.rejectedFile.version}
+                            </span>
                           </a>
+                        ) : (
+                          <span className="block text-[10.5px] font-normal text-neutral-400">
+                            file no longer held
+                          </span>
                         )}
                       </TableCell>
                       <TableCell className="px-1.5 py-1.5">
@@ -404,21 +500,34 @@ export function RetentionClient({
                       <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-600">
                         {row.lenderOrgName}
                       </TableCell>
-                      <TableCell className="max-w-[260px] px-1.5 py-1.5 text-[11.5px] text-neutral-600">
-                        {row.rejection.reason}
+                      <TableCell className="max-w-[260px] overflow-hidden px-1.5 py-1.5 text-[11.5px] text-neutral-600">
+                        {/* Cells here inherit `white-space: nowrap`, so a long reason used to run
+                            straight over the Retention column instead of stopping at the cell. */}
+                        <span
+                          className="block truncate"
+                          title={row.rejection.reason}
+                        >
+                          {row.rejection.reason}
+                        </span>
                         <span className="block text-[10.5px] text-neutral-400">
                           by {row.rejection.by} ·{" "}
-                          {new Date(row.rejection.at).toLocaleDateString("en-IN", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })}
+                          {new Date(row.rejection.at).toLocaleDateString(
+                            "en-IN",
+                            {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            }
+                          )}
                         </span>
                       </TableCell>
                       <TableCell className="px-1.5 py-1.5">
                         {row.replaced ? (
-                          <span className="text-[11.5px] font-medium whitespace-nowrap text-neutral-500">
-                            —
+                          <span
+                            className="text-[11.5px] font-medium whitespace-nowrap text-neutral-500"
+                            title="Replaced by a re-upload — its requirement is back under review, so the retention sweep will never purge it."
+                          >
+                            Not swept
                           </span>
                         ) : row.rejection.archived ? (
                           <span className="text-[11.5px] font-medium whitespace-nowrap text-neutral-500">
@@ -432,7 +541,9 @@ export function RetentionClient({
                           <span
                             className={cn(
                               "text-[11.5px] font-medium whitespace-nowrap tabular-nums",
-                              row.daysLeft <= 14 ? "text-destructive" : "text-neutral-600"
+                              row.daysLeft <= 14
+                                ? "text-destructive"
+                                : "text-neutral-600"
                             )}
                           >
                             {Math.max(0, row.daysLeft)} days left
@@ -440,14 +551,7 @@ export function RetentionClient({
                         )}
                       </TableCell>
                       <TableCell className="px-1.5 py-1.5">
-                        {row.replaced ? (
-                          <span
-                            className="inline-flex items-center rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-medium whitespace-nowrap text-neutral-600"
-                            title={`${row.replaced.fileName} — replaced by the lender's re-upload on ${new Date(row.replaced.at).toLocaleDateString("en-IN")}`}
-                          >
-                            Replaced
-                          </span>
-                        ) : row.rejection.reinstate?.status === "REQUESTED" ? (
+                        {row.rejection.reinstate?.status === "REQUESTED" ? (
                           <span className="flex gap-2">
                             <Button
                               size="xs"
@@ -501,7 +605,10 @@ export function RetentionClient({
             <div className="flex items-center gap-3 text-[13px] text-neutral-500">
               <div className="flex items-center gap-2">
                 <span>Rows per page</span>
-                <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={handlePageSizeChange}
+                >
                   <SelectTrigger size="sm" className="h-8 w-[70px] bg-white">
                     <SelectValue />
                   </SelectTrigger>
@@ -514,7 +621,8 @@ export function RetentionClient({
                 </Select>
               </div>
               <span className="hidden sm:inline">
-                Total {filtered.length} document{filtered.length === 1 ? "" : "s"}
+                Total {filtered.length} document
+                {filtered.length === 1 ? "" : "s"}
               </span>
             </div>
 
