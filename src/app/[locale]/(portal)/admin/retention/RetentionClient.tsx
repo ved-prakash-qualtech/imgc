@@ -475,14 +475,11 @@ export function RetentionClient({
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex max-w-[220px] items-center gap-1 text-[10.5px] font-medium text-brand-primary hover:underline"
-                            title={`View the rejected file — ${row.rejectedFile.name} (v${row.rejectedFile.version}, uploaded ${new Date(row.rejectedFile.uploadedAt).toLocaleDateString("en-IN")})`}
+                            title={`View the rejected file — ${row.rejectedFile.name} (uploaded ${new Date(row.rejectedFile.uploadedAt).toLocaleDateString("en-IN")})`}
                           >
                             <EyeIcon className="size-3 shrink-0" />
                             <span className="truncate">
                               {row.rejectedFile.name}
-                            </span>
-                            <span className="shrink-0 font-normal text-neutral-400">
-                              v{row.rejectedFile.version}
                             </span>
                           </a>
                         ) : (
