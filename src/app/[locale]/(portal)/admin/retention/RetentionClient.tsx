@@ -105,6 +105,14 @@ function csvField(value: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+/** Mirrors the Retention column's own precedence — see the table body below. */
+function retentionCsvValue(r: RejectedDocRow): string {
+  if (r.rejection.archived) return "Kept";
+  if (r.rejection.reinstate?.status === "REQUESTED")
+    return "Reinstate requested";
+  return String(Math.max(0, r.daysLeft));
+}
+
 function downloadCsv(rows: RejectedDocRow[]): void {
   const headers = [
     "Document",
@@ -121,7 +129,7 @@ function downloadCsv(rows: RejectedDocRow[]): void {
       r.borrowerName,
       r.lenderOrgName,
       r.rejection.reason,
-      r.held ? "Held" : String(Math.max(0, r.daysLeft)),
+      retentionCsvValue(r),
     ]
       .map(csvField)
       .join(",")
@@ -526,17 +534,18 @@ export function RetentionClient({
                           <span className="text-[11.5px] font-medium whitespace-nowrap text-neutral-500">
                             Kept
                           </span>
-                        ) : row.replaced ? (
-                          <span
-                            className="text-[11.5px] font-medium whitespace-nowrap text-neutral-500"
-                            title="Replaced by a re-upload — its requirement is back under review, so the retention sweep will never purge it."
-                          >
-                            Not swept
-                          </span>
-                        ) : row.held ? (
-                          <span className="text-[11.5px] font-medium whitespace-nowrap text-warning">
-                            Held
-                          </span>
+                        ) : row.rejection.reinstate?.status === "REQUESTED" ? (
+                          // A pending reinstatement already gets its own Approve/Deny controls in
+                          // the Retained column — naming the actual status here ("Reinstate
+                          // requested") is more useful than a bare "Held" label, and still reads
+                          // as paused rather than counting down to a purge. A resolved request
+                          // (approved clears the rejection outright; denied) falls through to the
+                          // ordinary countdown below, same as before.
+                          <StatusPill
+                            status={row.rejection.reinstate.status}
+                            flat
+                            className="text-[11.5px]"
+                          />
                         ) : (
                           <span
                             className={cn(
