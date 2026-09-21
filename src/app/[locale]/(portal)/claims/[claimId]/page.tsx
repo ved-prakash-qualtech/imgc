@@ -73,6 +73,35 @@ export default async function ClaimDetailsPage({
   ]);
   const claimRemarks = buildClaimRemarkItems(claim, remarks);
   const isLender = session.role === "LENDER";
+
+  // Answering a formal query is one way back to IMGC. The other is a rejection the lender has
+  // already fixed: IMGC can reject a file without raising a query (the claim stays where it is),
+  // and the replacement then sits there with no way to hand it back. A document counts as fixed
+  // once its rejected file has been superseded and the replacement is awaiting a decision.
+  //
+  // Every submission and resubmission pushes a status entry, so a replacement uploaded after the
+  // latest one has not been handed across yet — which is what stops the button from staying on
+  // screen, invitingly clickable, once the lender has already sent the fix.
+  const lastHandBackAt = claim.statusHistory.reduce(
+    (latest, h) => (h.at > latest ? h.at : latest),
+    ""
+  );
+  const fixedRejection = documents.some(
+    (d) =>
+      d.status === "UNDER_REVIEW" &&
+      d.history.some(
+        (f) => f.supersededAt && f.review?.decision === "REJECTED"
+      ) &&
+      d.files.some((f) => !f.review && f.uploadedAt > lastHandBackAt)
+  );
+  // A document still standing rejected has to be corrected first — `checkSubmittable` refuses the
+  // submission while one is outstanding, so the button stays away rather than erroring on click.
+  const rejectionOutstanding = documents.some(
+    (d) => d.required && d.active && d.status === "REJECTED"
+  );
+  const inQuery =
+    claim.status === "QUERY_INITIATED" || claim.status === "QUERY_UNDER_REVIEW";
+  const canResubmit = inQuery || (fixedRejection && !rejectionOutstanding);
   // Deleting an uploaded file is a draft-only act: after the lender submits, the file is part of
   // what IMGC is reviewing. A wrong file is corrected by re-uploading over it, which keeps the
   // superseded copy in the audit trail, rather than by making it disappear.
@@ -172,8 +201,7 @@ export default async function ClaimDetailsPage({
               imgc={claimRemarks.imgc}
               decision={claimRemarks.decision}
             />
-            {(claim.status === "QUERY_INITIATED" ||
-              claim.status === "QUERY_UNDER_REVIEW") && (
+            {canResubmit && (
               <ActionFooter key="query-response" className="mt-4">
                 <ResubmitClaimButton
                   accountId={claim.accountId}
@@ -327,8 +355,10 @@ export default async function ClaimDetailsPage({
             </Panel>
           )}
 
-          {(claim.status === "QUERY_INITIATED" ||
-            claim.status === "QUERY_UNDER_REVIEW") && (
+          {/* Resubmission is the lender's move — this slot renders for both roles, so IMGC must
+              not be offered it here (the single-page layout's own copy sits inside a lender-only
+              branch already). */}
+          {isLender && canResubmit && (
             <ActionFooter key="query-response" className="mt-4">
               <ResubmitClaimButton
                 accountId={claim.accountId}
@@ -448,7 +478,11 @@ export default async function ClaimDetailsPage({
       title={
         isLender ? `Claim No. ${claim.claimNo}` : `Claim No. ${claim.claimNo}`
       }
-      titleAside={account ? `₹${claimAmountFor(account.loanAmount).toLocaleString("en-IN")}` : undefined}
+      titleAside={
+        account
+          ? `₹${claimAmountFor(account.loanAmount).toLocaleString("en-IN")}`
+          : undefined
+      }
     >
       <div
         className={
