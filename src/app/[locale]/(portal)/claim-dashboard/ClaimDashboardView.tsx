@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDownIcon } from "lucide-react";
 
@@ -51,88 +52,164 @@ function FilterSelect({
 
 function MonthlyBars({
   data,
-}: Readonly<{ data: ClaimDashboardData["monthly"] }>) {
-  const max = Math.max(1, ...data.map((d) => d.count));
+  status,
+}: Readonly<{ data: ClaimDashboardData["monthly"]; status: MonthlyStatusKey }>) {
+  const [unit, setUnit] = useState<"Lakhs" | "Crores">("Lakhs");
+
+  const formattedData = data.map(d => ({
+    ...d,
+    amountInUnit: unit === "Lakhs" ? d.amount / 100000 : d.amount / 10000000
+  }));
+
+  const rawMaxCount = Math.max(1, ...formattedData.map((d) => d.count));
+  const rawMaxAmount = Math.max(0.1, ...formattedData.map((d) => d.amountInUnit));
+  
+  const maxCount = Math.max(4, Math.ceil(rawMaxCount / 4) * 4);
+  
+  const amtMag = Math.pow(10, Math.floor(Math.log10(rawMaxAmount)));
+  const stepAmt = Math.max(amtMag, Math.ceil(rawMaxAmount / 4 / amtMag) * amtMag);
+  const maxAmount = stepAmt * 4;
+  
   const W = 640;
-  const H = 160;
-  const padL = 28;
-  const padB = 24;
-  const padT = 12;
-  const plotW = W - padL - 8;
+  const H = 230;
+  const padL = 56;
+  const padR = 56;
+  const padB = 46;
+  const padT = 32;
+  const plotW = W - padL - padR;
   const plotH = H - padB - padT;
   const step = plotW / data.length;
   const barW = Math.min(46, step * 0.6);
 
-  // Four horizontal gridlines at even fractions of the max.
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(max * f));
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+
+  const linePoints = formattedData.map((d, i) => {
+    const x = padL + i * step + step / 2;
+    const y = padT + plotH - (d.count / maxCount) * plotH;
+    return `${x},${y}`;
+  }).join(" L ");
 
   return (
-    <div className="overflow-x-auto">
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className="min-w-[520px] w-full"
-        role="img"
-        aria-label="Month-on-month claim counts"
-      >
-        {ticks.map((t, i) => {
-          const y = padT + plotH - (t / max) * plotH;
-          return (
-            <g key={i}>
-              <line
-                x1={padL}
-                x2={W - 8}
-                y1={y}
-                y2={y}
-                stroke="var(--color-neutral-200)"
-                strokeWidth={1}
-              />
-              <text
-                x={padL - 6}
-                y={y + 3}
-                textAnchor="end"
-                className="fill-neutral-400 text-[9px]"
-              >
-                {t}
-              </text>
-            </g>
-          );
-        })}
-        {data.map((d, i) => {
-          const h = (d.count / max) * plotH;
-          const x = padL + i * step + (step - barW) / 2;
-          const y = padT + plotH - h;
-          return (
-            <g key={d.month}>
-              <rect
-                x={x}
-                y={y}
-                width={barW}
-                height={Math.max(h, d.count > 0 ? 2 : 0)}
-                rx={3}
-                fill="var(--brand-primary)"
-              />
-              {d.count > 0 && (
-                <text
-                  x={x + barW / 2}
-                  y={y - 4}
-                  textAnchor="middle"
-                  className="fill-neutral-700 text-[9.5px] font-semibold"
-                >
-                  {d.count}
-                </text>
-              )}
-              <text
-                x={x + barW / 2}
-                y={H - 8}
-                textAnchor="middle"
-                className="fill-neutral-500 text-[10px]"
-              >
-                {d.label}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+    <div className="flex flex-col h-full w-full">
+      <div className="flex justify-end mb-1 px-2">
+        <div className="inline-flex rounded-md shadow-sm" role="group">
+          <button
+            type="button"
+            onClick={() => setUnit("Lakhs")}
+            className={`px-3 py-1 text-[11px] font-medium border border-neutral-200 rounded-l-lg transition-colors ${unit === "Lakhs" ? "bg-brand-primary text-white border-brand-primary" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}
+          >
+            Lakhs
+          </button>
+          <button
+            type="button"
+            onClick={() => setUnit("Crores")}
+            className={`px-3 py-1 text-[11px] font-medium border border-l-0 border-neutral-200 rounded-r-lg transition-colors ${unit === "Crores" ? "bg-brand-primary text-white border-brand-primary border-l-brand-primary" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}
+          >
+            CRs
+          </button>
+        </div>
+      </div>
+      <div className="overflow-x-auto pb-2">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="min-w-[520px] w-full"
+          role="img"
+          aria-label="Month-on-month claim counts and amounts"
+        >
+          {/* Axis Titles */}
+          <text x={padL - 6} y={padT - 8} textAnchor="end" className="fill-brand-primary text-[9px] font-bold uppercase tracking-wider">Amount</text>
+          <text x={W - padR + 6} y={padT - 8} textAnchor="start" className="fill-[#10b981] text-[9px] font-bold uppercase tracking-wider">Count</text>
+
+          {ticks.map((f, i) => {
+            const y = padT + plotH - f * plotH;
+            const amtTick = Number((maxAmount * f).toFixed(2));
+            const countTick = Math.round(maxCount * f);
+            return (
+              <g key={i}>
+                <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="var(--color-neutral-200)" strokeWidth={1} />
+                <text x={padL - 6} y={y + 3} textAnchor="end" className="fill-brand-primary text-[9px] font-medium">{amtTick}</text>
+                <text x={W - padR + 6} y={y + 3} textAnchor="start" className="fill-[#10b981] text-[9px] font-medium">{countTick}</text>
+              </g>
+            );
+          })}
+          
+          {formattedData.map((d, i) => {
+            const h = (d.amountInUnit / maxAmount) * plotH;
+            const x = padL + i * step + (step - barW) / 2;
+            const y = padT + plotH - h;
+            return (
+              <g key={`bar-${d.month}`}>
+                <rect x={x} y={y} width={barW} height={Math.max(h, d.amountInUnit > 0 ? 2 : 0)} rx={3} fill="var(--brand-primary)">
+                  <title>{`${d.label} Amount: ${d.amountInUnit.toFixed(2)} ${unit}`}</title>
+                </rect>
+                {d.amountInUnit > 0 && (
+                  <text x={x + barW / 2} y={y - 4} textAnchor="middle" className="fill-brand-primary text-[9px] font-bold pointer-events-none">
+                    {Number(d.amountInUnit.toFixed(1))}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+
+          <path d={`M ${linePoints}`} fill="none" stroke="#10b981" strokeWidth={2.5} pointerEvents="none" />
+          
+          {formattedData.map((d, i) => {
+            const cx = padL + i * step + step / 2;
+            const cy = padT + plotH - (d.count / maxCount) * plotH;
+            return (
+              <g key={`point-${d.month}`}>
+                <circle cx={cx} cy={cy} r={4.5} fill="#fff" stroke="#10b981" strokeWidth={2} className="cursor-pointer hover:stroke-[3px] transition-all">
+                  <title>{`${d.label} Count: ${d.count}`}</title>
+                </circle>
+                {d.count > 0 && (
+                  <text x={cx} y={cy - 8} textAnchor="middle" className="fill-[#10b981] text-[10px] font-bold pointer-events-none">
+                    {d.count}
+                  </text>
+                )}
+                <text x={cx} y={padT + plotH + 14} textAnchor="middle" className="fill-neutral-500 text-[10px] pointer-events-none">{d.label}</text>
+              </g>
+            );
+          })}
+          
+          {/* Legend at the bottom center */}
+          <g transform={`translate(${W / 2 - 40}, ${H - 12})`}>
+             <rect x={-36} y={-8} width={10} height={10} rx={2} fill="var(--brand-primary)" />
+             <text x={-20} y={0} fontSize={10} fill="currentColor" className="text-neutral-500 font-medium">Amount</text>
+             <circle cx={34} cy={-3} r={4} fill="#fff" stroke="#10b981" strokeWidth={2} />
+             <text x={44} y={0} fontSize={10} fill="currentColor" className="text-neutral-500 font-medium">Count</text>
+          </g>
+        </svg>
+      </div>
+      
+      {/* Summary KPI Card */}
+      <div className="mt-2 flex items-center justify-between rounded-lg border border-neutral-100 bg-neutral-50 px-4 py-2.5 shadow-sm mx-2 mb-1">
+        <div>
+          <div className="flex items-center gap-2 mb-0.5">
+            <h4 className="text-[9px] font-bold uppercase tracking-wider text-neutral-500">
+              Total {status === "APPROVED" ? "Approved" : status === "REJECTED" ? "Rejected" : "Claims"}
+            </h4>
+            <span className="rounded bg-brand-primary/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-brand-primary border border-brand-primary/20">
+              Current Financial Year
+            </span>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-lg font-bold text-neutral-800">
+              {formattedData.reduce((acc, d) => acc + d.count, 0)}
+            </span>
+            <span className="text-[10px] font-medium text-neutral-500">Claims</span>
+          </div>
+        </div>
+        <div className="text-right">
+          <h4 className="mb-0.5 text-[9px] font-bold uppercase tracking-wider text-neutral-500">
+            Total Amount ({unit})
+          </h4>
+          <div className="flex justify-end">
+            <span className="text-lg font-bold text-brand-primary">
+              {Number(formattedData.reduce((acc, d) => acc + d.amountInUnit, 0).toFixed(2))}
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -309,8 +386,8 @@ export function ClaimDashboardView({
           </div>
         }
       >
-        <div className="max-h-[220px] overflow-auto px-4 py-2">
-          <MonthlyBars data={data.monthly} />
+        <div className="overflow-x-auto px-2 py-2">
+          <MonthlyBars data={data.monthly} status={status} />
         </div>
       </Panel>
 
