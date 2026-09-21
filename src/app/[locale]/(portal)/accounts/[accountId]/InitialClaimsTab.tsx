@@ -231,7 +231,7 @@ export function InitialClaimsTab({
                     doc={doc}
                     accountId={accountId}
                     retentionDays={retentionDays}
-                    locked={["UNDER_REVIEW", "APPROVED", "REJECTED", "REFUND_RECEIVED_BY_IMGC"].includes(claimStatus)}
+                    locked={["UNDER_REVIEW", "APPROVED", "REJECTED", "REFUND_RECEIVED_BY_IMGC", "QUERY_INITIATED", "QUERY_UNDER_REVIEW", "QUERIED"].includes(claimStatus)}
                     hasOpenQuery={queriedDocNames.includes(doc.name)}
                   />
                 ))}
