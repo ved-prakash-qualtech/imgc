@@ -45,6 +45,7 @@ export interface MonthlyPoint {
   /** Short label for the axis, e.g. "Sep". */
   label: string;
   count: number;
+  amount: number;
 }
 
 export interface LenderProgressRow {

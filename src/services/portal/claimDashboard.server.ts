@@ -1,6 +1,7 @@
 import "server-only";
 
 import { readDb } from "@/server/mock/db";
+import { claimAmountFor } from "@/config/claimConfig";
 import {
   IN_PROGRESS_STATUSES,
   type ClaimDashboardData,
@@ -147,17 +148,21 @@ export async function getClaimDashboard(
       : [];
 
   // ── Widget 1: month-on-month, how many claims reached `status` in each month ──
-  const buckets = new Map<string, number>();
+  const buckets = new Map<string, { count: number; amount: number }>();
   for (const claim of claims) {
     const at = reachedAt(claim, status);
     if (!at) continue;
     const k = monthKey(at);
-    buckets.set(k, (buckets.get(k) ?? 0) + 1);
+    const existing = buckets.get(k) ?? { count: 0, amount: 0 };
+    const account = db.accounts.find((a) => a.id === claim.accountId);
+    const amt = claimAmountFor(account?.loanAmount ?? 0);
+    buckets.set(k, { count: existing.count + 1, amount: existing.amount + amt });
   }
   const monthly: MonthlyPoint[] = lastMonths(months).map((m) => ({
     month: m.month,
     label: m.label,
-    count: buckets.get(m.month) ?? 0,
+    count: buckets.get(m.month)?.count ?? 0,
+    amount: buckets.get(m.month)?.amount ?? 0,
   }));
 
   // ── Widget 2: in-progress claims per lender, as of now ──

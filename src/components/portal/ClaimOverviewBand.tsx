@@ -183,14 +183,21 @@ export function ClaimOverviewBand({
                 </span>
               </div>
               <div className="mt-auto pt-0.5">
-                <p
-                  className={cn(
-                    "truncate font-medium text-neutral-500",
-                    activeTiles.length >= 6 ? "text-xs" : "text-sm"
+                <div className="flex items-center gap-1.5 truncate">
+                  <p
+                    className={cn(
+                      "truncate font-medium text-neutral-500",
+                      activeTiles.length >= 6 ? "text-xs" : "text-sm"
+                    )}
+                  >
+                    {tile.label}
+                  </p>
+                  {(tile.key === "approved" || tile.key === "rejected") && (
+                    <span className="shrink-0 rounded bg-brand-primary/10 px-1 py-[1px] text-[7.5px] font-bold uppercase tracking-wider text-brand-primary border border-brand-primary/20">
+                      Current FY
+                    </span>
                   )}
-                >
-                  {tile.label}
-                </p>
+                </div>
                 {/* One line, not two: the tallest tile sets the whole band's height. */}
                 {isQueried && (
                   <p className="mt-0.5 truncate text-[9px] font-medium text-neutral-500">
