@@ -109,7 +109,7 @@ function ActionPill({
   variant?: "solid" | "outline";
 }>) {
   const base =
-    "inline-flex h-[26px] items-center gap-0.5 rounded-full px-2 text-[10px] font-semibold whitespace-nowrap transition-all [&_svg]:size-2.5";
+    "inline-flex h-5 items-center gap-0.5 rounded-full px-1.5 text-[10px] font-semibold whitespace-nowrap transition-all [&_svg]:size-2.5";
 
   if (!active) {
     return (

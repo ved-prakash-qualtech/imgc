@@ -323,6 +323,10 @@ export interface FileReview {
   byName: string;
   at: string;
   remarks: string;
+  /** IMGC pinned this rejected file on record from Document Retention. The document itself may
+   *  have moved on (the lender re-uploaded), so the flag lives on the file's own review — that
+   *  is the only thing the rejection was ever about. */
+  archived?: { at: string; by: string };
 }
 
 export interface Remark {

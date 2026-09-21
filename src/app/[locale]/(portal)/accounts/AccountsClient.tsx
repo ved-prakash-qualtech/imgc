@@ -87,19 +87,15 @@ const UNDER_PROGRESS_STATUSES = new Set<string>([
 /** A coarse credit classification derived from the flags we actually carry — not a fourth
  *  status field, so it can never drift from what `npa`/`writeOff` already say. */
 type AssetClass = "STANDARD" | "NPA" | "WRITE_OFF";
-const ASSET_CLASSES = ["ALL", "STANDARD", "NPA", "WRITE_OFF"] as const;
+/** `?assetClass=` still filters (the Portfolio Command Center links `/accounts?assetClass=NPA`),
+ *  though the dropdown for it was removed. */
+type AssetClassFilter = "ALL" | AssetClass;
 
 function assetClassOf(a: AccountRow): AssetClass {
   if (a.writeOff) return "WRITE_OFF";
   if (a.npa) return "NPA";
   return "STANDARD";
 }
-
-const ASSET_CLASS_LABEL: Record<AssetClass, string> = {
-  STANDARD: "Standard",
-  NPA: "NPA",
-  WRITE_OFF: "Write-off",
-};
 
 type SortKey =
   | "loanNo"
@@ -185,10 +181,6 @@ function downloadCsv(rows: AccountRow[], role: Role): void {
   URL.revokeObjectURL(url);
 }
 
-function assetClassDisplay(v: (typeof ASSET_CLASSES)[number]): string {
-  return v === "ALL" ? "All classes" : ASSET_CLASS_LABEL[v];
-}
-
 /** Which `?status=` values are real filter options — the Claims Overview band links here with
  *  one of these; anything else (or none) falls back to "ALL" rather than silently filtering
  *  wrong. */
@@ -264,7 +256,7 @@ function StatusMultiSelect({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         aria-label="All Claim Status"
-        className="inline-flex h-8 max-w-[190px] items-center gap-2 rounded-full border border-neutral-200 bg-white px-3.5 text-[12.5px] font-medium text-neutral-700 outline-none transition-colors hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+        className="inline-flex h-7 max-w-[170px] items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-[11.5px] font-medium text-neutral-700 outline-none transition-colors hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
       >
         <span className="truncate">{label}</span>
         <ChevronDownIcon className="size-3.5 shrink-0 text-neutral-400" />
@@ -322,12 +314,12 @@ const SortIcon = ({
 }) => {
   if (sortKey !== column)
     return (
-      <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />
+      <ArrowUpDownIcon className="ml-px size-2.5 shrink-0 text-neutral-400" />
     );
   return sortDirection === "asc" ? (
-    <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+    <ArrowUpIcon className="ml-px size-2.5 shrink-0 text-neutral-800" />
   ) : (
-    <ArrowDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+    <ArrowDownIcon className="ml-px size-2.5 shrink-0 text-neutral-800" />
   );
 };
 
@@ -353,7 +345,7 @@ const SortableTableHead = ({
     onClick={() => onToggle(column)}
     title={title}
     className={cn(
-      "h-8 cursor-pointer select-none px-1 text-[10.5px] transition-colors hover:bg-neutral-50",
+      "h-7 cursor-pointer select-none px-1 text-[10px] transition-colors hover:bg-neutral-50",
       className
     )}
   >
@@ -383,9 +375,8 @@ export function AccountsClient({
   const [status, setStatus] = useState<StatusFilter[]>(() =>
     statusFromParam(searchParams.get("status"))
   );
-  const [assetClass, setAssetClass] = useState<(typeof ASSET_CLASSES)[number]>(
-    (searchParams.get("assetClass") as (typeof ASSET_CLASSES)[number] | null) ??
-      "ALL"
+  const [assetClass] = useState<AssetClassFilter>(
+    (searchParams.get("assetClass") as AssetClassFilter | null) ?? "ALL"
   );
   // `?lender=` comes from a Claim Dashboard tile clicked with a lender picked in its hero banner,
   // so the grid shows the same lender the tile counted.
@@ -637,13 +628,6 @@ export function AccountsClient({
     },
     [router, searchParams]
   );
-  const handleAssetClassChange = useCallback(
-    (v: (typeof ASSET_CLASSES)[number]) => {
-      setAssetClass(v);
-      setPage(1);
-    },
-    []
-  );
   const handleProductChange = useCallback((v: string) => {
     setProduct(v);
     setPage(1);
@@ -669,7 +653,7 @@ export function AccountsClient({
   }, []);
   return (
     <Panel>
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-neutral-100 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-neutral-100 px-3 py-1.5">
         <div className="relative">
           <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
           <input
@@ -677,7 +661,7 @@ export function AccountsClient({
             onChange={handleQueryChange}
             placeholder="Search borrower or loan ID"
             aria-label="Search accounts"
-            className="h-8 w-[190px] rounded-full border border-neutral-200 bg-white pl-8 pr-2.5 text-[12px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            className="h-7 w-[180px] rounded-full border border-neutral-200 bg-white pl-8 pr-2.5 text-[11.5px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           />
         </div>
         <StatusMultiSelect value={status} onChange={handleStatusChange} />
@@ -717,7 +701,7 @@ export function AccountsClient({
         <button
           type="button"
           onClick={handleExport}
-          className="ml-auto inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-[11.5px] font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+          className="ml-auto inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-[11.5px] font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
         >
           <DownloadIcon className="size-3" /> Export CSV
         </button>
@@ -828,70 +812,69 @@ export function AccountsClient({
               </TableRow>
             ) : (
               currentRows.map((a) => {
-                const cls = assetClassOf(a);
                 return (
                   <TableRow
                     key={a.id}
                     onClick={() => router.push(ROUTES.account(a.id))}
                     className="cursor-pointer transition-colors hover:bg-neutral-50"
                   >
-                    <TableCell className="px-1 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
+                    <TableCell className="px-1 py-1 text-[11.5px] font-medium whitespace-nowrap text-neutral-950">
                       {a.loanNo}
                     </TableCell>
-                    <TableCell className="px-1 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
+                    <TableCell className="px-1 py-1 text-[11.5px] whitespace-nowrap text-neutral-600">
                       {a.claimNo || "—"}
                     </TableCell>
-                    <TableCell className="px-1 py-1.5 text-[12px] whitespace-nowrap">
+                    <TableCell className="px-1 py-1 text-[11.5px] whitespace-nowrap">
                       {a.borrowerName}
                     </TableCell>
                     {role === "IMGC" && (
                       <TableCell
-                        className="px-1 py-1.5 text-[12px] whitespace-nowrap"
+                        className="px-1 py-1 text-[11.5px] whitespace-nowrap"
                         title={a.lenderOrgName}
                       >
                         {shortName(a.lenderOrgName)}
                       </TableCell>
                     )}
-                    <TableCell className="px-1 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
+                    <TableCell className="px-1 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
                       {a.product}
                     </TableCell>
-                    <TableCell className="px-1 py-1.5 text-[12px]">
-                      <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-success-700">
+                    <TableCell className="px-1 py-1 text-[11.5px]">
+                      <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-success-700">
                         {inr.format(a.loanAmount)}
                       </span>
                     </TableCell>
-                    <TableCell className="px-1 py-1.5 text-[12px]">
-                      <span className="inline-flex items-center rounded-full bg-warning/10 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-warning">
+                    <TableCell className="px-1 py-1 text-[11.5px]">
+                      <span className="inline-flex items-center rounded-full bg-warning/10 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-warning">
                         {inr.format(a.outstandingAmount)}
                       </span>
                     </TableCell>
-                    <TableCell className="px-1 py-1.5 text-[12px]">
+                    <TableCell className="px-1 py-1 text-[11.5px]">
                       <span
-                        className="inline-flex items-center rounded-full bg-brand-primary/10 px-1 py-0.5 text-[10.5px] font-semibold whitespace-nowrap tabular-nums text-brand-primary"
+                        className="inline-flex items-center rounded-full bg-brand-primary/10 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-brand-primary"
                         title="20% of the loan amount"
                       >
                         {inr.format(claimAmountFor(a.loanAmount))}
                       </span>
                     </TableCell>
-                    <TableCell className="px-1 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
+                    <TableCell className="px-1 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-500">
                       {a.submittedAt ? date(a.submittedAt) : "—"}
                     </TableCell>
                     <TableCell
                       title="DPD = Days Past Due"
-                      className="px-1 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-700"
+                      className="px-1 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-700"
                     >
                       {formatDpd(a.dpd)}
                     </TableCell>
-                    <TableCell className="px-1 py-1.5">
+                    <TableCell className="px-1 py-1">
                       <StatusPill
                         status={ownerOf(a)}
-                        className="px-1.5 py-0.5 text-[10.5px]"
+                        className="px-1 py-0.5 text-[10px]"
                       />
                     </TableCell>
-                    <TableCell className="px-1 py-1.5">
+                    <TableCell className="px-1 py-1">
                       <StatusPill
                         status={claimStatusDisplay(a)}
-                        className="px-1.5 py-0.5 text-[10.5px]"
+                        className="px-1 py-0.5 text-[10px]"
                         maxChars={10}
                       />
                     </TableCell>
@@ -903,15 +886,15 @@ export function AccountsClient({
         </Table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-2">
-        <div className="flex items-center gap-3 text-[13px] text-neutral-500">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-3 py-1.5">
+        <div className="flex items-center gap-2 text-[12px] text-neutral-500">
           <div className="flex items-center gap-2">
             <span>Rows per page</span>
             <Select
               value={String(pageSize)}
               onValueChange={handlePageSizeChange}
             >
-              <SelectTrigger size="sm" className="h-8 w-[70px] bg-white">
+              <SelectTrigger size="sm" className="h-7 w-[62px] bg-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -927,7 +910,7 @@ export function AccountsClient({
         </div>
 
         <div className="flex items-center gap-4">
-          <span className="hidden text-[13px] text-neutral-500 sm:inline">
+          <span className="hidden text-[12px] text-neutral-500 sm:inline">
             Page {currentPage} of {pageCount}
           </span>
           <PaginationNumbers
@@ -963,7 +946,7 @@ function FilterSelect<T extends string>({
         className={cn(
           // Tightened so search + five filters + Export fit on one line — the row wraps
           // otherwise, which pushed Export onto a second line of its own.
-          "h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-2.5 pr-6 text-center text-[11.5px] font-medium capitalize text-neutral-700 outline-none",
+          "h-7 appearance-none rounded-full border border-neutral-200 bg-white pl-2.5 pr-6 text-center text-[11.5px] font-medium capitalize text-neutral-700 outline-none",
           "focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
         )}
       >
