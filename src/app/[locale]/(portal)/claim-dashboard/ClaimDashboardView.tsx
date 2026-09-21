@@ -36,14 +36,14 @@ function FilterSelect({
   return (
     <div className="relative">
       <select
-        aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-[12.5px] font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+        className="appearance-none rounded-full border border-neutral-200 bg-white py-1 pl-2.5 pr-7 text-[11.5px] font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
+        aria-label={label}
       >
         {children}
       </select>
-      <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+      <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
     </div>
   );
 }
@@ -53,8 +53,8 @@ function FilterSelect({
 function MonthlyBars({
   data,
   status,
-}: Readonly<{ data: ClaimDashboardData["monthly"]; status: MonthlyStatusKey }>) {
-  const [unit, setUnit] = useState<"Lakhs" | "Crores">("Lakhs");
+  unit,
+}: Readonly<{ data: ClaimDashboardData["monthly"]; status: MonthlyStatusKey; unit: "Lakhs" | "Crores" }>) {
 
   const formattedData = data.map(d => ({
     ...d,
@@ -91,24 +91,6 @@ function MonthlyBars({
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="flex justify-end mb-1 px-2">
-        <div className="inline-flex rounded-md shadow-sm" role="group">
-          <button
-            type="button"
-            onClick={() => setUnit("Lakhs")}
-            className={`px-3 py-1 text-[11px] font-medium border border-neutral-200 rounded-l-lg transition-colors ${unit === "Lakhs" ? "bg-brand-primary text-white border-brand-primary" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}
-          >
-            Lakhs
-          </button>
-          <button
-            type="button"
-            onClick={() => setUnit("Crores")}
-            className={`px-3 py-1 text-[11px] font-medium border border-l-0 border-neutral-200 rounded-r-lg transition-colors ${unit === "Crores" ? "bg-brand-primary text-white border-brand-primary border-l-brand-primary" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}
-          >
-            CRs
-          </button>
-        </div>
-      </div>
       <div className="overflow-x-auto pb-2">
         <svg
           viewBox={`0 0 ${W} ${H}`}
@@ -133,6 +115,7 @@ function MonthlyBars({
             );
           })}
           
+          {/* Loop 1: Bars */}
           {formattedData.map((d, i) => {
             const h = (d.amountInUnit / maxAmount) * plotH;
             const x = padL + i * step + (step - barW) / 2;
@@ -142,17 +125,13 @@ function MonthlyBars({
                 <rect x={x} y={y} width={barW} height={Math.max(h, d.amountInUnit > 0 ? 2 : 0)} rx={3} fill="var(--brand-primary)">
                   <title>{`${d.label} Amount: ${d.amountInUnit.toFixed(2)} ${unit}`}</title>
                 </rect>
-                {d.amountInUnit > 0 && (
-                  <text x={x + barW / 2} y={y - 4} textAnchor="middle" className="fill-brand-primary text-[9px] font-bold pointer-events-none">
-                    {Number(d.amountInUnit.toFixed(1))}
-                  </text>
-                )}
               </g>
             );
           })}
 
           <path d={`M ${linePoints}`} fill="none" stroke="#10b981" strokeWidth={2.5} pointerEvents="none" />
           
+          {/* Loop 2: Points & X-Axis Labels */}
           {formattedData.map((d, i) => {
             const cx = padL + i * step + step / 2;
             const cy = padT + plotH - (d.count / maxCount) * plotH;
@@ -161,12 +140,57 @@ function MonthlyBars({
                 <circle cx={cx} cy={cy} r={4.5} fill="#fff" stroke="#10b981" strokeWidth={2} className="cursor-pointer hover:stroke-[3px] transition-all">
                   <title>{`${d.label} Count: ${d.count}`}</title>
                 </circle>
+                <text x={cx} y={padT + plotH + 14} textAnchor="middle" className="fill-neutral-500 text-[10px] pointer-events-none">{d.label}</text>
+              </g>
+            );
+          })}
+
+          {/* Loop 3: Data Labels (Rendered last with collision detection) */}
+          {formattedData.map((d, i) => {
+            if (d.amountInUnit === 0 && d.count === 0) return null;
+            
+            const h = (d.amountInUnit / maxAmount) * plotH;
+            const barY = padT + plotH - h;
+            const cx = padL + i * step + step / 2;
+            const cy = padT + plotH - (d.count / maxCount) * plotH;
+
+            const amtY = barY - 4;
+            const countY = cy - 8;
+
+            let amtX = cx;
+            let countX = cx;
+            let amtAnchor: "middle" | "end" | "start" = "middle";
+            let countAnchor: "middle" | "end" | "start" = "middle";
+
+            // If labels are vertically too close, separate them horizontally!
+            if (d.amountInUnit > 0 && d.count > 0 && Math.abs(amtY - countY) < 14) {
+              amtX = cx - 6;
+              amtAnchor = "end";
+              
+              countX = cx + 6;
+              countAnchor = "start";
+            }
+
+            return (
+              <g key={`labels-${d.month}`}>
+                {d.amountInUnit > 0 && (
+                  <text 
+                    x={amtX} y={amtY} textAnchor={amtAnchor} 
+                    className="fill-brand-primary text-[9px] font-bold pointer-events-none"
+                    style={{ stroke: '#fff', strokeWidth: 1.5, paintOrder: 'stroke', strokeLinejoin: 'round' }}
+                  >
+                    {Number(d.amountInUnit.toFixed(1))}
+                  </text>
+                )}
                 {d.count > 0 && (
-                  <text x={cx} y={cy - 8} textAnchor="middle" className="fill-[#10b981] text-[10px] font-bold pointer-events-none">
+                  <text 
+                    x={countX} y={countY} textAnchor={countAnchor} 
+                    className="fill-[#10b981] text-[10px] font-bold pointer-events-none"
+                    style={{ stroke: '#fff', strokeWidth: 1.5, paintOrder: 'stroke', strokeLinejoin: 'round' }}
+                  >
                     {d.count}
                   </text>
                 )}
-                <text x={cx} y={padT + plotH + 14} textAnchor="middle" className="fill-neutral-500 text-[10px] pointer-events-none">{d.label}</text>
               </g>
             );
           })}
@@ -332,6 +356,7 @@ export function ClaimDashboardView({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [unit, setUnit] = useState<"Lakhs" | "Crores">("Lakhs");
 
   function setParam(key: string, value: string | null) {
     const next = new URLSearchParams(searchParams.toString());
@@ -360,7 +385,23 @@ export function ClaimDashboardView({
         size="compact"
         title="Month-on-month claim status"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <div className="inline-flex rounded-md shadow-sm" role="group">
+              <button
+                type="button"
+                onClick={() => setUnit("Lakhs")}
+                className={`px-2.5 py-1 text-[10.5px] font-medium border border-neutral-200 rounded-l-lg transition-colors ${unit === "Lakhs" ? "bg-brand-primary text-white border-brand-primary" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}
+              >
+                Lakhs
+              </button>
+              <button
+                type="button"
+                onClick={() => setUnit("Crores")}
+                className={`px-2.5 py-1 text-[10.5px] font-medium border border-l-0 border-neutral-200 rounded-r-lg transition-colors ${unit === "Crores" ? "bg-brand-primary text-white border-brand-primary border-l-brand-primary" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}
+              >
+                CRs
+              </button>
+            </div>
             <FilterSelect
               label="Status"
               value={status}
@@ -387,7 +428,7 @@ export function ClaimDashboardView({
         }
       >
         <div className="overflow-x-auto px-2 py-2">
-          <MonthlyBars data={data.monthly} status={status} />
+          <MonthlyBars data={data.monthly} status={status} unit={unit} />
         </div>
       </Panel>
 
