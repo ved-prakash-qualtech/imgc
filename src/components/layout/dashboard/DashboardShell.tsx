@@ -65,7 +65,7 @@ export function DashboardShell({
   user,
   unreadCount,
   assignedOfficer,
-  sidebarDefaultCollapsed = false,
+  sidebarDefaultCollapsed = true,
 }: DashboardShellProps) {
   if (activeKey && !granted(items, activeKey)) {
     forbidden();
@@ -84,6 +84,9 @@ export function DashboardShell({
         {/* The navbar's hamburger + the mobile drawer it opens share one bit of state, so that
             pairing lives in its own small client component — everything else about this shell
             (the access check above included) stays a server component. */}
+        {/* Server component — no hooks, so these object literals can't be memoized; the rule
+            targets React re-renders, and this renders exactly once per page load. */}
+        {/* eslint-disable react-perf/jsx-no-new-object-as-prop */}
         <MobileNavShell
           navbarProps={{
             title: navbarTitle,
@@ -100,6 +103,7 @@ export function DashboardShell({
             sectionLabel: workspace ? `${workspace} Portal` : undefined,
           }}
         />
+        {/* eslint-enable react-perf/jsx-no-new-object-as-prop */}
         {/* flex-1 so a short page pushes the footer to the bottom rather than leaving
             it floating directly under the content. */}
         <div className="flex flex-1 flex-col">{children}</div>
