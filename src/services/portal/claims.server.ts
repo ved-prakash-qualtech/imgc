@@ -1,5 +1,4 @@
-  import "server-only";
-
+import "server-only";
 
 import { readDb, writeDb } from "@/server/mock/db";
 import {
@@ -46,7 +45,10 @@ async function assertAccess(
   const db = await readDb();
   const account = db.accounts.find((a) => a.id === accountId);
   if (!account) return { ok: false, error: "Account not found." };
-  if (session.role === "LENDER" && account.lenderOrgId !== session.lenderOrgId) {
+  if (
+    session.role === "LENDER" &&
+    account.lenderOrgId !== session.lenderOrgId
+  ) {
     return { ok: false, error: "This account belongs to another lender." };
   }
   return { ok: true };
@@ -62,31 +64,38 @@ export async function listDocuments(
   const db = await readDb();
   const account = db.accounts.find((a) => a.id === accountId);
   const claim = db.claims.find((c) => c.accountId === accountId);
-  const rank = configuredOrder(db, claim?.claimType ?? "INITIAL", account?.lenderOrgId);
-  return db.claimDocuments
-    .filter((d) => d.accountId === accountId)
-    // A withdrawn requirement is no longer being asked for, so the lender does not see it at
-    // all. IMGC keeps it visible (greyed) — they withdrew it and may want it back.
-    .filter((d) => session.role === "IMGC" || isActive(d))
-    .map((d) => {
-      const history = db.documentFiles
-        .filter((f) => f.documentId === d.id)
-        .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
-      return {
-        ...d,
-        file: db.documentFiles.find((f) => f.id === d.currentFileId),
-        files: history.filter((f) => !f.supersededAt),
-        history,
-      };
-    })
-    // Mandatory first, then the order IMGC set in Document Configuration — the same order the
-    // lender sees, so both sides walk the checklist identically. Anything the configuration does
-    // not know (IMGC or lender additions) follows, alphabetically.
-    .sort((a, b) => {
-      if (a.required !== b.required) return a.required ? -1 : 1;
-      const ar = rank(a), br = rank(b);
-      return ar !== br ? ar - br : a.name.localeCompare(b.name);
-    });
+  const rank = configuredOrder(
+    db,
+    claim?.claimType ?? "INITIAL",
+    account?.lenderOrgId
+  );
+  return (
+    db.claimDocuments
+      .filter((d) => d.accountId === accountId)
+      // A withdrawn requirement is no longer being asked for, so the lender does not see it at
+      // all. IMGC keeps it visible (greyed) — they withdrew it and may want it back.
+      .filter((d) => session.role === "IMGC" || isActive(d))
+      .map((d) => {
+        const history = db.documentFiles
+          .filter((f) => f.documentId === d.id)
+          .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+        return {
+          ...d,
+          file: db.documentFiles.find((f) => f.id === d.currentFileId),
+          files: history.filter((f) => !f.supersededAt),
+          history,
+        };
+      })
+      // Mandatory first, then the order IMGC set in Document Configuration — the same order the
+      // lender sees, so both sides walk the checklist identically. Anything the configuration does
+      // not know (IMGC or lender additions) follows, alphabetically.
+      .sort((a, b) => {
+        if (a.required !== b.required) return a.required ? -1 : 1;
+        const ar = rank(a),
+          br = rank(b);
+        return ar !== br ? ar - br : a.name.localeCompare(b.name);
+      })
+  );
 }
 
 /** BRD: IMGC can add a requirement (e.g. NOC) that the lender then uploads against. */
@@ -124,7 +133,9 @@ export async function addRequirement(
 
   const created = await writeDb((db) => {
     const clash = db.claimDocuments.some(
-      (d) => d.accountId === accountId && d.name.toLowerCase() === trimmed.toLowerCase()
+      (d) =>
+        d.accountId === accountId &&
+        d.name.toLowerCase() === trimmed.toLowerCase()
     );
     if (clash) return false;
     db.claimDocuments.push({
@@ -149,7 +160,8 @@ export async function addRequirement(
     return true;
   });
 
-  if (!created) return { ok: false, error: "That document is already on the list." };
+  if (!created)
+    return { ok: false, error: "That document is already on the list." };
 
   await recordEvent({
     accountId,
@@ -200,7 +212,10 @@ export async function setRequirementActive(
     );
     if (!doc) return { ok: false as const, error: "Requirement not found." };
     if (doc.addedBy !== "IMGC") {
-      return { ok: false as const, error: "Only an added requirement can be withdrawn." };
+      return {
+        ok: false as const,
+        error: "Only an added requirement can be withdrawn.",
+      };
     }
     doc.active = active;
     return { ok: true as const, name: doc.name };
@@ -235,7 +250,9 @@ export async function uploadDocument(
   if (!access.ok) return access;
 
   const db = await readDb();
-  const doc = db.claimDocuments.find((d) => d.id === documentId && d.accountId === accountId);
+  const doc = db.claimDocuments.find(
+    (d) => d.id === documentId && d.accountId === accountId
+  );
   if (!doc) return { ok: false, error: "Document not found." };
   if (doc.status === "APPROVED") {
     return { ok: false, error: "That document has already been approved." };
@@ -272,9 +289,16 @@ export async function uploadDocument(
     // Reupload on a rejected document (no specific file named) answers the rejection: the
     // rejected files are replaced by the new one. Left live, they kept the document Rejected
     // even after IMGC accepted the new upload.
-    if (!meta.replaceFileId && (row.status === "REJECTED" || row.status === "REUPLOAD_REQUIRED")) {
+    if (
+      !meta.replaceFileId &&
+      (row.status === "REJECTED" || row.status === "REUPLOAD_REQUIRED")
+    ) {
       for (const f of fresh.documentFiles) {
-        if (f.documentId === documentId && !f.supersededAt && f.review?.decision === "REJECTED") {
+        if (
+          f.documentId === documentId &&
+          !f.supersededAt &&
+          f.review?.decision === "REJECTED"
+        ) {
           f.supersededAt = nowIso();
           f.supersededReason = f.review.remarks;
         }
@@ -391,7 +415,8 @@ export async function deleteDocumentFile(
     (f) => f.id === fileId && f.documentId === documentId
   );
   if (!fileRow) return { ok: false, error: "File not found." };
-  if (fileRow.supersededAt) return { ok: false, error: "File already removed." };
+  if (fileRow.supersededAt)
+    return { ok: false, error: "File already removed." };
 
   const fileName = fileRow.originalName;
   const docName = doc.name;
@@ -441,7 +466,6 @@ export async function deleteDocumentFile(
 
 export type ReviewDecision = "APPROVED" | "REJECTED" | "REUPLOAD_REQUESTED";
 
-
 /**
  * The review engine: the single place a document's status changes as a result of an IMGC
  * decision.
@@ -475,10 +499,16 @@ export async function decideDocument(
     );
     if (!row) return { ok: false as const, error: "Document not found." };
     if (row.active === false) {
-      return { ok: false as const, error: "That requirement has been withdrawn." };
+      return {
+        ok: false as const,
+        error: "That requirement has been withdrawn.",
+      };
     }
     if (!row.currentFileId) {
-      return { ok: false as const, error: "Nothing has been uploaded to review yet." };
+      return {
+        ok: false as const,
+        error: "Nothing has been uploaded to review yet.",
+      };
     }
 
     // A whole-requirement decision is the same decision on each of its live files, so the
@@ -499,7 +529,8 @@ export async function decideDocument(
     }
 
     // Rule 3/4/5 — the decision is the status.
-    row.status = decision === "REUPLOAD_REQUESTED" ? "REUPLOAD_REQUIRED" : decision;
+    row.status =
+      decision === "REUPLOAD_REQUESTED" ? "REUPLOAD_REQUIRED" : decision;
     row.review = {
       decision,
       by: session.userId,
@@ -529,11 +560,18 @@ export async function decideDocument(
     REUPLOAD_REQUESTED: "Re-upload requested",
   } as const;
 
+  // `decision` is the closed `ReviewDecision` union and both maps are `as const` over exactly
+  // those three keys, so there is no arbitrary key to inject — the rule cannot see the type.
+  /* eslint-disable security/detect-object-injection */
+  const auditType = TYPES[decision];
+  const auditVerb = VERBS[decision];
+  /* eslint-enable security/detect-object-injection */
+
   await recordEvent({
     accountId,
     actor: session,
-    type: TYPES[decision],
-    summary: `${VERBS[decision]} — "${outcome.name}" v${outcome.version}${note ? ` — ${note}` : ""}`,
+    type: auditType,
+    summary: `${auditVerb} — "${outcome.name}" v${outcome.version}${note ? ` — ${note}` : ""}`,
     meta: {
       document: outcome.name,
       status: decision,
@@ -548,7 +586,13 @@ export async function decideDocument(
   const db = await readDb();
   const account = db.accounts.find((a) => a.id === accountId);
   if (account) {
-    await notifyDocumentDecision(account, outcome.name, decision, note, session);
+    await notifyDocumentDecision(
+      account,
+      outcome.name,
+      decision,
+      note,
+      session
+    );
   }
   return { ok: true };
 }
@@ -568,6 +612,11 @@ export function deriveDocumentStatus(
   files: ReadonlyArray<Pick<DocumentFile, "review">>
 ): DocStatus {
   if (files.length === 0) return "PENDING_UPLOAD";
+  // A rejection takes priority over an undecided file sitting alongside it: a multi-file
+  // requirement (several bank statements, several ID pages) needs the lender's action the moment
+  // any one of them is rejected, whether or not IMGC has gotten to the others yet. Checking
+  // "still under review" first used to hide the rejection entirely — the requirement read as
+  // "Uploaded" with no way to reupload for as long as a sibling file stayed undecided.
   if (files.some((f) => f.review?.decision === "REJECTED")) return "REJECTED";
   if (files.some((f) => !f.review)) return "UNDER_REVIEW";
   return "APPROVED";
@@ -661,7 +710,10 @@ export async function decideFile(
     );
     if (!row) return { ok: false as const, error: "Document not found." };
     if (row.active === false) {
-      return { ok: false as const, error: "That requirement has been withdrawn." };
+      return {
+        ok: false as const,
+        error: "That requirement has been withdrawn.",
+      };
     }
     const file = db.documentFiles.find(
       (f) => f.id === fileId && f.documentId === documentId
@@ -746,7 +798,10 @@ export async function undoFileDecision(
       return { ok: false as const, error: "That file is no longer current." };
     }
     if (!file.review) {
-      return { ok: false as const, error: "That file has no decision to undo." };
+      return {
+        ok: false as const,
+        error: "That file has no decision to undo.",
+      };
     }
     const undone = file.review.decision;
     file.review = undefined;
@@ -787,7 +842,10 @@ export async function undoAcceptedDocument(
     );
     if (!row) return { ok: false as const, error: "Document not found." };
     if (row.active === false) {
-      return { ok: false as const, error: "That requirement has been withdrawn." };
+      return {
+        ok: false as const,
+        error: "That requirement has been withdrawn.",
+      };
     }
     if (row.status !== "APPROVED") {
       return { ok: false as const, error: "Document is not accepted." };
@@ -897,7 +955,9 @@ export function canSubmit(docs: DocumentRow[]): boolean {
   const required = docs.filter((d) => d.required && isActive(d));
   return (
     required.length > 0 &&
-    required.every((d) => d.status === "UNDER_REVIEW" || d.status === "APPROVED")
+    required.every(
+      (d) => d.status === "UNDER_REVIEW" || d.status === "APPROVED"
+    )
   );
 }
 
@@ -915,26 +975,29 @@ export async function submitClaim(
 
   const docs = await listDocuments(session, accountId);
   if (!canSubmit(docs)) {
-    return { ok: false, error: "Every mandatory document must be uploaded first." };
+    return {
+      ok: false,
+      error: "Every mandatory document must be uploaded first.",
+    };
   }
 
   let bucketChangedFrom: Bucket | null = null;
   const updateOutcome = await writeDb((db) => {
     const account = db.accounts.find((a) => a.id === accountId);
     if (!account) return { ok: false as const };
-    
+
     if (account.bucket !== "IMGC") {
       bucketChangedFrom = account.bucket;
       account.bucket = "IMGC";
     }
-    
+
     account.claimStatus = "UNDER_REVIEW";
     account.submittedAt = nowIso();
     account.stage = "Submitted to IMGC";
-    
+
     return { ok: true as const };
   });
-  
+
   if (!updateOutcome.ok) return { ok: true };
 
   await recordEvent({
@@ -943,7 +1006,7 @@ export async function submitClaim(
     type: "CLAIM_SUBMITTED",
     summary: `Initial claim submitted with ${docs.filter((d) => d.required).length} mandatory documents`,
   });
-  
+
   if (bucketChangedFrom) {
     await recordEvent({
       accountId,
@@ -978,9 +1041,13 @@ export async function requestReinstate(
 
   const outcome = await writeDb((db) => {
     const row = db.claimDocuments.find((d) => d.id === documentId);
-    if (!row?.rejection) return { ok: false as const, error: "That document is not rejected." };
+    if (!row?.rejection)
+      return { ok: false as const, error: "That document is not rejected." };
     if (row.rejection.reinstate?.status === "REQUESTED") {
-      return { ok: false as const, error: "A reinstatement is already pending." };
+      return {
+        ok: false as const,
+        error: "A reinstatement is already pending.",
+      };
     }
     row.rejection.reinstate = {
       status: "REQUESTED",
@@ -1081,7 +1148,11 @@ export interface CaseDocSummary {
  * account's full document table — see the caller.
  */
 export function summariseDocs(
-  docs: ReadonlyArray<{ required: boolean; status: DocStatus; active?: boolean }>
+  docs: ReadonlyArray<{
+    required: boolean;
+    status: DocStatus;
+    active?: boolean;
+  }>
 ): CaseDocSummary {
   const required = docs.filter((d) => d.required && isActive(d));
   const count = (s: DocStatus) => required.filter((d) => d.status === s).length;
@@ -1124,7 +1195,10 @@ export async function updateRequirement(
     );
     if (!row) return { ok: false as const, error: "Requirement not found." };
     if (row.addedBy !== "IMGC") {
-      return { ok: false as const, error: "The standard checklist cannot be edited." };
+      return {
+        ok: false as const,
+        error: "The standard checklist cannot be edited.",
+      };
     }
     const clash = db.claimDocuments.some(
       (d) =>
@@ -1132,7 +1206,11 @@ export async function updateRequirement(
         d.id !== documentId &&
         d.name.toLowerCase() === trimmed.toLowerCase()
     );
-    if (clash) return { ok: false as const, error: "Another requirement already has that name." };
+    if (clash)
+      return {
+        ok: false as const,
+        error: "Another requirement already has that name.",
+      };
 
     row.name = trimmed;
     row.required = input.required;
@@ -1193,9 +1271,13 @@ export async function archiveRejectedDocument(
       (d) => d.id === documentId && d.accountId === accountId
     );
     if (!doc || doc.status !== "REJECTED" || !doc.rejection) {
-      return { ok: false as const, error: "Only a rejected document can be archived." };
+      return {
+        ok: false as const,
+        error: "Only a rejected document can be archived.",
+      };
     }
-    if (doc.rejection.archived) return { ok: false as const, error: "Already archived." };
+    if (doc.rejection.archived)
+      return { ok: false as const, error: "Already archived." };
     doc.rejection.archived = { at: nowIso(), by: session.name };
     return { ok: true as const, name: doc.name };
   });

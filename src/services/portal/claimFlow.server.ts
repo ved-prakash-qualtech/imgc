@@ -597,7 +597,12 @@ export function configuredOrder(
 export async function syncDraftChecklist(claimId: string): Promise<void> {
   type Op =
     | { kind: "add"; spec: ClaimDocumentSpec; required: boolean }
-    | { kind: "update"; docId: string; spec: ClaimDocumentSpec; required: boolean }
+    | {
+        kind: "update";
+        docId: string;
+        spec: ClaimDocumentSpec;
+        required: boolean;
+      }
     | { kind: "withdraw"; docId: string };
 
   const plan = (db: MockDb): Op[] => {
@@ -982,10 +987,20 @@ export async function submitClaim(
     const resubmitting =
       resubmittingInitiated || resubmittingUnderReview || resubmittingLegacy;
 
+    // The claim is already with IMGC and no query is open: the lender has replaced a file IMGC
+    // rejected and is handing it back for another look. That is not a fresh initiation — the
+    // claim stays at the stage it is already in — but the hand-back is recorded so the status
+    // trail explains where the new file came from.
+    const handingBackFix =
+      !resubmitting &&
+      (claim.status === "INITIATED" || claim.status === "UNDER_REVIEW");
+
     // Fresh initial submission only — resubmissions get their single advance inside the
     // if(resubmitting) block below, so we must not advance here too (would produce a duplicate
     // history entry e.g. UNDER_REVIEW → UNDER_REVIEW after a QUERY_UNDER_REVIEW response).
-    if (!resubmitting) {
+    if (handingBackFix) {
+      advance(db, claim, claim.status, session, "Rejected document replaced");
+    } else if (!resubmitting) {
       advance(db, claim, "INITIATED", session);
     }
     if (!claim.claimNo) {

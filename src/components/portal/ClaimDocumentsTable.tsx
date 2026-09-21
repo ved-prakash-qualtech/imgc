@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
-import { ArrowUpDownIcon, ChevronDownIcon, ChevronUpIcon, PlusIcon, TrashIcon, UploadIcon, RotateCwIcon } from "lucide-react";
+import {
+  ArrowUpDownIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  PlusIcon,
+  TrashIcon,
+  UploadIcon,
+  RotateCwIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { AddLenderDocumentDialog } from "@/components/portal/AddLenderDocumentDialog";
@@ -44,7 +52,7 @@ function StatusChip({ status }: Readonly<{ status: DocStatus }>) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold",
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold",
         // eslint-disable-next-line security/detect-object-injection
         STATUS_TONE[status]
       )}
@@ -62,7 +70,9 @@ function formatBytes(bytes: number, decimals = 2) {
   const dm = decimals < 0 ? 0 : decimals;
   const sizes = ["Bytes", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+  // Clamped so a huge byte count can't index past the last unit.
+  const unit = sizes[Math.min(i, sizes.length - 1)];
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${unit}`;
 }
 
 function when(iso: string): string {
@@ -74,7 +84,6 @@ function when(iso: string): string {
     minute: "2-digit",
   });
 }
-
 
 type SortField = "name" | "status" | "fileName" | "size" | "dateTime";
 
@@ -117,7 +126,8 @@ function TableLayout({
   /** IMGC's column appears once IMGC has decided at least one file in this table. */
   showImgcRemark: boolean;
 }) {
-  const plain = "h-8 bg-neutral-50 px-3 text-[10.5px] font-medium text-neutral-500";
+  const plain =
+    "h-7 bg-neutral-50 px-2 text-[10px] font-medium text-neutral-500";
   const head = (field: SortField, label: string) => (
     <TableHead className={plain}>
       <button
@@ -144,15 +154,26 @@ function TableLayout({
             {head("name", "Document Type")}
             {head("fileName", "File Name")}
             <TableHead className={plain}>Lender Remark</TableHead>
-            {showImgcRemark && <TableHead className={plain}>IMGC Remark</TableHead>}
+            {showImgcRemark && (
+              <TableHead className={plain}>IMGC Remark</TableHead>
+            )}
             <TableHead className={plain}>Uploaded By</TableHead>
             {head("dateTime", "Date/Time")}
-            {showActions && <TableHead className={plain}>Actions</TableHead>}
+            {/* Pinned to the right edge: the table is wider than the panel on a laptop screen, and
+                an Upload/Reupload button that scrolls out of sight reads as "there is no button". */}
+            {showActions && (
+              <TableHead
+                className={cn(
+                  plain,
+                  "sticky right-0 z-20 border-l border-neutral-200"
+                )}
+              >
+                Actions
+              </TableHead>
+            )}
           </TableRow>
         </TableHeader>
-        <TableBody>
-          {children}
-        </TableBody>
+        <TableBody>{children}</TableBody>
       </Table>
     </div>
   );
@@ -182,38 +203,63 @@ export function ClaimDocumentsTable({
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  const handleSort = useCallback((field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
-    }
-  }, [sortField]);
-
-  const sortDocs = useCallback((docs: RequirementRow[]) => {
-    if (!sortField) return docs;
-    return [...docs].sort((a, b) => {
-      const aFile = a.files[0];
-      const bFile = b.files[0];
-      let cmp = 0;
-      switch (sortField) {
-        case "name": cmp = a.name.localeCompare(b.name); break;
-        case "status": cmp = a.status.localeCompare(b.status); break;
-        case "fileName": cmp = (aFile?.originalName || "").localeCompare(bFile?.originalName || ""); break;
-        case "size": cmp = (aFile?.size || 0) - (bFile?.size || 0); break;
-        case "dateTime": cmp = (aFile?.uploadedAt || "").localeCompare(bFile?.uploadedAt || ""); break;
+  const handleSort = useCallback(
+    (field: SortField) => {
+      if (sortField === field) {
+        setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      } else {
+        setSortField(field);
+        setSortDirection("asc");
       }
-      return sortDirection === "asc" ? cmp : -cmp;
-    });
-  }, [sortField, sortDirection]);
+    },
+    [sortField]
+  );
+
+  const sortDocs = useCallback(
+    (docs: RequirementRow[]) => {
+      if (!sortField) return docs;
+      return [...docs].sort((a, b) => {
+        const aFile = a.files[0];
+        const bFile = b.files[0];
+        let cmp = 0;
+        switch (sortField) {
+          case "name":
+            cmp = a.name.localeCompare(b.name);
+            break;
+          case "status":
+            cmp = a.status.localeCompare(b.status);
+            break;
+          case "fileName":
+            cmp = (aFile?.originalName || "").localeCompare(
+              bFile?.originalName || ""
+            );
+            break;
+          case "size":
+            cmp = (aFile?.size || 0) - (bFile?.size || 0);
+            break;
+          case "dateTime":
+            cmp = (aFile?.uploadedAt || "").localeCompare(
+              bFile?.uploadedAt || ""
+            );
+            break;
+        }
+        return sortDirection === "asc" ? cmp : -cmp;
+      });
+    },
+    [sortField, sortDirection]
+  );
 
   const isDraftStage = !claimStatus || claimStatus === "DRAFT";
   const required = useMemo(
-    () => sortDocs(documents.filter((d) =>
-          d.addedBy !== "LENDER" &&
-          // Once the claim is initiated, an optional document nobody uploaded is just noise.
-          (isDraftStage || d.required || d.files.length > 0))),
+    () =>
+      sortDocs(
+        documents.filter(
+          (d) =>
+            d.addedBy !== "LENDER" &&
+            // Once the claim is initiated, an optional document nobody uploaded is just noise.
+            (isDraftStage || d.required || d.files.length > 0)
+        )
+      ),
     [documents, isDraftStage, sortDocs]
   );
   const additional = useMemo(
@@ -236,10 +282,13 @@ export function ClaimDocumentsTable({
   const removeFile = useCallback(
     (accId: string, documentId: string, fileId: string) => {
       startDelete(async () => {
-        const { deleteDocumentFileAction } = await import(
-          "@/app/[locale]/(portal)/additional-documents/actions"
+        const { deleteDocumentFileAction } =
+          await import("@/app/[locale]/(portal)/additional-documents/actions");
+        const result = await deleteDocumentFileAction(
+          accId,
+          documentId,
+          fileId
         );
-        const result = await deleteDocumentFileAction(accId, documentId, fileId);
         if (!result.ok) {
           toast.error(result.error ?? "Could not delete that file.");
           return;
@@ -264,8 +313,6 @@ export function ClaimDocumentsTable({
     [ask, removeFile]
   );
 
-
-
   const requiredActions = null;
 
   /**
@@ -278,7 +325,8 @@ export function ClaimDocumentsTable({
     claimStatus === "DRAFT" ||
     // In a query, a document IMGC has not decided on yet stays as it is — only a pending or
     // rejected one is the lender's to change.
-    ((claimStatus === "QUERY_INITIATED" || claimStatus === "QUERY_UNDER_REVIEW") &&
+    ((claimStatus === "QUERY_INITIATED" ||
+      claimStatus === "QUERY_UNDER_REVIEW") &&
       (doc.status !== "UNDER_REVIEW" ||
         doc.files.some((f) => f.review?.decision === "REJECTED")));
   const canUpload = (doc: RequirementRow) =>
@@ -286,6 +334,7 @@ export function ClaimDocumentsTable({
   // Deleting is a draft-only act: once the claim is initiated a file is part of the record —
   // a rejected one is answered with Reupload, never removed.
   const canDelete = (doc: RequirementRow) =>
+    allowDelete &&
     !locked &&
     doc.status !== "APPROVED" &&
     (!claimStatus || claimStatus === "DRAFT");
@@ -309,76 +358,85 @@ export function ClaimDocumentsTable({
   );
   const showAdditional = claimOpenForChanges || hasRejectedDoc;
 
-  const additionalActions = !locked && claimOpenForChanges ? (
-    <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
-  ) : null;
+  const additionalActions =
+    !locked && claimOpenForChanges ? (
+      <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
+    ) : null;
 
   const renderTableRows = (
     docs: RequirementRow[],
     showActions: boolean,
     showImgcRemark: boolean
   ) => {
-    return docs.flatMap((doc, docIndex) => {
+    return docs.flatMap((doc) => {
       const hasFiles = doc.files.length > 0;
       const conditionalNotRequired = doc.conditional && !doc.required;
-      
+
       const rowStyle = conditionalNotRequired ? "bg-neutral-50/50" : "";
 
-
       const docNameCell = (
-        <div className="flex flex-col gap-1">
-          <span className="text-[12px] font-semibold leading-tight text-neutral-900">
-            {doc.name}{doc.required && <span className="text-destructive ml-1">*</span>}
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[11.5px] font-semibold leading-tight text-neutral-900">
+            {doc.name}
+            {doc.required && <span className="text-destructive ml-1">*</span>}
           </span>
           <div>
             <StatusChip status={doc.status} />
           </div>
-          <div className="flex flex-wrap gap-1 mt-1">
-            {doc.refNo && (
-              <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-semibold text-neutral-500">
+          {doc.refNo && (
+            <div className="flex flex-wrap gap-1">
+              <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-500">
                 {doc.refNo}
               </span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       );
 
-
       const canUploadGeneral = canUpload(doc);
 
-      const emptyAction = canUploadGeneral && !hasFiles ? (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 px-2.5 text-[11px]"
-          // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
-          onClick={() => setUploadTarget({ row: doc, mode: "upload" })}
-        >
-          <UploadIcon className="mr-1.5 size-3" /> Upload
-        </Button>
-      ) : null;
+      const emptyAction =
+        canUploadGeneral && !hasFiles ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-2.5 text-[11px]"
+            // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+            onClick={() => setUploadTarget({ row: doc, mode: "upload" })}
+          >
+            <UploadIcon className="mr-1.5 size-3" /> Upload
+          </Button>
+        ) : null;
 
       if (!hasFiles) {
         return [
           <TableRow key={doc.id} className={rowStyle}>
-            <TableCell className="w-[22%] px-3 py-2 align-top">{docNameCell}</TableCell>
+            <TableCell className="w-[18%] px-2 py-1.5 align-top">
+              {docNameCell}
+            </TableCell>
             <TableCell
               colSpan={showImgcRemark ? 5 : 4}
-              className="px-3 py-2 text-[11.5px] text-neutral-400 align-top"
+              className="px-2 py-1.5 text-[11px] text-neutral-400 align-top"
             >
               Nothing uploaded yet.
             </TableCell>
-            {showActions && <TableCell className="px-3 py-2 align-top">{emptyAction}</TableCell>}
-          </TableRow>
+            {showActions && (
+              <TableCell className="px-3 py-2 align-top">
+                {emptyAction}
+              </TableCell>
+            )}
+          </TableRow>,
         ];
       }
 
-      const hasAnyRejectedFile = doc.files.some((f) => f.review?.decision === "REJECTED");
+      const hasAnyRejectedFile = doc.files.some(
+        (f) => f.review?.decision === "REJECTED"
+      );
 
       return doc.files.map((file, fileIndex) => {
         const isFirst = fileIndex === 0;
         const isThisFileRejected = file.review?.decision === "REJECTED";
-        
+
         let fileAction = null;
         if (canUploadGeneral) {
           if (isThisFileRejected) {
@@ -388,12 +446,23 @@ export function ClaimDocumentsTable({
                 size="sm"
                 className="h-7 px-2.5 text-[11px]"
                 // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                onClick={() => setUploadTarget({ row: doc, mode: "replace", replaceFileId: file.id })}
+                onClick={() =>
+                  setUploadTarget({
+                    row: doc,
+                    mode: "replace",
+                    replaceFileId: file.id,
+                  })
+                }
               >
                 <RotateCwIcon className="mr-1.5 size-3" /> Reupload
               </Button>
             );
-          } else if (isFirst && doc.status !== "REJECTED" && doc.status !== "REUPLOAD_REQUIRED" && !hasAnyRejectedFile) {
+          } else if (
+            isFirst &&
+            doc.status !== "REJECTED" &&
+            doc.status !== "REUPLOAD_REQUIRED" &&
+            !hasAnyRejectedFile
+          ) {
             fileAction = (
               <Button
                 variant="outline"
@@ -414,12 +483,15 @@ export function ClaimDocumentsTable({
           <TableRow key={file.id} className={rowStyle}>
             {isFirst && (
               <>
-                <TableCell rowSpan={doc.files.length} className="w-[22%] px-3 py-2 align-top border-r border-neutral-100">
+                <TableCell
+                  rowSpan={doc.files.length}
+                  className="w-[18%] px-2 py-1.5 align-top border-r border-neutral-100"
+                >
                   {docNameCell}
                 </TableCell>
               </>
             )}
-            <TableCell className="px-3 py-2 text-[11.5px] font-medium align-top">
+            <TableCell className="px-2 py-1.5 text-[11px] font-medium align-top">
               <a
                 href={`/api/portal/files/${file.id}`}
                 target="_blank"
@@ -427,58 +499,64 @@ export function ClaimDocumentsTable({
                 title={file.originalName}
                 className="text-brand-primary transition-colors hover:text-brand-dark hover:underline"
               >
-                {clip(file.originalName, 20)}
+                {clip(file.originalName, 18)}
               </a>
               {/* Size sits under the name, as on IMGC's Decision tab - no column of its own. */}
-              <span className="block text-[11px] font-normal text-neutral-400">
+              <span className="block text-[10px] font-normal text-neutral-400">
                 {formatBytes(file.size)}
               </span>
             </TableCell>
             <TableCell
-              className="max-w-[190px] px-3 py-2 text-[11px] text-neutral-600 align-top"
+              className="max-w-[150px] px-2 py-1.5 text-[10.5px] text-neutral-600 align-top"
               title={file.uploadRemarks?.trim() || undefined}
             >
               {file.uploadRemarks?.trim() ? (
-                clip(file.uploadRemarks.trim(), 34)
+                clip(file.uploadRemarks.trim(), 28)
               ) : (
                 <span className="text-neutral-300">—</span>
               )}
             </TableCell>
             {showImgcRemark && (
-              <TableCell className="max-w-[190px] px-3 py-2 align-top">
+              <TableCell className="max-w-[150px] px-2 py-1.5 align-top">
                 {file.review ? (
-                  <FileDecisionNote review={file.review} className="mt-0" maxChars={34} />
+                  <FileDecisionNote
+                    review={file.review}
+                    className="mt-0"
+                    maxChars={28}
+                  />
                 ) : (
-                  <span className="text-[11px] text-neutral-300">—</span>
+                  <span className="text-[10.5px] text-neutral-300">—</span>
                 )}
               </TableCell>
             )}
-            <TableCell className="px-3 py-2 text-[11px] text-neutral-500 align-top whitespace-nowrap">
+            <TableCell className="px-2 py-1.5 text-[10.5px] text-neutral-500 align-top whitespace-nowrap">
               {file.uploadedByName || "—"}
             </TableCell>
-            <TableCell className="px-3 py-2 text-[11px] text-neutral-500 align-top whitespace-nowrap">
+            <TableCell className="px-2 py-1.5 text-[10.5px] text-neutral-500 align-top whitespace-nowrap">
               {when(file.uploadedAt)}
             </TableCell>
             {showActions && (
-            <TableCell className="px-3 py-2 align-top">
-              <div className="flex items-center gap-1.5">
-                {canDelete(doc) && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:hover:bg-transparent disabled:hover:text-destructive/50 disabled:opacity-50"
-                    // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                    onClick={() => onDelete(accountId, doc.id, file.id, file.originalName)}
-                    aria-label="Delete file"
-                    disabled={deleting}
-                    title="Delete file"
-                  >
-                    <TrashIcon className="size-3.5" />
-                  </Button>
-                )}
-                {fileAction && <div>{fileAction}</div>}
-              </div>
-            </TableCell>
+              <TableCell className="px-3 py-2 align-top">
+                <div className="flex items-center gap-1.5">
+                  {canDelete(doc) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:hover:bg-transparent disabled:hover:text-destructive/50 disabled:opacity-50"
+                      // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                      onClick={() =>
+                        onDelete(accountId, doc.id, file.id, file.originalName)
+                      }
+                      aria-label="Delete file"
+                      disabled={deleting}
+                      title="Delete file"
+                    >
+                      <TrashIcon className="size-3.5" />
+                    </Button>
+                  )}
+                  {fileAction && <div>{fileAction}</div>}
+                </div>
+              </TableCell>
             )}
           </TableRow>
         );
@@ -490,36 +568,52 @@ export function ClaimDocumentsTable({
     <div className="flex flex-col gap-6">
       {/* ── Required documents ───────────────────────────────── */}
       <Panel
-        title={
-          <div className="flex items-baseline gap-2">
-            Required documents
-          </div>
-        }
+        title="Required documents"
         className={bare ? "border-neutral-200 shadow-none" : undefined}
         actions={requiredActions}
       >
-        <TableLayout sortField={sortField} sortDirection={sortDirection} onSort={handleSort} showActions={hasAnyAction(required)} showImgcRemark={hasImgcDecision(required)}>
-          {renderTableRows(required, hasAnyAction(required), hasImgcDecision(required))}
+        <TableLayout
+          sortField={sortField}
+          sortDirection={sortDirection}
+          onSort={handleSort}
+          showActions={hasAnyAction(required)}
+          showImgcRemark={hasImgcDecision(required)}
+        >
+          {renderTableRows(
+            required,
+            hasAnyAction(required),
+            hasImgcDecision(required)
+          )}
         </TableLayout>
       </Panel>
 
       {/* ── Additional documents ─────────────────────────────── */}
       {showAdditional && (
-      <Panel
-        title="Additional documents"
-        className={bare ? "border-neutral-200 shadow-none" : undefined}
-        actions={additionalActions}
-      >
-        {additional.length === 0 ? (
-          <p className="px-5 py-4 text-center text-[13px] text-neutral-500">
-            No additional documents added.
-          </p>
-        ) : (
-          <TableLayout sortField={sortField} sortDirection={sortDirection} onSort={handleSort} showActions={hasAnyAction(additional)} showImgcRemark={hasImgcDecision(additional)}>
-            {renderTableRows(additional, hasAnyAction(additional), hasImgcDecision(additional))}
-          </TableLayout>
-        )}
-      </Panel>
+        <Panel
+          title="Additional documents"
+          className={bare ? "border-neutral-200 shadow-none" : undefined}
+          actions={additionalActions}
+        >
+          {additional.length === 0 ? (
+            <p className="px-5 py-4 text-center text-[13px] text-neutral-500">
+              No additional documents added.
+            </p>
+          ) : (
+            <TableLayout
+              sortField={sortField}
+              sortDirection={sortDirection}
+              onSort={handleSort}
+              showActions={hasAnyAction(additional)}
+              showImgcRemark={hasImgcDecision(additional)}
+            >
+              {renderTableRows(
+                additional,
+                hasAnyAction(additional),
+                hasImgcDecision(additional)
+              )}
+            </TableLayout>
+          )}
+        </Panel>
       )}
 
       <UploadDialog
