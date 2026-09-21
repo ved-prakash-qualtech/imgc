@@ -1513,6 +1513,12 @@ export async function addLenderDocument(
       uploadedAt: nowIso(),
       version: 1,
       uploadRemarks: input.remarks.trim() || undefined,
+      pendingSave:
+        claim.status === "DRAFT" ||
+        claim.status === "QUERY_INITIATED" ||
+        claim.status === "QUERY_UNDER_REVIEW"
+          ? true
+          : undefined,
     });
     if (input.remarks.trim()) {
       fresh.remarks.unshift({

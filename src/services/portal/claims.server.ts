@@ -79,10 +79,25 @@ export async function listDocuments(
         const history = db.documentFiles
           .filter((f) => f.documentId === d.id)
           .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+        const hasPendingSave = history.some((f) => f.pendingSave);
+        const visibleFiles = history.filter((f) => {
+          if (session.role === "IMGC") {
+            if (f.pendingSave) return false;
+            // If the lender has unsubmitted replacements, keep showing IMGC the old rejected file.
+            if (hasPendingSave && f.supersededAt && f.review?.decision === "REJECTED") return true;
+          }
+          return !f.supersededAt;
+        });
+        const statusForImgc =
+          session.role === "IMGC" && visibleFiles.length !== history.filter((f) => !f.supersededAt).length
+            ? deriveDocumentStatus(visibleFiles)
+            : d.status;
+            
         return {
           ...d,
-          file: db.documentFiles.find((f) => f.id === d.currentFileId),
-          files: history.filter((f) => !f.supersededAt),
+          status: statusForImgc,
+          file: visibleFiles[0],
+          files: visibleFiles,
           history,
         };
       })
@@ -323,7 +338,11 @@ export async function uploadDocument(
       uploadRemarks: meta.remarks?.trim() || undefined,
       pendingSave:
         session.role === "LENDER" &&
-        fresh.claims.some((c) => c.id === row.claimId && c.status === "DRAFT")
+        fresh.claims.some(
+          (c) =>
+            c.id === row.claimId &&
+            (c.status === "DRAFT" || c.status === "QUERY_INITIATED" || c.status === "QUERY_UNDER_REVIEW")
+        )
           ? true
           : undefined,
     });
