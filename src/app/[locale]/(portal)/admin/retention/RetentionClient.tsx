@@ -2,10 +2,11 @@
 
 import { useCallback, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowDownIcon, ArrowUpIcon, ArrowUpDownIcon, BrushCleaningIcon, ChevronDownIcon, DownloadIcon, SearchIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, ArrowUpDownIcon, ArchiveIcon, BrushCleaningIcon, ChevronDownIcon, DownloadIcon, EyeIcon, SearchIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
+  archiveDocumentAction,
   decideReinstateAction,
   runSweepAction,
 } from "@/app/[locale]/(portal)/admin/retention/actions";
@@ -249,6 +250,17 @@ export function RetentionClient({
     });
   }, []);
 
+  const onArchive = useCallback((row: RejectedDocRow) => {
+    startTransition(async () => {
+      const result = await archiveDocumentAction(row.accountId, row.id);
+      if (!result.ok) {
+        toast.error(result.error ?? "That document could not be archived.");
+        return;
+      }
+      toast.success("Document archived — kept on record.");
+    });
+  }, []);
+
   const onDecide = useCallback(
     (row: RejectedDocRow, approve: boolean) => {
       startTransition(async () => {
@@ -295,12 +307,12 @@ export function RetentionClient({
         </div>
         <div className="relative">
           <select
-            aria-label="Reinstatement"
+            aria-label="Retained"
             value={reinstateFilter}
             onChange={(e) => handleReinstateFilterChange(e.target.value)}
             className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-[12.5px] font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           >
-            <option value="ALL">All reinstatements</option>
+            <option value="ALL">All retained</option>
             <option value="REQUESTED">Awaiting decision</option>
             <option value="APPROVED">Approved</option>
             <option value="DENIED">Denied</option>
@@ -347,7 +359,7 @@ export function RetentionClient({
                   <SortableTableHead column="lender" label="Lender" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                   <SortableTableHead column="reason" label="Reason" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
                   <SortableTableHead column="retention" label="Retention" sortKey={sortKey} sortDirection={sortDirection} onToggle={toggleSort} />
-                  <TableHead className="h-8 px-1.5 text-[10.5px]">Reinstatement</TableHead>
+                  <TableHead className="h-8 px-1.5 text-[10.5px]">Retained</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -359,9 +371,21 @@ export function RetentionClient({
                   </TableRow>
                 ) : (
                   currentRows.map((row) => (
-                    <TableRow key={row.id}>
+                    <TableRow key={row.rowKey}>
                       <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
                         {row.name}
+                        {row.replaced && (
+                          <a
+                            href={`/api/portal/files/${row.replaced.fileId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex max-w-[220px] items-center gap-1 text-[10.5px] font-medium text-brand-primary hover:underline"
+                            title={`View the replaced file — ${row.replaced.fileName}`}
+                          >
+                            <EyeIcon className="size-3 shrink-0" />
+                            <span className="truncate">{row.replaced.fileName}</span>
+                          </a>
+                        )}
                       </TableCell>
                       <TableCell className="px-1.5 py-1.5">
                         {/* Every row here belongs to a claim (`listRejectedDocuments` lists no
@@ -392,7 +416,15 @@ export function RetentionClient({
                         </span>
                       </TableCell>
                       <TableCell className="px-1.5 py-1.5">
-                        {row.held ? (
+                        {row.replaced ? (
+                          <span className="text-[11.5px] font-medium whitespace-nowrap text-neutral-500">
+                            —
+                          </span>
+                        ) : row.rejection.archived ? (
+                          <span className="text-[11.5px] font-medium whitespace-nowrap text-neutral-500">
+                            Kept
+                          </span>
+                        ) : row.held ? (
                           <span className="text-[11.5px] font-medium whitespace-nowrap text-warning">
                             Held
                           </span>
@@ -408,7 +440,14 @@ export function RetentionClient({
                         )}
                       </TableCell>
                       <TableCell className="px-1.5 py-1.5">
-                        {row.rejection.reinstate?.status === "REQUESTED" ? (
+                        {row.replaced ? (
+                          <span
+                            className="inline-flex items-center rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-medium whitespace-nowrap text-neutral-600"
+                            title={`${row.replaced.fileName} — replaced by the lender's re-upload on ${new Date(row.replaced.at).toLocaleDateString("en-IN")}`}
+                          >
+                            Replaced
+                          </span>
+                        ) : row.rejection.reinstate?.status === "REQUESTED" ? (
                           <span className="flex gap-2">
                             <Button
                               size="xs"
@@ -432,10 +471,23 @@ export function RetentionClient({
                             status={row.rejection.reinstate.status}
                             className="px-1.5 py-0.5 text-[10.5px]"
                           />
-                        ) : (
-                          <span className="text-[11.5px] whitespace-nowrap text-neutral-400">
-                            Not requested
+                        ) : row.rejection.archived ? (
+                          <span
+                            className="inline-flex items-center gap-1 text-[11.5px] font-medium whitespace-nowrap text-neutral-600"
+                            title={`Archived by ${row.rejection.archived.by}`}
+                          >
+                            <ArchiveIcon className="size-3.5" /> Archived
                           </span>
+                        ) : (
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            onClick={() => onArchive(row)}
+                            disabled={pending}
+                            title="Archive — keep this rejected document on record"
+                          >
+                            <ArchiveIcon /> Archive
+                          </Button>
                         )}
                       </TableCell>
                     </TableRow>

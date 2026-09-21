@@ -26,6 +26,7 @@ export function daysLeft(rejectedAt: string): number {
 
 /** Held from purge while a reinstatement is in play. */
 export function isHeld(doc: ClaimDocument): boolean {
+  if (doc.rejection?.archived) return true;
   const status = doc.rejection?.reinstate?.status;
   return status === "REQUESTED" || status === "APPROVED";
 }

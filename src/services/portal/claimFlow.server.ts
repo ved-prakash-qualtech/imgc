@@ -1131,8 +1131,16 @@ export async function startClaimReview(
       return { claimId: claim.id, account: null };
 
     advance(db, claim, "UNDER_REVIEW", session, remark || undefined);
-    // Kept on the claim so the lender reads IMGC's note under Remarks on their own screen.
-    if (remark) claim.fields = { ...claim.fields, __imgcReviewRemark: remark };
+    // Kept on the claim so the lender reads IMGC's note under Remarks on their own screen — the
+    // *At/*ByName pair let the Remarks panel show when and by whom, same as the decision remark.
+    if (remark) {
+      claim.fields = {
+        ...claim.fields,
+        __imgcReviewRemark: remark,
+        __imgcReviewRemarkAt: nowIso(),
+        __imgcReviewRemarkByName: session.name,
+      };
+    }
 
     const account = db.accounts.find((a) => a.id === claim.accountId);
     return { claimId: claim.id, account };

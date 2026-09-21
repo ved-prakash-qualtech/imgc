@@ -69,6 +69,7 @@ export type Priority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 export type ReinstateStatus = "REQUESTED" | "APPROVED" | "DENIED";
 
 export type AuditType =
+  | "DOC_ARCHIVED"
   | "DOC_UPLOADED"
   | "DOC_STATUS_CHANGED"
   | "DOC_REQUIREMENT_ADDED"
@@ -203,6 +204,9 @@ export interface Rejection {
   by: string;
   reason: string;
   reinstate?: Reinstate;
+  /** IMGC archived the rejected document to keep it on record: it is exempt from the retention
+   *  sweep, so the history is never purged. */
+  archived?: { at: string; by: string };
 }
 
 export interface ClaimDocument {

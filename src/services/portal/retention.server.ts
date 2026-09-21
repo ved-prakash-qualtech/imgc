@@ -19,6 +19,11 @@ export interface RejectedDocRow extends ClaimDocument {
   lenderOrgName: string;
   daysLeft: number;
   held: boolean;
+  /** Unique per row: the document id, or the replaced file's id for a replaced row. */
+  rowKey: string;
+  /** Set when this row is a rejected file the lender has since replaced by a re-upload — kept
+   *  visible here so the rejection stays on record. */
+  replaced?: { fileId: string; fileName: string; at: string };
 }
 
 /**
@@ -37,7 +42,7 @@ export async function listRejectedDocuments(
   );
   const byId = new Map(accounts.map((a) => [a.id, a]));
 
-  return db.claimDocuments
+  const current: RejectedDocRow[] = db.claimDocuments
     .filter((d): d is ClaimDocument & { rejection: Rejection } =>
       Boolean(d.rejection) &&
       d.status === "REJECTED" &&
@@ -54,7 +59,42 @@ export async function listRejectedDocuments(
           db.lenderOrgs.find((o) => o.id === account.lenderOrgId)?.name ?? "—",
         daysLeft: daysLeft(d.rejection.at),
         held: isHeld(d),
+        rowKey: d.id,
       };
-    })
-    .sort((a, b) => b.rejection.at.localeCompare(a.rejection.at));
+    });
+
+  // Rejected files the lender replaced with a re-upload. The document itself has moved on (it is
+  // back under review), but the rejection and the file it was about stay listed.
+  const docsById = new Map(
+    db.claimDocuments
+      .filter((d) => Boolean(d.claimId) && byId.has(d.accountId))
+      .map((d) => [d.id, d])
+  );
+  const replaced: RejectedDocRow[] = db.documentFiles.flatMap((f) => {
+    const d = docsById.get(f.documentId);
+    if (!d || !f.supersededAt || f.review?.decision !== "REJECTED") return [];
+    const account = byId.get(d.accountId)!;
+    return [
+      {
+        ...d,
+        rejection: {
+          at: f.review.at,
+          by: f.review.byName,
+          reason: f.review.remarks || f.supersededReason || "—",
+        },
+        accountLoanNo: account.loanNo,
+        borrowerName: account.borrowerName,
+        lenderOrgName:
+          db.lenderOrgs.find((o) => o.id === account.lenderOrgId)?.name ?? "—",
+        daysLeft: daysLeft(f.review.at),
+        held: false,
+        rowKey: f.id,
+        replaced: { fileId: f.id, fileName: f.originalName, at: f.supersededAt },
+      },
+    ];
+  });
+
+  return [...current, ...replaced].sort((a, b) =>
+    b.rejection.at.localeCompare(a.rejection.at)
+  );
 }

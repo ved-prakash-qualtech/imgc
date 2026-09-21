@@ -47,6 +47,8 @@ function initialsOf(name: string): string {
 
 export type AppNavbarProps = Readonly<{
   title?: string;
+  /** Shown beside the title, smaller — e.g. the claim amount on a claim screen. */
+  titleAside?: string;
   /** Whose workspace this is — the tenant's short code, or the admin scope. */
   workspace?: string;
   user?: SessionUser | null;
@@ -61,6 +63,7 @@ export type AppNavbarProps = Readonly<{
 
 export function AppNavbar({
   title = "Dashboard",
+  titleAside,
   workspace,
   user,
   unreadCount = 0,
@@ -74,9 +77,30 @@ export function AppNavbar({
       {/* Left: optional hamburger + workspace + page title */}
       <div className="flex items-center gap-3 text-sm">
         <div className="flex items-center gap-2">
-          <span className="font-outfit text-[20px] font-semibold leading-6 tracking-[1%] align-middle text-neutral-900">
-            {title}
-          </span>
+          {titleAside ? (
+            // A claim screen: claim number and amount set as one matching pair of label + value.
+            <span className="text-[13px] font-semibold tabular-nums text-neutral-800">
+              <span className="mr-1 text-[11.5px] font-medium text-neutral-500">
+                Claim No.
+              </span>
+              {title.replace(/^Claim No\.\s*/, "")}
+            </span>
+          ) : (
+            <span className="font-outfit text-[20px] font-semibold leading-6 tracking-[1%] text-neutral-900">
+              {title}
+            </span>
+          )}
+          {titleAside && (
+            <>
+              <span aria-hidden className="h-4 w-px bg-neutral-200" />
+              <span className="text-[13px] font-semibold tabular-nums text-neutral-800">
+                <span className="mr-1 text-[11.5px] font-medium text-neutral-500">
+                  Claim Amount
+                </span>
+                {titleAside}
+              </span>
+            </>
+          )}
         </div>
       </div>
 

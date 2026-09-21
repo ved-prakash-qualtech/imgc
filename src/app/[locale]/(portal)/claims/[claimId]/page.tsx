@@ -1,4 +1,5 @@
 /* eslint-disable react-perf/jsx-no-jsx-as-prop */
+import { claimAmountFor } from "@/config/claimConfig";
 import { EyeIcon } from "lucide-react";
 import { notFound } from "next/navigation";
 
@@ -11,7 +12,10 @@ import { LenderClaimStatusPanel } from "@/components/portal/LenderClaimStatusPan
 import { LoanDetailsCard } from "@/components/portal/LoanDetailsCard";
 import { Panel } from "@/components/portal/Panel";
 import { ActionFooter } from "@/components/portal/ActionFooter";
-import { ClaimRemarksPanel } from "@/components/portal/ClaimRemarksPanel";
+import {
+  buildClaimRemarkItems,
+  ClaimRemarksPanel,
+} from "@/components/portal/ClaimRemarksPanel";
 import { GridBackLink } from "@/components/portal/GridBackLink";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { QueriedButton } from "@/components/portal/QueriedButton";
@@ -31,6 +35,7 @@ import { CLAIMS_FILTER_KEY } from "@/lib/hooks/useRememberedFilters";
 import { getAccount } from "@/services/portal/accounts.server";
 import { getClaim, listQueries } from "@/services/portal/claimFlow.server";
 import { listClaimDocuments } from "@/services/portal/requirements.server";
+import { listRemarks } from "@/services/portal/remarks.server";
 
 export const dynamic = "force-dynamic";
 
@@ -60,11 +65,13 @@ export default async function ClaimDetailsPage({
   const claim = await getClaim(session, claimId);
   if (!claim) notFound();
 
-  const [documents, queries, account] = await Promise.all([
+  const [documents, queries, account, remarks] = await Promise.all([
     listClaimDocuments(session, claim.id),
     listQueries(claim.id),
     getAccount(session, claim.accountId),
+    listRemarks(claim.accountId),
   ]);
+  const claimRemarks = buildClaimRemarkItems(claim, remarks);
   const isLender = session.role === "LENDER";
   // Deleting an uploaded file is a draft-only act: after the lender submits, the file is part of
   // what IMGC is reviewing. A wrong file is corrected by re-uploading over it, which keeps the
@@ -161,9 +168,9 @@ export default async function ClaimDetailsPage({
               claimStatus={claim.status}
             />
             <ClaimRemarksPanel
-              lender={claim.fields.__initiationRemark}
-              imgc={claim.fields.__imgcReviewRemark}
-              decision={claim.fields.__imgcDecisionRemark}
+              lender={claimRemarks.lender}
+              imgc={claimRemarks.imgc}
+              decision={claimRemarks.decision}
             />
             {(claim.status === "QUERY_INITIATED" ||
               claim.status === "QUERY_UNDER_REVIEW") && (
@@ -343,9 +350,9 @@ export default async function ClaimDetailsPage({
               claimStatus={claim.status}
             />
             <ClaimRemarksPanel
-              lender={claim.fields.__initiationRemark}
-              imgc={claim.fields.__imgcReviewRemark}
-              decision={claim.fields.__imgcDecisionRemark}
+              lender={claimRemarks.lender}
+              imgc={claimRemarks.imgc}
+              decision={claimRemarks.decision}
             />
           </div>
         ) : (
@@ -441,6 +448,7 @@ export default async function ClaimDetailsPage({
       title={
         isLender ? `Claim No. ${claim.claimNo}` : `Claim No. ${claim.claimNo}`
       }
+      titleAside={account ? `₹${claimAmountFor(account.loanAmount).toLocaleString("en-IN")}` : undefined}
     >
       <div
         className={

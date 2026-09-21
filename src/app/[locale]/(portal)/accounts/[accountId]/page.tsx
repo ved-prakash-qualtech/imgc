@@ -1,4 +1,5 @@
 /* eslint-disable react-perf/jsx-no-jsx-as-prop, react-perf/jsx-no-new-array-as-prop */
+import { claimAmountFor } from "@/config/claimConfig";
 import { notFound } from "next/navigation";
 
 import {
@@ -19,6 +20,7 @@ import {
   listQueries,
 } from "@/services/portal/claimFlow.server";
 import { canSubmit, listDocuments } from "@/services/portal/claims.server";
+import { listRemarks } from "@/services/portal/remarks.server";
 
 export const dynamic = "force-dynamic";
 
@@ -47,10 +49,11 @@ export default async function AccountPage({
   const account = await getAccount(session, accountId);
   if (!account) notFound();
 
-  const [docs, events, claim] = await Promise.all([
+  const [docs, events, claim, remarks] = await Promise.all([
     listDocuments(session, accountId),
     listAuditForAccount(accountId),
     getClaimForAccount(session, accountId),
+    listRemarks(accountId),
   ]);
 
   const [queries] = await Promise.all([
@@ -74,6 +77,11 @@ export default async function AccountPage({
           ? `Claim No. ${account.claimNo}`
           : account.loanNo
       }
+      titleAside={
+        session.role === "IMGC" && account.claimNo
+          ? `₹${claimAmountFor(account.loanAmount).toLocaleString("en-IN")}`
+          : undefined
+      }
     >
       <div className="space-y-3">
         <AccountWorkspace
@@ -90,6 +98,7 @@ export default async function AccountPage({
           role={session.role}
           docs={docs}
           events={events}
+          remarks={remarks}
           canSubmit={canSubmit(docs)}
           retentionDays={RETENTION_DAYS}
           queriedDocNames={[...queriedDocNames]}

@@ -1180,3 +1180,32 @@ export async function discardUnsavedUploads(
   }
   return { ok: true };
 }
+
+/** IMGC only — archives a rejected document so it is kept on record and never purged. */
+export async function archiveRejectedDocument(
+  session: AppSession,
+  accountId: string,
+  documentId: string
+): Promise<Outcome> {
+  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  const outcome = await writeDb((db) => {
+    const doc = db.claimDocuments.find(
+      (d) => d.id === documentId && d.accountId === accountId
+    );
+    if (!doc || doc.status !== "REJECTED" || !doc.rejection) {
+      return { ok: false as const, error: "Only a rejected document can be archived." };
+    }
+    if (doc.rejection.archived) return { ok: false as const, error: "Already archived." };
+    doc.rejection.archived = { at: nowIso(), by: session.name };
+    return { ok: true as const, name: doc.name };
+  });
+  if (!outcome.ok) return outcome;
+  await recordEvent({
+    accountId,
+    actor: session,
+    type: "DOC_ARCHIVED",
+    summary: `Rejected document "${outcome.name}" archived — kept on record`,
+    meta: { documentId },
+  });
+  return { ok: true };
+}

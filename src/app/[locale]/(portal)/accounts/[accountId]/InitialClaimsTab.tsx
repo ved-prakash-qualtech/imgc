@@ -1062,52 +1062,78 @@ function ImgcDocumentRowItem({
           ))}
         </div>
       </div>
-      {deciding && (
-        <form
-          key={`${deciding.fileId}-${deciding.decision}`}
-          className="m-3 flex flex-wrap items-end gap-2 rounded-lg border border-neutral-200 bg-neutral-25 p-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const remarks = String(new FormData(e.currentTarget).get("remarks") ?? "").trim();
-            if (!remarks) {
-              toast.error("A remark is required.");
-              return;
-            }
-            decide(deciding.fileId, deciding.decision, remarks);
-          }}
-        >
-          <label className="min-w-[260px] flex-1">
-            <span className="mb-1 block text-[12px] font-medium text-neutral-700">
-              {deciding.decision === "APPROVED" ? "Remark for accepting" : "Reason for rejecting"}{" "}
-              <span className="font-semibold text-neutral-900">{deciding.fileName}</span>
-              <span className="text-destructive"> *</span>
-            </span>
-            <input
-              name="remarks"
-              required
-              // eslint-disable-next-line jsx-a11y/no-autofocus
-              autoFocus
-              placeholder={
-                deciding.decision === "APPROVED"
-                  ? "e.g. Statement covers all 12 months, figures verified"
-                  : "e.g. Valuation report is older than 6 months"
-              }
-              className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-            />
-          </label>
-          <Button
-            type="submit"
-            size="sm"
-            variant={deciding.decision === "APPROVED" ? "success" : "destructive"}
-            disabled={busyFileId === deciding.fileId}
-          >
-            {deciding.decision === "APPROVED" ? "Accept file" : "Reject file"}
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => setDeciding(null)}>
-            Cancel
-          </Button>
-        </form>
-      )}
+      {/* A popup rather than an inline expanding row — the remark is a required, deliberate step
+          in accept/reject, not a detail to fill in alongside everything else already on the row. */}
+      <Dialog
+        open={deciding !== null}
+        onOpenChange={(next) => {
+          if (!next) setDeciding(null);
+        }}
+      >
+        {deciding && (
+          <DialogContent className="sm:max-w-[480px]">
+            <DialogHeader>
+              <DialogTitle>
+                {deciding.decision === "APPROVED" ? "Accept" : "Reject"} {deciding.fileName}
+              </DialogTitle>
+              <DialogDescription>
+                {deciding.decision === "APPROVED"
+                  ? "A remark is required before this file can be accepted."
+                  : "A reason is required before this file can be rejected — the lender will see it."}
+              </DialogDescription>
+            </DialogHeader>
+            <form
+              key={`${deciding.fileId}-${deciding.decision}`}
+              className="flex flex-col gap-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const remarks = String(new FormData(e.currentTarget).get("remarks") ?? "").trim();
+                if (!remarks) {
+                  toast.error("A remark is required.");
+                  return;
+                }
+                decide(deciding.fileId, deciding.decision, remarks);
+              }}
+            >
+              <label className="block">
+                <span className="mb-1 block text-[12px] font-medium text-neutral-700">
+                  {deciding.decision === "APPROVED" ? "Remark for accepting" : "Reason for rejecting"}{" "}
+                  <span className="font-semibold text-neutral-900">{deciding.fileName}</span>
+                  <span className="text-destructive"> *</span>
+                </span>
+                <textarea
+                  name="remarks"
+                  required
+                  rows={3}
+                  // Opened by the user's own click on Accept/Reject, so focus follows the action
+                  // they took.
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
+                  placeholder={
+                    deciding.decision === "APPROVED"
+                      ? "e.g. Statement covers all 12 months, figures verified"
+                      : "e.g. Valuation report is older than 6 months"
+                  }
+                  className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                />
+              </label>
+              <div className="flex justify-end gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={() => setDeciding(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant={deciding.decision === "APPROVED" ? "success" : "destructive"}
+                  disabled={busyFileId === deciding.fileId}
+                >
+                  {deciding.decision === "APPROVED" ? "Accept file" : "Reject file"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        )}
+      </Dialog>
 
       {/* Show rejection reason inline if rejected, to preserve info */}
       {doc.rejection && doc.status === "REJECTED" && (

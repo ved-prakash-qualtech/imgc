@@ -17,7 +17,10 @@ import { InitialClaimsTab } from "@/app/[locale]/(portal)/accounts/[accountId]/I
 import { LenderClaimStatusPanel as ClaimStatusBar } from "@/components/portal/LenderClaimStatusPanel";
 import { ExportDocumentsCsvButton } from "@/components/portal/ExportDocumentsCsvButton";
 import { ActionFooter } from "@/components/portal/ActionFooter";
-import { ClaimRemarksPanel } from "@/components/portal/ClaimRemarksPanel";
+import {
+  buildClaimRemarkItems,
+  ClaimRemarksPanel,
+} from "@/components/portal/ClaimRemarksPanel";
 import { Panel } from "@/components/portal/Panel";
 import { QueriedButton } from "@/components/portal/QueriedButton";
 import { Button } from "@/components/ui/button";
@@ -34,7 +37,7 @@ import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
 import type { DocumentRow } from "@/services/portal/claims.server";
 import type { ClaimRow } from "@/services/portal/claimFlow.server";
-import type { AuditEvent, Role, ClaimQuery } from "@/server/mock/types";
+import type { AuditEvent, Remark, Role, ClaimQuery } from "@/server/mock/types";
 
 const TABS = ["Loan Details", "Decision", "Audit Trail"] as const;
 
@@ -63,6 +66,9 @@ type Props = Readonly<{
   docs: DocumentRow[];
   events: AuditEvent[];
   claim: ClaimRow | null;
+  /** Every remark on this account — filtered down to this claim's initiation remark inside
+   *  `buildClaimRemarkItems`, so the Remarks panel can show its real date/time and author. */
+  remarks: Remark[];
 
   canSubmit: boolean;
   retentionDays: number;
@@ -79,6 +85,7 @@ export function AccountWorkspace({
   docs,
   events,
   claim,
+  remarks,
 
   canSubmit,
   retentionDays,
@@ -134,6 +141,7 @@ export function AccountWorkspace({
           account={account}
           role={role}
           claim={claim}
+          claimRemarks={buildClaimRemarkItems(claim, remarks)}
           claimDocs={claimDocs}
           documentsSection={
             <InitialClaimsTab
@@ -159,12 +167,14 @@ function QueryTrailTab({
   account,
   role,
   claim,
+  claimRemarks,
   claimDocs,
   documentsSection,
 }: Readonly<{
   account: AccountRow;
   role: Role;
   claim: ClaimRow | null;
+  claimRemarks: ReturnType<typeof buildClaimRemarkItems>;
   /** The same rows the document table shows, for its Export CSV. */
   claimDocs: DocumentRow[];
   documentsSection: React.ReactNode;
@@ -301,9 +311,9 @@ function QueryTrailTab({
 
       {claim && (
         <ClaimRemarksPanel
-          lender={claim.fields.__initiationRemark}
-          imgc={claim.fields.__imgcReviewRemark}
-          decision={claim.fields.__imgcDecisionRemark}
+          lender={claimRemarks.lender}
+          imgc={claimRemarks.imgc}
+          decision={claimRemarks.decision}
         />
       )}
 

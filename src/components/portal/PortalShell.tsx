@@ -16,8 +16,15 @@ import { unreadCount } from "@/services/portal/notifications.server";
 export async function PortalShell({
   activeKey,
   title,
+  titleAside,
   children,
-}: Readonly<{ activeKey?: NavKey; title: string; children: ReactNode }>) {
+}: Readonly<{
+  activeKey?: NavKey;
+  title: string;
+  /** The claim amount beside the title in the top bar, e.g. "₹16,90,000". */
+  titleAside?: string;
+  children: ReactNode;
+}>) {
   const session = await requireSession();
   const [org, unread, assignedOfficer] = await Promise.all([
     session.role === "LENDER" ? getLenderOrgById(session.lenderOrgId) : null,
@@ -31,6 +38,7 @@ export async function PortalShell({
       badges={unread > 0 ? { notifications: unread } : undefined}
       activeKey={activeKey}
       navbarTitle={title}
+      navbarTitleAside={titleAside}
       workspace={session.role === "IMGC" ? "IMGC" : (org?.name ?? "Lender")}
       user={toSessionUser(session)}
       unreadCount={unread}

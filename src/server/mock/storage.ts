@@ -235,18 +235,41 @@ function contentTag(json: string): string {
  * to (`.catch(() => null)` on Blob, a bare `catch` on disk), replaced the whole live database with
  * the demo seed.
  */
+/** Last snapshot this instance read or wrote, per row, keyed by its version (see readSnapshot). */
+const pgCache = new Map<string, Snapshot>();
+
 export async function readSnapshot(
   name: SnapshotName = "db"
 ): Promise<Snapshot | null> {
   if (USING_POSTGRES) {
     const sql = await pg();
+    const key = rowName(name);
+    // Ask for the version first — a few bytes — and only pull the whole snapshot when it has
+    // changed since this instance last read it. Full reads on every request were what used up
+    // Neon's network-transfer allowance.
+    const cached = pgCache.get(key);
+    if (cached) {
+      const head = (await sql.query(
+        "SELECT version FROM imgc_snapshots WHERE name = $1",
+        [key],
+        pgTimeout()
+      )) as { version: string | number }[];
+      if (!head[0]) {
+        pgCache.delete(key);
+        return null;
+      }
+      if (String(head[0].version) === cached.etag) return cached;
+    }
     const rows = (await sql.query(
       "SELECT data, version FROM imgc_snapshots WHERE name = $1",
-      [rowName(name)],
+      [key],
       pgTimeout()
     )) as { data: string; version: string | number }[];
     const row = rows[0];
-    return row ? { json: row.data, etag: String(row.version) } : null;
+    if (!row) return null;
+    const snap = { json: row.data, etag: String(row.version) };
+    pgCache.set(key, snap);
+    return snap;
   }
 
   if (!USING_BLOB) {
@@ -341,16 +364,27 @@ export async function writeSnapshot(
         [json, rowName(name), ifMatch],
         pgTimeout()
       )) as unknown[];
-      if (rows.length === 0) throw new StaleSnapshotError();
+      if (rows.length === 0) {
+        pgCache.delete(rowName(name));
+        throw new StaleSnapshotError();
+      }
+      // What was just written is the current version — the next read needs only the version check.
+      const version = (rows[0] as { version: string | number }).version;
+      pgCache.set(rowName(name), { json, etag: String(version) });
       return;
     }
     // No version quoted: the first write of this snapshot (seeding, or the audit log's first
     // entry). Same unconditional behaviour the disk and Blob paths have for that case.
-    await sql.query(
-      "INSERT INTO imgc_snapshots (name, data, version) VALUES ($1, $2, 1) ON CONFLICT (name) DO UPDATE SET data = EXCLUDED.data, version = imgc_snapshots.version + 1, updated_at = now()",
+    const inserted = (await sql.query(
+      "INSERT INTO imgc_snapshots (name, data, version) VALUES ($1, $2, 1) ON CONFLICT (name) DO UPDATE SET data = EXCLUDED.data, version = imgc_snapshots.version + 1, updated_at = now() RETURNING version",
       [rowName(name), json],
       pgTimeout()
-    );
+    )) as { version: string | number }[];
+    if (inserted[0]) {
+      pgCache.set(rowName(name), { json, etag: String(inserted[0].version) });
+    } else {
+      pgCache.delete(rowName(name));
+    }
     return;
   }
 
