@@ -356,7 +356,7 @@ export function ClaimDocumentsTable({
   const hasRejectedDoc = documents.some(
     (d) => d.status === "REJECTED" || d.status === "REUPLOAD_REQUIRED"
   );
-  const showAdditional = claimOpenForChanges || hasRejectedDoc;
+  const showAdditional = claimOpenForChanges || hasRejectedDoc || additional.length > 0;
 
   const additionalActions =
     !locked && claimOpenForChanges ? (

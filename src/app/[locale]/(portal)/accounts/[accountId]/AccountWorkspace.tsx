@@ -238,7 +238,12 @@ function QueryTrailTab({
   const footerHasActions =
     (claim?.status === "INITIATED" && allDocsAccepted) ||
     claim?.status === "UNDER_REVIEW" ||
-    Boolean(claim && !claimDecided);
+    Boolean(
+      claim &&
+        !claimDecided &&
+        claim.status !== "QUERY_INITIATED" &&
+        claim.status !== "QUERY_UNDER_REVIEW"
+    );
 
   const imgcComposer = (
     <div className="flex flex-col gap-0.5">
@@ -283,7 +288,7 @@ function QueryTrailTab({
             Reject
           </Button>
         )}
-        {claim && !claimDecided && (
+        {claim && !claimDecided && claim.status !== "QUERY_INITIATED" && claim.status !== "QUERY_UNDER_REVIEW" && (
           <QueriedButton claimId={claim.id} claimNo={claim.claimNo} />
         )}
       </div>
