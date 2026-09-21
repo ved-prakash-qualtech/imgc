@@ -327,9 +327,8 @@ export function ClaimDocumentsTable({
     // rejected one is the lender's to change.
     ((claimStatus === "QUERY_INITIATED" ||
       claimStatus === "QUERY_UNDER_REVIEW") &&
-      doc.status !== "UNDER_REVIEW") ||
-    doc.status === "REJECTED" ||
-    doc.status === "REUPLOAD_REQUIRED";
+      (doc.status !== "UNDER_REVIEW" ||
+        doc.files.some((f) => f.review?.decision === "REJECTED")));
   const canUpload = (doc: RequirementRow) =>
     !locked && doc.status !== "APPROVED" && isModifiable(doc);
   // Deleting is a draft-only act: once the claim is initiated a file is part of the record —
@@ -394,8 +393,10 @@ export function ClaimDocumentsTable({
         </div>
       );
 
-      const mainAction = canUpload(doc) ? (
-        !hasFiles ? (
+      const canUploadGeneral = canUpload(doc);
+
+      const emptyAction =
+        canUploadGeneral && !hasFiles ? (
           <Button
             variant="outline"
             size="sm"
@@ -405,32 +406,7 @@ export function ClaimDocumentsTable({
           >
             <UploadIcon className="mr-1.5 size-3" /> Upload
           </Button>
-        ) : doc.status === "REJECTED" ? (
-          <Button
-            variant="outline"
-            size="xs"
-            className="size-7 p-0"
-            title="Reupload"
-            aria-label="Reupload"
-            // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
-            onClick={() => setUploadTarget({ row: doc, mode: "add" })}
-          >
-            <RotateCwIcon className="size-4" />
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            size="xs"
-            className="size-7 p-0"
-            title="Add file"
-            aria-label="Add file"
-            // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
-            onClick={() => setUploadTarget({ row: doc, mode: "add" })}
-          >
-            <PlusIcon className="size-4" />
-          </Button>
-        )
-      ) : null;
+        ) : null;
 
       if (!hasFiles) {
         return [
@@ -445,16 +421,64 @@ export function ClaimDocumentsTable({
               Nothing uploaded yet.
             </TableCell>
             {showActions && (
-              <TableCell className="sticky right-0 z-10 border-l border-neutral-200 bg-white px-2 py-1.5 align-top">
-                {mainAction}
+              <TableCell className="px-3 py-2 align-top">
+                {emptyAction}
               </TableCell>
             )}
           </TableRow>,
         ];
       }
 
+      const hasAnyRejectedFile = doc.files.some(
+        (f) => f.review?.decision === "REJECTED"
+      );
+
       return doc.files.map((file, fileIndex) => {
         const isFirst = fileIndex === 0;
+        const isThisFileRejected = file.review?.decision === "REJECTED";
+
+        let fileAction = null;
+        if (canUploadGeneral) {
+          if (isThisFileRejected) {
+            fileAction = (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2.5 text-[11px]"
+                // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                onClick={() =>
+                  setUploadTarget({
+                    row: doc,
+                    mode: "replace",
+                    replaceFileId: file.id,
+                  })
+                }
+              >
+                <RotateCwIcon className="mr-1.5 size-3" /> Reupload
+              </Button>
+            );
+          } else if (
+            isFirst &&
+            doc.status !== "REJECTED" &&
+            doc.status !== "REUPLOAD_REQUIRED" &&
+            !hasAnyRejectedFile
+          ) {
+            fileAction = (
+              <Button
+                variant="outline"
+                size="xs"
+                className="size-7 p-0"
+                title="Add file"
+                aria-label="Add file"
+                // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                onClick={() => setUploadTarget({ row: doc, mode: "add" })}
+              >
+                <PlusIcon className="size-4" />
+              </Button>
+            );
+          }
+        }
+
         return (
           <TableRow key={file.id} className={rowStyle}>
             {isFirst && (
@@ -512,7 +536,7 @@ export function ClaimDocumentsTable({
               {when(file.uploadedAt)}
             </TableCell>
             {showActions && (
-              <TableCell className="sticky right-0 z-10 border-l border-neutral-200 bg-white px-2 py-1.5 align-top">
+              <TableCell className="px-3 py-2 align-top">
                 <div className="flex items-center gap-1.5">
                   {canDelete(doc) && (
                     <Button
@@ -530,7 +554,7 @@ export function ClaimDocumentsTable({
                       <TrashIcon className="size-3.5" />
                     </Button>
                   )}
-                  {isFirst && mainAction && <div>{mainAction}</div>}
+                  {fileAction && <div>{fileAction}</div>}
                 </div>
               </TableCell>
             )}

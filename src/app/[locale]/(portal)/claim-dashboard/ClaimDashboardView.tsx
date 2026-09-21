@@ -71,11 +71,11 @@ function MonthlyBars({
   const maxAmount = stepAmt * 4;
   
   const W = 640;
-  const H = 230;
+  const H = 175;
   const padL = 56;
   const padR = 56;
-  const padB = 46;
-  const padT = 32;
+  const padB = 36;
+  const padT = 24;
   const plotW = W - padL - padR;
   const plotH = H - padB - padT;
   const step = plotW / data.length;
@@ -206,7 +206,7 @@ function MonthlyBars({
       </div>
       
       {/* Summary KPI Card */}
-      <div className="mt-2 flex items-center justify-between rounded-lg border border-neutral-100 bg-neutral-50 px-4 py-2.5 shadow-sm mx-2 mb-1">
+      <div className="mt-1 flex items-center justify-between rounded-lg border border-neutral-100 bg-neutral-50 px-4 py-2 shadow-sm mx-2 mb-1">
         <div>
           <div className="flex items-center gap-2 mb-0.5">
             <h4 className="text-[9px] font-bold uppercase tracking-wider text-neutral-500">
@@ -426,8 +426,9 @@ export function ClaimDashboardView({
             </FilterSelect>
           </div>
         }
+        className="flex flex-col h-full"
       >
-        <div className="overflow-x-auto px-2 py-2">
+        <div className="flex-1 overflow-x-auto px-2 py-2 min-h-0">
           <MonthlyBars data={data.monthly} status={status} unit={unit} />
         </div>
       </Panel>
@@ -435,16 +436,19 @@ export function ClaimDashboardView({
       <Panel
         size="compact"
         title={data.isLender ? "Query Raised · Not Responded" : "Claim Under Review"}
+        className="flex flex-col h-full"
       >
-        <div className="max-h-[220px] overflow-auto px-4 py-3">
-          {data.isLender ? (
-            <LenderUnderProgressTable
-              rows={data.lenderUnderProgress}
-              onSelect={openClaim}
-            />
-          ) : (
-            <LenderProgressBars rows={data.byLender} />
-          )}
+        <div className="relative flex-1 min-h-[175px]">
+          <div className="absolute inset-0 overflow-auto px-4 py-2">
+            {data.isLender ? (
+              <LenderUnderProgressTable
+                rows={data.lenderUnderProgress}
+                onSelect={openClaim}
+              />
+            ) : (
+              <LenderProgressBars rows={data.byLender} />
+            )}
+          </div>
         </div>
       </Panel>
     </div>
