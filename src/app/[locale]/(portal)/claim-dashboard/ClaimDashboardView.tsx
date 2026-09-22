@@ -1,4 +1,8 @@
 "use client";
+/* eslint-disable react-perf/jsx-no-new-function-as-prop, react-perf/jsx-no-jsx-as-prop --
+   Handlers/objects here close over local chart/filter state, so hoisting them out would mean
+   threading that state back through props for no gain; this view renders once per dashboard
+   load, not in a list. */
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -54,22 +58,31 @@ function MonthlyBars({
   data,
   status,
   unit,
-}: Readonly<{ data: ClaimDashboardData["monthly"]; status: MonthlyStatusKey; unit: "Lakhs" | "Crores" }>) {
-
-  const formattedData = data.map(d => ({
+}: Readonly<{
+  data: ClaimDashboardData["monthly"];
+  status: MonthlyStatusKey;
+  unit: "Lakhs" | "Crores";
+}>) {
+  const formattedData = data.map((d) => ({
     ...d,
-    amountInUnit: unit === "Lakhs" ? d.amount / 100000 : d.amount / 10000000
+    amountInUnit: unit === "Lakhs" ? d.amount / 100000 : d.amount / 10000000,
   }));
 
   const rawMaxCount = Math.max(1, ...formattedData.map((d) => d.count));
-  const rawMaxAmount = Math.max(0.1, ...formattedData.map((d) => d.amountInUnit));
-  
+  const rawMaxAmount = Math.max(
+    0.1,
+    ...formattedData.map((d) => d.amountInUnit)
+  );
+
   const maxCount = Math.max(4, Math.ceil(rawMaxCount / 4) * 4);
-  
+
   const amtMag = Math.pow(10, Math.floor(Math.log10(rawMaxAmount)));
-  const stepAmt = Math.max(amtMag, Math.ceil(rawMaxAmount / 4 / amtMag) * amtMag);
+  const stepAmt = Math.max(
+    amtMag,
+    Math.ceil(rawMaxAmount / 4 / amtMag) * amtMag
+  );
   const maxAmount = stepAmt * 4;
-  
+
   const W = 640;
   const H = 175;
   const padL = 56;
@@ -83,11 +96,13 @@ function MonthlyBars({
 
   const ticks = [0, 0.25, 0.5, 0.75, 1];
 
-  const linePoints = formattedData.map((d, i) => {
-    const x = padL + i * step + step / 2;
-    const y = padT + plotH - (d.count / maxCount) * plotH;
-    return `${x},${y}`;
-  }).join(" L ");
+  const linePoints = formattedData
+    .map((d, i) => {
+      const x = padL + i * step + step / 2;
+      const y = padT + plotH - (d.count / maxCount) * plotH;
+      return `${x},${y}`;
+    })
+    .join(" L ");
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -99,8 +114,22 @@ function MonthlyBars({
           aria-label="Month-on-month claim counts and amounts"
         >
           {/* Axis Titles */}
-          <text x={padL - 6} y={padT - 8} textAnchor="end" className="fill-brand-primary text-[9px] font-bold uppercase tracking-wider">Amount</text>
-          <text x={W - padR + 6} y={padT - 8} textAnchor="start" className="fill-[#10b981] text-[9px] font-bold uppercase tracking-wider">Count</text>
+          <text
+            x={padL - 6}
+            y={padT - 8}
+            textAnchor="end"
+            className="fill-brand-primary text-[9px] font-bold uppercase tracking-wider"
+          >
+            Amount
+          </text>
+          <text
+            x={W - padR + 6}
+            y={padT - 8}
+            textAnchor="start"
+            className="fill-[#10b981] text-[9px] font-bold uppercase tracking-wider"
+          >
+            Count
+          </text>
 
           {ticks.map((f, i) => {
             const y = padT + plotH - f * plotH;
@@ -108,13 +137,34 @@ function MonthlyBars({
             const countTick = Math.round(maxCount * f);
             return (
               <g key={i}>
-                <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="var(--color-neutral-200)" strokeWidth={1} />
-                <text x={padL - 6} y={y + 3} textAnchor="end" className="fill-brand-primary text-[9px] font-medium">{amtTick}</text>
-                <text x={W - padR + 6} y={y + 3} textAnchor="start" className="fill-[#10b981] text-[9px] font-medium">{countTick}</text>
+                <line
+                  x1={padL}
+                  x2={W - padR}
+                  y1={y}
+                  y2={y}
+                  stroke="var(--color-neutral-200)"
+                  strokeWidth={1}
+                />
+                <text
+                  x={padL - 6}
+                  y={y + 3}
+                  textAnchor="end"
+                  className="fill-brand-primary text-[9px] font-medium"
+                >
+                  {amtTick}
+                </text>
+                <text
+                  x={W - padR + 6}
+                  y={y + 3}
+                  textAnchor="start"
+                  className="fill-[#10b981] text-[9px] font-medium"
+                >
+                  {countTick}
+                </text>
               </g>
             );
           })}
-          
+
           {/* Loop 1: Bars */}
           {formattedData.map((d, i) => {
             const h = (d.amountInUnit / maxAmount) * plotH;
@@ -122,25 +172,53 @@ function MonthlyBars({
             const y = padT + plotH - h;
             return (
               <g key={`bar-${d.month}`}>
-                <rect x={x} y={y} width={barW} height={Math.max(h, d.amountInUnit > 0 ? 2 : 0)} rx={3} fill="var(--brand-primary)">
+                <rect
+                  x={x}
+                  y={y}
+                  width={barW}
+                  height={Math.max(h, d.amountInUnit > 0 ? 2 : 0)}
+                  rx={3}
+                  fill="var(--brand-primary)"
+                >
                   <title>{`${d.label} Amount: ${d.amountInUnit.toFixed(2)} ${unit}`}</title>
                 </rect>
               </g>
             );
           })}
 
-          <path d={`M ${linePoints}`} fill="none" stroke="#10b981" strokeWidth={2.5} pointerEvents="none" />
-          
+          <path
+            d={`M ${linePoints}`}
+            fill="none"
+            stroke="#10b981"
+            strokeWidth={2.5}
+            pointerEvents="none"
+          />
+
           {/* Loop 2: Points & X-Axis Labels */}
           {formattedData.map((d, i) => {
             const cx = padL + i * step + step / 2;
             const cy = padT + plotH - (d.count / maxCount) * plotH;
             return (
               <g key={`point-${d.month}`}>
-                <circle cx={cx} cy={cy} r={4.5} fill="#fff" stroke="#10b981" strokeWidth={2} className="cursor-pointer hover:stroke-[3px] transition-all">
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={4.5}
+                  fill="#fff"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  className="cursor-pointer hover:stroke-[3px] transition-all"
+                >
                   <title>{`${d.label} Count: ${d.count}`}</title>
                 </circle>
-                <text x={cx} y={padT + plotH + 14} textAnchor="middle" className="fill-neutral-500 text-[10px] pointer-events-none">{d.label}</text>
+                <text
+                  x={cx}
+                  y={padT + plotH + 14}
+                  textAnchor="middle"
+                  className="fill-neutral-500 text-[10px] pointer-events-none"
+                >
+                  {d.label}
+                </text>
               </g>
             );
           })}
@@ -148,7 +226,7 @@ function MonthlyBars({
           {/* Loop 3: Data Labels (Rendered last with collision detection) */}
           {formattedData.map((d, i) => {
             if (d.amountInUnit === 0 && d.count === 0) return null;
-            
+
             const h = (d.amountInUnit / maxAmount) * plotH;
             const barY = padT + plotH - h;
             const cx = padL + i * step + step / 2;
@@ -163,10 +241,14 @@ function MonthlyBars({
             let countAnchor: "middle" | "end" | "start" = "middle";
 
             // If labels are vertically too close, separate them horizontally!
-            if (d.amountInUnit > 0 && d.count > 0 && Math.abs(amtY - countY) < 14) {
+            if (
+              d.amountInUnit > 0 &&
+              d.count > 0 &&
+              Math.abs(amtY - countY) < 14
+            ) {
               amtX = cx - 6;
               amtAnchor = "end";
-              
+
               countX = cx + 6;
               countAnchor = "start";
             }
@@ -174,19 +256,33 @@ function MonthlyBars({
             return (
               <g key={`labels-${d.month}`}>
                 {d.amountInUnit > 0 && (
-                  <text 
-                    x={amtX} y={amtY} textAnchor={amtAnchor} 
+                  <text
+                    x={amtX}
+                    y={amtY}
+                    textAnchor={amtAnchor}
                     className="fill-brand-primary text-[9px] font-bold pointer-events-none"
-                    style={{ stroke: '#fff', strokeWidth: 1.5, paintOrder: 'stroke', strokeLinejoin: 'round' }}
+                    style={{
+                      stroke: "#fff",
+                      strokeWidth: 1.5,
+                      paintOrder: "stroke",
+                      strokeLinejoin: "round",
+                    }}
                   >
                     {Number(d.amountInUnit.toFixed(1))}
                   </text>
                 )}
                 {d.count > 0 && (
-                  <text 
-                    x={countX} y={countY} textAnchor={countAnchor} 
+                  <text
+                    x={countX}
+                    y={countY}
+                    textAnchor={countAnchor}
                     className="fill-[#10b981] text-[10px] font-bold pointer-events-none"
-                    style={{ stroke: '#fff', strokeWidth: 1.5, paintOrder: 'stroke', strokeLinejoin: 'round' }}
+                    style={{
+                      stroke: "#fff",
+                      strokeWidth: 1.5,
+                      paintOrder: "stroke",
+                      strokeLinejoin: "round",
+                    }}
                   >
                     {d.count}
                   </text>
@@ -194,33 +290,67 @@ function MonthlyBars({
               </g>
             );
           })}
-          
+
           {/* Legend at the bottom center */}
           <g transform={`translate(${W / 2 - 40}, ${H - 12})`}>
-             <rect x={-36} y={-8} width={10} height={10} rx={2} fill="var(--brand-primary)" />
-             <text x={-20} y={0} fontSize={10} fill="currentColor" className="text-neutral-500 font-medium">Amount</text>
-             <circle cx={34} cy={-3} r={4} fill="#fff" stroke="#10b981" strokeWidth={2} />
-             <text x={44} y={0} fontSize={10} fill="currentColor" className="text-neutral-500 font-medium">Count</text>
+            <rect
+              x={-36}
+              y={-8}
+              width={10}
+              height={10}
+              rx={2}
+              fill="var(--brand-primary)"
+            />
+            <text
+              x={-20}
+              y={0}
+              fontSize={10}
+              fill="currentColor"
+              className="text-neutral-500 font-medium"
+            >
+              Amount
+            </text>
+            <circle
+              cx={34}
+              cy={-3}
+              r={4}
+              fill="#fff"
+              stroke="#10b981"
+              strokeWidth={2}
+            />
+            <text
+              x={44}
+              y={0}
+              fontSize={10}
+              fill="currentColor"
+              className="text-neutral-500 font-medium"
+            >
+              Count
+            </text>
           </g>
         </svg>
       </div>
-      
+
       {/* Summary KPI Card */}
       <div className="mt-1 flex items-center justify-between rounded-lg border border-neutral-100 bg-neutral-50 px-4 py-2 shadow-sm mx-2 mb-1">
         <div>
           <div className="flex items-center gap-2 mb-0.5">
             <h4 className="text-[9px] font-bold uppercase tracking-wider text-neutral-500">
-              Total {status === "APPROVED" ? "Approved" : status === "REJECTED" ? "Rejected" : "Claims"}
+              Total{" "}
+              {status === "APPROVED"
+                ? "Approved"
+                : status === "REJECTED"
+                  ? "Rejected"
+                  : "Claims"}
             </h4>
-            <span className="rounded bg-brand-primary/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-brand-primary border border-brand-primary/20">
-              Current Financial Year
-            </span>
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-lg font-bold text-neutral-800">
               {formattedData.reduce((acc, d) => acc + d.count, 0)}
             </span>
-            <span className="text-[10px] font-medium text-neutral-500">Claims</span>
+            <span className="text-[10px] font-medium text-neutral-500">
+              Claims
+            </span>
           </div>
         </div>
         <div className="text-right">
@@ -229,7 +359,11 @@ function MonthlyBars({
           </h4>
           <div className="flex justify-end">
             <span className="text-lg font-bold text-brand-primary">
-              {Number(formattedData.reduce((acc, d) => acc + d.amountInUnit, 0).toFixed(2))}
+              {Number(
+                formattedData
+                  .reduce((acc, d) => acc + d.amountInUnit, 0)
+                  .toFixed(2)
+              )}
             </span>
           </div>
         </div>
@@ -352,6 +486,9 @@ export function ClaimDashboardView({
   data,
   status,
   months,
+  // Accepted for parity with the page's other lender-scoped props, but this view derives
+  // everything it needs from `data` (already narrowed to the selected lender) — unused here.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   lenderOrgId,
 }: Props) {
   const router = useRouter();
@@ -435,7 +572,9 @@ export function ClaimDashboardView({
 
       <Panel
         size="compact"
-        title={data.isLender ? "Query Raised · Not Responded" : "Claim Under Review"}
+        title={
+          data.isLender ? "Query Raised · Not Responded" : "Claim Under Review"
+        }
         className="flex flex-col h-full"
       >
         <div className="relative flex-1 min-h-[175px]">
