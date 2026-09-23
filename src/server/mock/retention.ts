@@ -85,7 +85,7 @@ export async function sweepExpiredRejections(): Promise<{ purged: number }> {
       actorName: "Retention sweep",
       actorRole: "SYSTEM",
       type: "RETENTION_PURGED",
-      summary: `Rejected document "${row.name}" purged after ${RETENTION_DAYS}-day retention`,
+      summary: `Ineligible document "${row.name}" purged after ${RETENTION_DAYS}-day retention`,
     });
   }
   return result;

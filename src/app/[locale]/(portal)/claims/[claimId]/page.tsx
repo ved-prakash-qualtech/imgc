@@ -49,6 +49,16 @@ function when(iso: string): string {
   });
 }
 
+/** A plain date, no time — for `refundReceipt.paymentDate` (a date IMGC entered, e.g. from a
+ *  bulk upload), as opposed to `when()`'s timestamp for when something happened in the portal. */
+function whenDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 /** Track Claim / Claim Details — the same page for both roles, scoped by the service. */
 export default async function ClaimDetailsPage({
   params,
@@ -172,13 +182,48 @@ export default async function ClaimDetailsPage({
                   </p>
                 )}
                 {refundReceivedEntry && (
-                  <p className="mt-2 flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-2 text-[13.5px]">
-                    <StatusPill status="REFUND_RECEIVED_BY_IMGC" />
-                    <span className="text-neutral-700">
-                      by {refundReceivedEntry.byName} ·{" "}
-                      {when(refundReceivedEntry.at)}
-                    </span>
-                  </p>
+                  <div className="mt-2 border-t border-neutral-100 pt-2">
+                    <p className="flex flex-wrap items-center gap-2 text-[13.5px]">
+                      <StatusPill status="REFUND_RECEIVED_BY_IMGC" />
+                      <span className="text-neutral-700">
+                        by {refundReceivedEntry.byName} ·{" "}
+                        {when(refundReceivedEntry.at)}
+                      </span>
+                    </p>
+                    {claim.refundReceipt && (
+                      <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-neutral-600">
+                        <span>
+                          Date:{" "}
+                          <span className="font-semibold text-neutral-900">
+                            {whenDate(claim.refundReceipt.paymentDate)}
+                          </span>
+                        </span>
+                        <span>
+                          UTR No.:{" "}
+                          <span className="font-semibold text-neutral-900">
+                            {claim.refundReceipt.utr}
+                          </span>
+                        </span>
+                        <span>
+                          Amount:{" "}
+                          <span className="font-semibold text-neutral-900">
+                            ₹
+                            {claim.refundReceipt.amount.toLocaleString("en-IN")}
+                          </span>
+                        </span>
+                        {claim.refundReceipt.fileId && (
+                          <a
+                            href={`/api/portal/files/${claim.refundReceipt.fileId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 font-medium text-brand-primary hover:underline"
+                          >
+                            <EyeIcon className="size-3.5" /> View proof
+                          </a>
+                        )}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             </Panel>
@@ -283,17 +328,12 @@ export default async function ClaimDetailsPage({
         )
       }
       history={
-        !isLender ? (
-          <Panel
-            title="Claim History"
-            description="Every status change and query on this claim, in order."
-          >
-            <ClaimHistory
-              statusHistory={claim.statusHistory}
-              queries={queries}
-            />
-          </Panel>
-        ) : null
+        <Panel
+          title="Claim History"
+          description="Every status change and query on this claim, in order."
+        >
+          <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
+        </Panel>
       }
     />
   ) : (
@@ -344,13 +384,48 @@ export default async function ClaimDetailsPage({
                   </p>
                 )}
                 {refundReceivedEntry && (
-                  <p className="mt-2 flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-2 text-[13.5px]">
-                    <StatusPill status="REFUND_RECEIVED_BY_IMGC" />
-                    <span className="text-neutral-700">
-                      by {refundReceivedEntry.byName} ·{" "}
-                      {when(refundReceivedEntry.at)}
-                    </span>
-                  </p>
+                  <div className="mt-2 border-t border-neutral-100 pt-2">
+                    <p className="flex flex-wrap items-center gap-2 text-[13.5px]">
+                      <StatusPill status="REFUND_RECEIVED_BY_IMGC" />
+                      <span className="text-neutral-700">
+                        by {refundReceivedEntry.byName} ·{" "}
+                        {when(refundReceivedEntry.at)}
+                      </span>
+                    </p>
+                    {claim.refundReceipt && (
+                      <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-neutral-600">
+                        <span>
+                          Date:{" "}
+                          <span className="font-semibold text-neutral-900">
+                            {whenDate(claim.refundReceipt.paymentDate)}
+                          </span>
+                        </span>
+                        <span>
+                          UTR No.:{" "}
+                          <span className="font-semibold text-neutral-900">
+                            {claim.refundReceipt.utr}
+                          </span>
+                        </span>
+                        <span>
+                          Amount:{" "}
+                          <span className="font-semibold text-neutral-900">
+                            ₹
+                            {claim.refundReceipt.amount.toLocaleString("en-IN")}
+                          </span>
+                        </span>
+                        {claim.refundReceipt.fileId && (
+                          <a
+                            href={`/api/portal/files/${claim.refundReceipt.fileId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 font-medium text-brand-primary hover:underline"
+                          >
+                            <EyeIcon className="size-3.5" /> View proof
+                          </a>
+                        )}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             </Panel>
@@ -459,17 +534,12 @@ export default async function ClaimDetailsPage({
         )
       }
       history={
-        !isLender ? (
-          <Panel
-            title="Claim History"
-            description="Every status change and query on this claim, in order."
-          >
-            <ClaimHistory
-              statusHistory={claim.statusHistory}
-              queries={queries}
-            />
-          </Panel>
-        ) : null
+        <Panel
+          title="Claim History"
+          description="Every status change and query on this claim, in order."
+        >
+          <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
+        </Panel>
       }
     />
   );

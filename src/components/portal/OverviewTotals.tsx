@@ -10,25 +10,33 @@ const exact = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 /** Claim totals beside "Overview", on the band's dark ground. */
 export function OverviewTotals({
   totals,
-}: Readonly<{ totals: { total: number; approved: number; rejected: number } }>) {
+}: Readonly<{
+  totals: { total: number; approved: number; rejected: number };
+}>) {
   const items = [
     ["Total Claim Amount", totals.total],
     ["Approved Amount", totals.approved],
-    ["Rejected Amount", totals.rejected],
+    ["Ineligible Amount", totals.rejected],
   ] as const;
   return (
     <div className="flex items-center gap-4">
       {items.map(([label, value]) => (
-        <div key={label} className="leading-tight" title={`${label}: ₹${exact.format(value)}`}>
+        <div
+          key={label}
+          className="leading-tight"
+          title={`${label}: ₹${exact.format(value)}`}
+        >
           <div className="flex items-center gap-1.5 mb-0.5">
             <p className="text-[10px] font-medium text-white/60">{label}</p>
-            {(label === "Approved Amount" || label === "Rejected Amount") && (
+            {(label === "Approved Amount" || label === "Ineligible Amount") && (
               <span className="rounded bg-brand-primary/20 px-1 py-[1px] text-[7.5px] font-bold uppercase tracking-wider text-[#ffc48a] border border-brand-primary/30">
                 CFY
               </span>
             )}
           </div>
-          <p className="text-[13px] font-semibold tabular-nums text-white">{crore(value)}</p>
+          <p className="text-[13px] font-semibold tabular-nums text-white">
+            {crore(value)}
+          </p>
         </div>
       ))}
     </div>

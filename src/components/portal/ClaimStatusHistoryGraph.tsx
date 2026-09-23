@@ -52,7 +52,6 @@ export function timelineEntries(
   const add = (entry: ClaimStatusEntry) => entries.push(entry);
 
   for (const entry of history) {
-    if (entry.status === "REFUND_RECEIVED_BY_IMGC") continue;
     if (entry.status === "DOCUMENTS_RESUBMITTED") continue;
     if (entry.status === "SUBMITTED") {
       add({ ...entry, status: "UNDER_REVIEW" });

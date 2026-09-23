@@ -23,6 +23,7 @@ export type NavKey =
   | "admin-users"
   | "admin-retention"
   | "admin-doc-config"
+  | "admin-bulk-refund"
   // Retained from the base template so its demo pages still type-check.
   | "tenants"
   | "menus"
@@ -51,26 +52,12 @@ const ACCOUNTS: NavItem = {
   href: ROUTES.accounts,
 };
 
-/** All lender-eligible accounts by Days Past Due — a second lens on the same accounts the claim
- *  grid already shows, not restricted to NPA. */
-const DPD: NavItem = {
-  key: "dpd",
-  label: "All Loans",
-  href: ROUTES.dpd,
-};
-
 /** Initiating a claim and tracking one used to be two tabs; one grid now does both, so there is
  *  only one nav entry for it. */
 const CLAIM: NavItem = {
   key: "initiate-claim",
   label: "Claims",
   href: ROUTES.initiateClaim,
-};
-
-const AUDIT_TRAIL: NavItem = {
-  key: "audit-trail",
-  label: "Audit Trail",
-  href: ROUTES.auditTrail,
 };
 
 /** IMGC only — who may sign in, and what happens to rejected documents. */
@@ -89,12 +76,12 @@ const ADMINISTRATION: NavItem = {
       label: "Document Configuration",
       href: ROUTES.adminDocumentConfig,
     },
+    {
+      key: "admin-bulk-refund",
+      label: "Bulk Refund Upload",
+      href: ROUTES.adminBulkRefund,
+    },
   ],
-};
-
-const ALL_LOANS: NavItem = {
-  ...DPD,
-  label: "All Loans",
 };
 
 export function navFor(role: Role): NavItem[] {

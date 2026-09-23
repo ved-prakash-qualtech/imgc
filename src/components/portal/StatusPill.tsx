@@ -49,7 +49,7 @@ const LABELS = new Map<string, string>([
   ["PENDING_UPLOAD", "Pending upload"],
   ["UNDER_REVIEW", "Under review"],
   ["REUPLOAD_REQUIRED", "Re-upload required"],
-  ["REJECTED", "Rejected"],
+  ["REJECTED", "Ineligible"],
   ["DRAFT", "Draft"],
   ["NOT_STARTED", "Not started"],
   ["SUBMITTED", "Submitted"],

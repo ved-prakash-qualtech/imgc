@@ -193,6 +193,7 @@ function statusFromParam(value: string | null): StatusFilter[] {
 
 function statusDisplay(v: StatusOption): string {
   if (v === "NOT_STARTED") return "Not started";
+  if (v === "REJECTED") return "Ineligible";
   return v
     .toLowerCase()
     .split("_")
@@ -812,11 +813,26 @@ export function AccountsClient({
               </TableRow>
             ) : (
               currentRows.map((a) => {
+                // IMGC has nothing to review on a claim the lender hasn't even started — the
+                // account page would just open to an empty claim workspace. The lender still
+                // opens it (that's where they start one), so this only gates IMGC's own view.
+                const disabled =
+                  role === "IMGC" && claimStatusDisplay(a) === "NOT_STARTED";
                 return (
                   <TableRow
                     key={a.id}
-                    onClick={() => router.push(ROUTES.account(a.id))}
-                    className="cursor-pointer transition-colors hover:bg-neutral-50"
+                    onClick={
+                      disabled
+                        ? undefined
+                        : () => router.push(ROUTES.account(a.id))
+                    }
+                    aria-disabled={disabled || undefined}
+                    className={cn(
+                      "transition-colors",
+                      disabled
+                        ? "cursor-default"
+                        : "cursor-pointer hover:bg-neutral-50"
+                    )}
                   >
                     <TableCell className="px-1 py-1 text-[11.5px] font-medium whitespace-nowrap text-neutral-950">
                       {a.loanNo}

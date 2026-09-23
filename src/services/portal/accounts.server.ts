@@ -1,3 +1,7 @@
+// `"server-only"` below throws at build time if this module reaches a client bundle, so it can
+// never run in a browser — this rule is flagging a local identifier (`status`/`closed`) that
+// happens to share a name with a global browser API, not an actual browser-api call.
+/* eslint-disable use-client/browser-api */
 import "server-only";
 
 import { readDb, writeDb } from "@/server/mock/db";
@@ -88,7 +92,7 @@ function classifyLoanStatus(
     case "DOCUMENTS_RESUBMITTED":
       return "Queried";
     case "REJECTED":
-      return "Rejected";
+      return "Ineligible";
     case "APPROVED":
     case "CLOSED":
     case "REFUND_RECEIVED_BY_IMGC":

@@ -74,7 +74,7 @@ const TILES: ReadonlyArray<{
   },
   {
     key: "rejected",
-    label: "Rejected",
+    label: "Ineligible",
     icon: <XCircleIcon className="size-4" />,
     tone: "gold",
   },
@@ -160,7 +160,7 @@ export function ClaimOverviewBand({
               "hover:-translate-y-1 hover:shadow-md hover:bg-neutral-50 cursor-pointer"
           );
           const isQueried = tile.key === "queried";
-          
+
           const content = (
             <>
               <div className="flex items-center justify-between gap-1.5">
@@ -210,7 +210,9 @@ export function ClaimOverviewBand({
                   className="mt-0.5 text-[11px] font-semibold leading-tight tabular-nums text-neutral-700"
                   title={`Claim amount: ₹${exactInr.format(counts.claimAmount[tile.key])}`}
                 >
-                  <span className="block text-[9.5px] font-medium leading-tight text-neutral-400">Claim Amount</span>
+                  <span className="block text-[9.5px] font-medium leading-tight text-neutral-400">
+                    Claim Amount
+                  </span>
                   {crore(counts.claimAmount[tile.key])}
                 </p>
               </div>

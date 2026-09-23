@@ -151,6 +151,7 @@ function dateOrDash(iso?: string): string {
 
 function statusLabel(v: StatusOption): string {
   if (v === "NOT_STARTED") return "Not started";
+  if (v === "REJECTED") return "Ineligible";
   return v
     .toLowerCase()
     .split("_")

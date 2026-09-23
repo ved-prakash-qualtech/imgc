@@ -84,15 +84,21 @@ export async function listDocuments(
           if (session.role === "IMGC") {
             if (f.pendingSave) return false;
             // If the lender has unsubmitted replacements, keep showing IMGC the old rejected file.
-            if (hasPendingSave && f.supersededAt && f.review?.decision === "REJECTED") return true;
+            if (
+              hasPendingSave &&
+              f.supersededAt &&
+              f.review?.decision === "REJECTED"
+            )
+              return true;
           }
           return !f.supersededAt;
         });
         const statusForImgc =
-          session.role === "IMGC" && visibleFiles.length !== history.filter((f) => !f.supersededAt).length
+          session.role === "IMGC" &&
+          visibleFiles.length !== history.filter((f) => !f.supersededAt).length
             ? deriveDocumentStatus(visibleFiles)
             : d.status;
-            
+
         return {
           ...d,
           status: statusForImgc,
@@ -341,7 +347,9 @@ export async function uploadDocument(
         fresh.claims.some(
           (c) =>
             c.id === row.claimId &&
-            (c.status === "DRAFT" || c.status === "QUERY_INITIATED" || c.status === "QUERY_UNDER_REVIEW")
+            (c.status === "DRAFT" ||
+              c.status === "QUERY_INITIATED" ||
+              c.status === "QUERY_UNDER_REVIEW")
         )
           ? true
           : undefined,
@@ -575,7 +583,7 @@ export async function decideDocument(
   } as const;
   const VERBS = {
     APPROVED: "Approved",
-    REJECTED: "Rejected",
+    REJECTED: "Ineligible",
     REUPLOAD_REQUESTED: "Re-upload requested",
   } as const;
 
@@ -765,7 +773,7 @@ export async function decideFile(
     accountId,
     actor: session,
     type: decision === "APPROVED" ? "DOC_APPROVED" : "DOC_REJECTED",
-    summary: `${decision === "APPROVED" ? "Accepted" : "Rejected"} file "${outcome.fileName}" on "${outcome.name}" — ${note}`,
+    summary: `${decision === "APPROVED" ? "Accepted" : "Ineligible"} file "${outcome.fileName}" on "${outcome.name}" — ${note}`,
     meta: {
       document: outcome.name,
       file: outcome.fileName,
@@ -1328,7 +1336,7 @@ export async function archiveRejectedDocument(
     accountId,
     actor: session,
     type: "DOC_ARCHIVED",
-    summary: `Rejected document "${outcome.name}" archived — kept on record`,
+    summary: `Ineligible document "${outcome.name}" archived — kept on record`,
     meta: fileId ? { documentId, fileId } : { documentId },
   });
   return { ok: true };

@@ -162,14 +162,29 @@ export async function updateClaimStatusAction(
   });
 }
 
-/** IMGC only — confirm the refund for an already-approved claim has been received. Recording and
- *  displaying that confirmation is all this does; see `markRefundReceived`. */
+/**
+ * IMGC only — confirm the refund for an already-approved claim has been received, with a UTR /
+ * reference number and an optional one-file proof of payment. Recording and displaying that
+ * confirmation is all this does; see `markRefundReceived`.
+ */
 export async function markRefundReceivedAction(
-  claimId: string
+  claimId: string,
+  formData: FormData
 ): Promise<Outcome> {
   return runAction(async () => {
     const session = await requireSession();
-    const result = await markRefundReceived(session, claimId);
+    const utr = String(formData.get("utr") ?? "");
+    const amount = Number(formData.get("amount") ?? "");
+    const paymentDate = String(formData.get("paymentDate") ?? "");
+    const incoming = incomingUploadFrom(formData) ?? undefined;
+    const result = await markRefundReceived(
+      session,
+      claimId,
+      utr,
+      amount,
+      paymentDate,
+      incoming
+    );
     if (result.ok) refreshAll(result.accountId, claimId);
     return result;
   });

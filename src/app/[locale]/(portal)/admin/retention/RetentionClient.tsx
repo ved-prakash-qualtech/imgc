@@ -139,7 +139,7 @@ function downloadCsv(rows: RejectedDocRow[]): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `rejected-documents-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `ineligible-documents-${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -332,7 +332,7 @@ export function RetentionClient({
 
   return (
     <Panel
-      title={`${filtered.length} rejected document${filtered.length === 1 ? "" : "s"}`}
+      title={`${filtered.length} ineligible document${filtered.length === 1 ? "" : "s"}`}
       actions={
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleExport}>
@@ -356,7 +356,7 @@ export function RetentionClient({
             value={query}
             onChange={handleQueryChange}
             placeholder="Document, loan no, borrower…"
-            aria-label="Search rejected documents"
+            aria-label="Search ineligible documents"
             className="h-8 w-[260px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           />
         </div>
@@ -595,7 +595,7 @@ export function RetentionClient({
                             variant="outline"
                             onClick={() => onArchive(row)}
                             disabled={pending}
-                            title="Archive — keep this rejected document on record"
+                            title="Archive — keep this ineligible document on record"
                           >
                             <ArchiveIcon /> Archive
                           </Button>

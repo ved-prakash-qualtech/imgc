@@ -16,7 +16,7 @@ const STATUS: Record<string, string> = {
   PENDING_UPLOAD: "Pending",
   UNDER_REVIEW: "Under review",
   APPROVED: "Accepted",
-  REJECTED: "Rejected",
+  REJECTED: "Ineligible",
   REUPLOAD_REQUIRED: "Re-upload required",
   NOT_REQUESTED: "Not requested",
 };
@@ -53,7 +53,9 @@ export function ExportDocumentsCsvButton({
         STATUS[doc.status] ?? doc.status,
       ];
       if (doc.files.length === 0) {
-        lines.push([...base, "", "", "", "", "", "", "", "", ""].map(csvField).join(","));
+        lines.push(
+          [...base, "", "", "", "", "", "", "", "", ""].map(csvField).join(",")
+        );
         continue;
       }
       for (const f of doc.files) {
@@ -64,7 +66,7 @@ export function ExportDocumentsCsvButton({
             f.originalName,
             f.size,
             f.uploadRemarks?.trim() ?? "",
-            r ? (r.decision === "APPROVED" ? "Accepted" : "Rejected") : "",
+            r ? (r.decision === "APPROVED" ? "Accepted" : "Ineligible") : "",
             r?.remarks ?? "",
             r?.byName ?? "",
             r?.at ? new Date(r.at).toLocaleString("en-IN") : "",
@@ -77,7 +79,9 @@ export function ExportDocumentsCsvButton({
       }
     }
     const csv = [headers.join(","), ...lines].join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const url = URL.createObjectURL(
+      new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    );
     const link = document.createElement("a");
     link.href = url;
     link.download = fileName;

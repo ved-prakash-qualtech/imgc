@@ -20,7 +20,13 @@ function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
     <nav
       aria-label="Pagination"
       data-slot="pagination"
-      className={cn("flex items-center gap-1", className)}
+      // `flex-wrap` so a row that doesn't fit (7+ page pills plus Prev/Next on a phone-width
+      // footer) drops its overflow onto a second line instead of forcing the whole page wider —
+      // that page-level horizontal scroll was the actual bug, not the wrapping itself.
+      className={cn(
+        "flex flex-wrap items-center justify-end gap-1 gap-y-1.5",
+        className
+      )}
       {...props}
     />
   );
@@ -72,11 +78,14 @@ function PaginationPrevious({
       type="button"
       variant="ghost"
       size="sm"
+      aria-label="Previous page"
       className={cn("gap-1 px-2 text-[12px] text-neutral-700", className)}
       {...props}
     >
       <ChevronLeftIcon className="size-4" />
-      Prev
+      {/* Below `sm`, the label is what pushed this row past a phone-width footer — the
+          chevron plus the aria-label above carry the same meaning without the width. */}
+      <span className="hidden sm:inline">Prev</span>
     </Button>
   );
 }
@@ -90,10 +99,11 @@ function PaginationNext({
       type="button"
       variant="ghost"
       size="sm"
+      aria-label="Next page"
       className={cn("gap-1 px-2 text-[12px] text-neutral-700", className)}
       {...props}
     >
-      Next
+      <span className="hidden sm:inline">Next</span>
       <ChevronRightIcon className="size-4" />
     </Button>
   );

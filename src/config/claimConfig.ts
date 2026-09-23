@@ -248,7 +248,7 @@ export const CLAIM_STATUS_LABELS: Readonly<Record<ClaimStatus, string>> = {
   QUERY_RAISED: "Query raised",
   DOCUMENTS_RESUBMITTED: "Documents resubmitted",
   APPROVED: "Approved",
-  REJECTED: "Rejected",
+  REJECTED: "Ineligible",
   CLOSED: "Closed",
   REFUND_RECEIVED_BY_IMGC: "Refund Received by IMGC",
   QUERIED: "Queried",

@@ -15,6 +15,12 @@ import {
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { ClaimStatusEntry } from "@/server/mock/types";
 
+const ROLE_LABEL: Record<ClaimStatusEntry["byRole"], string> = {
+  IMGC: "IMGC",
+  LENDER: "Lender",
+  SYSTEM: "System",
+};
+
 function when(iso: string): string {
   return new Date(iso).toLocaleString("en-IN", {
     day: "2-digit",
@@ -38,6 +44,8 @@ export function LenderClaimStatusPanel({
   const entries = timelineEntries(history, currentStatus);
   const visualCurrentStatus =
     currentStatus === "DOCUMENTS_RESUBMITTED" ? "UNDER_REVIEW" : currentStatus;
+  // Refund Received is now a real step in `entries` (see `timelineEntries`), so this matches it
+  // directly — no remapping needed, same as every other status.
   const currentIndex = entries.findLastIndex(
     (item) => item.status === visualCurrentStatus
   );
@@ -101,7 +109,8 @@ export function LenderClaimStatusPanel({
             <div className="flex-1 overflow-y-auto bg-neutral-50/50 px-5 py-5 custom-scrollbar">
               <ol className="relative ml-2 border-l border-neutral-200">
                 {entries.map((entry, i) => {
-                  const isCurrent = i === currentIndex && entry.status !== "APPROVED";
+                  const isCurrent =
+                    i === currentIndex && entry.status !== "APPROVED";
                   const isFuture = i > currentIndex;
                   return (
                     <li
@@ -148,6 +157,22 @@ export function LenderClaimStatusPanel({
                         <p className="mt-0.5 text-[11.5px] text-neutral-500">
                           {isFuture ? "—" : when(entry.at)}
                         </p>
+                        {/* The full chain of who did what, when — every entry already carries
+                            this (see `advance()` in claimFlow.server.ts), it just wasn't shown
+                            here before. `byId` is the exact user record; the name/role above it
+                            is what a reader actually wants at a glance. */}
+                        {!isFuture && (
+                          <p
+                            className="mt-0.5 text-[11.5px] text-neutral-600"
+                            title={`User ID: ${entry.byId}`}
+                          >
+                            by{" "}
+                            <span className="font-medium text-neutral-800">
+                              {entry.byName}
+                            </span>{" "}
+                            · {ROLE_LABEL[entry.byRole]}
+                          </p>
+                        )}
                         <p className="mt-1 flex items-center gap-1.5">
                           {isCurrent ? (
                             <span className="rounded-full bg-brand-primary/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-brand-primary uppercase">
@@ -163,6 +188,11 @@ export function LenderClaimStatusPanel({
                             </span>
                           )}
                         </p>
+                        {!isFuture && entry.note && (
+                          <p className="mt-1 rounded-md bg-neutral-100/80 px-2 py-1 text-[11.5px] text-neutral-600">
+                            {entry.note}
+                          </p>
+                        )}
                       </div>
                     </li>
                   );

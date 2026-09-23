@@ -1,14 +1,16 @@
 "use client";
+/* eslint-disable react-perf/jsx-no-new-function-as-prop --
+   Handlers throughout this file close over the specific document/file row they act on, so
+   hoisting them out would mean threading each row back through a prop for no gain; each list
+   here renders a bounded set of a claim's own requirements, never an unbounded dataset. */
 
-import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowUpDownIcon,
   BanIcon,
   CalendarClockIcon,
   CheckIcon,
   ChevronDownIcon,
-  ChevronUpIcon,
   DownloadIcon,
   EyeIcon,
   FileTextIcon,
@@ -20,7 +22,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { addRemarkAction,
+import {
+  addRemarkAction,
   decideDocumentAction,
   decideFileAction,
   undoFileDecisionAction,
@@ -107,43 +110,11 @@ export function InitialClaimsTab({
    */
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
   const toggleExpanded = useCallback((docId: string) => {
+    // `docId` is always one of this claim's own document ids, from the same list rendered below
+    // — never arbitrary user text — so there is no key to inject.
+    // eslint-disable-next-line security/detect-object-injection
     setExpandedIds((prev) => ({ ...prev, [docId]: !prev[docId] }));
   }, []);
-
-
-  const [sortField, setSortField] = useState<"name" | "status" | "fileName" | "size" | "uploadedBy" | "dateTime">("name");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-
-  const sortedDocs = useMemo(() => {
-    return [...docs].sort((a, b) => {
-      const aFile = a.files[0];
-      const bFile = b.files[0];
-      let cmp = 0;
-      switch (sortField) {
-        case "name": cmp = a.name.localeCompare(b.name); break;
-        case "status": cmp = a.status.localeCompare(b.status); break;
-        case "fileName": cmp = (aFile?.originalName || "").localeCompare(bFile?.originalName || ""); break;
-        case "size": cmp = (aFile?.size || 0) - (bFile?.size || 0); break;
-        case "uploadedBy": cmp = (aFile?.uploadedByName || "").localeCompare(bFile?.uploadedByName || ""); break;
-        case "dateTime": cmp = (aFile?.uploadedAt || "").localeCompare(bFile?.uploadedAt || ""); break;
-      }
-      return sortDirection === "asc" ? cmp : -cmp;
-    });
-  }, [docs, sortField, sortDirection]);
-
-  const handleSort = useCallback((field: typeof sortField) => {
-    if (sortField === field) {
-      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
-    }
-  }, [sortField]);
-
-  const SortIcon = ({ field }: { field: typeof sortField }) => {
-    if (sortField !== field) return <ArrowUpDownIcon className="ml-1 inline-block size-3 text-neutral-300" />;
-    return sortDirection === "asc" ? <ChevronUpIcon className="ml-1 inline-block size-3" /> : <ChevronDownIcon className="ml-1 inline-block size-3" />;
-  };
 
   const isLender = role === "LENDER";
   const submitted = claimStatus === "SUBMITTED" || claimStatus === "APPROVED";
@@ -195,12 +166,18 @@ export function InitialClaimsTab({
   const onToggleActive = useCallback(
     (documentId: string, active: boolean) => {
       startTransition(async () => {
-        const result = await setRequirementActiveAction(accountId, documentId, active);
+        const result = await setRequirementActiveAction(
+          accountId,
+          documentId,
+          active
+        );
         if (!result.ok) {
           toast.error(result.error ?? "That requirement could not be updated.");
           return;
         }
-        toast.success(active ? "Requirement reactivated." : "Requirement withdrawn.");
+        toast.success(
+          active ? "Requirement reactivated." : "Requirement withdrawn."
+        );
       });
     },
     [accountId]
@@ -224,14 +201,24 @@ export function InitialClaimsTab({
                 </div>
               </div>
               {docs
-                .filter((d) => d.status !== "PENDING_UPLOAD" || d.addedBy === "IMGC")
+                .filter(
+                  (d) => d.status !== "PENDING_UPLOAD" || d.addedBy === "IMGC"
+                )
                 .map((doc) => (
                   <ImgcDocumentRowItem
                     key={doc.id}
                     doc={doc}
                     accountId={accountId}
                     retentionDays={retentionDays}
-                    locked={["UNDER_REVIEW", "APPROVED", "REJECTED", "REFUND_RECEIVED_BY_IMGC", "QUERY_INITIATED", "QUERY_UNDER_REVIEW", "QUERIED"].includes(claimStatus)}
+                    locked={[
+                      "UNDER_REVIEW",
+                      "APPROVED",
+                      "REJECTED",
+                      "REFUND_RECEIVED_BY_IMGC",
+                      "QUERY_INITIATED",
+                      "QUERY_UNDER_REVIEW",
+                      "QUERIED",
+                    ].includes(claimStatus)}
                     hasOpenQuery={queriedDocNames.includes(doc.name)}
                   />
                 ))}
@@ -241,7 +228,9 @@ export function InitialClaimsTab({
           <ul className="divide-y divide-neutral-100">
             {(isLender || !submitted
               ? docs
-              : docs.filter((d) => d.status !== "PENDING_UPLOAD" || d.addedBy === "IMGC")
+              : docs.filter(
+                  (d) => d.status !== "PENDING_UPLOAD" || d.addedBy === "IMGC"
+                )
             ).map((doc) => (
               <DocumentRowItem
                 key={doc.id}
@@ -271,10 +260,20 @@ export function InitialClaimsTab({
               : "Submit unlocks once every mandatory document has been uploaded."}
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={onCancel} disabled={pending}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onCancel}
+              disabled={pending}
+            >
               Cancel
             </Button>
-            <Button variant="outline" size="sm" onClick={onSave} disabled={pending}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onSave}
+              disabled={pending}
+            >
               Save
             </Button>
             {canSubmit && !submitted && (
@@ -400,7 +399,10 @@ function DocumentRowItem({
 
   const onRaiseQuery = useCallback(() => {
     startTransition(async () => {
-      const result = await raiseQueryForRejectedDocumentAction(accountId, doc.id);
+      const result = await raiseQueryForRejectedDocumentAction(
+        accountId,
+        doc.id
+      );
       if (!result.ok) {
         toast.error(result.error ?? "That query could not be raised.");
         return;
@@ -443,7 +445,8 @@ function DocumentRowItem({
 
   const inactive = doc.active === false;
   const due = doc.dueDate ? daysUntil(doc.dueDate) : null;
-  const outstanding = doc.status === "PENDING_UPLOAD" || doc.status === "REJECTED";
+  const outstanding =
+    doc.status === "PENDING_UPLOAD" || doc.status === "REJECTED";
 
   return (
     <li className={cn("block", inactive && "bg-neutral-25 opacity-60")}>
@@ -515,266 +518,292 @@ function DocumentRowItem({
         <div className="border-t border-neutral-100/50 bg-neutral-25/30 px-5 pb-4 pt-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-
-          {isLender && (doc.category || doc.applicableProduct || doc.applicableCaseType) && (
-            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-neutral-500">
-              {doc.category && <span className="font-medium">{doc.category}</span>}
-              {doc.applicableProduct && <span>· {doc.applicableProduct}</span>}
-              {doc.applicableCaseType && <span>· {doc.applicableCaseType}</span>}
-              {doc.addedByName && <span>· added by {doc.addedByName}</span>}
-            </p>
-          )}
-
-          {doc.description && (
-            <p
-              className={cn(
-                "mt-1.5 text-[12px] text-neutral-700",
-                role === "IMGC"
-                  ? ""
-                  : "rounded-md border border-brand-primary/15 bg-brand-light/50 px-2.5 py-1.5 leading-relaxed"
-              )}
-            >
-              {doc.description}
-            </p>
-          )}
-
-          {doc.requirementRemarks && role === "IMGC" && (
-            <p className="mt-1 text-[11.5px] italic text-neutral-500">
-              IMGC note: {doc.requirementRemarks}
-            </p>
-          )}
-
-          {doc.files.length > 0 ? (
-            <div className="mt-1.5 space-y-2">
-              {doc.files.map((f) => (
-                <p key={f.id} className="flex flex-wrap items-center gap-1.5 text-[12px] text-neutral-500">
-                  <PaperclipIcon className="size-3.5" />
-                  <span className="font-medium text-neutral-700">
-                    {f.originalName}
-                  </span>
-                  <span>· {bytes(f.size)}</span>
-                  <span>
-                    · {f.uploadedByName}, {when(f.uploadedAt)}
-                  </span>
-                  {f.storedPath ? (
-                    <a
-                      href={`/api/portal/files/${f.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
-                    >
-                      <EyeIcon className="size-3" /> View
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewingFileId(f.id)}
-                      className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
-                    >
-                      <EyeIcon className="size-3" /> View
-                    </button>
-                  )}
-                </p>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-1.5 text-[12px] text-neutral-400">
-              Nothing uploaded yet.
-            </p>
-          )}
-
-          {doc.rejection && (
-            <div className="mt-2 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2">
-              <p className="text-[12.5px] text-destructive">
-                <span className="font-semibold">Rejected</span> by{" "}
-                {doc.rejection.by} on {when(doc.rejection.at)} — {doc.rejection.reason}
-              </p>
-              <p className="mt-0.5 text-[11.5px] text-neutral-500">
-                Kept for {retentionDays} days ·{" "}
-                {reinstate?.status === "REQUESTED"
-                  ? "held pending a reinstatement decision"
-                  : `${Math.max(0, daysLeft(doc.rejection.at, retentionDays))} days left`}
-              </p>
-              {reinstate && (
-                <p className="mt-1">
-                  <StatusPill status={reinstate.status} />
-                </p>
-              )}
-              <div className="mt-2 flex flex-wrap gap-2">
-                {isLender && reinstate?.status !== "REQUESTED" && (
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={onReinstateRequest}
-                    disabled={working}
-                  >
-                    <RotateCcwIcon /> Request reinstatement
-                  </Button>
+              {isLender &&
+                (doc.category ||
+                  doc.applicableProduct ||
+                  doc.applicableCaseType) && (
+                  <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-neutral-500">
+                    {doc.category && (
+                      <span className="font-medium">{doc.category}</span>
+                    )}
+                    {doc.applicableProduct && (
+                      <span>· {doc.applicableProduct}</span>
+                    )}
+                    {doc.applicableCaseType && (
+                      <span>· {doc.applicableCaseType}</span>
+                    )}
+                    {doc.addedByName && (
+                      <span>· added by {doc.addedByName}</span>
+                    )}
+                  </p>
                 )}
-                {role === "IMGC" && reinstate?.status === "REQUESTED" && (
+
+              {doc.description && (
+                <p
+                  className={cn(
+                    "mt-1.5 text-[12px] text-neutral-700",
+                    role === "IMGC"
+                      ? ""
+                      : "rounded-md border border-brand-primary/15 bg-brand-light/50 px-2.5 py-1.5 leading-relaxed"
+                  )}
+                >
+                  {doc.description}
+                </p>
+              )}
+
+              {doc.requirementRemarks && role === "IMGC" && (
+                <p className="mt-1 text-[11.5px] italic text-neutral-500">
+                  IMGC note: {doc.requirementRemarks}
+                </p>
+              )}
+
+              {doc.files.length > 0 ? (
+                <div className="mt-1.5 space-y-2">
+                  {doc.files.map((f) => (
+                    <p
+                      key={f.id}
+                      className="flex flex-wrap items-center gap-1.5 text-[12px] text-neutral-500"
+                    >
+                      <PaperclipIcon className="size-3.5" />
+                      <span className="font-medium text-neutral-700">
+                        {f.originalName}
+                      </span>
+                      <span>· {bytes(f.size)}</span>
+                      <span>
+                        · {f.uploadedByName}, {when(f.uploadedAt)}
+                      </span>
+                      {f.storedPath ? (
+                        <a
+                          href={`/api/portal/files/${f.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                        >
+                          <EyeIcon className="size-3" /> View
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewingFileId(f.id)}
+                          className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                        >
+                          <EyeIcon className="size-3" /> View
+                        </button>
+                      )}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1.5 text-[12px] text-neutral-400">
+                  Nothing uploaded yet.
+                </p>
+              )}
+
+              {doc.rejection && (
+                <div className="mt-2 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2">
+                  <p className="text-[12.5px] text-destructive">
+                    <span className="font-semibold">Ineligible</span> by{" "}
+                    {doc.rejection.by} on {when(doc.rejection.at)} —{" "}
+                    {doc.rejection.reason}
+                  </p>
+                  <p className="mt-0.5 text-[11.5px] text-neutral-500">
+                    Kept for {retentionDays} days ·{" "}
+                    {reinstate?.status === "REQUESTED"
+                      ? "held pending a reinstatement decision"
+                      : `${Math.max(0, daysLeft(doc.rejection.at, retentionDays))} days left`}
+                  </p>
+                  {reinstate && (
+                    <p className="mt-1">
+                      <StatusPill status={reinstate.status} />
+                    </p>
+                  )}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {isLender && reinstate?.status !== "REQUESTED" && (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={onReinstateRequest}
+                        disabled={working}
+                      >
+                        <RotateCcwIcon /> Request reinstatement
+                      </Button>
+                    )}
+                    {role === "IMGC" && reinstate?.status === "REQUESTED" && (
+                      <>
+                        <Button
+                          size="xs"
+                          variant="success"
+                          onClick={() => onReinstateDecision(true)}
+                          disabled={working}
+                        >
+                          Approve reinstatement
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => onReinstateDecision(false)}
+                          disabled={working}
+                        >
+                          Deny
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Row actions */}
+            <div className="flex shrink-0 flex-col items-end gap-2">
+              {isLender &&
+                doc.status !== "APPROVED" &&
+                !submitted &&
+                doc.file?.uploadedBy !== "system" && (
                   <>
+                    <input
+                      ref={fileInput}
+                      type="file"
+                      id={`file-${doc.id}`}
+                      onChange={onUpload}
+                      disabled={working}
+                      className="hidden"
+                    />
+                    {/* A label, not a Button: it has to drive the hidden file input, and a <label
+                  for> is the one control that opens the picker without any JavaScript. */}
+                    <label
+                      htmlFor={`file-${doc.id}`}
+                      aria-disabled={working}
+                      className={cn(
+                        "inline-flex h-8 cursor-pointer items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors",
+                        working && "pointer-events-none opacity-50",
+                        doc.status === "PENDING_UPLOAD"
+                          ? "bg-primary text-primary-foreground hover:bg-brand-dark"
+                          : "border border-neutral-200 bg-white text-neutral-900 hover:border-neutral-400 hover:bg-neutral-50"
+                      )}
+                    >
+                      <UploadIcon className="size-3.5" />
+                      {doc.status === "PENDING_UPLOAD" ? "Upload" : "Replace"}
+                    </label>
+                  </>
+                )}
+
+              {role === "IMGC" &&
+                doc.status === "UNDER_REVIEW" &&
+                !rejecting && (
+                  <div className="flex gap-2">
                     <Button
                       size="xs"
                       variant="success"
-                      onClick={() => onReinstateDecision(true)}
+                      onClick={() => decide("APPROVED", "")}
                       disabled={working}
                     >
-                      Approve reinstatement
+                      <CheckIcon /> Accept
                     </Button>
                     <Button
                       size="xs"
                       variant="outline"
-                      onClick={() => onReinstateDecision(false)}
+                      onClick={() => setRejecting(true)}
                       disabled={working}
                     >
-                      Deny
+                      <XIcon /> Reject
                     </Button>
-                  </>
+                  </div>
                 )}
-              </div>
-            </div>
-          )}
-        </div>
 
-        {/* Row actions */}
-        <div className="flex shrink-0 flex-col items-end gap-2">
-          {isLender && doc.status !== "APPROVED" && !submitted && doc.file?.uploadedBy !== "system" && (
-            <>
-              <input
-                ref={fileInput}
-                type="file"
-                id={`file-${doc.id}`}
-                onChange={onUpload}
-                disabled={working}
-                className="hidden"
-              />
-              {/* A label, not a Button: it has to drive the hidden file input, and a <label
-                  for> is the one control that opens the picker without any JavaScript. */}
-              <label
-                htmlFor={`file-${doc.id}`}
-                aria-disabled={working}
-                className={cn(
-                  "inline-flex h-8 cursor-pointer items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors",
-                  working && "pointer-events-none opacity-50",
-                  doc.status === "PENDING_UPLOAD"
-                    ? "bg-primary text-primary-foreground hover:bg-brand-dark"
-                    : "border border-neutral-200 bg-white text-neutral-900 hover:border-neutral-400 hover:bg-neutral-50"
-                )}
-              >
-                <UploadIcon className="size-3.5" />
-                {doc.status === "PENDING_UPLOAD" ? "Upload" : "Replace"}
-              </label>
-            </>
-          )}
-
-          {role === "IMGC" && doc.status === "UNDER_REVIEW" && !rejecting && (
-            <div className="flex gap-2">
-              <Button
-                size="xs"
-                variant="success"
-                onClick={() => decide("APPROVED", "")}
-                disabled={working}
-              >
-                <CheckIcon /> Accept
-              </Button>
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={() => setRejecting(true)}
-                disabled={working}
-              >
-                <XIcon /> Reject
-              </Button>
-            </div>
-          )}
-
-          {/* A rejected document is IMGC's to walk back (the rejection was the mistake, not the
+              {/* A rejected document is IMGC's to walk back (the rejection was the mistake, not the
               document), and — only when nothing already raised one — theirs to turn into a
               proper query too, for a document rejected before that started happening
               automatically. A fresh rejection already has an open query, so this stays hidden. */}
-          {role === "IMGC" && doc.status === "REJECTED" && (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={onReactivate}
-                disabled={working}
-                title="Undo the rejection — the document goes back under review"
-              >
-                <RotateCcwIcon /> Undo Rejection
-              </Button>
-              {!hasOpenQuery && (
+              {role === "IMGC" && doc.status === "REJECTED" && (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={onReactivate}
+                    disabled={working}
+                    title="Undo the rejection — the document goes back under review"
+                  >
+                    <RotateCcwIcon /> Undo Rejection
+                  </Button>
+                  {!hasOpenQuery && (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={onRaiseQuery}
+                      disabled={working}
+                      title="This rejection has no open query yet — raise one so the lender sees it"
+                    >
+                      <MessageSquareWarningIcon /> Raise Query
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* Only an IMGC-authored requirement can be withdrawn — the standard checklist is not
+              the processor's to remove. Withdrawing keeps the row and its history. */}
+              {role === "IMGC" && doc.addedBy === "IMGC" && (
                 <Button
                   size="xs"
                   variant="outline"
-                  onClick={onRaiseQuery}
+                  onClick={() => onToggleActive(doc.id, inactive)}
                   disabled={working}
-                  title="This rejection has no open query yet — raise one so the lender sees it"
+                  title={
+                    inactive
+                      ? "Ask the lender for this document again"
+                      : "Stop asking for this document — it will not block submission"
+                  }
                 >
-                  <MessageSquareWarningIcon /> Raise Query
+                  {inactive ? <RotateCcwIcon /> : <BanIcon />}
+                  {inactive ? "Reactivate" : "Withdraw"}
                 </Button>
               )}
             </div>
-          )}
+          </div>
 
-          {/* Only an IMGC-authored requirement can be withdrawn — the standard checklist is not
-              the processor's to remove. Withdrawing keeps the row and its history. */}
-          {role === "IMGC" && doc.addedBy === "IMGC" && (
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() => onToggleActive(doc.id, inactive)}
-              disabled={working}
-              title={
-                inactive
-                  ? "Ask the lender for this document again"
-                  : "Stop asking for this document — it will not block submission"
-              }
+          {rejecting && role === "IMGC" && (
+            <form
+              className="mt-3 flex flex-wrap items-end gap-2 rounded-lg border border-neutral-200 bg-neutral-25 p-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const reason = String(
+                  new FormData(e.currentTarget).get("reason") ?? ""
+                );
+                decide("REJECTED", reason);
+              }}
             >
-              {inactive ? <RotateCcwIcon /> : <BanIcon />}
-              {inactive ? "Reactivate" : "Withdraw"}
-            </Button>
+              <label className="min-w-[260px] flex-1">
+                <span className="mb-1 block text-[12px] font-medium text-neutral-700">
+                  Reason for rejection
+                </span>
+                <input
+                  name="reason"
+                  required
+                  // The reason box appears only after Reject is pressed, and a rejection cannot
+                  // be filed without it.
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
+                  placeholder="e.g. Valuation report is older than 6 months"
+                  className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                />
+              </label>
+              <Button
+                type="submit"
+                size="sm"
+                variant="destructive"
+                disabled={working}
+              >
+                Reject document
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setRejecting(false)}
+              >
+                Cancel
+              </Button>
+            </form>
           )}
-        </div>
-      </div>
-
-      {rejecting && role === "IMGC" && (
-        <form
-          className="mt-3 flex flex-wrap items-end gap-2 rounded-lg border border-neutral-200 bg-neutral-25 p-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const reason = String(new FormData(e.currentTarget).get("reason") ?? "");
-            decide("REJECTED", reason);
-          }}
-        >
-          <label className="min-w-[260px] flex-1">
-            <span className="mb-1 block text-[12px] font-medium text-neutral-700">
-              Reason for rejection
-            </span>
-            <input
-              name="reason"
-              required
-              // The reason box appears only after Reject is pressed, and a rejection cannot
-              // be filed without it.
-              // eslint-disable-next-line jsx-a11y/no-autofocus
-              autoFocus
-              placeholder="e.g. Valuation report is older than 6 months"
-              className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-            />
-          </label>
-          <Button type="submit" size="sm" variant="destructive" disabled={working}>
-            Reject document
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setRejecting(false)}
-          >
-            Cancel
-          </Button>
-        </form>
-      )}
 
           {/* Per-document remark */}
           {isLender && (
@@ -792,7 +821,7 @@ function DocumentRowItem({
       )}
 
       <DocumentPreviewDialog
-        file={doc.files.find(f => f.id === previewingFileId) ?? undefined}
+        file={doc.files.find((f) => f.id === previewingFileId) ?? undefined}
         open={previewingFileId !== null}
         onOpenChange={(open) => !open && setPreviewingFileId(null)}
       />
@@ -801,7 +830,15 @@ function DocumentRowItem({
 }
 
 function ImgcDocumentRowItem({
-  doc, accountId, retentionDays, hasOpenQuery, locked
+  doc,
+  accountId,
+  // Accepted for prop-shape parity with the sibling row component this one is switched with —
+  // this variant just doesn't need them itself.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  retentionDays,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  hasOpenQuery,
+  locked,
 }: Readonly<{
   doc: DocumentRow;
   /** The claim is decided — its document decisions are final, so no Accept/Reject/Undo. */
@@ -842,7 +879,9 @@ function ImgcDocumentRowItem({
           toast.error(result.error ?? "That decision could not be recorded.");
           return;
         }
-        toast.success(decision === "APPROVED" ? "File accepted." : "File rejected.");
+        toast.success(
+          decision === "APPROVED" ? "File accepted." : "File rejected."
+        );
         setDeciding(null);
       });
     },
@@ -890,12 +929,18 @@ function ImgcDocumentRowItem({
   const onToggleActive = useCallback(
     (active: boolean) => {
       startTransition(async () => {
-        const result = await setRequirementActiveAction(accountId, doc.id, active);
+        const result = await setRequirementActiveAction(
+          accountId,
+          doc.id,
+          active
+        );
         if (!result.ok) {
           toast.error(result.error ?? "That requirement could not be updated.");
           return;
         }
-        toast.success(active ? "Requirement reactivated." : "Requirement withdrawn.");
+        toast.success(
+          active ? "Requirement reactivated." : "Requirement withdrawn."
+        );
       });
     },
     [accountId, doc.id]
@@ -904,7 +949,12 @@ function ImgcDocumentRowItem({
   const onReinstateDecision = useCallback(
     (approve: boolean) => {
       startTransition(async () => {
-        const result = await decideReinstateAction(accountId, doc.id, approve, "");
+        const result = await decideReinstateAction(
+          accountId,
+          doc.id,
+          approve,
+          ""
+        );
         if (!result.ok) {
           toast.error(result.error ?? "That decision could not be recorded.");
           return;
@@ -918,149 +968,314 @@ function ImgcDocumentRowItem({
   const reinstate = doc.rejection?.reinstate;
   const inactive = doc.active === false;
   const isLegacyDecision = !doc.files.some((f) => f.review) && !!doc.review;
-  
+
   return (
-    <div className={cn("flex flex-col border-b border-neutral-100 last:border-b-0", inactive && "bg-neutral-25/60 opacity-70")}>
+    <div
+      className={cn(
+        "flex flex-col border-b border-neutral-100 last:border-b-0",
+        inactive && "bg-neutral-25/60 opacity-70"
+      )}
+    >
       <div className="flex items-stretch">
         <div className="flex w-[140px] shrink-0 flex-col items-start gap-1.5 border-r border-neutral-100 px-3 py-3">
-          <span className="line-clamp-2 text-[12px] font-semibold leading-tight text-neutral-950" title={doc.name}>
+          <span
+            className="line-clamp-2 text-[12px] font-semibold leading-tight text-neutral-950"
+            title={doc.name}
+          >
             {doc.name}
             {doc.required && <span className="text-destructive ml-1">*</span>}
           </span>
-          <StatusPill status={doc.status === "APPROVED" ? "ACCEPTED" : doc.status} />
-          {inactive && <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">Withdrawn</span>}
+          <StatusPill
+            status={doc.status === "APPROVED" ? "ACCEPTED" : doc.status}
+          />
+          {inactive && (
+            <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">
+              Withdrawn
+            </span>
+          )}
         </div>
 
         <div className="flex flex-1 flex-col">
           {doc.files.length === 0 && (
             <div className="flex flex-1 items-center justify-between gap-2 px-3 py-3">
-              <div className="w-[140px] shrink-0 text-[11.5px] text-neutral-400">Nothing uploaded yet.</div>
+              <div className="w-[140px] shrink-0 text-[11.5px] text-neutral-400">
+                Nothing uploaded yet.
+              </div>
               <div className="w-[140px] shrink-0" />
               <div className="w-[140px] shrink-0" />
               <div className="w-[85px] shrink-0" />
               <div className="w-[100px] shrink-0" />
               <div className="flex w-[140px] shrink-0 flex-wrap gap-2">
                 {doc.addedBy === "IMGC" && (
-                   <Button size="xs" variant="outline" onClick={() => onToggleActive(inactive)} disabled={working} className="h-7 px-2.5 text-[11px]">
-                     {inactive ? <RotateCcwIcon className="mr-1 size-3" /> : <BanIcon className="mr-1 size-3" />}
-                     {inactive ? "Reactivate" : "Withdraw"}
-                   </Button>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={() => onToggleActive(inactive)}
+                    disabled={working}
+                    className="h-7 px-2.5 text-[11px]"
+                  >
+                    {inactive ? (
+                      <RotateCcwIcon className="mr-1 size-3" />
+                    ) : (
+                      <BanIcon className="mr-1 size-3" />
+                    )}
+                    {inactive ? "Reactivate" : "Withdraw"}
+                  </Button>
                 )}
               </div>
             </div>
           )}
-          
-          {doc.files.length > 0 && doc.files.map((f, i) => (
-            <div key={f.id} className={cn("flex flex-1 items-center justify-between gap-2 px-3 py-3", i > 0 && "border-t border-neutral-100")}>
-              <div className="w-[140px] shrink-0 text-[11.5px] font-medium text-neutral-700" title={f.originalName}>
-                <div className="truncate">
-                  {f.storedPath ? (
-                    <a href={`/api/portal/files/${f.id}`} target="_blank" rel="noopener noreferrer" className="hover:text-brand-primary hover:underline" title={f.originalName}>{clip(f.originalName, 20)}</a>
+
+          {doc.files.length > 0 &&
+            doc.files.map((f, i) => (
+              <div
+                key={f.id}
+                className={cn(
+                  "flex flex-1 items-center justify-between gap-2 px-3 py-3",
+                  i > 0 && "border-t border-neutral-100"
+                )}
+              >
+                <div
+                  className="w-[140px] shrink-0 text-[11.5px] font-medium text-neutral-700"
+                  title={f.originalName}
+                >
+                  <div className="truncate">
+                    {f.storedPath ? (
+                      <a
+                        href={`/api/portal/files/${f.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-brand-primary hover:underline"
+                        title={f.originalName}
+                      >
+                        {clip(f.originalName, 20)}
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewingFileId(f.id)}
+                        className="w-full truncate text-left hover:text-brand-primary hover:underline"
+                        title={f.originalName}
+                      >
+                        {clip(f.originalName, 20)}
+                      </button>
+                    )}
+                  </div>
+                  <span className="text-[11px] font-normal text-neutral-400">
+                    {bytes(f.size)}
+                  </span>
+                </div>
+                <div
+                  className="w-[140px] shrink-0 line-clamp-3 text-[11px] text-neutral-600"
+                  title={f.uploadRemarks?.trim() || undefined}
+                >
+                  {f.uploadRemarks?.trim() ? (
+                    clip(f.uploadRemarks.trim(), 34)
                   ) : (
-                    <button type="button" onClick={() => setPreviewingFileId(f.id)} className="w-full truncate text-left hover:text-brand-primary hover:underline" title={f.originalName}>{clip(f.originalName, 20)}</button>
+                    <span className="text-neutral-300">—</span>
                   )}
                 </div>
-                <span className="text-[11px] font-normal text-neutral-400">{bytes(f.size)}</span>
-              </div>
-              <div
-                className="w-[140px] shrink-0 line-clamp-3 text-[11px] text-neutral-600"
-                title={f.uploadRemarks?.trim() || undefined}
-              >
-                {f.uploadRemarks?.trim() ? (
-                  clip(f.uploadRemarks.trim(), 34)
-                ) : (
-                  <span className="text-neutral-300">—</span>
-                )}
-              </div>
-              <div className="w-[140px] shrink-0">
-                {f.review ? (
-                  <FileDecisionNote review={f.review} className="mt-0" maxChars={34} />
-                ) : (
-                  <span className="text-[11px] text-neutral-300">—</span>
-                )}
-              </div>
-              <div className="w-[85px] shrink-0 truncate text-[11px] text-neutral-500" title={f.uploadedByName}>{f.uploadedByName}</div>
-              <div className="w-[100px] shrink-0 text-[11px] text-neutral-500">{when(f.uploadedAt)}</div>
-              
-              <div className="flex w-[140px] shrink-0 flex-wrap gap-1.5">
-                {f.storedPath ? (
-                  <>
-                    <a
-                      href={`/api/portal/files/${f.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                      title="View"
-                    >
-                      <EyeIcon className="size-4" />
-                    </a>
-                    <a
-                      href={`/api/portal/files/${f.id}?download=1`}
-                      className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                      title="Download"
-                    >
-                      <DownloadIcon className="size-4" />
-                    </a>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setPreviewingFileId(f.id)}
-                      className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                      title="View"
-                    >
-                      <EyeIcon className="size-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => toast.error("Demo files cannot be downloaded")}
-                      className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                      title="Download"
-                    >
-                      <DownloadIcon className="size-4" />
-                    </button>
-                  </>
-                )}
+                <div className="w-[140px] shrink-0">
+                  {f.review ? (
+                    <FileDecisionNote
+                      review={f.review}
+                      className="mt-0"
+                      maxChars={34}
+                    />
+                  ) : (
+                    <span className="text-[11px] text-neutral-300">—</span>
+                  )}
+                </div>
+                <div
+                  className="w-[85px] shrink-0 truncate text-[11px] text-neutral-500"
+                  title={f.uploadedByName}
+                >
+                  {f.uploadedByName}
+                </div>
+                <div className="w-[100px] shrink-0 text-[11px] text-neutral-500">
+                  {when(f.uploadedAt)}
+                </div>
 
-                {/* Decided one file at a time. A file carries its own decision; a file with none that
+                <div className="flex w-[140px] shrink-0 flex-wrap gap-1.5">
+                  {f.storedPath ? (
+                    <>
+                      <a
+                        href={`/api/portal/files/${f.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
+                        title="View"
+                      >
+                        <EyeIcon className="size-4" />
+                      </a>
+                      <a
+                        href={`/api/portal/files/${f.id}?download=1`}
+                        className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
+                        title="Download"
+                      >
+                        <DownloadIcon className="size-4" />
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewingFileId(f.id)}
+                        className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
+                        title="View"
+                      >
+                        <EyeIcon className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          toast.error("Demo files cannot be downloaded")
+                        }
+                        className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
+                        title="Download"
+                      >
+                        <DownloadIcon className="size-4" />
+                      </button>
+                    </>
+                  )}
+
+                  {/* Decided one file at a time. A file carries its own decision; a file with none that
                     sits under a requirement decided before decisions were per file keeps that
                     requirement-level decision and its Undo, rather than being offered Accept again. */}
-                {!locked && !inactive && !f.review && !isLegacyDecision && deciding?.fileId !== f.id && (
-                  <>
-                    <Button size="xs" variant="success" onClick={() => setDeciding({ fileId: f.id, fileName: f.originalName, decision: "APPROVED" })} disabled={busyFileId === f.id}className="size-7 p-0" title="Accept this file"><CheckIcon className="size-4" /></Button>
-                    <Button size="xs" variant="outline" onClick={() => setDeciding({ fileId: f.id, fileName: f.originalName, decision: "REJECTED" })} disabled={busyFileId === f.id}className="size-7 p-0 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive" title="Reject this file"><XIcon className="size-4" /></Button>
-                  </>
-                )}
+                  {!locked &&
+                    !inactive &&
+                    !f.review &&
+                    !isLegacyDecision &&
+                    deciding?.fileId !== f.id && (
+                      <>
+                        <Button
+                          size="xs"
+                          variant="success"
+                          onClick={() =>
+                            setDeciding({
+                              fileId: f.id,
+                              fileName: f.originalName,
+                              decision: "APPROVED",
+                            })
+                          }
+                          disabled={busyFileId === f.id}
+                          className="size-7 p-0"
+                          title="Accept this file"
+                        >
+                          <CheckIcon className="size-4" />
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() =>
+                            setDeciding({
+                              fileId: f.id,
+                              fileName: f.originalName,
+                              decision: "REJECTED",
+                            })
+                          }
+                          disabled={busyFileId === f.id}
+                          className="size-7 p-0 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          title="Reject this file"
+                        >
+                          <XIcon className="size-4" />
+                        </Button>
+                      </>
+                    )}
 
-                {!locked && f.review && (
-                  <Button size="xs" variant="outline" onClick={() => onUndoFile(f.id)} disabled={busyFileId === f.id}title={f.review.decision === "APPROVED" ? "Undo the acceptance of this file" : "Undo the rejection of this file"} className="size-7 p-0" aria-label="Undo"><RotateCcwIcon className="size-4" /></Button>
-                )}
+                  {!locked && f.review && (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => onUndoFile(f.id)}
+                      disabled={busyFileId === f.id}
+                      title={
+                        f.review.decision === "APPROVED"
+                          ? "Undo the acceptance of this file"
+                          : "Undo the rejection of this file"
+                      }
+                      className="size-7 p-0"
+                      aria-label="Undo"
+                    >
+                      <RotateCcwIcon className="size-4" />
+                    </Button>
+                  )}
 
-                {!locked && !f.review && isLegacyDecision && doc.status === "REJECTED" && (
-                  <Button size="xs" variant="outline" onClick={onReactivate} disabled={working} title="Undo the rejection" className="size-7 p-0" aria-label="Undo"><RotateCcwIcon className="size-4" /></Button>
-                )}
-                {!locked && !f.review && isLegacyDecision && doc.status === "APPROVED" && (
-                  <Button size="xs" variant="outline" onClick={onUndoAccepted} disabled={working} title="Undo the acceptance" className="size-7 p-0" aria-label="Undo"><RotateCcwIcon className="size-4" /></Button>
-                )}
+                  {!locked &&
+                    !f.review &&
+                    isLegacyDecision &&
+                    doc.status === "REJECTED" && (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={onReactivate}
+                        disabled={working}
+                        title="Undo the rejection"
+                        className="size-7 p-0"
+                        aria-label="Undo"
+                      >
+                        <RotateCcwIcon className="size-4" />
+                      </Button>
+                    )}
+                  {!locked &&
+                    !f.review &&
+                    isLegacyDecision &&
+                    doc.status === "APPROVED" && (
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={onUndoAccepted}
+                        disabled={working}
+                        title="Undo the acceptance"
+                        className="size-7 p-0"
+                        aria-label="Undo"
+                      >
+                        <RotateCcwIcon className="size-4" />
+                      </Button>
+                    )}
 
+                  {doc.addedBy === "IMGC" && (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => onToggleActive(inactive)}
+                      disabled={working}
+                      className="h-7 px-2.5 text-[11px]"
+                    >
+                      {inactive ? (
+                        <RotateCcwIcon className="mr-1 size-3" />
+                      ) : (
+                        <BanIcon className="mr-1 size-3" />
+                      )}
+                      {inactive ? "Reactivate" : "Withdraw"}
+                    </Button>
+                  )}
 
-                {doc.addedBy === "IMGC" && (
-                  <Button size="xs" variant="outline" onClick={() => onToggleActive(inactive)} disabled={working} className="h-7 px-2.5 text-[11px]">
-                    {inactive ? <RotateCcwIcon className="mr-1 size-3" /> : <BanIcon className="mr-1 size-3" />}
-                    {inactive ? "Reactivate" : "Withdraw"}
-                  </Button>
-                )}
-
-                {i === 0 && reinstate?.status === "REQUESTED" && (
-                  <>
-                    <Button size="xs" variant="success" onClick={() => onReinstateDecision(true)} disabled={working} className="h-7 px-2.5 text-[11px]">Approve Reinstatement</Button>
-                    <Button size="xs" variant="outline" onClick={() => onReinstateDecision(false)} disabled={working} className="h-7 px-2.5 text-[11px]">Deny</Button>
-                  </>
-                )}
+                  {i === 0 && reinstate?.status === "REQUESTED" && (
+                    <>
+                      <Button
+                        size="xs"
+                        variant="success"
+                        onClick={() => onReinstateDecision(true)}
+                        disabled={working}
+                        className="h-7 px-2.5 text-[11px]"
+                      >
+                        Approve Reinstatement
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => onReinstateDecision(false)}
+                        disabled={working}
+                        className="h-7 px-2.5 text-[11px]"
+                      >
+                        Deny
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
       </div>
       {/* A popup rather than an inline expanding row — the remark is a required, deliberate step
@@ -1075,7 +1290,8 @@ function ImgcDocumentRowItem({
           <DialogContent className="sm:max-w-[480px]">
             <DialogHeader>
               <DialogTitle>
-                {deciding.decision === "APPROVED" ? "Accept" : "Reject"} {deciding.fileName}
+                {deciding.decision === "APPROVED" ? "Accept" : "Reject"}{" "}
+                {deciding.fileName}
               </DialogTitle>
               <DialogDescription>
                 {deciding.decision === "APPROVED"
@@ -1088,7 +1304,9 @@ function ImgcDocumentRowItem({
               className="flex flex-col gap-3"
               onSubmit={(e) => {
                 e.preventDefault();
-                const remarks = String(new FormData(e.currentTarget).get("remarks") ?? "").trim();
+                const remarks = String(
+                  new FormData(e.currentTarget).get("remarks") ?? ""
+                ).trim();
                 if (!remarks) {
                   toast.error("A remark is required.");
                   return;
@@ -1098,8 +1316,12 @@ function ImgcDocumentRowItem({
             >
               <label className="block">
                 <span className="mb-1 block text-[12px] font-medium text-neutral-700">
-                  {deciding.decision === "APPROVED" ? "Remark for accepting" : "Reason for rejecting"}{" "}
-                  <span className="font-semibold text-neutral-900">{deciding.fileName}</span>
+                  {deciding.decision === "APPROVED"
+                    ? "Remark for accepting"
+                    : "Reason for rejecting"}{" "}
+                  <span className="font-semibold text-neutral-900">
+                    {deciding.fileName}
+                  </span>
                   <span className="text-destructive"> *</span>
                 </span>
                 <textarea
@@ -1119,16 +1341,25 @@ function ImgcDocumentRowItem({
                 />
               </label>
               <div className="flex justify-end gap-2">
-                <Button type="button" size="sm" variant="outline" onClick={() => setDeciding(null)}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setDeciding(null)}
+                >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   size="sm"
-                  variant={deciding.decision === "APPROVED" ? "success" : "destructive"}
+                  variant={
+                    deciding.decision === "APPROVED" ? "success" : "destructive"
+                  }
                   disabled={busyFileId === deciding.fileId}
                 >
-                  {deciding.decision === "APPROVED" ? "Accept file" : "Reject file"}
+                  {deciding.decision === "APPROVED"
+                    ? "Accept file"
+                    : "Reject file"}
                 </Button>
               </div>
             </form>
@@ -1139,14 +1370,16 @@ function ImgcDocumentRowItem({
       {/* Show rejection reason inline if rejected, to preserve info */}
       {doc.rejection && doc.status === "REJECTED" && (
         <div className="mx-4 mb-3 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2">
-           <p className="text-[12px] text-destructive">
-             <span className="font-semibold">Rejected</span> by {doc.rejection.by} on {when(doc.rejection.at)} — {doc.rejection.reason}
-           </p>
+          <p className="text-[12px] text-destructive">
+            <span className="font-semibold">Ineligible</span> by{" "}
+            {doc.rejection.by} on {when(doc.rejection.at)} —{" "}
+            {doc.rejection.reason}
+          </p>
         </div>
       )}
 
       <DocumentPreviewDialog
-        file={doc.files.find(f => f.id === previewingFileId) ?? undefined}
+        file={doc.files.find((f) => f.id === previewingFileId) ?? undefined}
         open={previewingFileId !== null}
         onOpenChange={(open) => !open && setPreviewingFileId(null)}
       />

@@ -340,7 +340,7 @@ function MonthlyBars({
               {status === "APPROVED"
                 ? "Approved"
                 : status === "REJECTED"
-                  ? "Rejected"
+                  ? "Ineligible"
                   : "Claims"}
             </h4>
           </div>
@@ -521,8 +521,14 @@ export function ClaimDashboardView({
       <Panel
         size="compact"
         title="Month-on-month claim status"
+        // Panel wraps its `actions` slot in a `shrink-0` flex item, so `flex-wrap` alone here
+        // does nothing: an unconstrained flex row's own width is computed as if nothing ever
+        // wraps, so `shrink-0` still locked it at the full single-line width — wider than the
+        // panel at phone width, pushing the header (and the page) past the viewport. Stacking
+        // to a column below `sm` sidesteps that: a column's natural width is just its widest
+        // child, which is what actually shrinks the slot.
         actions={
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-col items-stretch gap-1.5 sm:w-auto sm:flex-row sm:items-center">
             <div className="inline-flex rounded-md shadow-sm" role="group">
               <button
                 type="button"

@@ -1,3 +1,7 @@
+// `"server-only"` below throws at build time if this module reaches a client bundle, so it can
+// never run in a browser — this rule is flagging a local identifier (`status`/`closed`) that
+// happens to share a name with a global browser API, not an actual browser-api call.
+/* eslint-disable use-client/browser-api */
 import "server-only";
 
 /* eslint-disable security/detect-object-injection */
@@ -297,20 +301,28 @@ function decidedAt(claim: Claim): string {
 
 function buildClaimPipelineKpis(
   claims: readonly Claim[],
-  queries: ReadonlyArray<{ claimId: string; dueDate?: string; respondedAt?: string }>
+  queries: ReadonlyArray<{
+    claimId: string;
+    dueDate?: string;
+    respondedAt?: string;
+  }>
 ): ClaimPipelineKpis {
   const decided = claims.filter(
     (c) => c.status === "APPROVED" || c.status === "REJECTED"
   );
   const approvalRatePct = decided.length
     ? Math.round(
-        (decided.filter((c) => c.status === "APPROVED").length / decided.length) * 100
+        (decided.filter((c) => c.status === "APPROVED").length /
+          decided.length) *
+          100
       )
     : null;
 
   const turnarounds = decided
     .filter((c): c is Claim & { submittedAt: string } => Boolean(c.submittedAt))
-    .map((c) => (Date.parse(decidedAt(c)) - Date.parse(c.submittedAt)) / 86_400_000)
+    .map(
+      (c) => (Date.parse(decidedAt(c)) - Date.parse(c.submittedAt)) / 86_400_000
+    )
     .filter((days) => days >= 0);
   const avgTurnaroundDays = turnarounds.length
     ? Math.round(
@@ -338,7 +350,12 @@ function buildClaimPipelineKpis(
       Date.parse(q.dueDate) < nowMs
   ).length;
 
-  return { approvalRatePct, avgTurnaroundDays, claimsThisMonth, overdueQueries };
+  return {
+    approvalRatePct,
+    avgTurnaroundDays,
+    claimsThisMonth,
+    overdueQueries,
+  };
 }
 
 function isIn(doc: ClaimDocument): boolean {
@@ -362,7 +379,9 @@ export async function buildDashboardSummary(
   // account written before `toAccountClaimStatus` existed still holds the claim's `QUERY_RAISED`
   // where the account vocabulary says `QUERIED`, and `byStatus("QUERIED")` silently skips it.
   let accounts = db.accounts
-    .filter((a) => session.role === "IMGC" || a.lenderOrgId === session.lenderOrgId)
+    .filter(
+      (a) => session.role === "IMGC" || a.lenderOrgId === session.lenderOrgId
+    )
     .map((a) => ({ ...a, claimStatus: toAccountClaimStatus(a.claimStatus) }));
   const selectedLenderOrgId =
     session.role === "IMGC" ? (options?.lenderOrgId ?? undefined) : undefined;
@@ -383,7 +402,9 @@ export async function buildDashboardSummary(
   // Same claims `listClaims` already scopes by session — filtered again here against `ids` so a
   // narrower `accounts` (the lender-filtered case above) narrows `claims` right along with it,
   // without touching `listClaims`'s own access-control rules at all.
-  const claims = (await listClaims(session)).filter((c) => ids.has(c.accountId));
+  const claims = (await listClaims(session)).filter((c) =>
+    ids.has(c.accountId)
+  );
 
   const required = docs.filter((d) => d.required);
   const documentsRequired = required.length;
@@ -436,7 +457,9 @@ export async function buildDashboardSummary(
   const nowMs = Date.now();
   const overdueClaimIds = new Set(
     db.claimQueries
-      .filter((q) => !q.respondedAt && q.dueDate && Date.parse(q.dueDate) < nowMs)
+      .filter(
+        (q) => !q.respondedAt && q.dueDate && Date.parse(q.dueDate) < nowMs
+      )
       .map((q) => q.claimId)
   );
   const claimStatusCount = (status: Claim["status"]) =>
@@ -447,7 +470,10 @@ export async function buildDashboardSummary(
   // accounts.server.ts applies (still mid query-loop) — so this tile's count doesn't undercount
   // against what `/dpd?loanStatus=Queried` actually lists.
   const queriedCount =
-    claimStatusCount("QUERY_RAISED") + claimStatusCount("DOCUMENTS_RESUBMITTED") + claimStatusCount("QUERY_INITIATED") + claimStatusCount("QUERY_UNDER_REVIEW");
+    claimStatusCount("QUERY_RAISED") +
+    claimStatusCount("DOCUMENTS_RESUBMITTED") +
+    claimStatusCount("QUERY_INITIATED") +
+    claimStatusCount("QUERY_UNDER_REVIEW");
   // "Approved" folds in CLOSED and REFUND_RECEIVED_BY_IMGC too — same fold `classifyLoanStatus`
   // in accounts.server.ts applies (closest terminal-success bucket, and a refund confirmation on
   // top of an approval rather than a fourth outcome) — so this tile's count doesn't undercount
@@ -500,12 +526,21 @@ export async function buildDashboardSummary(
   // written-off or decided account isn't also "overdue"), and active is everything left over.
   const closedIds = new Set(
     accounts
-      .filter((a) => a.writeOff || a.claimStatus === "APPROVED" || a.claimStatus === "REJECTED")
+      .filter(
+        (a) =>
+          a.writeOff ||
+          a.claimStatus === "APPROVED" ||
+          a.claimStatus === "REJECTED"
+      )
       .map((a) => a.id)
   );
   const overdueIds = new Set(
     accounts
-      .filter((a) => !closedIds.has(a.id) && daysSince(lastTouch.get(a.id) ?? a.createdAt) > 8)
+      .filter(
+        (a) =>
+          !closedIds.has(a.id) &&
+          daysSince(lastTouch.get(a.id) ?? a.createdAt) > 8
+      )
       .map((a) => a.id)
   );
   const activeCount = accounts.filter(
@@ -550,10 +585,10 @@ export async function buildDashboardSummary(
     },
     {
       key: "rejected",
-      label: "Rejected",
+      label: "Ineligible",
       value: claimStatusCount("REJECTED"),
       tone: "danger",
-      href: funnelHref("Rejected"),
+      href: funnelHref("Ineligible"),
     },
     // Not a claim.status — a query already raised (`Queried`, above) that has gone past its own
     // due date unanswered. Same figure `buildClaimPipelineKpis` already computes for the
@@ -592,14 +627,21 @@ export async function buildDashboardSummary(
     {
       key: "in-progress",
       label: "Loan In Progress",
-      value: notStartedCount + claimStatusCount("DRAFT") + queriedCount + approvedCount,
+      value:
+        notStartedCount +
+        claimStatusCount("DRAFT") +
+        queriedCount +
+        approvedCount,
       total: accounts.length || 1,
       href: withLender("/dpd?loanStatus=In%20Progress"),
     },
     {
       key: "submitted",
       label: "Active Loans",
-      value: byStatus("INITIATED") + byStatus("SUBMITTED") + byStatus("UNDER_REVIEW"),
+      value:
+        byStatus("INITIATED") +
+        byStatus("SUBMITTED") +
+        byStatus("UNDER_REVIEW"),
       total: accounts.length || 1,
       // "SUBMITTED" is what `classifyLoanStatus` (accounts.server.ts) labels "Pre Offer" — same
       // bucket, same field, just the All Loans grid's own name for it.
@@ -617,7 +659,7 @@ export async function buildDashboardSummary(
     },
     {
       key: "rejected-docs",
-      label: "Rejected Documents",
+      label: "Ineligible Documents",
       value: rejectedDocCount,
       total: documentsRequired || 1,
       // Same role-specific destination the "Rejected documents" Actionable-item card already
@@ -649,7 +691,10 @@ export async function buildDashboardSummary(
     "DOCUMENTS_RESUBMITTED",
   ]);
   const openClaims = claims.filter(
-    (c) => c.hasProgress && OPEN_CLAIM_STATUSES.has(c.status) && !overdueClaimIds.has(c.id)
+    (c) =>
+      c.hasProgress &&
+      OPEN_CLAIM_STATUSES.has(c.status) &&
+      !overdueClaimIds.has(c.id)
   );
   const ages = openClaims.map((c) => daysSince(c.lastUpdatedAt));
   const band = (min: number, max: number) =>
@@ -681,7 +726,10 @@ export async function buildDashboardSummary(
     completionPct: documentsRequired
       ? Math.round((documentsIn / documentsRequired) * 100)
       : 0,
-    submittedCount: byStatus("CLAIM_INITIATED") + byStatus("SUBMITTED") + byStatus("UNDER_REVIEW"),
+    submittedCount:
+      byStatus("CLAIM_INITIATED") +
+      byStatus("SUBMITTED") +
+      byStatus("UNDER_REVIEW"),
     queriedCount: byStatus("QUERIED"),
     approvedCount: byStatus("APPROVED"),
     rejectedDocCount,
@@ -718,7 +766,10 @@ export async function buildDashboardSummary(
     lenderCaseCounts:
       session.role === "IMGC"
         ? (() => {
-            const byOrg = new Map<string, { cases: number; accounts: number }>();
+            const byOrg = new Map<
+              string,
+              { cases: number; accounts: number }
+            >();
             for (const a of accounts) {
               const row = byOrg.get(a.lenderOrgId) ?? { cases: 0, accounts: 0 };
               row.accounts += 1;
@@ -732,7 +783,8 @@ export async function buildDashboardSummary(
               cases: row.cases,
               accounts: row.accounts,
             })).sort(
-              (x, y) => y.cases - x.cases || x.lenderName.localeCompare(y.lenderName)
+              (x, y) =>
+                y.cases - x.cases || x.lenderName.localeCompare(y.lenderName)
             );
           })()
         : undefined,

@@ -35,7 +35,7 @@ const STATUS_LABEL: Record<DocStatus, string> = {
   PENDING_UPLOAD: "Pending",
   UNDER_REVIEW: "Uploaded",
   APPROVED: "Accepted",
-  REJECTED: "Rejected",
+  REJECTED: "Ineligible",
   REUPLOAD_REQUIRED: "Query Raised",
 };
 
@@ -357,7 +357,8 @@ export function ClaimDocumentsTable({
   const hasRejectedDoc = documents.some(
     (d) => d.status === "REJECTED" || d.status === "REUPLOAD_REQUIRED"
   );
-  const showAdditional = claimOpenForChanges || hasRejectedDoc || additional.length > 0;
+  const showAdditional =
+    claimOpenForChanges || hasRejectedDoc || additional.length > 0;
 
   const additionalActions =
     !locked && claimOpenForChanges ? (

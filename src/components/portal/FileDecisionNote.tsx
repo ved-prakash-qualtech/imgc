@@ -32,9 +32,11 @@ export function FileDecisionNote({
         accepted ? "text-success-700" : "text-destructive",
         className
       )}
-      title={`${accepted ? "Accepted" : "Rejected"} by ${review.byName}: ${review.remarks}`}
+      title={`${accepted ? "Accepted" : "Ineligible"} by ${review.byName}: ${review.remarks}`}
     >
-      <span className="font-semibold">{accepted ? "Accepted" : "Rejected"}:</span>{" "}
+      <span className="font-semibold">
+        {accepted ? "Accepted" : "Ineligible"}:
+      </span>{" "}
       {clip(review.remarks, maxChars)}
     </p>
   );
@@ -61,7 +63,8 @@ export function LenderRemarkNote({
       )}
       title={`Lender remark: ${text}`}
     >
-      <span className="font-semibold text-neutral-600">Lender remark:</span> {text}
+      <span className="font-semibold text-neutral-600">Lender remark:</span>{" "}
+      {text}
     </p>
   );
 }

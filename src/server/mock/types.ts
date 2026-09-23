@@ -434,6 +434,27 @@ export interface Claim {
     at: string;
     remarks: string;
   };
+  /**
+   * Recorded alongside REFUND_RECEIVED_BY_IMGC — see `markRefundReceived`. A confirmation record
+   * only: the UTR is a plain reference string (no bank-rail validation), `amount` is free entry
+   * from the IMGC team with no check against the computed claim amount (a genuine partial
+   * settlement is a real case here, not an error), and `fileId` points at a `DocumentFile` row
+   * created the same way an additional document is, served through the same
+   * `/api/portal/files/{fileId}` route both roles already use. Full payment/settlement handling
+   * (reconciliation, editing after entry) is explicitly out of scope for now.
+   */
+  refundReceipt?: {
+    /** When the payment/settlement itself happened — entered by IMGC, not necessarily today. */
+    paymentDate: string;
+    utr: string;
+    amount: number;
+    fileId?: string;
+    fileName?: string;
+    byId: string;
+    byName: string;
+    /** When this was recorded in the portal — system time, distinct from `paymentDate`. */
+    at: string;
+  };
 }
 
 /**

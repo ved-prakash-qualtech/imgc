@@ -15,7 +15,6 @@ import {
   PlusIcon,
   TrashIcon,
   UploadIcon,
-  RotateCwIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,7 +34,7 @@ const STATUS_LABEL: Record<DocStatus, string> = {
   PENDING_UPLOAD: "Pending",
   UNDER_REVIEW: "Uploaded",
   APPROVED: "Accepted",
-  REJECTED: "Rejected",
+  REJECTED: "Ineligible",
   REUPLOAD_REQUIRED: "Query Raised",
 };
 
@@ -62,10 +61,6 @@ function StatusChip({ status }: Readonly<{ status: DocStatus }>) {
       {STATUS_LABEL[status]}
     </span>
   );
-}
-
-function isIn(doc: RequirementRow): boolean {
-  return doc.status === "UNDER_REVIEW" || doc.status === "APPROVED";
 }
 
 /**
@@ -103,10 +98,13 @@ export function ClaimDocuments({
 }>) {
   const isDraftStage = !claimStatus || claimStatus === "DRAFT";
   const required = useMemo(
-    () => documents.filter((d) =>
+    () =>
+      documents.filter(
+        (d) =>
           d.addedBy !== "LENDER" &&
           // Once the claim is initiated, an optional document nobody uploaded is just noise.
-          (isDraftStage || d.required || d.files.length > 0)),
+          (isDraftStage || d.required || d.files.length > 0)
+      ),
     [documents, isDraftStage]
   );
   const additional = useMemo(
@@ -156,7 +154,12 @@ export function ClaimDocuments({
 
   // Every trash button on this screen goes through here, so the confirmation covers all of them.
   const onDelete = useCallback(
-    (accountId: string, documentId: string, fileId: string, fileName?: string) => {
+    (
+      accountId: string,
+      documentId: string,
+      fileId: string,
+      fileName?: string
+    ) => {
       ask({
         description: fileName
           ? `"${fileName}" will be permanently deleted. This cannot be undone.`
@@ -167,8 +170,6 @@ export function ClaimDocuments({
     },
     [ask, removeFile]
   );
-
-  const applicable = required.filter((d) => d.required && d.active);
 
   // The lender can add documents only while the claim is still open to them: a draft, or a query
   // they are answering. Once it is initiated and with IMGC, there is nothing to add here - so the
@@ -183,11 +184,13 @@ export function ClaimDocuments({
   const hasRejectedDoc = documents.some(
     (d) => d.status === "REJECTED" || d.status === "REUPLOAD_REQUIRED"
   );
-  const showAdditional = claimOpenForChanges || hasRejectedDoc || additional.length > 0;
+  const showAdditional =
+    claimOpenForChanges || hasRejectedDoc || additional.length > 0;
 
-  const additionalActions = !locked && claimOpenForChanges ? (
-    <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
-  ) : null;
+  const additionalActions =
+    !locked && claimOpenForChanges ? (
+      <AddLenderDocumentDialog accountId={accountId} claimId={claimId} />
+    ) : null;
 
   return (
     <>
@@ -231,46 +234,46 @@ export function ClaimDocuments({
       </Panel>
 
       {showAdditional && (
-      <Panel
-        title="Additional documents"
-        className={bare ? "mt-6 border-neutral-200 shadow-none" : "mt-1.5"}
-        actions={additionalActions}
-      >
-        {additional.length === 0 ? (
-          <p className="px-5 py-4 text-center text-[13px] text-neutral-500">
-            No additional documents added.
-          </p>
-        ) : variant === "table" ? (
-          <DocumentsTable
-            docs={additional}
-            locked={locked}
-            allowDelete={allowDelete}
-            onUpload={setUploadTarget}
-            onDelete={onDelete}
-            deleting={deleting}
-            claimStatus={claimStatus}
-          />
-        ) : (
-          <ol className="divide-y divide-neutral-100">
-            {additional.map((doc) => (
-              <DocAccordionItem
-                key={doc.id}
-                doc={doc}
-                accountId={accountId}
-                claimId={claimId}
-                locked={locked}
-                allowDelete={allowDelete}
-                open={openId === doc.id}
-                onToggle={toggle}
-                onUpload={setUploadTarget}
-                onDelete={onDelete}
-                deleting={deleting}
-                claimStatus={claimStatus}
-              />
-            ))}
-          </ol>
-        )}
-      </Panel>
+        <Panel
+          title="Additional documents"
+          className={bare ? "mt-6 border-neutral-200 shadow-none" : "mt-1.5"}
+          actions={additionalActions}
+        >
+          {additional.length === 0 ? (
+            <p className="px-5 py-4 text-center text-[13px] text-neutral-500">
+              No additional documents added.
+            </p>
+          ) : variant === "table" ? (
+            <DocumentsTable
+              docs={additional}
+              locked={locked}
+              allowDelete={allowDelete}
+              onUpload={setUploadTarget}
+              onDelete={onDelete}
+              deleting={deleting}
+              claimStatus={claimStatus}
+            />
+          ) : (
+            <ol className="divide-y divide-neutral-100">
+              {additional.map((doc) => (
+                <DocAccordionItem
+                  key={doc.id}
+                  doc={doc}
+                  accountId={accountId}
+                  claimId={claimId}
+                  locked={locked}
+                  allowDelete={allowDelete}
+                  open={openId === doc.id}
+                  onToggle={toggle}
+                  onUpload={setUploadTarget}
+                  onDelete={onDelete}
+                  deleting={deleting}
+                  claimStatus={claimStatus}
+                />
+              ))}
+            </ol>
+          )}
+        </Panel>
       )}
 
       <UploadDialog
@@ -342,7 +345,8 @@ function DocAccordionItem({
         : { mode: "add" as const, label: "Add File", icon: <PlusIcon /> }
       : null;
 
-  const canModifyDocuments = !claimStatus ||
+  const canModifyDocuments =
+    !claimStatus ||
     claimStatus === "DRAFT" ||
     claimStatus === "QUERY_INITIATED" ||
     claimStatus === "QUERY_UNDER_REVIEW" ||
@@ -477,7 +481,7 @@ function DocAccordionItem({
                           {f.originalName}
                           {isRejected && (
                             <span className="ml-2 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-destructive">
-                              Rejected
+                              Ineligible
                             </span>
                           )}
                         </p>
@@ -535,18 +539,32 @@ function DocAccordionItem({
                       >
                         View Document
                       </a>
-                      {!locked && (allowDelete || claimStatus !== undefined) && doc.status !== "APPROVED" && !(claimStatus !== undefined && isDisabled && !allowDelete) && (
-                        <button
-                          type="button"
-                          // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                          onClick={() => onDelete(doc.accountId, doc.id, f.id, f.originalName)}
-                          title="Delete this file"
-                          disabled={deleting}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-400 transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive focus:outline-none focus:ring-2 focus:ring-destructive/20 disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:border-neutral-200 disabled:hover:text-neutral-400"
-                        >
-                          <TrashIcon className="size-3.5" />
-                        </button>
-                      )}
+                      {!locked &&
+                        (allowDelete || claimStatus !== undefined) &&
+                        doc.status !== "APPROVED" &&
+                        !(
+                          claimStatus !== undefined &&
+                          isDisabled &&
+                          !allowDelete
+                        ) && (
+                          <button
+                            type="button"
+                            // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                            onClick={() =>
+                              onDelete(
+                                doc.accountId,
+                                doc.id,
+                                f.id,
+                                f.originalName
+                              )
+                            }
+                            title="Delete this file"
+                            disabled={deleting}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-400 transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive focus:outline-none focus:ring-2 focus:ring-destructive/20 disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:border-neutral-200 disabled:hover:text-neutral-400"
+                          >
+                            <TrashIcon className="size-3.5" />
+                          </button>
+                        )}
                     </div>
                   </div>
                   {needsFix && doc.review?.remarks && (
@@ -598,12 +616,7 @@ function when(iso: string): string {
  */
 /** The columns the claim-document table can be sorted by. */
 type DocSortField =
-  | "name"
-  | "status"
-  | "fileName"
-  | "size"
-  | "uploadedBy"
-  | "dateTime";
+  "name" | "status" | "fileName" | "size" | "uploadedBy" | "dateTime";
 
 /** Defined outside the table so it is one component, not a new one on every render. */
 function SortIcon({
@@ -673,25 +686,46 @@ function DocumentsTable({
       const bFile = b.files[0];
       let cmp = 0;
       switch (sortField) {
-        case "name": cmp = a.name.localeCompare(b.name); break;
-        case "status": cmp = a.status.localeCompare(b.status); break;
-        case "fileName": cmp = (aFile?.originalName || "").localeCompare(bFile?.originalName || ""); break;
-        case "size": cmp = (aFile?.size || 0) - (bFile?.size || 0); break;
-        case "uploadedBy": cmp = (aFile?.uploadedByName || "").localeCompare(bFile?.uploadedByName || ""); break;
-        case "dateTime": cmp = (aFile?.uploadedAt || "").localeCompare(bFile?.uploadedAt || ""); break;
+        case "name":
+          cmp = a.name.localeCompare(b.name);
+          break;
+        case "status":
+          cmp = a.status.localeCompare(b.status);
+          break;
+        case "fileName":
+          cmp = (aFile?.originalName || "").localeCompare(
+            bFile?.originalName || ""
+          );
+          break;
+        case "size":
+          cmp = (aFile?.size || 0) - (bFile?.size || 0);
+          break;
+        case "uploadedBy":
+          cmp = (aFile?.uploadedByName || "").localeCompare(
+            bFile?.uploadedByName || ""
+          );
+          break;
+        case "dateTime":
+          cmp = (aFile?.uploadedAt || "").localeCompare(
+            bFile?.uploadedAt || ""
+          );
+          break;
       }
       return sortDirection === "asc" ? cmp : -cmp;
     });
   }, [docs, sortField, sortDirection]);
 
-  const handleSort = useCallback((field: typeof sortField) => {
-    if (sortField === field) {
-      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
-    }
-  }, [sortField]);
+  const handleSort = useCallback(
+    (field: typeof sortField) => {
+      if (sortField === field) {
+        setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      } else {
+        setSortField(field);
+        setSortDirection("asc");
+      }
+    },
+    [sortField]
+  );
 
   const sortable = (field: DocSortField, label: string) => (
     <th className="px-3 py-2">
@@ -781,7 +815,8 @@ function DocTableRows({
   const canAddMore = !locked && doc.status !== "APPROVED";
   const rowSpan = hasFiles ? doc.files.length : 1;
 
-  const canModifyDocuments = !claimStatus ||
+  const canModifyDocuments =
+    !claimStatus ||
     claimStatus === "DRAFT" ||
     claimStatus === "QUERY_INITIATED" ||
     claimStatus === "QUERY_UNDER_REVIEW" ||
@@ -809,7 +844,6 @@ function DocTableRows({
       )}
     </td>
   );
-
 
   const actionsCell = (extra?: ReactNode) => (
     <td className="px-3 py-2 align-top">
@@ -841,7 +875,10 @@ function DocTableRows({
     return (
       <tr>
         {nameCell}
-        <td className="px-3 py-2 text-neutral-400" colSpan={showImgcRemark ? 5 : 4}>
+        <td
+          className="px-3 py-2 text-neutral-400"
+          colSpan={showImgcRemark ? 5 : 4}
+        >
           Nothing uploaded yet.
         </td>
         {actionsCell()}
@@ -880,7 +917,9 @@ function DocTableRows({
                 {clip(f.originalName, 20)}
               </a>
               {/* Size sits under the name, as on IMGC's Decision tab - no column of its own. */}
-              <span className="block text-[11px] text-neutral-400">{bytes(f.size)}</span>
+              <span className="block text-[11px] text-neutral-400">
+                {bytes(f.size)}
+              </span>
               {/* The requirement-level reason, only for files decided before decisions were per
                   file - a file with its own decision already shows its own remark above. */}
               {needsFix && !f.review && doc.review?.remarks && (
@@ -905,7 +944,11 @@ function DocTableRows({
             {showImgcRemark && (
               <td className="max-w-[200px] px-3 py-2 align-top">
                 {f.review ? (
-                  <FileDecisionNote review={f.review} className="mt-0" maxChars={34} />
+                  <FileDecisionNote
+                    review={f.review}
+                    className="mt-0"
+                    maxChars={34}
+                  />
                 ) : (
                   <span className="text-[11px] text-neutral-300">—</span>
                 )}
@@ -941,19 +984,33 @@ function DocTableRows({
                         <UploadIcon /> Re-upload
                       </Button>
                     )}
-                    {!locked && (allowDelete || claimStatus !== undefined) && doc.status !== "APPROVED" && !(claimStatus !== undefined && isDisabled && !allowDelete) && (
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                        onClick={() => onDelete(doc.accountId, doc.id, f.id, f.originalName)}
-                        title="Delete this file"
-                        disabled={deleting}
-                        className="size-7 p-0 text-neutral-400 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive disabled:hover:bg-transparent disabled:hover:border-neutral-200 disabled:hover:text-neutral-400 disabled:opacity-50"
-                      >
-                        <TrashIcon className="size-3.5" />
-                      </Button>
-                    )}
+                    {!locked &&
+                      (allowDelete || claimStatus !== undefined) &&
+                      doc.status !== "APPROVED" &&
+                      !(
+                        claimStatus !== undefined &&
+                        isDisabled &&
+                        !allowDelete
+                      ) && (
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                          onClick={() =>
+                            onDelete(
+                              doc.accountId,
+                              doc.id,
+                              f.id,
+                              f.originalName
+                            )
+                          }
+                          title="Delete this file"
+                          disabled={deleting}
+                          className="size-7 p-0 text-neutral-400 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive disabled:hover:bg-transparent disabled:hover:border-neutral-200 disabled:hover:text-neutral-400 disabled:opacity-50"
+                        >
+                          <TrashIcon className="size-3.5" />
+                        </Button>
+                      )}
                   </>
                 )
               : (() => {
@@ -981,21 +1038,33 @@ function DocTableRows({
                             <UploadIcon /> Re-upload
                           </Button>
                         )}
-                        {!locked && (allowDelete || claimStatus !== undefined) && doc.status !== "APPROVED" && !(claimStatus !== undefined && isDisabled && !allowDelete) && (
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                            onClick={() =>
-                              onDelete(doc.accountId, doc.id, f.id, f.originalName)
-                            }
-                            title="Delete this file"
-                            disabled={deleting}
-                            className="size-7 p-0 text-neutral-400 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive disabled:hover:bg-transparent disabled:hover:border-neutral-200 disabled:hover:text-neutral-400 disabled:opacity-50"
-                          >
-                            <TrashIcon className="size-3.5" />
-                          </Button>
-                        )}
+                        {!locked &&
+                          (allowDelete || claimStatus !== undefined) &&
+                          doc.status !== "APPROVED" &&
+                          !(
+                            claimStatus !== undefined &&
+                            isDisabled &&
+                            !allowDelete
+                          ) && (
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                              onClick={() =>
+                                onDelete(
+                                  doc.accountId,
+                                  doc.id,
+                                  f.id,
+                                  f.originalName
+                                )
+                              }
+                              title="Delete this file"
+                              disabled={deleting}
+                              className="size-7 p-0 text-neutral-400 hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive disabled:hover:bg-transparent disabled:hover:border-neutral-200 disabled:hover:text-neutral-400 disabled:opacity-50"
+                            >
+                              <TrashIcon className="size-3.5" />
+                            </Button>
+                          )}
                       </div>
                     </td>
                   );

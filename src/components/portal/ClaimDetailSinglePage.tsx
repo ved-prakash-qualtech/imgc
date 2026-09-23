@@ -2,7 +2,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { cn } from "@/lib/utils/twMergeUtils";
 
@@ -30,15 +30,18 @@ export function ClaimDetailSinglePage({
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const navItems = [
-    { id: "loan-details", label: "Loan Details" },
-    { id: "status-query", label: "Track Claim" },
-  ];
-  if (history && !isLender) {
-    navItems.push({ id: "history", label: "Audit Trail" });
-  }
+  const navItems = useMemo(() => {
+    const items = [
+      { id: "loan-details", label: "Loan Details" },
+      { id: "status-query", label: "Track Claim" },
+    ];
+    if (history) items.push({ id: "history", label: "Audit Trail" });
+    return items;
+  }, [history]);
 
-  const [activeSection, setActiveSection] = useState<string>(isLender ? "status-query" : "loan-details");
+  const [activeSection, setActiveSection] = useState<string>(
+    isLender ? "status-query" : "loan-details"
+  );
 
   useEffect(() => {
     // Only use the intersection observer if this is NOT the lender tabbed view
@@ -60,17 +63,13 @@ export function ClaimDetailSinglePage({
     });
 
     return () => observer.disconnect();
-  }, [showSectionNav, history, isLender]);
+  }, [showSectionNav, history, isLender, navItems]);
 
   return (
     <div className="flex flex-col">
       {/* ── Header row: Back link + Section Nav ── */}
       <div className="mb-4 flex shrink-0 flex-wrap items-end gap-8 border-b border-neutral-200 px-1 pt-1">
-        {backLink && (
-          <div className="pb-2">
-            {backLink}
-          </div>
-        )}
+        {backLink && <div className="pb-2">{backLink}</div>}
         {showSectionNav && (
           <nav className="flex items-center gap-6">
             {navItems.map((item) => {
@@ -91,7 +90,7 @@ export function ClaimDetailSinglePage({
                   </button>
                 );
               }
-              
+
               return (
                 <a
                   key={item.id}
@@ -126,6 +125,12 @@ export function ClaimDetailSinglePage({
                 {statusAndQuery}
                 {documents}
               </div>
+            </section>
+          )}
+
+          {activeSection === "history" && history && (
+            <section id="history" className="mb-4">
+              {history}
             </section>
           )}
         </div>

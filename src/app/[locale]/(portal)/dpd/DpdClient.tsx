@@ -207,7 +207,7 @@ const LOAN_STATUSES = [
   "Underwriting",
   "Pre Offer",
   "Queried",
-  "Rejected",
+  "Ineligible",
   "Expired",
   "Approved",
   "Invoiced",

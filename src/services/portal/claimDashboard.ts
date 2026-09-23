@@ -33,7 +33,7 @@ export const MONTHLY_STATUS_OPTIONS: ReadonlyArray<{
   label: string;
 }> = [
   { key: "APPROVED", label: "Approved" },
-  { key: "REJECTED", label: "Rejected" },
+  { key: "REJECTED", label: "Ineligible" },
 ];
 
 export const MONTH_WINDOWS = [3, 6, 12] as const;

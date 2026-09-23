@@ -999,7 +999,7 @@ export async function submitClaim(
     // if(resubmitting) block below, so we must not advance here too (would produce a duplicate
     // history entry e.g. UNDER_REVIEW → UNDER_REVIEW after a QUERY_UNDER_REVIEW response).
     if (handingBackFix) {
-      advance(db, claim, claim.status, session, "Rejected document replaced");
+      advance(db, claim, claim.status, session, "Ineligible document replaced");
     } else if (!resubmitting) {
       advance(db, claim, "INITIATED", session);
     }
@@ -1226,7 +1226,22 @@ export async function updateClaimStatus(
  * "Refund Received" — IMGC recording that money for an already-approved claim has actually
  * reached them. Nothing more: no refund initiation, no invoice, no lender-side processing, no
  * payment gateway, no second decision. `claim.decision` (the original APPROVED outcome) is left
- * exactly as it was; this only appends one more real entry to `statusHistory`.
+ * exactly as it was; this only appends one more real entry to `statusHistory` and, alongside it,
+ * `claim.refundReceipt` — a payment date, a UTR reference, an amount and one optional proof file.
+ *
+ * `amount` is free entry from the IMGC team, not checked against the computed claim amount — a
+ * genuine partial settlement is a real case here, not something to reject. `paymentDate` is when
+ * the money actually moved, which IMGC may be recording well after the fact (particularly in
+ * bulk); it is kept separate from the row's own `at`, the system time this was entered.
+ *
+ * The proof file is stored exactly the way an additional document is (`storeIncomingUpload` +
+ * one `DocumentFile` row, served through the same `/api/portal/files/{fileId}` route), but it is
+ * never attached to a `ClaimDocument`, so it never shows up on the Required Documents checklist
+ * or the Document Retention screen — those both start from `claimDocuments`, and none is created
+ * here on purpose.
+ *
+ * The full payment/settlement approach (UTR / bank-rail validation, reconciliation, editing after
+ * entry) is explicitly out of scope for now — this is deliberately the smallest version.
  *
  * The guard on `claim.status !== "APPROVED"` is what makes duplicate clicks and duplicate status
  * updates impossible server-side (requirement, not just a disabled button): the first successful
@@ -1236,9 +1251,63 @@ export async function updateClaimStatus(
  */
 export async function markRefundReceived(
   session: AppSession,
-  claimId: string
+  claimId: string,
+  utr: string,
+  amount: number,
+  paymentDate: string,
+  file?: IncomingUpload
 ): Promise<Outcome> {
   if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  const trimmedUtr = utr.trim();
+  if (!trimmedUtr)
+    return { ok: false, error: "Enter the UTR / reference number." };
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, error: "Enter a valid amount." };
+  }
+  const trimmedDate = paymentDate.trim() || nowIso().slice(0, 10);
+
+  const claimBefore = (await readDb()).claims.find((c) => c.id === claimId);
+  if (!claimBefore) return { ok: false, error: "Claim not found." };
+  if (claimBefore.status !== "APPROVED") {
+    return {
+      ok: false,
+      error:
+        claimBefore.status === "REFUND_RECEIVED_BY_IMGC"
+          ? "The refund for this claim has already been recorded."
+          : "Only an approved claim can be marked as refund received.",
+    };
+  }
+
+  let stored: { fileId: string; fileName: string } | undefined;
+  if (file) {
+    const fileId = newId("file");
+    const upload = await storeIncomingUpload(
+      claimBefore.accountId,
+      fileId,
+      file
+    );
+    if (!upload.ok) return upload;
+    await writeDb((fresh) => {
+      fresh.documentFiles.push({
+        id: fileId,
+        // Not any `ClaimDocument`'s id — this file is intentionally invisible to the Required
+        // Documents checklist and the Document Retention screen, both of which only look at
+        // files whose `documentId` resolves back to a real `claimDocuments` row.
+        documentId: `refund_${claimId}`,
+        accountId: claimBefore.accountId,
+        originalName: upload.file.originalName,
+        storedPath: upload.file.storedPath,
+        size: upload.file.size,
+        mime: upload.file.mime,
+        uploadedBy: session.userId,
+        uploadedByName: session.name,
+        uploadedAt: nowIso(),
+        uploadedByRole: session.role,
+        version: 1,
+      });
+    });
+    stored = { fileId, fileName: upload.file.originalName };
+  }
 
   const outcome = await writeDb((db) => {
     const claim = db.claims.find((c) => c.id === claimId);
@@ -1252,7 +1321,23 @@ export async function markRefundReceived(
             : "Only an approved claim can be marked as refund received.",
       };
     }
-    advance(db, claim, "REFUND_RECEIVED_BY_IMGC", session);
+    advance(
+      db,
+      claim,
+      "REFUND_RECEIVED_BY_IMGC",
+      session,
+      `UTR ${trimmedUtr} · ₹${amount.toLocaleString("en-IN")} · paid ${trimmedDate}`
+    );
+    claim.refundReceipt = {
+      paymentDate: trimmedDate,
+      utr: trimmedUtr,
+      amount,
+      fileId: stored?.fileId,
+      fileName: stored?.fileName,
+      byId: session.userId,
+      byName: session.name,
+      at: nowIso(),
+    };
     return {
       ok: true as const,
       accountId: claim.accountId,
@@ -1265,8 +1350,14 @@ export async function markRefundReceived(
     accountId: outcome.accountId,
     actor: session,
     type: "CLAIM_STATUS_CHANGED",
-    summary: `Refund received by IMGC for claim ${outcome.claimNo}`,
-    meta: { claimId, status: "REFUND_RECEIVED_BY_IMGC" },
+    summary: `Refund received by IMGC for claim ${outcome.claimNo} — UTR ${trimmedUtr}, ₹${amount.toLocaleString("en-IN")} on ${trimmedDate}`,
+    meta: {
+      claimId,
+      status: "REFUND_RECEIVED_BY_IMGC",
+      utr: trimmedUtr,
+      amount: String(amount),
+      paymentDate: trimmedDate,
+    },
   });
   // The lender sees this everywhere the claim's status already renders (Track Claim, their own
   // claim workspace, the Claims grid) — this notification is the push on top of that, same
@@ -1278,6 +1369,83 @@ export async function markRefundReceived(
     unreadFor: ["LENDER"],
   });
   return { ok: true, claimId, accountId: outcome.accountId };
+}
+
+export type BulkRefundRow = Readonly<{
+  paymentDate: string;
+  claimNo: string;
+  utr: string;
+  amount: number;
+}>;
+export type BulkRefundResult = Readonly<{
+  claimNo: string;
+  ok: boolean;
+  error?: string;
+}>;
+
+/**
+ * Bulk "Refund Received" — the same `markRefundReceived` rule per row, matched by Claim No.
+ * instead of an id the caller already has, and never blocking on one bad row: a claim number
+ * that doesn't exist, isn't APPROVED, or is a duplicate in the file all fail that row only, and
+ * every other row in the batch is still attempted.
+ *
+ * No per-row proof file — see the bulk-upload page's own note on why. The one-at-a-time "Refund
+ * Received" button still exists for attaching proof; this is for the reference number alone,
+ * across many claims at once.
+ */
+export async function bulkMarkRefundReceived(
+  session: AppSession,
+  rows: readonly BulkRefundRow[]
+): Promise<{ ok: true; results: BulkRefundResult[] }> {
+  if (session.role !== "IMGC") {
+    return {
+      ok: true,
+      results: rows.map((r) => ({
+        claimNo: r.claimNo,
+        ok: false,
+        error: "IMGC only.",
+      })),
+    };
+  }
+
+  const db = await readDb();
+  const results: BulkRefundResult[] = [];
+  // Sequential, not Promise.all: each row goes through the same writeDb transaction
+  // `markRefundReceived` already uses, and running them concurrently would just serialize on
+  // that lock anyway while making the per-row error harder to attribute if one write races another.
+  for (const row of rows) {
+    const claimNo = row.claimNo.trim();
+    if (!claimNo) {
+      results.push({
+        claimNo: row.claimNo,
+        ok: false,
+        error: "Missing claim number.",
+      });
+      continue;
+    }
+    const claim = db.claims.find((c) => c.claimNo === claimNo);
+    if (!claim) {
+      results.push({ claimNo, ok: false, error: "No claim with this number." });
+      continue;
+    }
+    const outcome = await markRefundReceived(
+      session,
+      claim.id,
+      row.utr,
+      row.amount,
+      row.paymentDate
+    );
+    results.push(
+      outcome.ok
+        ? { claimNo, ok: true }
+        : {
+            claimNo,
+            ok: false,
+            error: outcome.error ?? "Could not be recorded.",
+          }
+    );
+  }
+  return { ok: true, results };
 }
 
 export async function raiseQuery(
