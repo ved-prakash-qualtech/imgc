@@ -346,7 +346,7 @@ const SortableTableHead = ({
     onClick={() => onToggle(column)}
     title={title}
     className={cn(
-      "h-7 cursor-pointer select-none px-1 text-[10px] transition-colors hover:bg-neutral-50",
+      "h-7 cursor-pointer select-none px-0.5 text-[10px] transition-colors hover:bg-neutral-50",
       className
     )}
   >
@@ -777,7 +777,7 @@ export function AccountsClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <TableHead className="h-7 px-1 text-[10px] font-semibold text-neutral-500">
+              <TableHead className="h-7 px-0.5 text-[10px] font-semibold text-neutral-500">
                 Ageing
               </TableHead>
               <SortableTableHead
@@ -822,37 +822,37 @@ export function AccountsClient({
                     onClick={() => router.push(ROUTES.account(a.id))}
                     className="cursor-pointer transition-colors hover:bg-neutral-50"
                   >
-                    <TableCell className="px-1 py-1 text-[11.5px] font-medium whitespace-nowrap text-neutral-950">
+                    <TableCell className="px-0.5 py-1 text-[11.5px] font-medium whitespace-nowrap text-neutral-950">
                       {a.loanNo}
                     </TableCell>
-                    <TableCell className="px-1 py-1 text-[11.5px] whitespace-nowrap text-neutral-600">
+                    <TableCell className="px-0.5 py-1 text-[11.5px] whitespace-nowrap text-neutral-600">
                       {a.claimNo || "—"}
                     </TableCell>
-                    <TableCell className="px-1 py-1 text-[11.5px] whitespace-nowrap">
+                    <TableCell className="px-0.5 py-1 text-[11.5px] whitespace-nowrap">
                       {a.borrowerName}
                     </TableCell>
                     {role === "IMGC" && (
                       <TableCell
-                        className="px-1 py-1 text-[11.5px] whitespace-nowrap"
+                        className="px-0.5 py-1 text-[11.5px] whitespace-nowrap"
                         title={a.lenderOrgName}
                       >
                         {shortName(a.lenderOrgName)}
                       </TableCell>
                     )}
-                    <TableCell className="px-1 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
+                    <TableCell className="px-0.5 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
                       {a.product}
                     </TableCell>
-                    <TableCell className="px-1 py-1 text-[11.5px]">
+                    <TableCell className="px-0.5 py-1 text-[11.5px]">
                       <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-success-700">
                         {inr.format(a.loanAmount)}
                       </span>
                     </TableCell>
-                    <TableCell className="px-1 py-1 text-[11.5px]">
+                    <TableCell className="px-0.5 py-1 text-[11.5px]">
                       <span className="inline-flex items-center rounded-full bg-warning/10 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-warning">
                         {inr.format(a.outstandingAmount)}
                       </span>
                     </TableCell>
-                    <TableCell className="px-1 py-1 text-[11.5px]">
+                    <TableCell className="px-0.5 py-1 text-[11.5px]">
                       <span
                         className="inline-flex items-center rounded-full bg-brand-primary/10 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-brand-primary"
                         title="20% of the loan amount"
@@ -860,10 +860,10 @@ export function AccountsClient({
                         {inr.format(claimAmountFor(a.loanAmount))}
                       </span>
                     </TableCell>
-                    <TableCell className="px-1 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-500">
+                    <TableCell className="px-0.5 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-500">
                       {a.submittedAt ? date(a.submittedAt) : "—"}
                     </TableCell>
-                    <TableCell className="px-1 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
+                    <TableCell className="px-0.5 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
                       <LiveClaimAgeing
                         statusHistory={a.claimStatusHistory}
                         hideStatusText
@@ -871,18 +871,18 @@ export function AccountsClient({
                     </TableCell>
                     <TableCell
                       title="DPD = Days Past Due"
-                      className="px-1 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-700"
+                      className="px-0.5 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-700"
                     >
                       {formatDpd(a.dpd)}
                     </TableCell>
-                    <TableCell className="px-1 py-1">
+                    <TableCell className="px-0.5 py-1">
                       <StatusPill
                         status={ownerOf(a)}
                         flat
                         className="text-[10px]"
                       />
                     </TableCell>
-                    <TableCell className="px-1 py-1">
+                    <TableCell className="px-0.5 py-1">
                       <StatusPill
                         status={claimStatusDisplay(a)}
                         flat
