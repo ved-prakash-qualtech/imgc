@@ -49,6 +49,8 @@ export type AppNavbarProps = Readonly<{
   title?: string;
   /** Shown beside the title, smaller — e.g. the claim amount on a claim screen. */
   titleAside?: string;
+  /** Live ageing timer to display beside the claim amount. */
+  claimAgeing?: React.ReactNode;
   /** Whose workspace this is — the tenant's short code, or the admin scope. */
   workspace?: string;
   user?: SessionUser | null;
@@ -64,6 +66,7 @@ export type AppNavbarProps = Readonly<{
 export function AppNavbar({
   title = "Dashboard",
   titleAside,
+  claimAgeing,
   workspace,
   user,
   unreadCount = 0,
@@ -98,6 +101,17 @@ export function AppNavbar({
                   Claim Amount
                 </span>
                 {titleAside}
+              </span>
+            </>
+          )}
+          {claimAgeing && (
+            <>
+              <span aria-hidden className="h-4 w-px bg-neutral-200" />
+              <span className="text-[13px] font-semibold text-neutral-800">
+                <span className="mr-1 text-[11.5px] font-medium text-neutral-500">
+                  Ageing
+                </span>
+                {claimAgeing}
               </span>
             </>
           )}
@@ -158,7 +172,9 @@ export function AppNavbar({
                       {contact.name}
                     </p>
                     <p className="truncate text-[11.5px] text-neutral-500">
-                      {isPersonal ? "Dedicated Loan Manager" : "General enquiries"}
+                      {isPersonal
+                        ? "Dedicated Loan Manager"
+                        : "General enquiries"}
                     </p>
                   </div>
                 </div>
@@ -208,7 +224,9 @@ export function AppNavbar({
 
             {isPersonal && (
               <div className="flex items-center justify-between border-t border-neutral-100 bg-neutral-25 px-4 py-2.5 text-[11.5px]">
-                <span className="text-neutral-500">General Customer Care (24x7)</span>
+                <span className="text-neutral-500">
+                  General Customer Care (24x7)
+                </span>
                 <a
                   href={`tel:${GENERAL_DESK.phone!.replace(/[^+\d]/g, "")}`}
                   className="font-semibold text-brand-primary hover:underline"

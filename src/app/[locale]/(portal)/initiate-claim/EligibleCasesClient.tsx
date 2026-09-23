@@ -16,6 +16,7 @@ import {
 import { ClaimRowActions } from "@/components/portal/ClaimRowActions";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
+import { LiveClaimAgeing } from "@/components/portal/LiveClaimAgeing";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
@@ -776,6 +777,9 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
+              <TableHead className="h-7 px-1 text-[10px] font-semibold text-neutral-500">
+                Ageing
+              </TableHead>
               <TableHead className="h-7 px-1 text-[10px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -855,6 +859,12 @@ export function EligibleCasesClient({
                   </TableCell>
                   <TableCell className="px-1 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-500">
                     {dateOrDash(a.submittedAt)}
+                  </TableCell>
+                  <TableCell className="px-1 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
+                    <LiveClaimAgeing
+                      statusHistory={a.claim?.statusHistory}
+                      hideStatusText
+                    />
                   </TableCell>
                   <TableCell className="px-1 py-1">
                     <ClaimRowActions

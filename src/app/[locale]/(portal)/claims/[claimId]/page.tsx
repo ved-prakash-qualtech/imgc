@@ -18,6 +18,7 @@ import {
 } from "@/components/portal/ClaimRemarksPanel";
 import { GridBackLink } from "@/components/portal/GridBackLink";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { LiveClaimAgeing } from "@/components/portal/LiveClaimAgeing";
 import { QueriedButton } from "@/components/portal/QueriedButton";
 import { ResubmitClaimButton } from "@/components/portal/ResubmitClaimButton";
 import { StatusPill } from "@/components/portal/StatusPill";
@@ -485,6 +486,7 @@ export default async function ClaimDetailsPage({
           ? `₹${claimAmountFor(account.loanAmount).toLocaleString("en-IN")}`
           : undefined
       }
+      claimAgeing={<LiveClaimAgeing statusHistory={claim.statusHistory} />}
     >
       <div
         className={

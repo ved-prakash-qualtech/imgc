@@ -15,6 +15,7 @@ import {
 
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
+import { LiveClaimAgeing } from "@/components/portal/LiveClaimAgeing";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
@@ -776,6 +777,9 @@ export function AccountsClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
+              <TableHead className="h-7 px-1 text-[10px] font-semibold text-neutral-500">
+                Ageing
+              </TableHead>
               <SortableTableHead
                 column="dpd"
                 label="DPD"
@@ -804,7 +808,7 @@ export function AccountsClient({
             {currentRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={role === "IMGC" ? 12 : 11}
+                  colSpan={role === "IMGC" ? 13 : 12}
                   className="py-12 text-center text-[13px] text-neutral-500"
                 >
                   No accounts match those filters.
@@ -858,6 +862,12 @@ export function AccountsClient({
                     </TableCell>
                     <TableCell className="px-1 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-500">
                       {a.submittedAt ? date(a.submittedAt) : "—"}
+                    </TableCell>
+                    <TableCell className="px-1 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
+                      <LiveClaimAgeing
+                        statusHistory={a.claimStatusHistory}
+                        hideStatusText
+                      />
                     </TableCell>
                     <TableCell
                       title="DPD = Days Past Due"

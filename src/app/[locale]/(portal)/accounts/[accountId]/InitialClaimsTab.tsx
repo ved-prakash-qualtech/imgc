@@ -1079,7 +1079,7 @@ function ImgcDocumentRowItem({
               </DialogTitle>
               <DialogDescription>
                 {deciding.decision === "APPROVED"
-                  ? "A remark is required before this file can be accepted."
+                  ? "An optional remark can be added before this file is accepted."
                   : "A reason is required before this file can be rejected — the lender will see it."}
               </DialogDescription>
             </DialogHeader>
@@ -1089,8 +1089,8 @@ function ImgcDocumentRowItem({
               onSubmit={(e) => {
                 e.preventDefault();
                 const remarks = String(new FormData(e.currentTarget).get("remarks") ?? "").trim();
-                if (!remarks) {
-                  toast.error("A remark is required.");
+                if (deciding.decision === "REJECTED" && !remarks) {
+                  toast.error("A reason is required to reject the file.");
                   return;
                 }
                 decide(deciding.fileId, deciding.decision, remarks);
@@ -1098,13 +1098,13 @@ function ImgcDocumentRowItem({
             >
               <label className="block">
                 <span className="mb-1 block text-[12px] font-medium text-neutral-700">
-                  {deciding.decision === "APPROVED" ? "Remark for accepting" : "Reason for rejecting"}{" "}
+                  {deciding.decision === "APPROVED" ? "Remark for accepting (optional)" : "Reason for rejecting"}{" "}
                   <span className="font-semibold text-neutral-900">{deciding.fileName}</span>
-                  <span className="text-destructive"> *</span>
+                  {deciding.decision === "REJECTED" && <span className="text-destructive"> *</span>}
                 </span>
                 <textarea
                   name="remarks"
-                  required
+                  required={deciding.decision === "REJECTED"}
                   rows={3}
                   // Opened by the user's own click on Accept/Reject, so focus follows the action
                   // they took.

@@ -32,6 +32,7 @@ const exactInr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
  */
 
 type Tone = "blue" | "amber" | "violet" | "green" | "rose" | "gold";
+type PendingWith = "Lender" | "IMGC Claims Team" | "None" | "Split";
 
 const TONE: Record<Tone, { bg: string; icon: string }> = {
   blue: { bg: "border-info/30", icon: "bg-info/10 text-info" },
@@ -53,30 +54,35 @@ const TILES: ReadonlyArray<{
   label: string;
   icon: React.ReactNode;
   tone: Tone;
+  pendingWith: PendingWith;
 }> = [
   {
     key: "initiation",
     label: "To be initiated",
     icon: <FilePlus2Icon className="size-4" />,
     tone: "rose",
+    pendingWith: "Lender",
   },
   {
     key: "underReview",
     label: "Under Review",
     icon: <ClipboardListIcon className="size-4" />,
     tone: "amber",
+    pendingWith: "IMGC Claims Team",
   },
   {
     key: "approved",
     label: "Approved",
     icon: <CheckCircle2Icon className="size-4" />,
     tone: "violet",
+    pendingWith: "None",
   },
   {
     key: "rejected",
     label: "Rejected",
     icon: <XCircleIcon className="size-4" />,
     tone: "gold",
+    pendingWith: "None",
   },
 ];
 
@@ -112,18 +118,21 @@ export function ClaimOverviewBand({
           label: "Draft",
           icon: <FilePlus2Icon className="size-4" />,
           tone: "blue",
+          pendingWith: "Lender",
         }, // started, not yet submitted
         {
           key: "initiated",
           label: "Initiated",
           icon: <CheckCircle2Icon className="size-4" />, // Or another suitable icon
           tone: "blue",
+          pendingWith: "IMGC Claims Team",
         },
         {
           key: "queried",
           label: "Queried",
           icon: <ClipboardListIcon className="size-4" />,
           tone: "amber",
+          pendingWith: "Split",
         },
         TILES[1]!, // Under Review — with IMGC, after the query it may have come back from
         TILES[2]!,
@@ -160,7 +169,7 @@ export function ClaimOverviewBand({
               "hover:-translate-y-1 hover:shadow-md hover:bg-neutral-50 cursor-pointer"
           );
           const isQueried = tile.key === "queried";
-          
+
           const content = (
             <>
               <div className="flex items-center justify-between gap-1.5">
@@ -199,9 +208,15 @@ export function ClaimOverviewBand({
                   )}
                 </div>
                 {/* One line, not two: the tallest tile sets the whole band's height. */}
-                {isQueried && (
+                {tile.pendingWith !== "None" &&
+                  tile.pendingWith !== "Split" && (
+                    <p className="mt-0.5 truncate text-[9px] font-medium text-neutral-500">
+                      Pending with &middot; {tile.pendingWith}
+                    </p>
+                  )}
+                {tile.pendingWith === "Split" && isQueried && (
                   <p className="mt-0.5 truncate text-[9px] font-medium text-neutral-500">
-                    Initiated {counts.queryInitiated ?? 0} · Under Review{" "}
+                    Lender {counts.queryInitiated ?? 0} &middot; IMGC{" "}
                     {counts.queryUnderReview ?? 0}
                   </p>
                 )}
@@ -210,7 +225,9 @@ export function ClaimOverviewBand({
                   className="mt-0.5 text-[11px] font-semibold leading-tight tabular-nums text-neutral-700"
                   title={`Claim amount: ₹${exactInr.format(counts.claimAmount[tile.key])}`}
                 >
-                  <span className="block text-[9.5px] font-medium leading-tight text-neutral-400">Claim Amount</span>
+                  <span className="block text-[9.5px] font-medium leading-tight text-neutral-400">
+                    Claim Amount
+                  </span>
                   {crore(counts.claimAmount[tile.key])}
                 </p>
               </div>
