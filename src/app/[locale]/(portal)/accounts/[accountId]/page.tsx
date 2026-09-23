@@ -9,6 +9,7 @@ import {
 import type { ClaimQuery } from "@/server/mock/types";
 import { GridBackLink } from "@/components/portal/GridBackLink";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { LiveClaimAgeing } from "@/components/portal/LiveClaimAgeing";
 import { ROUTES } from "@/constants/route";
 import { requireSession } from "@/lib/auth/appSession";
 import { ACCOUNTS_FILTER_KEY } from "@/lib/hooks/useRememberedFilters";
@@ -34,7 +35,6 @@ function openQueriesWithDue(queries: ClaimQuery[]): OpenQuery[] {
       overdue: q.dueDate ? Date.parse(q.dueDate) < now : false,
     }));
 }
-
 
 export default async function AccountPage({
   params,
@@ -81,6 +81,11 @@ export default async function AccountPage({
         session.role === "IMGC" && account.claimNo
           ? `₹${claimAmountFor(account.loanAmount).toLocaleString("en-IN")}`
           : undefined
+      }
+      claimAgeing={
+        claim ? (
+          <LiveClaimAgeing statusHistory={claim.statusHistory} />
+        ) : undefined
       }
     >
       <div className="space-y-3">

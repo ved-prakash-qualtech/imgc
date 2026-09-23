@@ -16,6 +16,7 @@ import {
 import { ClaimRowActions } from "@/components/portal/ClaimRowActions";
 import { Panel } from "@/components/portal/Panel";
 import { StatusPill } from "@/components/portal/StatusPill";
+import { LiveClaimAgeing } from "@/components/portal/LiveClaimAgeing";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
@@ -282,7 +283,7 @@ const SortableTableHead = ({
     <TableHead
       onClick={handleClick}
       title={title}
-      className="h-7 cursor-pointer select-none px-1 text-[10px] transition-colors hover:bg-neutral-50"
+      className="h-7 cursor-pointer select-none px-0.5 text-[10px] transition-colors hover:bg-neutral-50"
     >
       <div className="flex items-center">
         {label}
@@ -777,7 +778,10 @@ export function EligibleCasesClient({
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <TableHead className="h-7 px-1 text-[10px]">Actions</TableHead>
+              <TableHead className="h-7 px-0.5 text-[10px] font-semibold text-neutral-500">
+                Ageing
+              </TableHead>
+              <TableHead className="h-7 px-0.5 text-[10px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -793,33 +797,33 @@ export function EligibleCasesClient({
             ) : (
               currentRows.map((a) => (
                 <TableRow key={a.id}>
-                  <TableCell className="px-1 py-1 text-[11.5px]">
+                  <TableCell className="px-0.5 py-1 text-[11.5px]">
                     <span className="inline-flex items-center rounded-full bg-info/12 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap text-info">
                       {a.loanNo}
                     </span>
                   </TableCell>
-                  <TableCell className="px-1 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
+                  <TableCell className="px-0.5 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
                     {a.claim?.claimNo || "—"}
                   </TableCell>
-                  <TableCell className="px-1 py-1 text-[11.5px] font-medium whitespace-nowrap text-neutral-900">
+                  <TableCell className="px-0.5 py-1 text-[11.5px] font-medium whitespace-nowrap text-neutral-900">
                     {a.borrowerName}
                   </TableCell>
-                  <TableCell className="px-1 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
+                  <TableCell className="px-0.5 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
                     {a.product}
                   </TableCell>
-                  <TableCell className="px-1 py-1 text-[11.5px]">
+                  <TableCell className="px-0.5 py-1 text-[11.5px]">
                     <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-success-700">
                       {inr.format(a.loanAmount)}
                     </span>
                   </TableCell>
                   {/* Outstanding is what the claim is actually about - principal plus interest still
                       owed today - so it reads in the warning tone, apart from the sanctioned amount. */}
-                  <TableCell className="px-1 py-1 text-[11.5px]">
+                  <TableCell className="px-0.5 py-1 text-[11.5px]">
                     <span className="inline-flex items-center rounded-full bg-warning/10 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-warning">
                       {inr.format(a.outstandingAmount)}
                     </span>
                   </TableCell>
-                  <TableCell className="px-1 py-1 text-[11.5px]">
+                  <TableCell className="px-0.5 py-1 text-[11.5px]">
                     <span
                       className="inline-flex items-center rounded-full bg-brand-primary/10 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-brand-primary"
                       title="20% of the loan amount"
@@ -827,10 +831,10 @@ export function EligibleCasesClient({
                       {inr.format(claimAmountFor(a.loanAmount))}
                     </span>
                   </TableCell>
-                  <TableCell className="px-1 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-500">
+                  <TableCell className="px-0.5 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-500">
                     {a.dpd ? `${a.dpd} days` : "—"}
                   </TableCell>
-                  <TableCell className="px-1 py-1">
+                  <TableCell className="px-0.5 py-1">
                     {!isNotStarted(a) && a.claim ? (
                       <StatusPill
                         status={a.claim.status}
@@ -847,17 +851,23 @@ export function EligibleCasesClient({
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="px-1 py-1">
+                  <TableCell className="px-0.5 py-1">
                     <StatusPill
                       status={ownerOf(a)}
                       flat
                       className="text-[10px]"
                     />
                   </TableCell>
-                  <TableCell className="px-1 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-500">
+                  <TableCell className="px-0.5 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-500">
                     {dateOrDash(a.submittedAt)}
                   </TableCell>
-                  <TableCell className="px-1 py-1">
+                  <TableCell className="px-0.5 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
+                    <LiveClaimAgeing
+                      statusHistory={a.claim?.statusHistory}
+                      hideStatusText
+                    />
+                  </TableCell>
+                  <TableCell className="px-0.5 py-1">
                     <ClaimRowActions
                       accountId={a.id}
                       claimId={a.claim?.id}

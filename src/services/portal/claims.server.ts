@@ -721,13 +721,10 @@ export async function decideFile(
 ): Promise<Outcome> {
   if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
   const note = remarks.trim();
-  if (!note) {
+  if (!note && decision === "REJECTED") {
     return {
       ok: false,
-      error:
-        decision === "APPROVED"
-          ? "Add a remark before accepting the file."
-          : "Add a remark before rejecting the file.",
+      error: "Add a reason before rejecting the file.",
     };
   }
 

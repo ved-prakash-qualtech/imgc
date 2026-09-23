@@ -3,7 +3,10 @@ import type { ReactNode } from "react";
 import { DashboardShell } from "@/components/layout/dashboard/DashboardShell";
 import { navFor, type NavKey } from "@/constants/nav";
 import { requireSession, toSessionUser } from "@/lib/auth/appSession";
-import { getAssignedOfficer, getLenderOrgById } from "@/services/portal/users.server";
+import {
+  getAssignedOfficer,
+  getLenderOrgById,
+} from "@/services/portal/users.server";
 import { unreadCount } from "@/services/portal/notifications.server";
 
 /**
@@ -17,12 +20,14 @@ export async function PortalShell({
   activeKey,
   title,
   titleAside,
+  claimAgeing,
   children,
 }: Readonly<{
   activeKey?: NavKey;
   title: string;
   /** The claim amount beside the title in the top bar, e.g. "₹16,90,000". */
   titleAside?: string;
+  claimAgeing?: ReactNode;
   children: ReactNode;
 }>) {
   const session = await requireSession();
@@ -39,6 +44,7 @@ export async function PortalShell({
       activeKey={activeKey}
       navbarTitle={title}
       navbarTitleAside={titleAside}
+      claimAgeing={claimAgeing}
       workspace={session.role === "IMGC" ? "IMGC" : (org?.name ?? "Lender")}
       user={toSessionUser(session)}
       unreadCount={unread}

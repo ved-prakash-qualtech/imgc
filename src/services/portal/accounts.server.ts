@@ -25,6 +25,7 @@ import type {
   Claim,
   ClaimQuery,
   ClaimStatus,
+  ClaimStatusEntry,
   LenderOrg,
 } from "@/server/mock/types";
 
@@ -42,6 +43,7 @@ export interface AccountRow extends Account {
   loanStatus: string;
   isActive?: boolean;
   realClaimStatus?: ClaimStatus;
+  claimStatusHistory?: ClaimStatusEntry[];
 }
 
 /** The one place lender scoping is applied: a lender sees an account iff the org ids match. */
@@ -144,6 +146,7 @@ function decorate(
     // without a migration; the write side no longer produces it.
     claimStatus: toAccountClaimStatus(account.claimStatus),
     realClaimStatus: claim?.status,
+    claimStatusHistory: claim?.statusHistory,
     loanStatus: classifyLoanStatus(account, claim, queries),
     lenderOrgName: orgs.find((o) => o.id === account.lenderOrgId)?.name ?? "—",
     requiredDocs: own.filter((d) => d.required && d.active !== false).length,

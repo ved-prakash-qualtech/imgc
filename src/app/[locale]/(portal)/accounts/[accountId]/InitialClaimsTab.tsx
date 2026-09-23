@@ -1295,7 +1295,7 @@ function ImgcDocumentRowItem({
               </DialogTitle>
               <DialogDescription>
                 {deciding.decision === "APPROVED"
-                  ? "A remark is required before this file can be accepted."
+                  ? "An optional remark can be added before this file is accepted."
                   : "A reason is required before this file can be rejected — the lender will see it."}
               </DialogDescription>
             </DialogHeader>
@@ -1326,7 +1326,7 @@ function ImgcDocumentRowItem({
                 </span>
                 <textarea
                   name="remarks"
-                  required
+                  required={deciding.decision === "REJECTED"}
                   rows={3}
                   // Opened by the user's own click on Accept/Reject, so focus follows the action
                   // they took.
