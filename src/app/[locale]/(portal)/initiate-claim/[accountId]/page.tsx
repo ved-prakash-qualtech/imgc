@@ -7,6 +7,7 @@ import { PortalShell } from "@/components/portal/PortalShell";
 import { claimConfig } from "@/config/claimConfig";
 import { ROUTES } from "@/constants/route";
 import { requireSession } from "@/lib/auth/appSession";
+import { getAdminContextOrNull } from "@/lib/auth/adminContext";
 import { withDbTransaction } from "@/server/mock/db";
 import { getAccount } from "@/services/portal/accounts.server";
 import {
@@ -32,6 +33,14 @@ export default async function ClaimWorkspacePage({
   const account = await getAccount(session, accountId);
   if (!account) notFound();
 
+  const adminCtx = await getAdminContextOrNull();
+  const isAdminActingForLender =
+    session.role === "IMGC" &&
+    session.isAdmin &&
+    !!adminCtx &&
+    adminCtx.lenderOrgId === account.lenderOrgId;
+  const canActAsLender = session.role === "LENDER" || isAdminActingForLender;
+
   let claim = await getClaimForAccount(session, accountId);
 
   // "Initiate Claim" lands straight on the form: if the lender has no claim on an eligible
@@ -40,7 +49,7 @@ export default async function ClaimWorkspacePage({
   // the top of the form while the claim is a draft.
   if (
     !claim &&
-    session.role === "LENDER" &&
+    canActAsLender &&
     (account.npa || account.writeOff)
   ) {
     // One transaction, so opening the workspace saves the new draft (and its audit entry) in a
@@ -70,7 +79,7 @@ export default async function ClaimWorkspacePage({
         {!claim || !config ? (
           <Panel title="No claim raised">
             <p className="px-5 py-8 text-center text-[13px] text-neutral-500">
-              {session.role === "LENDER"
+              {canActAsLender
                 ? "This account is not eligible for a claim yet."
                 : "The lender has not raised a claim on this account."}
             </p>

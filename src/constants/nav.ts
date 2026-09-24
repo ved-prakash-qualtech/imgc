@@ -24,6 +24,7 @@ export type NavKey =
   | "admin-retention"
   | "admin-doc-config"
   | "admin-bulk-refund"
+  | "admin-workspace"
   // Retained from the base template so its demo pages still type-check.
   | "tenants"
   | "menus"
@@ -84,8 +85,27 @@ const ADMINISTRATION: NavItem = {
   ],
 };
 
-export function navFor(role: Role): NavItem[] {
-  return role === "IMGC"
-    ? [CLAIM_DASHBOARD, ACCOUNTS, ADMINISTRATION]
-    : [CLAIM_DASHBOARD, CLAIM];
+export function navFor(
+  role: Role,
+  isAdmin?: boolean,
+  hasContext?: boolean
+): NavItem[] {
+  if (role === "LENDER") return [CLAIM_DASHBOARD, CLAIM];
+
+  const imgcItems = [CLAIM_DASHBOARD, ACCOUNTS, ADMINISTRATION];
+  if (isAdmin) {
+    imgcItems.push({
+      key: "admin-workspace",
+      label: "Admin Workspace",
+      href: ROUTES.adminWorkspace,
+    } as NavItem);
+
+    if (hasContext) {
+      imgcItems.push({
+        ...CLAIM,
+        label: "Initiate Claim",
+      });
+    }
+  }
+  return imgcItems;
 }

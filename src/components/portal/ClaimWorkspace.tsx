@@ -133,9 +133,6 @@ export function ClaimWorkspace({
       });
   }, [isDraft, accountId, claimId, router]);
 
-  useEffect(() => {
-    if (activeTab !== "initiate-claim") discardUnsaved();
-  }, [activeTab, discardUnsaved]);
   // While this screen is open, its own refreshes keep the unsaved uploads (the page drops them on
   // any other load). Cleared on leaving — in-app navigation or a browser refresh/close.
   useEffect(() => {

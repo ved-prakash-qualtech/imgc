@@ -1,6 +1,7 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { getLocale } from "next-intl/server";
+import { redirect } from "@/i18n/navigation";
 
 import { ROUTES } from "@/constants/route";
 import { createSession } from "@/lib/auth/appSession";
@@ -58,7 +59,11 @@ export async function startLoginAction(
       };
     }
     const { devCode } = await issueOtp(user.email);
-    return { mode: "OTP", email: user.email, devCode: isDev ? devCode : undefined };
+    return {
+      mode: "OTP",
+      email: user.email,
+      devCode: isDev ? devCode : undefined,
+    };
   }
 
   const staff = await findByEmployeeId(identifier);
@@ -83,10 +88,12 @@ export async function passwordLoginAction(
   await createSession({
     userId: user.id,
     role: "IMGC",
+    isAdmin: user.isAdmin,
     name: user.name,
     email: user.email,
   });
-  redirect(safeReturnTo(returnTo));
+  const locale = await getLocale();
+  return redirect({ href: safeReturnTo(returnTo), locale }) as never;
 }
 
 export async function verifyOtpAction(
@@ -119,7 +126,8 @@ export async function verifyOtpAction(
     lenderOrgId: user.lenderOrgId,
     lenderDomain: org?.emailDomain,
   });
-  redirect(safeReturnTo(returnTo));
+  const locale = await getLocale();
+  return redirect({ href: safeReturnTo(returnTo), locale }) as never;
 }
 
 export async function resendOtpAction(
@@ -132,7 +140,23 @@ export async function resendOtpAction(
 }
 
 /** Seeded demo sign-in — the screenshot's "Enter Demo Mode". */
-export async function demoLoginAction(role: Role): Promise<{ error: string } | never> {
+export async function demoLoginAction(
+  role: Role | "IMGC_ADMIN"
+): Promise<{ error: string } | never> {
+  if (role === "IMGC_ADMIN") {
+    const admin = await findByEmployeeId("EMP-ADMIN");
+    if (!admin) return { error: "Demo data is not seeded." };
+    await createSession({
+      userId: admin.id,
+      role: "IMGC",
+      isAdmin: admin.isAdmin,
+      name: admin.name,
+      email: admin.email,
+    });
+    const locale = await getLocale();
+    return redirect({ href: ROUTES.claimDashboard, locale }) as never;
+  }
+
   if (role === "IMGC") {
     const staff = await findByEmployeeId("EMP-0001");
     if (!staff) return { error: "Demo data is not seeded." };
@@ -142,7 +166,8 @@ export async function demoLoginAction(role: Role): Promise<{ error: string } | n
       name: staff.name,
       email: staff.email,
     });
-    redirect(ROUTES.claimDashboard);
+    const locale = await getLocale();
+    return redirect({ href: ROUTES.claimDashboard, locale }) as never;
   }
 
   const lender = await findByEmail("arjun@hdfcbank.com");
@@ -156,5 +181,6 @@ export async function demoLoginAction(role: Role): Promise<{ error: string } | n
     lenderOrgId: lender.lenderOrgId,
     lenderDomain: org?.emailDomain,
   });
-  redirect(ROUTES.claimDashboard);
+  const locale = await getLocale();
+  return redirect({ href: ROUTES.claimDashboard, locale }) as never;
 }

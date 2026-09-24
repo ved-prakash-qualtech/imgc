@@ -72,16 +72,66 @@ const LENDER_DEFS: ReadonlyArray<{
   domain: string;
   contacts: string[];
 }> = [
-  { id: "org_acme", name: "HDFC Bank", domain: "hdfcbank.com", contacts: ["claims.desk@hdfcbank.com", "ops.lead@hdfcbank.com"] },
-  { id: "org_northgate", name: "ICICI Bank", domain: "icicibank.com", contacts: ["recovery@icicibank.com"] },
-  { id: "org_abc", name: "ABC Housing Finance", domain: "abchousing.demo", contacts: ["claims@abchousing.demo"] },
-  { id: "org_xyz", name: "XYZ Home Loans", domain: "xyzloans.demo", contacts: ["claims@xyzloans.demo"] },
-  { id: "org_pqr", name: "PQR Finance", domain: "pqrfinance.demo", contacts: ["claims@pqrfinance.demo"] },
-  { id: "org_sunrise", name: "Sunrise Housing Finance", domain: "sunrisehf.demo", contacts: ["claims@sunrisehf.demo"] },
-  { id: "org_national", name: "National Housing Finance", domain: "nationalhf.demo", contacts: ["claims@nationalhf.demo"] },
-  { id: "org_prime", name: "Prime Home Finance", domain: "primehf.demo", contacts: ["claims@primehf.demo"] },
-  { id: "org_metro", name: "Metro Housing Finance", domain: "metrohf.demo", contacts: ["claims@metrohf.demo"] },
-  { id: "org_secure", name: "Secure Housing Finance", domain: "securehf.demo", contacts: ["claims@securehf.demo"] },
+  {
+    id: "org_acme",
+    name: "HDFC Bank",
+    domain: "hdfcbank.com",
+    contacts: ["claims.desk@hdfcbank.com", "ops.lead@hdfcbank.com"],
+  },
+  {
+    id: "org_northgate",
+    name: "ICICI Bank",
+    domain: "icicibank.com",
+    contacts: ["recovery@icicibank.com"],
+  },
+  {
+    id: "org_abc",
+    name: "ABC Housing Finance",
+    domain: "abchousing.demo",
+    contacts: ["claims@abchousing.demo"],
+  },
+  {
+    id: "org_xyz",
+    name: "XYZ Home Loans",
+    domain: "xyzloans.demo",
+    contacts: ["claims@xyzloans.demo"],
+  },
+  {
+    id: "org_pqr",
+    name: "PQR Finance",
+    domain: "pqrfinance.demo",
+    contacts: ["claims@pqrfinance.demo"],
+  },
+  {
+    id: "org_sunrise",
+    name: "Sunrise Housing Finance",
+    domain: "sunrisehf.demo",
+    contacts: ["claims@sunrisehf.demo"],
+  },
+  {
+    id: "org_national",
+    name: "National Housing Finance",
+    domain: "nationalhf.demo",
+    contacts: ["claims@nationalhf.demo"],
+  },
+  {
+    id: "org_prime",
+    name: "Prime Home Finance",
+    domain: "primehf.demo",
+    contacts: ["claims@primehf.demo"],
+  },
+  {
+    id: "org_metro",
+    name: "Metro Housing Finance",
+    domain: "metrohf.demo",
+    contacts: ["claims@metrohf.demo"],
+  },
+  {
+    id: "org_secure",
+    name: "Secure Housing Finance",
+    domain: "securehf.demo",
+    contacts: ["claims@securehf.demo"],
+  },
 ];
 
 /**
@@ -110,31 +160,103 @@ const LENDER_ACCOUNT_COUNTS: readonly number[] = [
 /** Flattens `LENDER_ACCOUNT_COUNTS` into one lender-per-account-index lookup, e.g.
  *  `[HDFC, HDFC, ..., ICICI, ICICI, ..., ...]` — built once, read by raw index in the main loop
  *  below instead of every account re-deriving its own lender from a modulus. */
-const LENDER_BY_INDEX: ReadonlyArray<(typeof LENDER_DEFS)[number]> = LENDER_DEFS.flatMap(
-  (lender, i) => Array.from({ length: LENDER_ACCOUNT_COUNTS[i]! }, () => lender)
-);
+const LENDER_BY_INDEX: ReadonlyArray<(typeof LENDER_DEFS)[number]> =
+  LENDER_DEFS.flatMap((lender, i) =>
+    Array.from({ length: LENDER_ACCOUNT_COUNTS[i]! }, () => lender)
+  );
 
 /* ── name / place pools — deterministic index-based selection only ──── */
 const FIRST_NAMES = [
-  "Rajesh", "Kavya", "Imran", "Deepa", "Sneha", "Vikram", "Nikhil", "Ananya",
-  "Rohan", "Priyanka", "Arvind", "Neha", "Suresh", "Divya", "Manoj", "Ritu",
-  "Karthik", "Pooja", "Vivek", "Shreya", "Abhishek", "Lakshmi", "Fatima",
-  "Aditya", "Meenal", "Sameer", "Ishaan", "Kavita", "Rahul", "Anjali",
-  "Varun", "Swati", "Gaurav", "Nandini", "Siddharth", "Ritika", "Harish",
-  "Bhavna", "Manish", "Tanvi",
+  "Rajesh",
+  "Kavya",
+  "Imran",
+  "Deepa",
+  "Sneha",
+  "Vikram",
+  "Nikhil",
+  "Ananya",
+  "Rohan",
+  "Priyanka",
+  "Arvind",
+  "Neha",
+  "Suresh",
+  "Divya",
+  "Manoj",
+  "Ritu",
+  "Karthik",
+  "Pooja",
+  "Vivek",
+  "Shreya",
+  "Abhishek",
+  "Lakshmi",
+  "Fatima",
+  "Aditya",
+  "Meenal",
+  "Sameer",
+  "Ishaan",
+  "Kavita",
+  "Rahul",
+  "Anjali",
+  "Varun",
+  "Swati",
+  "Gaurav",
+  "Nandini",
+  "Siddharth",
+  "Ritika",
+  "Harish",
+  "Bhavna",
+  "Manish",
+  "Tanvi",
 ] as const;
 const LAST_NAMES = [
-  "Sharma", "Iyer", "Sheikh", "Menon", "Pillai", "Singh", "Joshi", "Bose",
-  "Kapoor", "Reddy", "Kumar", "Kapadia", "Nair", "Krishnan", "Tiwari",
-  "Chawla", "Subramaniam", "Agarwal", "Malhotra", "Bhatt", "Ranjan",
-  "Narayanan", "Khan", "Verma", "Gupta", "Kulkarni", "Desai", "Rao",
-  "Chatterjee", "Bhagat",
+  "Sharma",
+  "Iyer",
+  "Sheikh",
+  "Menon",
+  "Pillai",
+  "Singh",
+  "Joshi",
+  "Bose",
+  "Kapoor",
+  "Reddy",
+  "Kumar",
+  "Kapadia",
+  "Nair",
+  "Krishnan",
+  "Tiwari",
+  "Chawla",
+  "Subramaniam",
+  "Agarwal",
+  "Malhotra",
+  "Bhatt",
+  "Ranjan",
+  "Narayanan",
+  "Khan",
+  "Verma",
+  "Gupta",
+  "Kulkarni",
+  "Desai",
+  "Rao",
+  "Chatterjee",
+  "Bhagat",
 ] as const;
 const REGIONS = ["North", "South", "East", "West", "Central"] as const;
 const BRANCHES = [
-  "Andheri East", "Koramangala", "Rohini", "Salt Lake", "Banjara Hills",
-  "Indiranagar", "Powai", "Malad", "Thane", "Navi Mumbai", "Gurgaon",
-  "Noida", "Pune Camp", "Baner", "Whitefield",
+  "Andheri East",
+  "Koramangala",
+  "Rohini",
+  "Salt Lake",
+  "Banjara Hills",
+  "Indiranagar",
+  "Powai",
+  "Malad",
+  "Thane",
+  "Navi Mumbai",
+  "Gurgaon",
+  "Noida",
+  "Pune Camp",
+  "Baner",
+  "Whitefield",
 ] as const;
 const PRODUCTS = ["Home Loan", "LAP"] as const;
 
@@ -176,11 +298,8 @@ function borrowerName(i: number): string {
 // eligibility rule is `dpd > 90`, and this is the exact boundary a regression test has to be able
 // to check: 89 and 90 must never show there, 91 must always show there, regardless of NPA.
 const DPD_PATTERN: readonly number[] = [
-  0, 0, 0, 0,
-  5, 10, 15, 20, 25, 30,
-  35, 40, 45, 50, 55,
-  65, 70, 89, 90,
-  91, 110, 125, 140, 155, 170, 185, 200, 220, 245, 270,
+  0, 0, 0, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 65, 70, 89, 90, 91,
+  110, 125, 140, 155, 170, 185, 200, 220, 245, 270,
 ];
 
 const ADDITIONAL_DOC_POOL: ReadonlyArray<{
@@ -188,11 +307,31 @@ const ADDITIONAL_DOC_POOL: ReadonlyArray<{
   category: string;
   description: string;
 }> = [
-  { name: "NOC", category: "Property Document", description: "Latest NOC issued by the concerned authority." },
-  { name: "Sanction Letter", category: "Legal Document", description: "Original bank-issued sanction letter." },
-  { name: "Possession Letter", category: "Legal Document", description: "Builder or authority possession letter, original scan." },
-  { name: "Updated Property Document", category: "Property Document", description: "Latest property document reflecting current ownership." },
-  { name: "Customer Declaration", category: "KYC Document", description: "Signed declaration from the borrower." },
+  {
+    name: "NOC",
+    category: "Property Document",
+    description: "Latest NOC issued by the concerned authority.",
+  },
+  {
+    name: "Sanction Letter",
+    category: "Legal Document",
+    description: "Original bank-issued sanction letter.",
+  },
+  {
+    name: "Possession Letter",
+    category: "Legal Document",
+    description: "Builder or authority possession letter, original scan.",
+  },
+  {
+    name: "Updated Property Document",
+    category: "Property Document",
+    description: "Latest property document reflecting current ownership.",
+  },
+  {
+    name: "Customer Declaration",
+    category: "KYC Document",
+    description: "Signed declaration from the borrower.",
+  },
 ];
 
 const REJECTION_REASONS = [
@@ -204,14 +343,32 @@ const REJECTION_REASONS = [
 ] as const;
 
 const QUERY_REASONS: ReadonlyArray<{ reason: string; remarks: string }> = [
-  { reason: "Please upload the NOC document.", remarks: "The recall notice references an NOC that was not attached." },
-  { reason: "The uploaded statement is illegible.", remarks: "Please provide a bank-stamped copy at 300dpi." },
-  { reason: "Please confirm the current outstanding balance.", remarks: "The figure on the statement does not tally with PAS." },
-  { reason: "Please provide the updated legal opinion.", remarks: "The one on file predates the last recall notice." },
-  { reason: "Please clarify the property valuation date.", remarks: "The technical report is more than 12 months old." },
+  {
+    reason: "Please upload the NOC document.",
+    remarks: "The recall notice references an NOC that was not attached.",
+  },
+  {
+    reason: "The uploaded statement is illegible.",
+    remarks: "Please provide a bank-stamped copy at 300dpi.",
+  },
+  {
+    reason: "Please confirm the current outstanding balance.",
+    remarks: "The figure on the statement does not tally with PAS.",
+  },
+  {
+    reason: "Please provide the updated legal opinion.",
+    remarks: "The one on file predates the last recall notice.",
+  },
+  {
+    reason: "Please clarify the property valuation date.",
+    remarks: "The technical report is more than 12 months old.",
+  },
 ];
 
-const DECISION_REMARKS: Record<"APPROVED" | "REJECTED" | "CLOSED", readonly string[]> = {
+const DECISION_REMARKS: Record<
+  "APPROVED" | "REJECTED" | "CLOSED",
+  readonly string[]
+> = {
   APPROVED: [
     "Settlement verified. Claim payable in full.",
     "Documents in order. Recommended for payout.",
@@ -233,11 +390,65 @@ const DECISION_REMARKS: Record<"APPROVED" | "REJECTED" | "CLOSED", readonly stri
  * `LENDER_DEFS`). Two lender users are generated per lender org after that. */
 function buildUsers(passwordHash: string): User[] {
   const users: User[] = [
-    { id: "usr_emp1", role: "IMGC", name: "Meera Nair", email: "meera.nair@imgc.in", employeeId: "EMP-0001", phone: "+91 98201 44092", passwordHash, createdAt: NOW },
-    { id: "usr_emp2", role: "IMGC", name: "Rohit Sharma", email: "rohit.sharma@imgc.in", employeeId: "EMP-0002", phone: "+91 98201 44093", passwordHash, createdAt: NOW },
-    { id: "usr_emp3", role: "IMGC", name: "Anita Desai", email: "anita.desai@imgc.in", employeeId: "EMP-0003", phone: "+91 98201 44094", passwordHash, createdAt: NOW },
-    { id: "usr_len1", role: "LENDER", name: "Arjun Mehta", email: "arjun@hdfcbank.com", lenderOrgId: "org_acme", createdAt: NOW, createdBy: "usr_emp1" },
-    { id: "usr_len2", role: "LENDER", name: "Priya Rao", email: "priya@hdfcbank.com", lenderOrgId: "org_acme", createdAt: NOW, createdBy: "usr_emp1" },
+    {
+      id: "usr_emp_admin",
+      role: "IMGC",
+      isAdmin: true,
+      name: "System Admin",
+      email: "admin@imgc.in",
+      employeeId: "EMP-ADMIN",
+      phone: "+91 90000 00000",
+      passwordHash,
+      createdAt: NOW,
+    },
+    {
+      id: "usr_emp1",
+      role: "IMGC",
+      name: "Meera Nair",
+      email: "meera.nair@imgc.in",
+      employeeId: "EMP-0001",
+      phone: "+91 98201 44092",
+      passwordHash,
+      createdAt: NOW,
+    },
+    {
+      id: "usr_emp2",
+      role: "IMGC",
+      name: "Rohit Sharma",
+      email: "rohit.sharma@imgc.in",
+      employeeId: "EMP-0002",
+      phone: "+91 98201 44093",
+      passwordHash,
+      createdAt: NOW,
+    },
+    {
+      id: "usr_emp3",
+      role: "IMGC",
+      name: "Anita Desai",
+      email: "anita.desai@imgc.in",
+      employeeId: "EMP-0003",
+      phone: "+91 98201 44094",
+      passwordHash,
+      createdAt: NOW,
+    },
+    {
+      id: "usr_len1",
+      role: "LENDER",
+      name: "Arjun Mehta",
+      email: "arjun@hdfcbank.com",
+      lenderOrgId: "org_acme",
+      createdAt: NOW,
+      createdBy: "usr_emp1",
+    },
+    {
+      id: "usr_len2",
+      role: "LENDER",
+      name: "Priya Rao",
+      email: "priya@hdfcbank.com",
+      lenderOrgId: "org_acme",
+      createdAt: NOW,
+      createdBy: "usr_emp1",
+    },
   ];
 
   // Two users for every lender after HDFC (which already has its pair above).
@@ -300,7 +511,9 @@ function buildAccount(
     tenureMonths: 180 + (k % 4) * 60,
     propertyType: k % 3 === 2 ? "Commercial" : "Residential",
     propertyStatus: underConstruction ? "Under Construction" : "Ready to Move",
-    propertyStatusAtDisbursal: underConstruction ? "UNDER_CONSTRUCTION" : "READY_TO_MOVE",
+    propertyStatusAtDisbursal: underConstruction
+      ? "UNDER_CONSTRUCTION"
+      : "READY_TO_MOVE",
     bucket: k % 2 === 0 ? "IMGC" : "LENDER",
     stage: k % 2 === 0 ? "Under IMGC review" : "Document collection",
     claimStatus: "DRAFT",
@@ -321,9 +534,17 @@ function buildAccount(
 // A pattern length sharing a factor with that modulus (e.g. 15) can silently exclude a status
 // from ever being assigned at all.
 const CLAIM_STATUS_PATTERN: readonly ClaimStatus[] = [
-  "DRAFT", "INITIATED", "UNDER_REVIEW", "QUERY_INITIATED", "REJECTED",
-  "APPROVED", "DOCUMENTS_RESUBMITTED", "DRAFT", "UNDER_REVIEW",
-  "APPROVED", "QUERY_UNDER_REVIEW",
+  "DRAFT",
+  "INITIATED",
+  "UNDER_REVIEW",
+  "QUERY_INITIATED",
+  "REJECTED",
+  "APPROVED",
+  "DOCUMENTS_RESUBMITTED",
+  "DRAFT",
+  "UNDER_REVIEW",
+  "APPROVED",
+  "QUERY_UNDER_REVIEW",
 ];
 
 /** Steps walked before reaching this status — a real, chronological path, never an impossible
@@ -442,7 +663,11 @@ export function buildSeed(): MockDb {
     // near-identical DPD/name spreads per lender until it was caught in review).
     const k = decorrelate(i);
     const imgcAssignee: readonly [string, string] =
-      k % 3 === 0 ? ["usr_emp1", "Meera Nair"] : k % 3 === 1 ? ["usr_emp2", "Rohit Sharma"] : ["usr_emp3", "Anita Desai"];
+      k % 3 === 0
+        ? ["usr_emp1", "Meera Nair"]
+        : k % 3 === 1
+          ? ["usr_emp2", "Rohit Sharma"]
+          : ["usr_emp3", "Anita Desai"];
 
     const account = buildAccount(i, lender, imgcAssignee);
 
@@ -480,7 +705,8 @@ export function buildSeed(): MockDb {
       const config = CLAIM_TYPES[type];
       let claimNo = "";
       if (status !== "DRAFT") {
-        claimCountByPrefix[config.prefix] = (claimCountByPrefix[config.prefix] ?? 0) + 1;
+        claimCountByPrefix[config.prefix] =
+          (claimCountByPrefix[config.prefix] ?? 0) + 1;
         claimNo = `${config.prefix}-2026-${String(claimCountByPrefix[config.prefix]).padStart(5, "0")}`;
       }
       const claimId = `clm_${String(i + 1).padStart(4, "0")}`;
@@ -495,17 +721,26 @@ export function buildSeed(): MockDb {
       // path from the query-flow coverage requirement, distinct from a straight approval.
       const wentThroughQuery = status === "APPROVED" && k % 4 === 0;
       const history = wentThroughQuery
-        ? (["DRAFT", "INITIATED", "UNDER_REVIEW", "QUERY_RAISED", "DOCUMENTS_RESUBMITTED", "UNDER_REVIEW"] as const)
+        ? ([
+            "DRAFT",
+            "INITIATED",
+            "UNDER_REVIEW",
+            "QUERY_RAISED",
+            "DOCUMENTS_RESUBMITTED",
+            "UNDER_REVIEW",
+          ] as const)
         : HISTORY_BEFORE[status];
       // `k % 15`, not `k % 5` — a wider spread here is what gives the "Aging overview" widget on
       // the Dashboard (buildDashboardSummary's `aging`, keyed off each open claim's own
       // `lastUpdatedAt`) real coverage across all four of its day-bands instead of every open
       // claim landing within the same few-day window.
-      const daysAgo = DAYS_AGO_BY_STATUS[status] + (wentThroughQuery ? 12 : 0) + (k % 15);
+      const daysAgo =
+        DAYS_AGO_BY_STATUS[status] + (wentThroughQuery ? 12 : 0) + (k % 15);
 
       const steps = [...history, status];
       const statusHistory = steps.map((s, si) => {
-        const imgcSide = s !== "DRAFT" && s !== "SUBMITTED" && s !== "DOCUMENTS_RESUBMITTED";
+        const imgcSide =
+          s !== "DRAFT" && s !== "SUBMITTED" && s !== "DOCUMENTS_RESUBMITTED";
         return {
           status: s,
           at: ago(Math.max(0, daysAgo - si * (daysAgo / (steps.length + 1)))),
@@ -517,7 +752,9 @@ export function buildSeed(): MockDb {
 
       const fieldsComplete = status !== "DRAFT";
       const decisionOutcome: "APPROVED" | "REJECTED" | "CLOSED" | undefined =
-        status === "APPROVED" || status === "REJECTED" || status === "CLOSED" ? status : undefined;
+        status === "APPROVED" || status === "REJECTED" || status === "CLOSED"
+          ? status
+          : undefined;
 
       claims.push({
         id: claimId,
@@ -526,14 +763,18 @@ export function buildSeed(): MockDb {
         claimType: type,
         status,
         fields: fieldsComplete
-          ? Object.fromEntries(config.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""]))
+          ? Object.fromEntries(
+              config.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""])
+            )
           : { contactPerson: actorName },
         statusHistory,
         createdById: actorId,
         createdByName: actorName,
         createdAt: ago(daysAgo),
-        submittedAt: status === "DRAFT" ? undefined : ago(Math.max(0, daysAgo - 1)),
-        lastUpdatedAt: statusHistory[statusHistory.length - 1]?.at ?? ago(daysAgo),
+        submittedAt:
+          status === "DRAFT" ? undefined : ago(Math.max(0, daysAgo - 1)),
+        lastUpdatedAt:
+          statusHistory[statusHistory.length - 1]?.at ?? ago(daysAgo),
         draftSaved: true,
         bucket: status === "DRAFT" ? "LENDER" : "IMGC",
         decision: decisionOutcome
@@ -542,7 +783,10 @@ export function buildSeed(): MockDb {
               byId: imgcId,
               byName: imgcName,
               at: ago(1),
-              remarks: DECISION_REMARKS[decisionOutcome][k % DECISION_REMARKS[decisionOutcome].length]!,
+              remarks:
+                DECISION_REMARKS[decisionOutcome][
+                  k % DECISION_REMARKS[decisionOutcome].length
+                ]!,
             }
           : undefined,
       });
@@ -550,13 +794,21 @@ export function buildSeed(): MockDb {
       // Same mapping every runtime write goes through — see `toAccountClaimStatus`.
       account.claimStatus = toAccountClaimStatus(status);
       account.stage =
-        status === "APPROVED" ? "Claim approved"
-          : status === "REJECTED" ? "Claim rejected"
-          : status === "CLOSED" ? "Claim closed"
-          : status === "QUERY_INITIATED" ? "Query raised – pre-review"
-          : status === "QUERY_UNDER_REVIEW" ? "Query raised – under review"
-          : account.bucket === "IMGC" ? "Under IMGC review" : "Document collection";
-      account.submittedAt = status === "DRAFT" ? undefined : ago(Math.max(0, daysAgo - 1));
+        status === "APPROVED"
+          ? "Claim approved"
+          : status === "REJECTED"
+            ? "Claim rejected"
+            : status === "CLOSED"
+              ? "Claim closed"
+              : status === "QUERY_INITIATED"
+                ? "Query raised – pre-review"
+                : status === "QUERY_UNDER_REVIEW"
+                  ? "Query raised – under review"
+                  : account.bucket === "IMGC"
+                    ? "Under IMGC review"
+                    : "Document collection";
+      account.submittedAt =
+        status === "DRAFT" ? undefined : ago(Math.max(0, daysAgo - 1));
 
       if (decisionOutcome) {
         remarks.push({
@@ -572,17 +824,24 @@ export function buildSeed(): MockDb {
 
       // Approved-doc depth per stage — how much of the checklist is already through review.
       const approvedDocs =
-        status === "DRAFT" ? 0
-          : status === "SUBMITTED" ? 0
-          : status === "REJECTED" ? 1
-          : status === "APPROVED" || status === "CLOSED" ? 99
-          : 2;
+        status === "DRAFT"
+          ? 0
+          : status === "SUBMITTED"
+            ? 0
+            : status === "REJECTED"
+              ? 1
+              : status === "APPROVED" || status === "CLOSED"
+                ? 99
+                : 2;
 
-      const hasOpenQuery = status === "QUERY_INITIATED" || status === "QUERY_UNDER_REVIEW";
+      const hasOpenQuery =
+        status === "QUERY_INITIATED" || status === "QUERY_UNDER_REVIEW";
       // Also true for a fraction of plain UNDER_REVIEW claims — a claim can be back under review
       // after an earlier query was already answered, a real and common state.
       const hasResolvedQuery =
-        status === "DOCUMENTS_RESUBMITTED" || wentThroughQuery || (status === "UNDER_REVIEW" && k % 6 === 0);
+        status === "DOCUMENTS_RESUBMITTED" ||
+        wentThroughQuery ||
+        (status === "UNDER_REVIEW" && k % 6 === 0);
       const q = QUERY_REASONS[k % QUERY_REASONS.length]!;
       const loan = account as unknown as Record<string, unknown>;
 
@@ -592,15 +851,16 @@ export function buildSeed(): MockDb {
         const rejected = status === "REJECTED" && di === 0;
         const approved = di < approvedDocs;
 
-        const docStatus: DocStatus = isQueriedDoc && hasOpenQuery
-          ? "REUPLOAD_REQUIRED"
-          : rejected
-            ? "REJECTED"
-            : approved
-              ? "APPROVED"
-              : status === "DRAFT"
-                ? "PENDING_UPLOAD"
-                : "UNDER_REVIEW";
+        const docStatus: DocStatus =
+          isQueriedDoc && hasOpenQuery
+            ? "REUPLOAD_REQUIRED"
+            : rejected
+              ? "REJECTED"
+              : approved
+                ? "APPROVED"
+                : status === "DRAFT"
+                  ? "PENDING_UPLOAD"
+                  : "UNDER_REVIEW";
 
         const uploaded = applies && docStatus !== "PENDING_UPLOAD";
         const docId = `${claimId}_doc${di}`;
@@ -634,20 +894,40 @@ export function buildSeed(): MockDb {
           required: spec.required && applies,
           multiple: spec.multiple ?? false,
           conditional: Boolean(spec.condition),
-          conditionReason: spec.condition ? conditionReason(spec.condition) : undefined,
+          conditionReason: spec.condition
+            ? conditionReason(spec.condition)
+            : undefined,
           addedBy: "SYSTEM",
           status: applies ? docStatus : "PENDING_UPLOAD",
           version: uploaded ? 1 : 0,
           currentFileId,
           rejection:
             docStatus === "REJECTED"
-              ? { at: ago(Math.max(1, daysAgo - 2)), by: imgcName, reason: REJECTION_REASONS[k % REJECTION_REASONS.length]! }
+              ? {
+                  at: ago(Math.max(1, daysAgo - 2)),
+                  by: imgcName,
+                  reason: REJECTION_REASONS[k % REJECTION_REASONS.length]!,
+                }
               : undefined,
           review:
             docStatus === "APPROVED"
-              ? { decision: "APPROVED", by: imgcId, byName: imgcName, at: ago(1), remarks: "Verified.", version: 1 }
+              ? {
+                  decision: "APPROVED",
+                  by: imgcId,
+                  byName: imgcName,
+                  at: ago(1),
+                  remarks: "Verified.",
+                  version: 1,
+                }
               : docStatus === "REJECTED"
-                ? { decision: "REJECTED", by: imgcId, byName: imgcName, at: ago(Math.max(1, daysAgo - 2)), remarks: REJECTION_REASONS[k % REJECTION_REASONS.length]!, version: 1 }
+                ? {
+                    decision: "REJECTED",
+                    by: imgcId,
+                    byName: imgcName,
+                    at: ago(Math.max(1, daysAgo - 2)),
+                    remarks: REJECTION_REASONS[k % REJECTION_REASONS.length]!,
+                    version: 1,
+                  }
                 : undefined,
           active: true,
           createdAt: ago(daysAgo),
@@ -657,7 +937,8 @@ export function buildSeed(): MockDb {
       // Queries — an open one for QUERY_RAISED, a resolved one for DOCUMENTS_RESUBMITTED / the
       // query-then-approved path.
       if (hasOpenQuery || hasResolvedQuery) {
-        const requestedDoc = config.documents[0]?.name ?? "Loan Account Statement";
+        const requestedDoc =
+          config.documents[0]?.name ?? "Loan Account Statement";
         // Anchor the query to the claim's own status history wherever a real QUERY_RAISED /
         // DOCUMENTS_RESUBMITTED step exists, so "Claim History" and the query thread agree on
         // when it happened — an independently-computed date drifted earlier than "Submitted"
@@ -665,12 +946,19 @@ export function buildSeed(): MockDb {
         // The one case with no such step (a resolved query on a plain UNDER_REVIEW claim, which
         // moved on without leaving a QUERY_RAISED entry behind) falls back to a date between
         // "Submitted" and the current "Under review" entry.
-        const queryRaisedEntry = statusHistory.find((h) =>
-          h.status === "QUERY_RAISED" || h.status === "QUERY_INITIATED" || h.status === "QUERY_UNDER_REVIEW"
+        const queryRaisedEntry = statusHistory.find(
+          (h) =>
+            h.status === "QUERY_RAISED" ||
+            h.status === "QUERY_INITIATED" ||
+            h.status === "QUERY_UNDER_REVIEW"
         );
-        const docsResubmittedEntry = statusHistory.find((h) => h.status === "DOCUMENTS_RESUBMITTED");
-        const raisedAtIso = queryRaisedEntry?.at ?? ago(Math.round(daysAgo * 0.65));
-        const respondedAtIso = docsResubmittedEntry?.at ?? ago(Math.round(daysAgo * 0.55));
+        const docsResubmittedEntry = statusHistory.find(
+          (h) => h.status === "DOCUMENTS_RESUBMITTED"
+        );
+        const raisedAtIso =
+          queryRaisedEntry?.at ?? ago(Math.round(daysAgo * 0.65));
+        const respondedAtIso =
+          docsResubmittedEntry?.at ?? ago(Math.round(daysAgo * 0.55));
         claimQueries.push({
           id: `qry_${claimId}`,
           claimId,
@@ -686,7 +974,9 @@ export function buildSeed(): MockDb {
           respondedAt: hasResolvedQuery ? respondedAtIso : undefined,
           respondedById: hasResolvedQuery ? actorId : undefined,
           respondedByName: hasResolvedQuery ? actorName : undefined,
-          responseRemarks: hasResolvedQuery ? "Re-scanned and resubmitted as requested." : undefined,
+          responseRemarks: hasResolvedQuery
+            ? "Re-scanned and resubmitted as requested."
+            : undefined,
         });
       }
 
@@ -695,10 +985,17 @@ export function buildSeed(): MockDb {
       if (k % 5 === 0) {
         const extraCount = 1 + (k % 2);
         for (let e = 0; e < extraCount; e += 1) {
-          const pick = ADDITIONAL_DOC_POOL[(k + e) % ADDITIONAL_DOC_POOL.length]!;
+          const pick =
+            ADDITIONAL_DOC_POOL[(k + e) % ADDITIONAL_DOC_POOL.length]!;
           const docId = `doc_${account.id}_add${e}`;
           const extraStatus: DocStatus =
-            e === 0 && k % 15 === 0 ? "REJECTED" : k % 4 === 0 ? "APPROVED" : k % 4 === 1 ? "UNDER_REVIEW" : "PENDING_UPLOAD";
+            e === 0 && k % 15 === 0
+              ? "REJECTED"
+              : k % 4 === 0
+                ? "APPROVED"
+                : k % 4 === 1
+                  ? "UNDER_REVIEW"
+                  : "PENDING_UPLOAD";
           let currentFileId: string | undefined;
           if (extraStatus !== "PENDING_UPLOAD") {
             currentFileId = `${docId}_f1`;
@@ -758,15 +1055,22 @@ export function buildSeed(): MockDb {
                 ? {
                     at: ago(rejectedDaysAgo),
                     by: imgcName,
-                    reason: REJECTION_REASONS[(k + e) % REJECTION_REASONS.length]!,
+                    reason:
+                      REJECTION_REASONS[(k + e) % REJECTION_REASONS.length]!,
                     reinstate:
                       reinstateState === 1
-                        ? { status: "REQUESTED", requestedBy: actorName, requestedAt: ago(Math.max(1, rejectedDaysAgo - 3)) }
+                        ? {
+                            status: "REQUESTED",
+                            requestedBy: actorName,
+                            requestedAt: ago(Math.max(1, rejectedDaysAgo - 3)),
+                          }
                         : reinstateState === 2
                           ? {
                               status: "APPROVED",
                               requestedBy: actorName,
-                              requestedAt: ago(Math.max(1, rejectedDaysAgo - 3)),
+                              requestedAt: ago(
+                                Math.max(1, rejectedDaysAgo - 3)
+                              ),
                               decidedBy: imgcName,
                               decidedAt: ago(Math.max(1, rejectedDaysAgo - 1)),
                             }
@@ -775,9 +1079,24 @@ export function buildSeed(): MockDb {
                 : undefined,
             review:
               extraStatus === "APPROVED"
-                ? { decision: "APPROVED", by: imgcId, byName: imgcName, at: ago(2), remarks: "Verified.", version: 1 }
+                ? {
+                    decision: "APPROVED",
+                    by: imgcId,
+                    byName: imgcName,
+                    at: ago(2),
+                    remarks: "Verified.",
+                    version: 1,
+                  }
                 : extraStatus === "REJECTED"
-                  ? { decision: "REJECTED", by: imgcId, byName: imgcName, at: ago(rejectedDaysAgo), remarks: REJECTION_REASONS[(k + e) % REJECTION_REASONS.length]!, version: 1 }
+                  ? {
+                      decision: "REJECTED",
+                      by: imgcId,
+                      byName: imgcName,
+                      at: ago(rejectedDaysAgo),
+                      remarks:
+                        REJECTION_REASONS[(k + e) % REJECTION_REASONS.length]!,
+                      version: 1,
+                    }
                   : undefined,
             createdAt: ago(daysAgo + 4),
           });
@@ -829,7 +1148,10 @@ export function buildSeed(): MockDb {
   const EXTRA_INITIATE_ELIGIBLE = 12;
   for (let e = 0; e < EXTRA_INITIATE_ELIGIBLE; e += 1) {
     const i = TOTAL_ACCOUNTS + e; // continues the index sequence — ids/loan numbers stay unique
-    const account = buildAccount(i, LENDER_DEFS[0]!, ["usr_len1", "Arjun Mehta"]);
+    const account = buildAccount(i, LENDER_DEFS[0]!, [
+      "usr_len1",
+      "Arjun Mehta",
+    ]);
     account.npa = true;
     account.writeOff = false;
     account.dpd = DPD_PATTERN[19 + (e % (DPD_PATTERN.length - 19))]!; // always one of the >90 entries
@@ -867,7 +1189,10 @@ export function buildSeed(): MockDb {
   const qrConfig = CLAIM_TYPES.INITIAL;
   for (let e = 0; e < EXTRA_QUERIED; e += 1) {
     const i = TOTAL_ACCOUNTS + EXTRA_INITIATE_ELIGIBLE + e;
-    const account = buildAccount(i, LENDER_DEFS[0]!, ["usr_emp1", "Meera Nair"]);
+    const account = buildAccount(i, LENDER_DEFS[0]!, [
+      "usr_emp1",
+      "Meera Nair",
+    ]);
     account.npa = true;
     account.writeOff = false;
     account.dpd = DPD_PATTERN[19 + (e % (DPD_PATTERN.length - 19))]!; // always one of the >90 entries
@@ -893,22 +1218,32 @@ export function buildSeed(): MockDb {
       });
     });
 
-    claimCountByPrefix[qrConfig.prefix] = (claimCountByPrefix[qrConfig.prefix] ?? 0) + 1;
+    claimCountByPrefix[qrConfig.prefix] =
+      (claimCountByPrefix[qrConfig.prefix] ?? 0) + 1;
     const claimId = `clm_${String(i + 1).padStart(4, "0")}`;
     const claimNo = `${qrConfig.prefix}-2026-${String(claimCountByPrefix[qrConfig.prefix]).padStart(5, "0")}`;
 
     // First 5 → QUERY_INITIATED (pre-review query), next 5 → QUERY_UNDER_REVIEW (post-review).
-    const queriedStatus: ClaimStatus = e < 5 ? "QUERY_INITIATED" : "QUERY_UNDER_REVIEW";
+    const queriedStatus: ClaimStatus =
+      e < 5 ? "QUERY_INITIATED" : "QUERY_UNDER_REVIEW";
     const daysAgo = 14 + e * 3;
 
     // History paths match the real workflow transitions.
     const steps: readonly ClaimStatus[] =
       queriedStatus === "QUERY_INITIATED"
         ? (["DRAFT", "INITIATED", "QUERY_INITIATED"] as const)
-        : (["DRAFT", "INITIATED", "UNDER_REVIEW", "QUERY_UNDER_REVIEW"] as const);
+        : ([
+            "DRAFT",
+            "INITIATED",
+            "UNDER_REVIEW",
+            "QUERY_UNDER_REVIEW",
+          ] as const);
 
     const statusHistory = steps.map((s, si) => {
-      const imgcSide = s === "UNDER_REVIEW" || s === "QUERY_INITIATED" || s === "QUERY_UNDER_REVIEW";
+      const imgcSide =
+        s === "UNDER_REVIEW" ||
+        s === "QUERY_INITIATED" ||
+        s === "QUERY_UNDER_REVIEW";
       return {
         status: s,
         at: ago(Math.max(0, daysAgo - si * (daysAgo / (steps.length + 1)))),
@@ -925,7 +1260,9 @@ export function buildSeed(): MockDb {
       accountId: account.id,
       claimType: "INITIAL",
       status: queriedStatus,
-      fields: Object.fromEntries(qrConfig.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""])),
+      fields: Object.fromEntries(
+        qrConfig.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""])
+      ),
       statusHistory,
       createdById: "usr_len1",
       createdByName: "Arjun Mehta",
@@ -1037,7 +1374,10 @@ export function buildSeed(): MockDb {
   const initConfig = CLAIM_TYPES.INITIAL;
   for (let e = 0; e < EXTRA_INITIATED; e += 1) {
     const i = TOTAL_ACCOUNTS + EXTRA_INITIATE_ELIGIBLE + EXTRA_QUERIED + e;
-    const account = buildAccount(i, LENDER_DEFS[0]!, ["usr_emp1", "Meera Nair"]);
+    const account = buildAccount(i, LENDER_DEFS[0]!, [
+      "usr_emp1",
+      "Meera Nair",
+    ]);
     account.npa = true;
     account.writeOff = false;
     account.dpd = DPD_PATTERN[19 + (e % (DPD_PATTERN.length - 19))]!; // always one of the >90 entries
@@ -1063,7 +1403,8 @@ export function buildSeed(): MockDb {
       });
     });
 
-    claimCountByPrefix[initConfig.prefix] = (claimCountByPrefix[initConfig.prefix] ?? 0) + 1;
+    claimCountByPrefix[initConfig.prefix] =
+      (claimCountByPrefix[initConfig.prefix] ?? 0) + 1;
     const claimId = `clm_${String(i + 1).padStart(4, "0")}`;
     const claimNo = `${initConfig.prefix}-2026-${String(claimCountByPrefix[initConfig.prefix]).padStart(5, "0")}`;
 
@@ -1071,8 +1412,20 @@ export function buildSeed(): MockDb {
     const daysAgo = 1 + (e % 3);
 
     const statusHistory = [
-      { status: "DRAFT" as ClaimStatus, at: ago(daysAgo + 1), byId: "usr_len1", byName: "Arjun Mehta", byRole: "LENDER" as const },
-      { status: "INITIATED" as ClaimStatus, at: ago(daysAgo), byId: "usr_len1", byName: "Arjun Mehta", byRole: "LENDER" as const },
+      {
+        status: "DRAFT" as ClaimStatus,
+        at: ago(daysAgo + 1),
+        byId: "usr_len1",
+        byName: "Arjun Mehta",
+        byRole: "LENDER" as const,
+      },
+      {
+        status: "INITIATED" as ClaimStatus,
+        at: ago(daysAgo),
+        byId: "usr_len1",
+        byName: "Arjun Mehta",
+        byRole: "LENDER" as const,
+      },
     ];
 
     claims.push({
@@ -1081,7 +1434,9 @@ export function buildSeed(): MockDb {
       accountId: account.id,
       claimType: "INITIAL",
       status: claimStatus,
-      fields: Object.fromEntries(initConfig.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""])),
+      fields: Object.fromEntries(
+        initConfig.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""])
+      ),
       statusHistory,
       createdById: "usr_len1",
       createdByName: "Arjun Mehta",
@@ -1214,7 +1569,8 @@ export function buildSeed(): MockDb {
         });
       });
 
-      claimCountByPrefix[dbConfig.prefix] = (claimCountByPrefix[dbConfig.prefix] ?? 0) + 1;
+      claimCountByPrefix[dbConfig.prefix] =
+        (claimCountByPrefix[dbConfig.prefix] ?? 0) + 1;
       const claimId = `clm_${String(i + 1).padStart(4, "0")}`;
       const claimNo = `${dbConfig.prefix}-2026-${String(claimCountByPrefix[dbConfig.prefix]).padStart(5, "0")}`;
 
@@ -1238,7 +1594,9 @@ export function buildSeed(): MockDb {
         accountId: account.id,
         claimType: "INITIAL",
         status: outcome,
-        fields: Object.fromEntries(dbConfig.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""])),
+        fields: Object.fromEntries(
+          dbConfig.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""])
+        ),
         statusHistory,
         createdById: actorId,
         createdByName: actorName,
@@ -1260,7 +1618,8 @@ export function buildSeed(): MockDb {
       });
 
       account.claimStatus = toAccountClaimStatus(outcome);
-      account.stage = outcome === "APPROVED" ? "Claim approved" : "Claim rejected";
+      account.stage =
+        outcome === "APPROVED" ? "Claim approved" : "Claim rejected";
       account.submittedAt = ago(Math.max(0, daysAgo - 1));
 
       dbConfig.documents.forEach((docSpec, di) => {
@@ -1382,7 +1741,7 @@ export function buildSeed(): MockDb {
       TOTAL_ACCOUNTS +
       EXTRA_INITIATE_ELIGIBLE +
       EXTRA_QUERIED +
-        EXTRA_INITIATED +
+      EXTRA_INITIATED +
       LENDER_DEFS.length * DASHBOARD_BALANCE_SPECS.length +
       e;
 
@@ -1412,7 +1771,8 @@ export function buildSeed(): MockDb {
       });
     });
 
-    claimCountByPrefix[dbConfig.prefix] = (claimCountByPrefix[dbConfig.prefix] ?? 0) + 1;
+    claimCountByPrefix[dbConfig.prefix] =
+      (claimCountByPrefix[dbConfig.prefix] ?? 0) + 1;
     const claimId = `clm_${String(i + 1).padStart(4, "0")}`;
     const claimNo = `${dbConfig.prefix}-2026-${String(claimCountByPrefix[dbConfig.prefix]).padStart(5, "0")}`;
 
@@ -1436,7 +1796,9 @@ export function buildSeed(): MockDb {
       accountId: account.id,
       claimType: "INITIAL",
       status: outcome,
-      fields: Object.fromEntries(dbConfig.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""])),
+      fields: Object.fromEntries(
+        dbConfig.fields.map((f) => [f.id, SAMPLE_FIELDS[f.id] ?? ""])
+      ),
       statusHistory,
       createdById: actorId,
       createdByName: actorName,
@@ -1458,7 +1820,8 @@ export function buildSeed(): MockDb {
     });
 
     account.claimStatus = toAccountClaimStatus(outcome);
-    account.stage = outcome === "APPROVED" ? "Claim approved" : "Claim rejected";
+    account.stage =
+      outcome === "APPROVED" ? "Claim approved" : "Claim rejected";
     account.submittedAt = ago(Math.max(0, daysAgo - 1));
 
     dbConfig.documents.forEach((docSpec, di) => {
@@ -1568,7 +1931,10 @@ export function buildSeed(): MockDb {
   function fromDefault(
     slug: string,
     required: boolean
-  ): Omit<LenderDocumentRequirement, "id" | "lenderOrgId" | "order" | "createdAt"> {
+  ): Omit<
+    LenderDocumentRequirement,
+    "id" | "lenderOrgId" | "order" | "createdAt"
+  > {
     const spec = INITIAL_DOC_BY_SLUG.get(slug)!;
     return {
       slug,
@@ -1594,7 +1960,10 @@ export function buildSeed(): MockDb {
   const LENDER_DOC_CONFIG: ReadonlyArray<{
     lenderId: string;
     docs: ReadonlyArray<
-      Omit<LenderDocumentRequirement, "id" | "lenderOrgId" | "order" | "createdAt">
+      Omit<
+        LenderDocumentRequirement,
+        "id" | "lenderOrgId" | "order" | "createdAt"
+      >
     >;
   }> = [
     {
@@ -1651,7 +2020,10 @@ export function buildSeed(): MockDb {
     claims,
     claimQueries,
     remarks,
-    auditEvents: auditEvents.map((e, i) => ({ id: `aud_${String(i + 1).padStart(4, "0")}`, ...e })),
+    auditEvents: auditEvents.map((e, i) => ({
+      id: `aud_${String(i + 1).padStart(4, "0")}`,
+      ...e,
+    })),
     notifications: [],
     lenderDocumentRequirements,
   };

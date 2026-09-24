@@ -66,6 +66,23 @@ function normalize(db: MockDb): MockDb {
     }
   }
 
+  if (db.users && !db.users.some((u) => u.employeeId === "EMP-ADMIN")) {
+    const emp1 = db.users.find((u) => u.employeeId === "EMP-0001");
+    if (emp1) {
+      db.users.push({
+        id: "usr_emp_admin",
+        role: "IMGC",
+        isAdmin: true,
+        name: "System Admin",
+        email: "admin@imgc.in",
+        employeeId: "EMP-ADMIN",
+        phone: "+91 90000 00000",
+        passwordHash: emp1.passwordHash,
+        createdAt: new Date().toISOString(),
+      });
+    }
+  }
+
   return {
     ...db,
     lenderDocumentRequirements: db.lenderDocumentRequirements ?? [],
