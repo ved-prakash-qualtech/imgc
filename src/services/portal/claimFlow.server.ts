@@ -762,7 +762,7 @@ export async function createClaim(
   const db = await readDb();
   const account = db.accounts.find((a) => a.id === accountId);
   if (!account) return { ok: false, error: "Account not found." };
-  
+
   if (session.role === "LENDER") {
     if (account.lenderOrgId !== session.lenderOrgId) {
       return { ok: false, error: "That account belongs to another lender." };
@@ -916,9 +916,11 @@ export async function saveClaimDraft(
     actor: session,
     type: "CLAIM_STATUS_CHANGED",
     summary: "Claim draft saved",
-    meta: { 
+    meta: {
       claimId,
-      ...(guard.onBehalfOfLenderOrgId ? { onBehalfOfLenderOrgId: guard.onBehalfOfLenderOrgId } : {})
+      ...(guard.onBehalfOfLenderOrgId
+        ? { onBehalfOfLenderOrgId: guard.onBehalfOfLenderOrgId }
+        : {}),
     },
   });
   return { ok: true, claimId };
@@ -958,7 +960,10 @@ export async function checkSubmittable(
         d.required &&
         d.active !== false &&
         d.status !== "UNDER_REVIEW" &&
-        d.status !== "APPROVED"
+        d.status !== "APPROVED" &&
+        // A waiver the lender has asked for, or IMGC has allowed, no longer blocks submission.
+        d.status !== "WAIVER_REQUESTED" &&
+        d.status !== "WAIVED"
     )
     .map((d) => d.name);
 
@@ -1107,9 +1112,11 @@ export async function submitClaim(
     actor: session,
     type: "CLAIM_SUBMITTED",
     summary: `Claim ${claimNo} submitted to IMGC`,
-    meta: { 
+    meta: {
       claimId,
-      ...(guard.onBehalfOfLenderOrgId ? { onBehalfOfLenderOrgId: guard.onBehalfOfLenderOrgId } : {})
+      ...(guard.onBehalfOfLenderOrgId
+        ? { onBehalfOfLenderOrgId: guard.onBehalfOfLenderOrgId }
+        : {}),
     },
   });
 
@@ -1119,10 +1126,12 @@ export async function submitClaim(
       actor: session,
       type: "REMARK_ADDED",
       summary: "Lender added an initiation remark",
-      meta: { 
-        claimId, 
+      meta: {
+        claimId,
         source: "CLAIM_INITIATION",
-        ...(guard.onBehalfOfLenderOrgId ? { onBehalfOfLenderOrgId: guard.onBehalfOfLenderOrgId } : {})
+        ...(guard.onBehalfOfLenderOrgId
+          ? { onBehalfOfLenderOrgId: guard.onBehalfOfLenderOrgId }
+          : {}),
       },
     });
   }
@@ -1360,7 +1369,7 @@ export async function markRefundReceived(
       claim,
       "REFUND_RECEIVED_BY_IMGC",
       session,
-      `UTR ${trimmedUtr} · ₹${amount.toLocaleString("en-IN")} · paid ${trimmedDate}`
+      `${trimmedUtr} · ₹${amount.toLocaleString("en-IN")} · paid ${trimmedDate}`
     );
     claim.refundReceipt = {
       paymentDate: trimmedDate,
@@ -1384,7 +1393,7 @@ export async function markRefundReceived(
     accountId: outcome.accountId,
     actor: session,
     type: "CLAIM_STATUS_CHANGED",
-    summary: `Refund received by IMGC for claim ${outcome.claimNo} — UTR ${trimmedUtr}, ₹${amount.toLocaleString("en-IN")} on ${trimmedDate}`,
+    summary: `Refund received by IMGC for claim ${outcome.claimNo} — ${trimmedUtr}, ₹${amount.toLocaleString("en-IN")} on ${trimmedDate}`,
     meta: {
       claimId,
       status: "REFUND_RECEIVED_BY_IMGC",
@@ -1403,83 +1412,6 @@ export async function markRefundReceived(
     unreadFor: ["LENDER"],
   });
   return { ok: true, claimId, accountId: outcome.accountId };
-}
-
-export type BulkRefundRow = Readonly<{
-  paymentDate: string;
-  claimNo: string;
-  utr: string;
-  amount: number;
-}>;
-export type BulkRefundResult = Readonly<{
-  claimNo: string;
-  ok: boolean;
-  error?: string;
-}>;
-
-/**
- * Bulk "Refund Received" — the same `markRefundReceived` rule per row, matched by Claim No.
- * instead of an id the caller already has, and never blocking on one bad row: a claim number
- * that doesn't exist, isn't APPROVED, or is a duplicate in the file all fail that row only, and
- * every other row in the batch is still attempted.
- *
- * No per-row proof file — see the bulk-upload page's own note on why. The one-at-a-time "Refund
- * Received" button still exists for attaching proof; this is for the reference number alone,
- * across many claims at once.
- */
-export async function bulkMarkRefundReceived(
-  session: AppSession,
-  rows: readonly BulkRefundRow[]
-): Promise<{ ok: true; results: BulkRefundResult[] }> {
-  if (session.role !== "IMGC") {
-    return {
-      ok: true,
-      results: rows.map((r) => ({
-        claimNo: r.claimNo,
-        ok: false,
-        error: "IMGC only.",
-      })),
-    };
-  }
-
-  const db = await readDb();
-  const results: BulkRefundResult[] = [];
-  // Sequential, not Promise.all: each row goes through the same writeDb transaction
-  // `markRefundReceived` already uses, and running them concurrently would just serialize on
-  // that lock anyway while making the per-row error harder to attribute if one write races another.
-  for (const row of rows) {
-    const claimNo = row.claimNo.trim();
-    if (!claimNo) {
-      results.push({
-        claimNo: row.claimNo,
-        ok: false,
-        error: "Missing claim number.",
-      });
-      continue;
-    }
-    const claim = db.claims.find((c) => c.claimNo === claimNo);
-    if (!claim) {
-      results.push({ claimNo, ok: false, error: "No claim with this number." });
-      continue;
-    }
-    const outcome = await markRefundReceived(
-      session,
-      claim.id,
-      row.utr,
-      row.amount,
-      row.paymentDate
-    );
-    results.push(
-      outcome.ok
-        ? { claimNo, ok: true }
-        : {
-            claimNo,
-            ok: false,
-            error: outcome.error ?? "Could not be recorded.",
-          }
-    );
-  }
-  return { ok: true, results };
 }
 
 export async function raiseQuery(
@@ -1602,17 +1534,17 @@ async function assertLenderOwns(
       return { ok: false, error: "That claim belongs to another lender." };
     }
     return { ok: true, accountId: claim.accountId };
-  } 
-  
+  }
+
   if (session.role === "IMGC" && session.isAdmin) {
     const ctx = await getAdminContextOrNull();
     if (!ctx?.lenderOrgId || ctx.lenderOrgId !== account.lenderOrgId) {
       return { ok: false, error: "That claim belongs to another lender." };
     }
-    return { 
-      ok: true, 
+    return {
+      ok: true,
       accountId: claim.accountId,
-      onBehalfOfLenderOrgId: account.lenderOrgId 
+      onBehalfOfLenderOrgId: account.lenderOrgId,
     };
   }
 
@@ -1631,10 +1563,16 @@ async function notify(
   const db = await readDb();
   const account = db.accounts.find((a) => a.id === accountId);
   if (!account) return;
-  const org = db.lenderOrgs.find((o) => o.id === account.lenderOrgId);
+  const lender =
+    db.lenderOrgs.find((o) => o.id === account.lenderOrgId)?.contactEmails ??
+    [];
   const imgc = db.users.filter((u) => u.role === "IMGC").map((u) => u.email);
+  // Addressed to whichever side the message asks something of (the same side its unread badge
+  // lands on); the other side and the account's pinned addresses are copied.
+  const actOn = msg.unreadFor.includes("LENDER") ? "LENDER" : "IMGC";
   await sendMail({
-    to: [...(org?.contactEmails ?? []), ...imgc, ...account.pushRecipients],
+    to: actOn === "LENDER" ? lender : imgc,
+    cc: [...(actOn === "LENDER" ? imgc : lender), ...account.pushRecipients],
     subject: `[${account.loanNo}] ${msg.subject}`,
     body: msg.body,
     event: msg.event,

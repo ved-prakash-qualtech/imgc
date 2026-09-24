@@ -10,6 +10,7 @@ import {
   addRequirement,
   decideDocument,
   deleteDocumentFile,
+  requestDocumentWaiver,
   discardUnsavedUploads,
   setRequirementActive,
   updateRequirement,
@@ -175,6 +176,25 @@ export async function discardUnsavedUploadsAction(
   return runAction(async () => {
     const session = await requireSession();
     const result = await discardUnsavedUploads(session, accountId, claimId);
+    if (result.ok) refreshAll(accountId);
+    return result;
+  });
+}
+
+/** Lender — ask IMGC to waive a required document that cannot be supplied. */
+export async function requestWaiverAction(
+  accountId: string,
+  documentId: string,
+  reason: string
+): Promise<Result> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await requestDocumentWaiver(
+      session,
+      accountId,
+      documentId,
+      reason
+    );
     if (result.ok) refreshAll(accountId);
     return result;
   });

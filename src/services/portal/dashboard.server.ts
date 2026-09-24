@@ -360,7 +360,13 @@ function buildClaimPipelineKpis(
 }
 
 function isIn(doc: ClaimDocument): boolean {
-  return doc.status === "UNDER_REVIEW" || doc.status === "APPROVED";
+  return (
+    doc.status === "UNDER_REVIEW" ||
+    doc.status === "APPROVED" ||
+    // Waived documents are settled — the claim is not waiting on them.
+    doc.status === "WAIVED" ||
+    doc.status === "WAIVER_REQUESTED"
+  );
 }
 
 export async function buildDashboardSummary(

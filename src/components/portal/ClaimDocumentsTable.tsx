@@ -37,6 +37,8 @@ const STATUS_LABEL: Record<DocStatus, string> = {
   APPROVED: "Accepted",
   REJECTED: "Ineligible",
   REUPLOAD_REQUIRED: "Query Raised",
+  WAIVER_REQUESTED: "Waiver requested",
+  WAIVED: "Waived",
 };
 
 const STATUS_TONE: Record<DocStatus, string> = {
@@ -46,6 +48,8 @@ const STATUS_TONE: Record<DocStatus, string> = {
   APPROVED: "bg-success/15 text-success-700",
   REJECTED: "bg-destructive/12 text-destructive",
   REUPLOAD_REQUIRED: "bg-warning/15 text-warning",
+  WAIVER_REQUESTED: "bg-warning/15 text-warning",
+  WAIVED: "bg-brand-muted text-brand-dark",
 };
 
 /** Flat colored text, no pill and no dot — a dense, non-interactive table column, matching the
@@ -340,7 +344,11 @@ export function ClaimDocumentsTable({
     doc.status !== "APPROVED" &&
     (!claimStatus || claimStatus === "DRAFT");
   const hasImgcDecision = (docs: RequirementRow[]) =>
-    docs.some((d) => d.files.some((f) => f.review));
+    docs.some(
+      (d) =>
+        d.files.some((f) => f.review) ||
+        (d.waiver && d.waiver.status !== "REQUESTED")
+    );
   const hasAnyAction = (docs: RequirementRow[]) =>
     docs.some((d) => canUpload(d) || (canDelete(d) && d.files.length > 0));
 
@@ -399,15 +407,19 @@ export function ClaimDocumentsTable({
 
       const emptyAction =
         canUploadGeneral && !hasFiles ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 px-2.5 text-[11px]"
-            // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
-            onClick={() => setUploadTarget({ row: doc, mode: "upload" })}
-          >
-            <UploadIcon className="mr-1.5 size-3" /> Upload
-          </Button>
+          <span className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-[11px]"
+              // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+              onClick={() => setUploadTarget({ row: doc, mode: "upload" })}
+            >
+              <UploadIcon className="mr-1.5 size-3" /> Upload
+            </Button>
+            {/* The document cannot be supplied at all: ask IMGC to waive it instead. */}
+            {/* Only a mandatory document needs waiving — an optional one can simply be left out. */}
+          </span>
         ) : null;
 
       if (!hasFiles) {
@@ -416,12 +428,58 @@ export function ClaimDocumentsTable({
             <TableCell className="w-[18%] px-2 py-1.5 align-top">
               {docNameCell}
             </TableCell>
-            <TableCell
-              colSpan={showImgcRemark ? 5 : 4}
-              className="px-2 py-1.5 text-[11px] text-neutral-400 align-top"
-            >
-              Nothing uploaded yet.
-            </TableCell>
+            {doc.waiver ? (
+              // A waiver reads across the same columns a file does: the lender's reason under
+              // Lender Remark, IMGC's answer under IMGC Remark.
+              <>
+                <TableCell className="px-2 py-1.5 text-[11px] text-neutral-400 align-top">
+                  —
+                </TableCell>
+                <TableCell
+                  className="max-w-[150px] px-2 py-1.5 text-[10.5px] text-neutral-600 align-top"
+                  title={doc.waiver.reason}
+                >
+                  Waiver: {clip(doc.waiver.reason, 28)}
+                </TableCell>
+                {showImgcRemark && (
+                  <TableCell
+                    className="max-w-[150px] px-2 py-1.5 text-[10.5px] align-top"
+                    title={doc.waiver.remarks}
+                  >
+                    {doc.waiver.status === "APPROVED" ? (
+                      <span className="font-medium text-success-700">
+                        Waived
+                        {doc.waiver.remarks
+                          ? `: ${clip(doc.waiver.remarks, 24)}`
+                          : ""}
+                      </span>
+                    ) : doc.waiver.status === "DENIED" ? (
+                      <span className="font-medium text-destructive">
+                        Declined
+                        {doc.waiver.remarks
+                          ? `: ${clip(doc.waiver.remarks, 24)}`
+                          : ""}
+                      </span>
+                    ) : (
+                      <span className="text-neutral-400">Awaiting IMGC</span>
+                    )}
+                  </TableCell>
+                )}
+                <TableCell className="px-2 py-1.5 text-[10.5px] text-neutral-600 align-top">
+                  {doc.waiver.by}
+                </TableCell>
+                <TableCell className="px-2 py-1.5 text-[10.5px] text-neutral-500 align-top">
+                  {when(doc.waiver.at)}
+                </TableCell>
+              </>
+            ) : (
+              <TableCell
+                colSpan={showImgcRemark ? 5 : 4}
+                className="px-2 py-1.5 text-[11px] text-neutral-400 align-top"
+              >
+                Nothing uploaded yet.
+              </TableCell>
+            )}
             {showActions && (
               <TableCell className="px-3 py-2 align-top">
                 {emptyAction}

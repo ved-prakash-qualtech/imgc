@@ -46,8 +46,6 @@ export const ROUTES = {
   adminRetention: "/admin/retention",
   /** IMGC only — configure which documents each lender's INITIAL claims require. */
   adminDocumentConfig: "/admin/document-config",
-  /** IMGC only — CSV bulk upload of Claim No. + UTR to record refunds received in one pass. */
-  adminBulkRefund: "/admin/bulk-refund",
   /** IMGC Admin only — select a lender context. */
   adminWorkspace: "/admin/workspace",
   logout: "/api/auth/logout",

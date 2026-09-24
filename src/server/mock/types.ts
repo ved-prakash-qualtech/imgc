@@ -59,7 +59,11 @@ export type DocStatus =
   | "UNDER_REVIEW"
   | "APPROVED"
   | "REJECTED"
-  | "REUPLOAD_REQUIRED";
+  | "REUPLOAD_REQUIRED"
+  /** The lender says this document cannot be supplied and has asked IMGC to waive it. */
+  | "WAIVER_REQUESTED"
+  /** IMGC accepted that request: the claim proceeds without the document. */
+  | "WAIVED";
 
 /** Whether every required document on a case has been approved. */
 export type CaseDocStatus = "COMPLETE" | "INCOMPLETE";
@@ -69,6 +73,8 @@ export type Priority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 export type ReinstateStatus = "REQUESTED" | "APPROVED" | "DENIED";
 
 export type AuditType =
+  | "DOC_WAIVER_REQUESTED"
+  | "DOC_WAIVER_DECIDED"
   | "DOC_ARCHIVED"
   | "DOC_UPLOADED"
   | "DOC_STATUS_CHANGED"
@@ -225,6 +231,17 @@ export interface ClaimDocument {
   /** Points at the current `DocumentFile`. */
   currentFileId?: string;
   rejection?: Rejection;
+  /** Set once the lender asks for the document to be waived — kept after the decision, so the
+   *  reason and who allowed it stay on record. */
+  waiver?: {
+    reason: string;
+    by: string;
+    at: string;
+    status: "REQUESTED" | "APPROVED" | "DENIED";
+    decidedBy?: string;
+    decidedAt?: string;
+    remarks?: string;
+  };
   createdAt: string;
 
   /* ── configurable requirement (IMGC-authored additional documents) ── */
@@ -358,7 +375,10 @@ export interface AuditEvent {
 
 export interface Notification {
   id: string;
+  /** Who has to act on this. */
   to: string[];
+  /** Kept informed only. */
+  cc?: string[];
   subject: string;
   body: string;
   event: string;

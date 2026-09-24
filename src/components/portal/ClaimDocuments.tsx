@@ -36,6 +36,8 @@ const STATUS_LABEL: Record<DocStatus, string> = {
   APPROVED: "Accepted",
   REJECTED: "Ineligible",
   REUPLOAD_REQUIRED: "Query Raised",
+  WAIVER_REQUESTED: "Waiver requested",
+  WAIVED: "Waived",
 };
 
 const STATUS_TONE: Record<DocStatus, string> = {
@@ -45,6 +47,8 @@ const STATUS_TONE: Record<DocStatus, string> = {
   APPROVED: "bg-success/15 text-success-700",
   REJECTED: "bg-destructive/12 text-destructive",
   REUPLOAD_REQUIRED: "bg-warning/15 text-warning",
+  WAIVER_REQUESTED: "bg-warning/15 text-warning",
+  WAIVED: "bg-brand-muted text-brand-dark",
 };
 
 function StatusChip({ status }: Readonly<{ status: DocStatus }>) {
@@ -879,7 +883,19 @@ function DocTableRows({
           className="px-3 py-2 text-neutral-400"
           colSpan={showImgcRemark ? 5 : 4}
         >
-          Nothing uploaded yet.
+          {doc.waiver ? (
+            <span className="text-neutral-600">
+              {doc.waiver.status === "APPROVED"
+                ? "Waived by IMGC"
+                : doc.waiver.status === "DENIED"
+                  ? "Waiver declined — please upload"
+                  : "Waiver requested"}
+              : {doc.waiver.reason}
+              {doc.waiver.remarks ? ` — IMGC: ${doc.waiver.remarks}` : ""}
+            </span>
+          ) : (
+            "Nothing uploaded yet."
+          )}
         </td>
         {actionsCell()}
       </tr>

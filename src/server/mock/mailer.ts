@@ -10,19 +10,26 @@ import type { Role } from "@/server/mock/types";
  */
 export async function sendMail(input: {
   to: string[];
+  /** Kept informed, not asked to act — addresses here are dropped from `to`. */
+  cc?: string[];
   subject: string;
   body: string;
   event: string;
   accountId?: string;
   unreadFor?: Role[];
 }): Promise<void> {
-  const recipients = Array.from(new Set(input.to.map((t) => t.trim()).filter(Boolean)));
-  if (recipients.length === 0) return;
+  const clean = (list: string[] | undefined) =>
+    Array.from(new Set((list ?? []).map((t) => t.trim()).filter(Boolean)));
+  const recipients = clean(input.to);
+  // Nobody is both asked to act and merely copied.
+  const copied = clean(input.cc).filter((c) => !recipients.includes(c));
+  if (recipients.length === 0 && copied.length === 0) return;
 
   await writeDb((db) => {
     db.notifications.unshift({
       id: newId("ntf"),
       to: recipients,
+      cc: copied.length > 0 ? copied : undefined,
       subject: input.subject,
       body: input.body,
       event: input.event,
