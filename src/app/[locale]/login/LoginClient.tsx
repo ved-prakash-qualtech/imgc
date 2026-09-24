@@ -57,9 +57,7 @@ function FieldLabel({ children }: Readonly<{ children: React.ReactNode }>) {
 const INPUT_CLASS =
   "h-11 w-full rounded-xl border border-neutral-200/80 bg-white/90 pl-10 pr-10 text-[14px] text-slate-900 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-[#f26e22] focus:bg-white focus:ring-4 focus:ring-[#f26e22]/10 hover:border-neutral-300 shadow-sm";
 
-export function LoginClient({
-  returnTo,
-}: Readonly<{ returnTo?: string }>) {
+export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
   const [step, setStep] = useState<Step>({ kind: "IDENTIFY" });
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -78,8 +76,6 @@ export function LoginClient({
     if (step.kind === "PASSWORD") passwordInputRef.current?.focus();
     if (step.kind === "OTP") codeInputRef.current?.focus();
   }, [step.kind]);
-
-
 
   const reset = useCallback(() => {
     setStep({ kind: "IDENTIFY" });
@@ -121,7 +117,11 @@ export function LoginClient({
       setError(null);
       const employeeId = step.employeeId;
       startTransition(async () => {
-        const result = await passwordLoginAction(employeeId, password, returnTo);
+        const result = await passwordLoginAction(
+          employeeId,
+          password,
+          returnTo
+        );
         if (result?.error) setError(result.error);
       });
     },
@@ -157,7 +157,7 @@ export function LoginClient({
     });
   }, [step]);
 
-  const onDemo = useCallback((role: "IMGC" | "LENDER") => {
+  const onDemo = useCallback((role: "IMGC" | "LENDER" | "IMGC_ADMIN") => {
     setError(null);
     startTransition(async () => {
       const result = await demoLoginAction(role);
@@ -222,7 +222,8 @@ export function LoginClient({
                 </span>
               </h1>
               <p className="font-outfit mt-4 max-w-[560px] text-[24px] font-semibold leading-snug tracking-tight text-slate-800">
-                Initiate, track and manage claims with complete visibility, all in one place.
+                Initiate, track and manage claims with complete visibility, all
+                in one place.
               </p>
             </div>
 
@@ -288,7 +289,8 @@ export function LoginClient({
                   </div>
                   <p className="mt-3 text-[12.5px] leading-relaxed text-slate-500">
                     IMGC staff sign in with an Employee ID and password. Lender
-                    users sign in with their work email — we send a one-time code.
+                    users sign in with their work email — we send a one-time
+                    code.
                   </p>
                   <SubmitButton pending={pending} label="Continue" />
                 </form>
@@ -317,7 +319,9 @@ export function LoginClient({
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-label={
+                        showPassword ? "Hide password" : "Show password"
+                      }
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                     >
                       {showPassword ? (
@@ -337,7 +341,10 @@ export function LoginClient({
                       />
                       Remember me
                     </label>
-                    <button type="button" className="text-[13.5px] font-semibold text-[#f26e22] hover:text-[#d85811] transition-colors">
+                    <button
+                      type="button"
+                      className="text-[13.5px] font-semibold text-[#f26e22] hover:text-[#d85811] transition-colors"
+                    >
                       Forgot password?
                     </button>
                   </div>
@@ -395,7 +402,7 @@ export function LoginClient({
                     Enter Demo Mode
                   </span>
                 </p>
-                <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     type="button"
                     disabled={pending}
@@ -403,6 +410,14 @@ export function LoginClient({
                     className="cursor-pointer rounded-xl border border-neutral-200/80 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-700 shadow-sm transition hover:border-[#f26e22]/40 hover:bg-[#f26e22]/5 hover:text-[#f26e22] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Demo as IMGC
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => onDemo("IMGC_ADMIN")}
+                    className="cursor-pointer rounded-xl border border-neutral-200/80 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-700 shadow-sm transition hover:border-[#f26e22]/40 hover:bg-[#f26e22]/5 hover:text-[#f26e22] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Demo as IMGC Admin
                   </button>
                   <button
                     type="button"
@@ -453,7 +468,9 @@ function IdentityChip({
   return (
     <div className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-neutral-200/80 bg-white/60 px-4 py-3 shadow-sm backdrop-blur-sm">
       <span className="flex min-w-0 items-center gap-2.5 text-[13px] font-medium text-slate-800">
-        <span className="grid size-6 shrink-0 place-items-center rounded-md bg-white text-slate-500 shadow-sm">{icon}</span>
+        <span className="grid size-6 shrink-0 place-items-center rounded-md bg-white text-slate-500 shadow-sm">
+          {icon}
+        </span>
         <span className="truncate">{text}</span>
       </span>
       <button

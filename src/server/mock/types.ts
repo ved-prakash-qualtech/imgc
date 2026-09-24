@@ -108,6 +108,7 @@ export interface LenderOrg {
 export interface User {
   id: string;
   role: Role;
+  isAdmin?: boolean;
   name: string;
   email: string;
   /** IMGC staff sign in with this + password. */

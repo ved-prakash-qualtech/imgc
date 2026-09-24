@@ -17,8 +17,8 @@ export type DashboardShellProps = Readonly<{
   navbarTitle?: string;
   navbarTitleAside?: string;
   claimAgeing?: React.ReactNode;
-  /** Tenant short code, or the admin scope — shown at the left of the navbar. */
   workspace?: string;
+  adminContextName?: string | null;
   user?: SessionUser | null;
   /** Unread notification count for the navbar bell badge. */
   unreadCount?: number;
@@ -64,6 +64,7 @@ export function DashboardShell({
   navbarTitleAside,
   claimAgeing,
   workspace,
+  adminContextName,
   user,
   unreadCount,
   assignedOfficer,
@@ -95,6 +96,7 @@ export function DashboardShell({
             titleAside: navbarTitleAside,
             claimAgeing: claimAgeing,
             workspace,
+            adminContextName,
             user,
             unreadCount,
             assignedOfficer,

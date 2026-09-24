@@ -1,4 +1,5 @@
 /* eslint-disable react-perf/jsx-no-jsx-as-prop */
+import { getAdminContextOrNull } from "@/lib/auth/adminContext";
 import { claimAmountFor } from "@/config/claimConfig";
 import { EyeIcon } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -84,6 +85,12 @@ export default async function ClaimDetailsPage({
   ]);
   const claimRemarks = buildClaimRemarkItems(claim, remarks);
   const isLender = session.role === "LENDER";
+  const adminCtx = await getAdminContextOrNull();
+  const canActAsLender =
+    isLender ||
+    (session.role === "IMGC" &&
+      session.isAdmin === true &&
+      adminCtx?.lenderOrgId === account?.lenderOrgId);
 
   // Answering a formal query is one way back to IMGC. The other is a rejection the lender has
   // already fixed: IMGC can reject a file without raising a query (the claim stays where it is),
@@ -135,12 +142,12 @@ export default async function ClaimDetailsPage({
 
   const layoutContent = isSingleView ? (
     <ClaimDetailSinglePage
-      isLender={isLender}
-      showSectionNav={isLender}
+      isLender={canActAsLender}
+      showSectionNav={canActAsLender}
       loanDetails={account ? <LoanDetailsCard account={account} /> : null}
       backLink={
         <div className="flex items-center gap-3">
-          {isLender && (
+          {canActAsLender && (
             // Back to the claims grid as the lender left it - a tile's filter (e.g. Initiated)
             // survives the round trip into a claim and out again.
             <GridBackLink
@@ -150,14 +157,14 @@ export default async function ClaimDetailsPage({
               className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
             />
           )}
-          {!terminal && !isLender && (
+          {!terminal && !canActAsLender && (
             <QueriedButton claimId={claim.id} claimNo={claim.claimNo} />
           )}
         </div>
       }
       statusAndQuery={
         <>
-          {isLender ? (
+          {canActAsLender ? (
             <LenderClaimStatusPanel
               key="claim-status"
               history={claim.statusHistory}
@@ -232,7 +239,7 @@ export default async function ClaimDetailsPage({
         </>
       }
       documents={
-        isLender ? (
+        canActAsLender ? (
           <div className="flex flex-col gap-3">
             <ClaimDocumentsTable
               accountId={claim.accountId}
@@ -242,11 +249,13 @@ export default async function ClaimDetailsPage({
               allowDelete={canDeleteFiles}
               claimStatus={claim.status}
             />
-            <ClaimRemarksPanel
-              lender={claimRemarks.lender}
-              imgc={claimRemarks.imgc}
-              decision={claimRemarks.decision}
-            />
+            {isLender && (
+              <ClaimRemarksPanel
+                lender={claimRemarks.lender}
+                imgc={claimRemarks.imgc}
+                decision={claimRemarks.decision}
+              />
+            )}
             {canResubmit && (
               <ActionFooter key="query-response" className="mt-4">
                 <ResubmitClaimButton
@@ -329,16 +338,12 @@ export default async function ClaimDetailsPage({
         )
       }
       history={
-        // The lender reads the claim's progress on Track Claim; the full audit trail is IMGC's.
-        isLender ? null : (
+        canActAsLender ? null : (
           <Panel
             title="Claim History"
             description="Every status change and query on this claim, in order."
           >
-            <ClaimHistory
-              statusHistory={claim.statusHistory}
-              queries={queries}
-            />
+            <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
           </Panel>
         )
       }
@@ -441,7 +446,7 @@ export default async function ClaimDetailsPage({
           {/* Resubmission is the lender's move — this slot renders for both roles, so IMGC must
               not be offered it here (the single-page layout's own copy sits inside a lender-only
               branch already). */}
-          {isLender && canResubmit && (
+          {canActAsLender && canResubmit && (
             <ActionFooter key="query-response" className="mt-4">
               <ResubmitClaimButton
                 accountId={claim.accountId}
@@ -452,7 +457,7 @@ export default async function ClaimDetailsPage({
         </>
       }
       documents={
-        isLender ? (
+        canActAsLender ? (
           <div className="flex flex-col gap-6">
             <ClaimDocumentsTable
               accountId={claim.accountId}
@@ -462,11 +467,13 @@ export default async function ClaimDetailsPage({
               allowDelete={canDeleteFiles}
               claimStatus={claim.status}
             />
-            <ClaimRemarksPanel
-              lender={claimRemarks.lender}
-              imgc={claimRemarks.imgc}
-              decision={claimRemarks.decision}
-            />
+            {isLender && (
+              <ClaimRemarksPanel
+                lender={claimRemarks.lender}
+                imgc={claimRemarks.imgc}
+                decision={claimRemarks.decision}
+              />
+            )}
           </div>
         ) : (
           <Panel title="Documents">
@@ -541,16 +548,12 @@ export default async function ClaimDetailsPage({
         )
       }
       history={
-        // The lender reads the claim's progress on Track Claim; the full audit trail is IMGC's.
-        isLender ? null : (
+        canActAsLender ? null : (
           <Panel
             title="Claim History"
             description="Every status change and query on this claim, in order."
           >
-            <ClaimHistory
-              statusHistory={claim.statusHistory}
-              queries={queries}
-            />
+            <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
           </Panel>
         )
       }

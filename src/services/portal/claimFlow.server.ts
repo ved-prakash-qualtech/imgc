@@ -92,14 +92,29 @@ export function getClaimAction(
   return { action: "INITIATE", claim: null };
 }
 
+import {
+  getAdminContextOrNull,
+  type AdminContext,
+} from "@/lib/auth/adminContext";
+
 /* ── reads ─────────────────────────────────────────────────────────── */
 
-function scoped(db: MockDb, session: AppSession): Set<string> {
+function scoped(
+  db: MockDb,
+  session: AppSession,
+  ctx?: AdminContext | null
+): Set<string> {
   return new Set(
     db.accounts
-      .filter(
-        (a) => session.role === "IMGC" || a.lenderOrgId === session.lenderOrgId
-      )
+      .filter((a) => {
+        if (session.role === "IMGC") {
+          if (session.isAdmin && ctx?.lenderOrgId) {
+            return a.lenderOrgId === ctx.lenderOrgId;
+          }
+          return true;
+        }
+        return a.lenderOrgId === session.lenderOrgId;
+      })
       .map((a) => a.id)
   );
 }
@@ -158,7 +173,8 @@ function decorate(claim: Claim, db: MockDb): ClaimRow {
 
 export async function listClaims(session: AppSession): Promise<ClaimRow[]> {
   const db = await readDb();
-  const ids = scoped(db, session);
+  const ctx = await getAdminContextOrNull();
+  const ids = scoped(db, session, ctx);
   return db.claims
     .filter((c) => ids.has(c.accountId))
     .map((c) => decorate(c, db))
@@ -170,9 +186,10 @@ export async function getClaim(
   claimId: string
 ): Promise<ClaimRow | null> {
   const db = await readDb();
+  const ctx = await getAdminContextOrNull();
   const claim = db.claims.find((c) => c.id === claimId);
   if (!claim) return null;
-  if (!scoped(db, session).has(claim.accountId)) return null;
+  if (!scoped(db, session, ctx).has(claim.accountId)) return null;
   return decorate(claim, db);
 }
 
@@ -742,16 +759,23 @@ export async function createClaim(
   accountId: string,
   claimType: ClaimTypeKey
 ): Promise<Outcome> {
-  if (session.role !== "LENDER") {
-    return { ok: false, error: "Only a lender can raise a claim." };
-  }
-
   const db = await readDb();
   const account = db.accounts.find((a) => a.id === accountId);
   if (!account) return { ok: false, error: "Account not found." };
-  if (account.lenderOrgId !== session.lenderOrgId) {
-    return { ok: false, error: "That account belongs to another lender." };
+
+  if (session.role === "LENDER") {
+    if (account.lenderOrgId !== session.lenderOrgId) {
+      return { ok: false, error: "That account belongs to another lender." };
+    }
+  } else if (session.role === "IMGC" && session.isAdmin) {
+    const ctx = await getAdminContextOrNull();
+    if (!ctx?.lenderOrgId || account.lenderOrgId !== ctx.lenderOrgId) {
+      return { ok: false, error: "That account belongs to another lender." };
+    }
+  } else {
+    return { ok: false, error: "Only a lender can raise a claim." };
   }
+
   const existing = db.claims.find((c) => c.accountId === accountId);
   if (existing) return { ok: true, claimId: existing.id };
   if (!account.npa && !account.writeOff) {
@@ -892,7 +916,12 @@ export async function saveClaimDraft(
     actor: session,
     type: "CLAIM_STATUS_CHANGED",
     summary: "Claim draft saved",
-    meta: { claimId },
+    meta: {
+      claimId,
+      ...(guard.onBehalfOfLenderOrgId
+        ? { onBehalfOfLenderOrgId: guard.onBehalfOfLenderOrgId }
+        : {}),
+    },
   });
   return { ok: true, claimId };
 }
@@ -1083,7 +1112,12 @@ export async function submitClaim(
     actor: session,
     type: "CLAIM_SUBMITTED",
     summary: `Claim ${claimNo} submitted to IMGC`,
-    meta: { claimId },
+    meta: {
+      claimId,
+      ...(guard.onBehalfOfLenderOrgId
+        ? { onBehalfOfLenderOrgId: guard.onBehalfOfLenderOrgId }
+        : {}),
+    },
   });
 
   if (initiationRemarkAdded) {
@@ -1092,7 +1126,13 @@ export async function submitClaim(
       actor: session,
       type: "REMARK_ADDED",
       summary: "Lender added an initiation remark",
-      meta: { claimId, source: "CLAIM_INITIATION" },
+      meta: {
+        claimId,
+        source: "CLAIM_INITIATION",
+        ...(guard.onBehalfOfLenderOrgId
+          ? { onBehalfOfLenderOrgId: guard.onBehalfOfLenderOrgId }
+          : {}),
+      },
     });
   }
 
@@ -1482,19 +1522,33 @@ export async function raiseQuery(
 async function assertLenderOwns(
   session: AppSession,
   claimId: string
-): Promise<Outcome & { accountId?: string }> {
+): Promise<Outcome & { accountId?: string; onBehalfOfLenderOrgId?: string }> {
   const db = await readDb();
   const claim = db.claims.find((c) => c.id === claimId);
   if (!claim) return { ok: false, error: "Claim not found." };
   const account = db.accounts.find((a) => a.id === claim.accountId);
   if (!account) return { ok: false, error: "Account not found." };
-  if (
-    session.role !== "LENDER" ||
-    account.lenderOrgId !== session.lenderOrgId
-  ) {
-    return { ok: false, error: "That claim belongs to another lender." };
+
+  if (session.role === "LENDER") {
+    if (account.lenderOrgId !== session.lenderOrgId) {
+      return { ok: false, error: "That claim belongs to another lender." };
+    }
+    return { ok: true, accountId: claim.accountId };
   }
-  return { ok: true, accountId: claim.accountId };
+
+  if (session.role === "IMGC" && session.isAdmin) {
+    const ctx = await getAdminContextOrNull();
+    if (!ctx?.lenderOrgId || ctx.lenderOrgId !== account.lenderOrgId) {
+      return { ok: false, error: "That claim belongs to another lender." };
+    }
+    return {
+      ok: true,
+      accountId: claim.accountId,
+      onBehalfOfLenderOrgId: account.lenderOrgId,
+    };
+  }
+
+  return { ok: false, error: "That claim belongs to another lender." };
 }
 
 async function notify(

@@ -19,6 +19,7 @@ const MAX_AGE_SECONDS = 60 * 60 * 12;
 export interface AppSession {
   userId: string;
   role: Role;
+  isAdmin?: boolean;
   name: string;
   email: string;
   /** Lender sessions only — the single source of account scoping. */
@@ -93,7 +94,9 @@ async function hmacKey(): Promise<CryptoKey> {
 }
 
 export async function signSession(session: AppSession): Promise<string> {
-  const payload = b64urlEncode(new TextEncoder().encode(JSON.stringify(session)));
+  const payload = b64urlEncode(
+    new TextEncoder().encode(JSON.stringify(session))
+  );
   const sig = await crypto.subtle.sign(
     "HMAC",
     await hmacKey(),

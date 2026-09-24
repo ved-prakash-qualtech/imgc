@@ -39,6 +39,8 @@ export interface DocumentRow extends ClaimDocument {
 
 type Outcome = { ok: true } | { ok: false; error: string };
 
+import { getAdminContextOrNull } from "@/lib/auth/adminContext";
+
 /** A lender may only touch accounts belonging to their own org. */
 async function assertAccess(
   session: AppSession,
@@ -52,6 +54,12 @@ async function assertAccess(
     account.lenderOrgId !== session.lenderOrgId
   ) {
     return { ok: false, error: "This account belongs to another lender." };
+  }
+  if (session.role === "IMGC" && session.isAdmin) {
+    const ctx = await getAdminContextOrNull();
+    if (ctx?.lenderOrgId && account.lenderOrgId !== ctx.lenderOrgId) {
+      return { ok: false, error: "This account belongs to another lender." };
+    }
   }
   return { ok: true };
 }
@@ -273,6 +281,23 @@ export async function uploadDocument(
   if (!access.ok) return access;
 
   const db = await readDb();
+
+  let onBehalfOfLenderOrgId: string | undefined = undefined;
+
+  if (session.role === "IMGC") {
+    if (!session.isAdmin)
+      return { ok: false, error: "Only a lender can upload documents." };
+    const ctx = await getAdminContextOrNull();
+    const docAccount = db.accounts.find((a) => a.id === accountId);
+    if (!ctx?.lenderOrgId || ctx.lenderOrgId !== docAccount?.lenderOrgId) {
+      return {
+        ok: false,
+        error: "Admin context required to upload on behalf of a lender.",
+      };
+    }
+    onBehalfOfLenderOrgId = ctx.lenderOrgId;
+  }
+
   const doc = db.claimDocuments.find(
     (d) => d.id === documentId && d.accountId === accountId
   );
@@ -377,6 +402,7 @@ export async function uploadDocument(
       file: upload.originalName,
       version: String(version),
       fileId,
+      ...(onBehalfOfLenderOrgId ? { onBehalfOfLenderOrgId } : {}),
       // Only when there is one: the audit meta holds strings, and an absent remark is an absent
       // key rather than an empty one.
       ...(meta.remarks?.trim() ? { remarks: meta.remarks.trim() } : {}),
@@ -414,14 +440,27 @@ export async function deleteDocumentFile(
   documentId: string,
   fileId: string
 ): Promise<Outcome> {
-  if (session.role !== "LENDER") {
-    return { ok: false, error: "Only the lender may delete uploaded files." };
-  }
-
   const access = await assertAccess(session, accountId);
   if (!access.ok) return access;
 
   const db = await readDb();
+
+  if (session.role === "IMGC") {
+    if (!session.isAdmin) {
+      return { ok: false, error: "Only the lender may delete uploaded files." };
+    }
+    const ctx = await getAdminContextOrNull();
+    const docAccount = db.accounts.find((a) => a.id === accountId);
+    if (!ctx?.lenderOrgId || ctx.lenderOrgId !== docAccount?.lenderOrgId) {
+      return {
+        ok: false,
+        error: "Admin context required to act on behalf of a lender.",
+      };
+    }
+  } else if (session.role !== "LENDER") {
+    return { ok: false, error: "Only the lender may delete uploaded files." };
+  }
+
   const doc = db.claimDocuments.find((d) => d.id === documentId);
   if (!doc) return { ok: false, error: "Document not found." };
 
@@ -1059,6 +1098,10 @@ export async function requestReinstate(
   documentId: string,
   note: string
 ): Promise<Outcome> {
+  if (session.role !== "LENDER") {
+    return { ok: false, error: "Only a lender can request reinstatement." };
+  }
+
   const access = await assertAccess(session, accountId);
   if (!access.ok) return access;
 

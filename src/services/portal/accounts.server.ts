@@ -46,9 +46,23 @@ export interface AccountRow extends Account {
   claimStatusHistory?: ClaimStatusEntry[];
 }
 
+import {
+  getAdminContextOrNull,
+  type AdminContext,
+} from "@/lib/auth/adminContext";
+
 /** The one place lender scoping is applied: a lender sees an account iff the org ids match. */
-function inScope(session: AppSession, account: Account): boolean {
-  if (session.role === "IMGC") return true;
+function inScope(
+  session: AppSession,
+  account: Account,
+  ctx?: AdminContext | null
+): boolean {
+  if (session.role === "IMGC") {
+    if (session.isAdmin && ctx?.lenderOrgId) {
+      return account.lenderOrgId === ctx.lenderOrgId;
+    }
+    return true;
+  }
   return account.lenderOrgId === session.lenderOrgId;
 }
 
@@ -166,8 +180,9 @@ function decorate(
 
 export async function listAccounts(session: AppSession): Promise<AccountRow[]> {
   const db = await readDb();
+  const ctx = await getAdminContextOrNull();
   return db.accounts
-    .filter((a) => inScope(session, a))
+    .filter((a) => inScope(session, a, ctx))
     .map((a) =>
       decorate(a, db.lenderOrgs, db.claimDocuments, db.claims, db.claimQueries)
     )
@@ -179,8 +194,9 @@ export async function getAccount(
   accountId: string
 ): Promise<AccountRow | null> {
   const db = await readDb();
+  const ctx = await getAdminContextOrNull();
   const a = db.accounts.find((x) => x.id === accountId);
-  if (!a || !inScope(session, a)) return null;
+  if (!a || !inScope(session, a, ctx)) return null;
   return decorate(
     a,
     db.lenderOrgs,
@@ -194,7 +210,8 @@ export async function listAccessibleAccountIds(
   session: AppSession
 ): Promise<string[]> {
   const db = await readDb();
-  return db.accounts.filter((a) => inScope(session, a)).map((a) => a.id);
+  const ctx = await getAdminContextOrNull();
+  return db.accounts.filter((a) => inScope(session, a, ctx)).map((a) => a.id);
 }
 
 export async function getLenderOrg(orgId: string): Promise<LenderOrg | null> {
