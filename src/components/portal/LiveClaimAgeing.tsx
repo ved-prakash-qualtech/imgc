@@ -40,7 +40,15 @@ function formatDuration(ms: number) {
   const d = Math.floor(h / 24);
 
   const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${pad(d)}d ${pad(h % 24)}h ${pad(m % 60)}m ${pad(s % 60)}s`;
+  
+  const full = `${pad(d)}d, ${pad(h % 24)}h, ${pad(m % 60)}m, ${pad(s % 60)}s`;
+  
+  let short = `${pad(s % 60)}s`;
+  if (d > 0) short = `${pad(d)}d`;
+  else if (h > 0) short = `${pad(h % 24)}h`;
+  else if (m > 0) short = `${pad(m % 60)}m`;
+
+  return { short, full };
 }
 
 export function LiveClaimAgeing({
@@ -65,9 +73,11 @@ export function LiveClaimAgeing({
   const startMs = new Date(initiated!.at).getTime();
   const endMs = isCompleted ? new Date(completed!.at).getTime() : now;
 
+  const duration = formatDuration(endMs - startMs);
+
   return (
-    <span className="tabular-nums" suppressHydrationWarning>
-      {formatDuration(endMs - startMs)}
+    <span className="tabular-nums" suppressHydrationWarning title={duration.full}>
+      {duration.short}
       {!hideStatusText && <> &middot; {isCompleted ? "Completed" : "Live"}</>}
     </span>
   );

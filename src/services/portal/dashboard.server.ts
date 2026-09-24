@@ -9,6 +9,7 @@ import { readDb } from "@/server/mock/db";
 import { ROUTES } from "@/constants/route";
 import { listClaims } from "@/services/portal/claimFlow.server";
 import { toAccountClaimStatus } from "@/config/claimConfig";
+import { getAdminContextOrNull } from "@/lib/auth/adminContext";
 import type { AppSession } from "@/lib/auth/appSession";
 import type { Claim, ClaimDocument } from "@/server/mock/types";
 
@@ -383,8 +384,18 @@ export async function buildDashboardSummary(
       (a) => session.role === "IMGC" || a.lenderOrgId === session.lenderOrgId
     )
     .map((a) => ({ ...a, claimStatus: toAccountClaimStatus(a.claimStatus) }));
+
+  let adminCtx = null;
+  if (session.role === "IMGC" && session.isAdmin) {
+    adminCtx = await getAdminContextOrNull();
+  }
+
   const selectedLenderOrgId =
-    session.role === "IMGC" ? (options?.lenderOrgId ?? undefined) : undefined;
+    session.role === "IMGC"
+      ? adminCtx
+        ? adminCtx.lenderOrgId
+        : (options?.lenderOrgId ?? undefined)
+      : undefined;
   if (selectedLenderOrgId) {
     accounts = accounts.filter((a) => a.lenderOrgId === selectedLenderOrgId);
   }
@@ -547,74 +558,131 @@ export async function buildDashboardSummary(
     (a) => !closedIds.has(a.id) && !overdueIds.has(a.id)
   ).length;
 
-  const progressTiles: Tile[] = [
-    {
-      key: "total-loans",
-      label: "Total Loans",
-      value: accounts.length,
-      tone: "neutral",
-      href: withLender("/dpd"),
-    },
-    {
-      key: "new",
-      label: "New",
-      value: notStartedCount,
-      tone: "neutral",
-      href: funnelHref("New"),
-    },
-    {
-      key: "collecting",
-      label: "Underwriting",
-      value: claimStatusCount("DRAFT"),
-      tone: "info",
-      href: funnelHref("Underwriting"),
-    },
-    {
-      key: "queried",
-      label: "Queried",
-      value: queriedCount,
-      tone: "warning",
-      href: funnelHref("Queried"),
-    },
-    {
-      key: "approved",
-      label: "Approved",
-      value: approvedCount,
-      tone: "success",
-      href: funnelHref("Approved"),
-    },
-    {
-      key: "rejected",
-      label: "Ineligible",
-      value: claimStatusCount("REJECTED"),
-      tone: "danger",
-      href: funnelHref("Ineligible"),
-    },
-    // Not a claim.status — a query already raised (`Queried`, above) that has gone past its own
-    // due date unanswered. Same figure `buildClaimPipelineKpis` already computes for the
-    // pipeline-health KPIs, just surfaced here too instead of a second copy of the same rule.
-    // `classifyLoanStatus` in accounts.server.ts gives "Expired" priority over "Queried" for the
-    // same claim, so this tile's count and the "Expired" rows on `/dpd` agree exactly.
-    {
-      key: "expired",
-      label: "Expired",
-      value: expiredCount,
-      tone: "danger",
-      href: funnelHref("Expired"),
-    },
-    {
-      // Deliberately distinct from the "Pre Offer"/"Invoiced"/etc. stages above — this is the
-      // collections sense of "active": not written off or decided, and not gone quiet for more
-      // than a week. Same definition `buildPortfolioSummary` uses for IMGC's own Portfolio Status
-      // Breakdown (computed further below as `activeCount`), so "active" means one thing across
-      // both dashboards.
-      key: "active",
-      label: "Active",
-      value: activeCount,
-      tone: "success",
-      href: withLender("/dpd?loanStatus=Active"),
-    },
-  ];
+  const isAdminWithContext =
+    session.role === "IMGC" && session.isAdmin && adminCtx != null;
+
+  const progressTiles: Tile[] = isAdminWithContext
+    ? [
+        {
+          key: "new",
+          label: "To Be Initiated",
+          value: notStartedCount,
+          tone: "neutral",
+          href: "/initiate-claim?status=NOT_STARTED",
+        },
+        {
+          key: "collecting",
+          label: "Draft",
+          value: claimStatusCount("DRAFT"),
+          tone: "info",
+          href: "/initiate-claim?status=DRAFT",
+        },
+        {
+          key: "submitted",
+          label: "Initiated",
+          value: claimStatusCount("INITIATED"),
+          tone: "teal",
+          href: "/initiate-claim?status=INITIATED",
+        },
+        {
+          key: "queried",
+          label: "Queried",
+          value:
+            claimStatusCount("QUERY_INITIATED") +
+            claimStatusCount("QUERY_UNDER_REVIEW"),
+          tone: "warning",
+          href: "/initiate-claim?status=QUERY_INITIATED,QUERY_UNDER_REVIEW",
+        },
+        {
+          key: "active",
+          label: "Under Review",
+          value: claimStatusCount("UNDER_REVIEW"),
+          tone: "violet",
+          href: "/initiate-claim?status=UNDER_REVIEW",
+        },
+        {
+          key: "approved",
+          label: "Approved",
+          value: claimStatusCount("APPROVED"),
+          tone: "success",
+          href: "/initiate-claim?status=APPROVED",
+        },
+        {
+          key: "rejected",
+          label: "Ineligible",
+          value: claimStatusCount("REJECTED"),
+          tone: "danger",
+          href: "/initiate-claim?status=REJECTED",
+        },
+      ]
+    : [
+        {
+          key: "total-loans",
+          label: "Total Loans",
+          value: accounts.length,
+          tone: "neutral",
+          href: withLender("/dpd"),
+        },
+        {
+          key: "new",
+          label: "New",
+          value: notStartedCount,
+          tone: "neutral",
+          href: funnelHref("New"),
+        },
+        {
+          key: "collecting",
+          label: "Underwriting",
+          value: claimStatusCount("DRAFT"),
+          tone: "info",
+          href: funnelHref("Underwriting"),
+        },
+        {
+          key: "queried",
+          label: "Queried",
+          value: queriedCount,
+          tone: "warning",
+          href: funnelHref("Queried"),
+        },
+        {
+          key: "approved",
+          label: "Approved",
+          value: approvedCount,
+          tone: "success",
+          href: funnelHref("Approved"),
+        },
+        {
+          key: "rejected",
+          label: "Ineligible",
+          value: claimStatusCount("REJECTED"),
+          tone: "danger",
+          href: funnelHref("Ineligible"),
+        },
+        // Not a claim.status — a query already raised (`Queried`, above) that has gone past its own
+        // due date unanswered. Same figure `buildClaimPipelineKpis` already computes for the
+        // pipeline-health KPIs, just surfaced here too instead of a second copy of the same rule.
+        // `classifyLoanStatus` in accounts.server.ts gives "Expired" priority over "Queried" for the
+        // same claim, so this tile's count and the "Expired" rows on `/dpd` agree exactly.
+        {
+          key: "expired",
+          label: "Expired",
+          value: expiredCount,
+          tone: "danger",
+          href: funnelHref("Expired"),
+        },
+        {
+          // Deliberately distinct from the "Pre Offer"/"Invoiced"/etc. stages above — this is the
+          // collections sense of "active": not written off or decided, and not gone quiet for more
+          // than a week. Same definition `buildPortfolioSummary` uses for IMGC's own Portfolio Status
+          // Breakdown (computed further below as `activeCount`), so "active" means one thing across
+          // both dashboards.
+          key: "active",
+          label: "Active",
+          value: activeCount,
+          tone: "success",
+          href: withLender("/dpd?loanStatus=Active"),
+        },
+      ];
 
   const rings: Ring[] = [
     {

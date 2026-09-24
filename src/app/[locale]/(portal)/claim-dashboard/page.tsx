@@ -6,6 +6,7 @@ import { ClaimDashboardView } from "@/app/[locale]/(portal)/claim-dashboard/Clai
 import { ClaimOverviewBand } from "@/components/portal/ClaimOverviewBand";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { ROUTES } from "@/constants/route";
+import { getAdminContextOrNull } from "@/lib/auth/adminContext";
 import { requireSession } from "@/lib/auth/appSession";
 import { listAccounts } from "@/services/portal/accounts.server";
 import { getClaimDashboard } from "@/services/portal/claimDashboard.server";
@@ -33,13 +34,19 @@ function overviewHrefs(
 ): Partial<Record<keyof ClaimOverviewCounts, string>> {
   // The tiles count only the lender picked in the hero banner, so the grid they open is narrowed
   // to that lender too — otherwise "14" for one lender opens a grid of every lender's rows.
-  const lender = lenderOrgId ? `&lender=${encodeURIComponent(lenderOrgId)}` : "";
+  const lender = lenderOrgId
+    ? `&lender=${encodeURIComponent(lenderOrgId)}`
+    : "";
   const href = (status: string) => `${base}?status=${status}${lender}`;
   return {
     total:
       base === ROUTES.initiateClaim
-        ? href("NOT_STARTED,UNDER_REVIEW,QUERY_INITIATED,QUERY_UNDER_REVIEW,INITIATED")
-        : href("NOT_STARTED,UNDER_REVIEW,DOCUMENTS_RESUBMITTED,QUERY_INITIATED,QUERY_UNDER_REVIEW,INITIATED"),
+        ? href(
+            "NOT_STARTED,UNDER_REVIEW,QUERY_INITIATED,QUERY_UNDER_REVIEW,INITIATED"
+          )
+        : href(
+            "NOT_STARTED,UNDER_REVIEW,DOCUMENTS_RESUBMITTED,QUERY_INITIATED,QUERY_UNDER_REVIEW,INITIATED"
+          ),
     initiation: href("NOT_STARTED"),
     underReview: href("UNDER_REVIEW"),
     approved: href("APPROVED"),
@@ -72,6 +79,12 @@ export default async function ClaimDashboardPage({
   const session = await requireSession();
   const sp = await searchParams;
 
+  const adminCtx =
+    session.role === "IMGC" && session.isAdmin
+      ? await getAdminContextOrNull()
+      : null;
+  const isAdminWithContext = adminCtx != null;
+
   const status = parseStatus(sp.status);
   const months = parseMonths(sp.months);
 
@@ -79,7 +92,9 @@ export default async function ClaimDashboardPage({
     listAccounts(session),
     listClaims(session),
     getClaimDashboard(session, {
-      lenderOrgId: sp.lender ?? null,
+      lenderOrgId: isAdminWithContext
+        ? adminCtx.lenderOrgId
+        : (sp.lender ?? null),
       status,
       months,
     }),
@@ -87,8 +102,9 @@ export default async function ClaimDashboardPage({
 
   // A stale ?lender= (an org since removed, or a lender who arrived here by hand-editing the URL)
   // falls back to "all lenders" rather than a chart filtered to nothing.
-  const lenderOrgId =
-    session.role === "IMGC" && data.lenders.some((l) => l.id === sp.lender)
+  const lenderOrgId = isAdminWithContext
+    ? adminCtx.lenderOrgId
+    : session.role === "IMGC" && data.lenders.some((l) => l.id === sp.lender)
       ? (sp.lender ?? null)
       : null;
 
@@ -108,7 +124,8 @@ export default async function ClaimDashboardPage({
       // counting them here made a tile read higher than the grid it opens.
       if (session.role === "IMGC") {
         return (
-          a.claimStatus !== "DOCUMENTS_RESUBMITTED" && a.claimStatus !== "CLOSED"
+          a.claimStatus !== "DOCUMENTS_RESUBMITTED" &&
+          a.claimStatus !== "CLOSED"
         );
       }
       const claimStatus = claimByAccountId.get(a.id)?.status;
@@ -122,31 +139,33 @@ export default async function ClaimDashboardPage({
     outstanding: inScope.reduce((n, a) => n + a.outstandingAmount, 0),
     claim: inScope.reduce((n, a) => n + claimAmountFor(a.loanAmount), 0),
   };
-  const eligible = inScope
-    .map((a) => {
-      if (session.role !== "IMGC") {
-        const claim = claimByAccountId.get(a.id);
-        return {
-          claim: claim
-            ? { status: claim.status, hasProgress: claim.hasProgress }
-            : null,
-          claimAmount: claimAmountFor(a.loanAmount),
-        };
-      }
-
-      const status = a.realClaimStatus ?? a.claimStatus;
+  const eligible = inScope.map((a) => {
+    if (session.role !== "IMGC") {
+      const claim = claimByAccountId.get(a.id);
       return {
-        claim: {
-          status: status as ClaimStatus,
-          hasProgress: a.claimHasProgress,
-        },
+        claim: claim
+          ? { status: claim.status, hasProgress: claim.hasProgress }
+          : null,
         claimAmount: claimAmountFor(a.loanAmount),
       };
-    });
+    }
+
+    const status = a.realClaimStatus ?? a.claimStatus;
+    return {
+      claim: {
+        status: status as ClaimStatus,
+        hasProgress: a.claimHasProgress,
+      },
+      claimAmount: claimAmountFor(a.loanAmount),
+    };
+  });
   const counts = summariseClaimOverview(eligible);
 
-  const gridBase =
-    session.role === "IMGC" ? ROUTES.accounts : ROUTES.initiateClaim;
+  const gridBase = session.isAdmin
+    ? ROUTES.initiateClaim
+    : session.role === "IMGC"
+      ? ROUTES.accounts
+      : ROUTES.initiateClaim;
 
   const selectedLenderName =
     data.lenders.find((l) => l.id === lenderOrgId)?.name ?? null;
@@ -175,7 +194,7 @@ export default async function ClaimDashboardPage({
             />
           }
           action={
-            data.canFilterByLender ? (
+            data.canFilterByLender && !isAdminWithContext ? (
               <ClaimDashboardLenderPicker
                 lenders={data.lenders}
                 value={lenderOrgId}

@@ -84,7 +84,7 @@ export default async function AccountPage({
       }
       claimAgeing={
         claim ? (
-          <LiveClaimAgeing statusHistory={claim.statusHistory} />
+          <LiveClaimAgeing statusHistory={claim.statusHistory} hideStatusText />
         ) : undefined
       }
     >

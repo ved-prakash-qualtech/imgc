@@ -92,7 +92,12 @@ export function navFor(
 ): NavItem[] {
   if (role === "LENDER") return [CLAIM_DASHBOARD, CLAIM];
 
-  const imgcItems = [CLAIM_DASHBOARD, ACCOUNTS, ADMINISTRATION];
+  const imgcItems = [CLAIM_DASHBOARD];
+  if (!isAdmin) {
+    imgcItems.push(ACCOUNTS);
+  }
+  imgcItems.push(ADMINISTRATION);
+
   if (isAdmin) {
     imgcItems.push({
       key: "admin-workspace",

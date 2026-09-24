@@ -26,6 +26,7 @@ export type DashboardShellProps = Readonly<{
    *  with no assigned cases yet, where the navbar's Help card falls back to a general desk. */
   assignedOfficer?: AssignedOfficer | null;
   sidebarDefaultCollapsed?: boolean;
+  isAdmin?: boolean;
 }>;
 
 /** Is this key anywhere in the tree the caller was granted, at either level? */
@@ -69,9 +70,14 @@ export function DashboardShell({
   unreadCount,
   assignedOfficer,
   sidebarDefaultCollapsed = true,
+  isAdmin,
 }: DashboardShellProps) {
   if (activeKey && !granted(items, activeKey)) {
-    forbidden();
+    const isAdminOverride = activeKey === "initiate-claim" && isAdmin;
+    
+    if (!isAdminOverride) {
+      forbidden();
+    }
   }
 
   return (

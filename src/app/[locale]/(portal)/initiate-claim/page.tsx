@@ -8,12 +8,20 @@ import {
 } from "@/services/portal/claimFlow.server";
 import type { EligibleRow } from "@/types/portal/eligibleClaim";
 
+import { getAdminContextOrNull } from "@/lib/auth/adminContext";
+
 // The Claims Overview band moved to the Claim Dashboard (/claim-dashboard); this page is the
 // grid alone now.
 export const dynamic = "force-dynamic";
 
 export default async function InitiateClaimPage() {
   const session = await requireSession();
+  const ctx =
+    session.role === "IMGC" && session.isAdmin
+      ? await getAdminContextOrNull()
+      : null;
+  const adminWithoutContext = session.role === "IMGC" && session.isAdmin && !ctx;
+
   const [accounts, claims] = await Promise.all([
     listAccounts(session),
     listClaims(session),
@@ -32,7 +40,16 @@ export default async function InitiateClaimPage() {
     .filter((a) => (a.dpd ?? 0) > 90)
     .map((a) => {
       const claim = byAccount.get(a.id) ?? null;
-      const state = getClaimAction(a, claim);
+      let state = getClaimAction(a, claim);
+
+      if (adminWithoutContext && state.action === "INITIATE") {
+        state = {
+          ...state,
+          action: "DISABLED",
+          reason: "Select a lender context to initiate or edit claims.",
+        };
+      }
+
       return { ...a, claim, claimAction: state.action, claimReason: state.reason };
     });
 

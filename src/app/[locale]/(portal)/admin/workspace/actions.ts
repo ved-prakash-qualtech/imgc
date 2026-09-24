@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 import { ROUTES } from "@/constants/route";
@@ -29,6 +30,7 @@ export async function enterAdminContextAction(
   }
 
   await setAdminContext(lenderOrgId);
+  revalidatePath("/", "layout");
   const locale = await getLocale();
   return redirect({ href: ROUTES.initiateClaim, locale }) as never;
 }
@@ -41,6 +43,7 @@ export async function exitAdminContextAction(): Promise<void> {
     await clearAdminContext();
   }
 
+  revalidatePath("/", "layout");
   const locale = await getLocale();
   return redirect({ href: ROUTES.claimDashboard, locale }) as never;
 }

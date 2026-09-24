@@ -53,6 +53,7 @@ export async function PortalShell({
       user={toSessionUser(session)}
       unreadCount={unread}
       assignedOfficer={assignedOfficer}
+      isAdmin={session.role === "IMGC" && session.isAdmin}
     >
       <main className="flex-1 px-6 py-4">{children}</main>
     </DashboardShell>

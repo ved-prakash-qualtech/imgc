@@ -86,6 +86,8 @@ export default async function ClaimDetailsPage({
   const claimRemarks = buildClaimRemarkItems(claim, remarks);
   const isLender = session.role === "LENDER";
   const adminCtx = await getAdminContextOrNull();
+  const showLenderLayout =
+    isLender || (session.role === "IMGC" && session.isAdmin === true);
   const canActAsLender =
     isLender ||
     (session.role === "IMGC" &&
@@ -142,12 +144,12 @@ export default async function ClaimDetailsPage({
 
   const layoutContent = isSingleView ? (
     <ClaimDetailSinglePage
-      isLender={canActAsLender}
-      showSectionNav={canActAsLender}
+      isLender={showLenderLayout}
+      showSectionNav={showLenderLayout}
       loanDetails={account ? <LoanDetailsCard account={account} /> : null}
       backLink={
         <div className="flex items-center gap-3">
-          {canActAsLender && (
+          {showLenderLayout && (
             // Back to the claims grid as the lender left it - a tile's filter (e.g. Initiated)
             // survives the round trip into a claim and out again.
             <GridBackLink
@@ -157,14 +159,14 @@ export default async function ClaimDetailsPage({
               className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
             />
           )}
-          {!terminal && !canActAsLender && (
+          {!terminal && !showLenderLayout && (
             <QueriedButton claimId={claim.id} claimNo={claim.claimNo} />
           )}
         </div>
       }
       statusAndQuery={
         <>
-          {canActAsLender ? (
+          {showLenderLayout ? (
             <LenderClaimStatusPanel
               key="claim-status"
               history={claim.statusHistory}
@@ -239,14 +241,14 @@ export default async function ClaimDetailsPage({
         </>
       }
       documents={
-        canActAsLender ? (
+        showLenderLayout ? (
           <div className="flex flex-col gap-3">
             <ClaimDocumentsTable
               accountId={claim.accountId}
               claimId={claim.id}
               documents={documents}
-              locked={terminal}
-              allowDelete={canDeleteFiles}
+              locked={terminal || !canActAsLender}
+              allowDelete={canActAsLender && canDeleteFiles}
               claimStatus={claim.status}
             />
             {isLender && (
@@ -256,7 +258,7 @@ export default async function ClaimDetailsPage({
                 decision={claimRemarks.decision}
               />
             )}
-            {canResubmit && (
+            {canActAsLender && canResubmit && (
               <ActionFooter key="query-response" className="mt-4">
                 <ResubmitClaimButton
                   accountId={claim.accountId}
@@ -338,12 +340,15 @@ export default async function ClaimDetailsPage({
         )
       }
       history={
-        canActAsLender ? null : (
+        showLenderLayout ? null : (
           <Panel
             title="Claim History"
             description="Every status change and query on this claim, in order."
           >
-            <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
+            <ClaimHistory
+              statusHistory={claim.statusHistory}
+              queries={queries}
+            />
           </Panel>
         )
       }
@@ -353,7 +358,7 @@ export default async function ClaimDetailsPage({
       loanDetails={account ? <LoanDetailsCard account={account} /> : null}
       backLink={
         <div className="flex items-center gap-3">
-          {isLender && (
+          {showLenderLayout && (
             // Back to the claims grid as the lender left it - a tile's filter (e.g. Initiated)
             // survives the round trip into a claim and out again.
             <GridBackLink
@@ -363,14 +368,14 @@ export default async function ClaimDetailsPage({
               className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
             />
           )}
-          {!terminal && !isLender && (
+          {!terminal && !showLenderLayout && (
             <QueriedButton claimId={claim.id} claimNo={claim.claimNo} />
           )}
         </div>
       }
       statusAndQuery={
         <>
-          {isLender ? (
+          {showLenderLayout ? (
             <LenderClaimStatusPanel
               key="claim-status"
               history={claim.statusHistory}
@@ -457,14 +462,14 @@ export default async function ClaimDetailsPage({
         </>
       }
       documents={
-        canActAsLender ? (
+        showLenderLayout ? (
           <div className="flex flex-col gap-6">
             <ClaimDocumentsTable
               accountId={claim.accountId}
               claimId={claim.id}
               documents={documents}
-              locked={terminal}
-              allowDelete={canDeleteFiles}
+              locked={terminal || !canActAsLender}
+              allowDelete={canActAsLender && canDeleteFiles}
               claimStatus={claim.status}
             />
             {isLender && (
@@ -548,12 +553,15 @@ export default async function ClaimDetailsPage({
         )
       }
       history={
-        canActAsLender ? null : (
+        showLenderLayout ? null : (
           <Panel
             title="Claim History"
             description="Every status change and query on this claim, in order."
           >
-            <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
+            <ClaimHistory
+              statusHistory={claim.statusHistory}
+              queries={queries}
+            />
           </Panel>
         )
       }
@@ -571,7 +579,9 @@ export default async function ClaimDetailsPage({
           ? `₹${claimAmountFor(account.loanAmount).toLocaleString("en-IN")}`
           : undefined
       }
-      claimAgeing={<LiveClaimAgeing statusHistory={claim.statusHistory} />}
+      claimAgeing={
+        <LiveClaimAgeing statusHistory={claim.statusHistory} hideStatusText />
+      }
     >
       <div
         className={
