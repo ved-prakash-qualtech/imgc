@@ -1,7 +1,13 @@
 /* eslint-disable react-perf/jsx-no-new-function-as-prop */
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -45,7 +51,13 @@ type WorkspaceTab = "loan-details" | "initiate-claim";
 
 /** A required document is still outstanding until it is with IMGC or approved. */
 function outstanding(doc: RequirementRow): boolean {
-  return doc.status !== "UNDER_REVIEW" && doc.status !== "APPROVED";
+  // A waiver — requested or allowed — settles the document as far as submission goes.
+  return (
+    doc.status !== "UNDER_REVIEW" &&
+    doc.status !== "APPROVED" &&
+    doc.status !== "WAIVER_REQUESTED" &&
+    doc.status !== "WAIVED"
+  );
 }
 
 /**
@@ -133,15 +145,13 @@ export function ClaimWorkspace({
       });
   }, [isDraft, accountId, claimId, router]);
 
-  useEffect(() => {
-    if (activeTab !== "initiate-claim") discardUnsaved();
-  }, [activeTab, discardUnsaved]);
   // While this screen is open, its own refreshes keep the unsaved uploads (the page drops them on
   // any other load). Cleared on leaving — in-app navigation or a browser refresh/close.
   useEffect(() => {
     if (!isDraft) return;
     const clear = () => {
-      document.cookie = "imgc-draft-open=; path=/; max-age=0; secure; samesite=lax";
+      document.cookie =
+        "imgc-draft-open=; path=/; max-age=0; secure; samesite=lax";
     };
     document.cookie = `imgc-draft-open=${claimId}; path=/; secure; samesite=lax`;
     window.addEventListener("pagehide", clear);
@@ -151,6 +161,14 @@ export function ClaimWorkspace({
       discardUnsaved();
     };
   }, [isDraft, claimId, discardUnsaved]);
+
+  const footerMessage = canSubmit ? (
+    <p className="flex items-center gap-1.5 font-medium text-success-700">
+      <CheckCircle2Icon className="size-4" />
+      Every mandatory document is in — you can{" "}
+      {resubmitting ? "resubmit" : "submit"} this claim.
+    </p>
+  ) : null;
 
   const onSave = useCallback(() => {
     startTransition(async () => {
@@ -215,7 +233,13 @@ export function ClaimWorkspace({
               type="button"
               role="tab"
               aria-selected={activeTab === id}
-              onClick={() => setActiveTab(id)}
+              onClick={() => {
+                // Leaving Initiate Claim drops whatever Save Draft never kept.
+                if (id !== "initiate-claim" && activeTab === "initiate-claim") {
+                  discardUnsaved();
+                }
+                setActiveTab(id);
+              }}
               className={cn(
                 "-mb-px border-b-2 px-3.5 py-2.5 text-[13.5px] font-medium transition-colors",
                 activeTab === id
@@ -266,45 +290,34 @@ export function ClaimWorkspace({
                 </p>
               </div>
             </Panel>
-
           </div>
 
           {/* Pinned action bar */}
           {!locked && (
-            <ActionFooter
-              message={
-                canSubmit ? (
-                  <p className="flex items-center gap-1.5 font-medium text-success-700">
-                    <CheckCircle2Icon className="size-4" />
-                    Every mandatory document is in — you can{" "}
-                    {resubmitting ? "resubmit" : "submit"} this claim.
-                  </p>
-                ) : null
-              }
-            >
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onCancel}
-                  disabled={pending}
-                >
-                  <XIcon /> Cancel
+            <ActionFooter message={footerMessage}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onCancel}
+                disabled={pending}
+              >
+                <XIcon /> Cancel
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onSave}
+                disabled={pending}
+              >
+                <SaveIcon /> Save Draft
+              </Button>
+              {/* Offered only once every mandatory document is in — hidden, not greyed out. */}
+              {canSubmit && (
+                <Button size="sm" onClick={onSubmit} disabled={pending}>
+                  <SendIcon />{" "}
+                  {resubmitting ? "Save & Resubmit" : "Save & Submit"}
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onSave}
-                  disabled={pending}
-                >
-                  <SaveIcon /> Save Draft
-                </Button>
-                {/* Offered only once every mandatory document is in — hidden, not greyed out. */}
-                {canSubmit && (
-                  <Button size="sm" onClick={onSubmit} disabled={pending}>
-                    <SendIcon />{" "}
-                    {resubmitting ? "Save & Resubmit" : "Save & Submit"}
-                  </Button>
-                )}
+              )}
             </ActionFooter>
           )}
         </div>

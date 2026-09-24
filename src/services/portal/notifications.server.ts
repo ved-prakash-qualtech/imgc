@@ -6,14 +6,26 @@ import type { AppSession } from "@/lib/auth/appSession";
 import type { Account, Bucket, Notification } from "@/server/mock/types";
 
 /**
- * Who hears about an account event: the lender org's stakeholder mailboxes, every IMGC staff
- * mailbox, and whatever extra addresses the processor pinned to the account.
+ * Who has to act, and who is only kept informed.
+ *
+ * The side named in `side` is the one the notification asks something of, so it is addressed
+ * directly; the other side and the account's pinned addresses are copied. `"BOTH"` is for purely
+ * informational events, where everyone is addressed as before.
  */
-async function recipientsFor(account: Account): Promise<string[]> {
+async function audienceFor(
+  account: Account,
+  side: "LENDER" | "IMGC" | "BOTH"
+): Promise<{ to: string[]; cc: string[] }> {
   const db = await readDb();
-  const org = db.lenderOrgs.find((o) => o.id === account.lenderOrgId);
+  const lender =
+    db.lenderOrgs.find((o) => o.id === account.lenderOrgId)?.contactEmails ??
+    [];
   const imgc = db.users.filter((u) => u.role === "IMGC").map((u) => u.email);
-  return [...(org?.contactEmails ?? []), ...imgc, ...account.pushRecipients];
+  const pinned = account.pushRecipients;
+  if (side === "BOTH") return { to: [...lender, ...imgc, ...pinned], cc: [] };
+  const to = side === "LENDER" ? lender : imgc;
+  const other = side === "LENDER" ? imgc : lender;
+  return { to, cc: [...other, ...pinned] };
 }
 
 export async function notifyBucketShift(
@@ -23,7 +35,7 @@ export async function notifyBucketShift(
   actor: AppSession
 ): Promise<void> {
   await sendMail({
-    to: await recipientsFor(account),
+    ...(await audienceFor(account, "BOTH")),
     subject: `[${account.loanNo}] moved to the ${to} bucket`,
     body:
       `Account ${account.loanNo} (${account.borrowerName}) moved from the ${from} bucket to ` +
@@ -41,7 +53,7 @@ export async function notifyClaimSubmitted(
   actor: AppSession
 ): Promise<void> {
   await sendMail({
-    to: await recipientsFor(account),
+    ...(await audienceFor(account, "IMGC")),
     subject: `[${account.loanNo}] initial claim submitted`,
     body: `${actor.name} submitted all required documents for ${account.loanNo} (${account.borrowerName}). The account is ready for IMGC review.`,
     event: "CLAIM_SUBMITTED",
@@ -72,9 +84,10 @@ export async function notifyDocumentDecision(
   reason: string,
   actor: AppSession
 ): Promise<void> {
+  // eslint-disable-next-line security/detect-object-injection -- `decision` is a closed union
   const copy = DECISION_COPY[decision];
   await sendMail({
-    to: await recipientsFor(account),
+    ...(await audienceFor(account, "LENDER")),
     subject: `[${account.loanNo}] ${copy.subject(documentName, account.loanNo)}`,
     body:
       `${copy.body(documentName, account.loanNo)} Reviewed by ${actor.name}.` +
@@ -95,7 +108,7 @@ export async function notifyDocumentUploaded(
   lenderName: string
 ): Promise<void> {
   await sendMail({
-    to: await recipientsFor(account),
+    ...(await audienceFor(account, "IMGC")),
     subject: `[${account.loanNo}] ${documentName} uploaded by ${lenderName}`,
     body:
       `${documentName} uploaded by ${lenderName} for ${account.loanNo} ` +
@@ -113,7 +126,7 @@ export async function notifyRequirementAdded(
   actor: AppSession
 ): Promise<void> {
   await sendMail({
-    to: await recipientsFor(account),
+    ...(await audienceFor(account, "LENDER")),
     subject: `[${account.loanNo}] new document requirement: ${documentName}`,
     body:
       `New document requirement added: ${documentName} for ${account.loanNo}. ` +
@@ -131,7 +144,9 @@ export async function unreadCount(session: AppSession): Promise<number> {
 }
 
 /** Called when the notifications page is opened — clears the badge for that role only. */
-export async function markNotificationsRead(session: AppSession): Promise<void> {
+export async function markNotificationsRead(
+  session: AppSession
+): Promise<void> {
   await writeDb((db) => {
     for (const n of db.notifications) {
       if (n.unreadFor?.includes(session.role)) {
@@ -142,18 +157,22 @@ export async function markNotificationsRead(session: AppSession): Promise<void> 
 }
 
 /** IMGC sees the whole outbox; a lender sees only what was addressed to their org. */
-export async function listNotifications(session: AppSession): Promise<Notification[]> {
+export async function listNotifications(
+  session: AppSession
+): Promise<Notification[]> {
   const db = await readDb();
   if (session.role === "IMGC") return db.notifications;
 
   const orgAccounts = new Set(
-    db.accounts.filter((a) => a.lenderOrgId === session.lenderOrgId).map((a) => a.id)
+    db.accounts
+      .filter((a) => a.lenderOrgId === session.lenderOrgId)
+      .map((a) => a.id)
   );
   const domain = session.lenderDomain ?? "";
   return db.notifications.filter(
     (n) =>
       (n.accountId && orgAccounts.has(n.accountId)) ||
-      n.to.some((t) => t.endsWith(`@${domain}`))
+      [...n.to, ...(n.cc ?? [])].some((t) => t.endsWith(`@${domain}`))
   );
 }
 
@@ -169,7 +188,7 @@ export async function notifyClaimDecision(
   actor: AppSession
 ): Promise<void> {
   await sendMail({
-    to: await recipientsFor(account),
+    ...(await audienceFor(account, "LENDER")),
     subject: `[${account.loanNo}] claim ${status.toLowerCase()}`,
     body:
       `${actor.name} recorded the PAS outcome for ${account.loanNo} ` +
@@ -197,7 +216,7 @@ export async function notifyReinstateDecision(
 ): Promise<void> {
   const verdict = approved ? "approved" : "denied";
   await sendMail({
-    to: await recipientsFor(account),
+    ...(await audienceFor(account, "LENDER")),
     subject: `[${account.loanNo}] reinstatement ${verdict} for ${documentName}`,
     body:
       `${actor.name} ${verdict} the reinstatement request for ${documentName} on ` +
@@ -221,7 +240,7 @@ export async function notifyReinstateRequested(
   actor: AppSession
 ): Promise<void> {
   await sendMail({
-    to: await recipientsFor(account),
+    ...(await audienceFor(account, "IMGC")),
     subject: `[${account.loanNo}] reinstatement requested for ${documentName}`,
     body:
       `${actor.name} requested reinstatement of the rejected document ${documentName} on ` +
@@ -231,5 +250,49 @@ export async function notifyReinstateRequested(
     event: "REINSTATE_REQUESTED",
     accountId: account.id,
     unreadFor: ["IMGC"],
+  });
+}
+
+/** The lender cannot supply a document — IMGC is the side that now has to decide. */
+export async function notifyWaiverRequested(
+  account: Account,
+  documentName: string,
+  reason: string,
+  actor: AppSession
+): Promise<void> {
+  await sendMail({
+    ...(await audienceFor(account, "IMGC")),
+    subject: `[${account.loanNo}] waiver requested for ${documentName}`,
+    body:
+      `${actor.name} asked for ${documentName} on ${account.loanNo} ` +
+      `(${account.borrowerName}) to be waived. Reason: ${reason} ` +
+      "The claim can be submitted meanwhile, but it cannot go for review until IMGC decides.",
+    event: "DOC_WAIVER_REQUESTED",
+    accountId: account.id,
+    unreadFor: ["IMGC"],
+  });
+}
+
+/** IMGC's answer decides whether the lender still has to produce the document. */
+export async function notifyWaiverDecided(
+  account: Account,
+  documentName: string,
+  approved: boolean,
+  remarks: string,
+  actor: AppSession
+): Promise<void> {
+  await sendMail({
+    ...(await audienceFor(account, "LENDER")),
+    subject: `[${account.loanNo}] waiver ${approved ? "approved" : "declined"} for ${documentName}`,
+    body:
+      `${actor.name} ${approved ? "approved" : "declined"} the waiver for ${documentName} on ` +
+      `${account.loanNo} (${account.borrowerName}).` +
+      (remarks ? ` Remarks: ${remarks}` : "") +
+      (approved
+        ? " The claim proceeds without this document."
+        : " The document is still required — please upload it."),
+    event: "DOC_WAIVER_DECIDED",
+    accountId: account.id,
+    unreadFor: ["LENDER"],
   });
 }

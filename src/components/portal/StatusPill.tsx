@@ -12,6 +12,8 @@ const TONES = new Map<string, string>([
   ["UNDER_REVIEW", "bg-info/12 text-info"],
   ["REUPLOAD_REQUIRED", "bg-warning/15 text-warning"],
   ["REJECTED", "bg-destructive/12 text-destructive"],
+  ["WAIVER_REQUESTED", "bg-warning/15 text-warning"],
+  ["WAIVED", "bg-brand-muted text-brand-dark"],
   // claims
   ["DRAFT", "bg-neutral-100 text-neutral-600"],
   ["NOT_STARTED", "bg-neutral-100 text-neutral-600"],
@@ -50,6 +52,8 @@ const LABELS = new Map<string, string>([
   ["UNDER_REVIEW", "Under review"],
   ["REUPLOAD_REQUIRED", "Re-upload required"],
   ["REJECTED", "Ineligible"],
+  ["WAIVER_REQUESTED", "Waiver requested"],
+  ["WAIVED", "Waived"],
   ["DRAFT", "Draft"],
   ["NOT_STARTED", "Not started"],
   ["SUBMITTED", "Submitted"],

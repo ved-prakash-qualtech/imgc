@@ -26,6 +26,7 @@ import {
   addRemarkAction,
   decideDocumentAction,
   decideFileAction,
+  decideWaiverAction,
   undoFileDecisionAction,
   decideReinstateAction,
   raiseQueryForRejectedDocumentAction,
@@ -44,9 +45,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { daysUntil } from "@/constants/documents";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@/constants/uploads";
 import { attachUpload } from "@/lib/uploads/attachUpload";
@@ -915,6 +918,32 @@ function ImgcDocumentRowItem({
     });
   }, [accountId, doc.id, doc.name]);
 
+  // Declining needs a reason — the lender has to know what to do next — so it opens a dialog;
+  // allowing the waiver does not.
+  const [decliningWaiver, setDecliningWaiver] = useState(false);
+  const [waiverNote, setWaiverNote] = useState("");
+
+  const onDecideWaiver = useCallback(
+    (approve: boolean, remarks = "") => {
+      startTransition(async () => {
+        const result = await decideWaiverAction(
+          accountId,
+          doc.id,
+          approve,
+          remarks
+        );
+        if (!result.ok) {
+          toast.error(result.error ?? "That waiver could not be decided.");
+          return;
+        }
+        setDecliningWaiver(false);
+        setWaiverNote("");
+        toast.success(approve ? "Document waived." : "Waiver declined.");
+      });
+    },
+    [accountId, doc.id]
+  );
+
   const onUndoAccepted = useCallback(() => {
     startTransition(async () => {
       const result = await undoAcceptedDocumentAction(accountId, doc.id);
@@ -998,14 +1027,70 @@ function ImgcDocumentRowItem({
         <div className="flex flex-1 flex-col">
           {doc.files.length === 0 && (
             <div className="flex flex-1 items-center justify-between gap-2 px-3 py-3">
+              {/* A waiver reads across the same columns a file does: the lender's reason under
+                  Lender Remark, IMGC's answer under IMGC Remark, and who asked and when. */}
               <div className="w-[140px] shrink-0 text-[11.5px] text-neutral-400">
-                Nothing uploaded yet.
+                {doc.waiver ? "—" : "Nothing uploaded yet."}
               </div>
-              <div className="w-[140px] shrink-0" />
-              <div className="w-[140px] shrink-0" />
-              <div className="w-[85px] shrink-0" />
-              <div className="w-[100px] shrink-0" />
+              <div
+                className="w-[140px] shrink-0 text-[11px] text-neutral-600"
+                title={doc.waiver?.reason}
+              >
+                {doc.waiver ? clip(doc.waiver.reason, 34) : ""}
+              </div>
+              <div
+                className="w-[140px] shrink-0 text-[11px]"
+                title={doc.waiver?.remarks}
+              >
+                {doc.waiver && doc.waiver.status !== "REQUESTED" && (
+                  <span
+                    className={
+                      doc.waiver.status === "APPROVED"
+                        ? "font-medium text-success-700"
+                        : "font-medium text-destructive"
+                    }
+                  >
+                    {doc.waiver.status === "APPROVED" ? "Waived" : "Declined"}
+                    {doc.waiver.remarks
+                      ? `: ${clip(doc.waiver.remarks, 26)}`
+                      : ""}
+                  </span>
+                )}
+              </div>
+              <div className="w-[85px] shrink-0 text-[11px] text-neutral-600">
+                {doc.waiver?.by ?? ""}
+              </div>
+              <div className="w-[100px] shrink-0 text-[11px] text-neutral-500">
+                {doc.waiver ? when(doc.waiver.at) : ""}
+              </div>
               <div className="flex w-[140px] shrink-0 flex-wrap gap-2">
+                {/* A waiver the lender asked for: allow it, or send them back to upload. */}
+                {doc.status === "WAIVER_REQUESTED" && (
+                  <>
+                    <Button
+                      size="xs"
+                      variant="success"
+                      onClick={() => onDecideWaiver(true)}
+                      disabled={working}
+                      className="size-7 p-0"
+                      aria-label="Waive"
+                      title="Waive — the claim proceeds without this document"
+                    >
+                      <CheckIcon className="size-4" />
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => setDecliningWaiver(true)}
+                      disabled={working}
+                      className="size-7 p-0 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      aria-label="Decline waiver"
+                      title="Decline — the lender must upload the document"
+                    >
+                      <XIcon className="size-4" />
+                    </Button>
+                  </>
+                )}
                 {doc.addedBy === "IMGC" && (
                   <Button
                     size="xs"
@@ -1281,6 +1366,54 @@ function ImgcDocumentRowItem({
       {/* A popup rather than an inline expanding row — the remark is a required, deliberate step
           in accept/reject, not a detail to fill in alongside everything else already on the row. */}
       <Dialog
+        open={decliningWaiver}
+        onOpenChange={(next) => {
+          if (!next) setDecliningWaiver(false);
+        }}
+      >
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Decline the waiver — {doc.name}</DialogTitle>
+            <DialogDescription>
+              The lender will be asked to upload this document.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={waiverNote}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+              setWaiverNote(e.target.value)
+            }
+            placeholder="Why the waiver cannot be allowed"
+            rows={3}
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDecliningWaiver(false)}
+              disabled={working}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => {
+                if (!waiverNote.trim()) {
+                  toast.error("Say why the waiver is declined.");
+                  return;
+                }
+                onDecideWaiver(false, waiverNote.trim());
+              }}
+              disabled={working}
+            >
+              Decline waiver
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={deciding !== null}
         onOpenChange={(next) => {
           if (!next) setDeciding(null);
@@ -1307,8 +1440,9 @@ function ImgcDocumentRowItem({
                 const remarks = String(
                   new FormData(e.currentTarget).get("remarks") ?? ""
                 ).trim();
-                if (!remarks) {
-                  toast.error("A remark is required.");
+                // Only a rejection has to be explained — the lender reads that reason.
+                if (!remarks && deciding.decision === "REJECTED") {
+                  toast.error("A reason is required.");
                   return;
                 }
                 decide(deciding.fileId, deciding.decision, remarks);
@@ -1322,7 +1456,14 @@ function ImgcDocumentRowItem({
                   <span className="font-semibold text-neutral-900">
                     {deciding.fileName}
                   </span>
-                  <span className="text-destructive"> *</span>
+                  {deciding.decision === "REJECTED" ? (
+                    <span className="text-destructive"> *</span>
+                  ) : (
+                    <span className="font-normal text-neutral-400">
+                      {" "}
+                      (optional)
+                    </span>
+                  )}
                 </span>
                 <textarea
                   name="remarks"

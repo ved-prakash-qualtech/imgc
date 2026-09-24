@@ -155,7 +155,10 @@ function decorate(
         d.required &&
         d.active !== false &&
         d.status !== "UNDER_REVIEW" &&
-        d.status !== "APPROVED"
+        d.status !== "APPROVED" &&
+        // Waived, or awaiting IMGC's decision on a waiver: nothing for the lender to upload.
+        d.status !== "WAIVER_REQUESTED" &&
+        d.status !== "WAIVED"
     ).length,
     isActive,
   };

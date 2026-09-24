@@ -11,6 +11,7 @@ import {
   setRequirementActive,
   type RequirementInput,
   decideDocument,
+  decideDocumentWaiver,
   decideFile,
   undoFileDecision,
   decideReinstate,
@@ -131,7 +132,12 @@ export async function undoFileDecisionAction(
 ): Promise<Result> {
   return runAction(async () => {
     const session = await requireSession();
-    const result = await undoFileDecision(session, accountId, documentId, fileId);
+    const result = await undoFileDecision(
+      session,
+      accountId,
+      documentId,
+      fileId
+    );
     if (result.ok) {
       refresh(accountId);
       revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
@@ -330,6 +336,31 @@ export async function setClaimStatusAction(
       revalidatePath(ROUTES.trackQueryResponse);
       revalidatePath(ROUTES.auditTrail);
       revalidatePath(ROUTES.notifications);
+    }
+    return result;
+  });
+}
+
+/** IMGC — allow the claim to proceed without the document, or send the lender back to upload it. */
+export async function decideWaiverAction(
+  accountId: string,
+  documentId: string,
+  approve: boolean,
+  remarks: string
+): Promise<Result> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await decideDocumentWaiver(
+      session,
+      accountId,
+      documentId,
+      approve,
+      remarks
+    );
+    if (result.ok) {
+      refresh(accountId);
+      revalidatePath(ROUTES.initiateClaim);
+      revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
     }
     return result;
   });

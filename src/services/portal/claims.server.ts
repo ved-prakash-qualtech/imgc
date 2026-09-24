@@ -18,6 +18,8 @@ import {
   notifyDocumentUploaded,
   notifyReinstateDecision,
   notifyReinstateRequested,
+  notifyWaiverDecided,
+  notifyWaiverRequested,
   notifyRequirementAdded,
 } from "@/services/portal/notifications.server";
 import type { AppSession } from "@/lib/auth/appSession";
@@ -510,9 +512,6 @@ export async function decideDocument(
 ): Promise<Outcome> {
   if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
   const note = remarks.trim();
-  if (decision === "APPROVED" && !note) {
-    return { ok: false, error: "Add a remark before accepting the document." };
-  }
   if (decision === "REJECTED" && !note) {
     return { ok: false, error: "A rejection needs a reason." };
   }
@@ -1180,7 +1179,8 @@ export function summariseDocs(
 ): CaseDocSummary {
   const required = docs.filter((d) => d.required && isActive(d));
   const count = (s: DocStatus) => required.filter((d) => d.status === s).length;
-  const approved = count("APPROVED");
+  // A waived document is settled: the claim does not wait for it.
+  const approved = count("APPROVED") + count("WAIVED");
   return {
     requiredCount: required.length,
     approved,
@@ -1336,5 +1336,118 @@ export async function archiveRejectedDocument(
     summary: `Ineligible document "${outcome.name}" archived — kept on record`,
     meta: fileId ? { documentId, fileId } : { documentId },
   });
+  return { ok: true };
+}
+
+/* ── waivers ───────────────────────────────────────────────────────── */
+
+/**
+ * The lender cannot supply a required document and asks IMGC to waive it.
+ *
+ * Only a document with nothing uploaded can be waived — once a file is in, the question is
+ * whether that file is acceptable, which is the review, not a waiver. The claim is not held back
+ * while the request is open: IMGC decides it alongside the documents.
+ */
+export async function requestDocumentWaiver(
+  session: AppSession,
+  accountId: string,
+  documentId: string,
+  reason: string
+): Promise<Outcome> {
+  const access = await assertAccess(session, accountId);
+  if (!access.ok) return access;
+  if (session.role !== "LENDER") return { ok: false, error: "Lender only." };
+  const note = reason.trim();
+  if (!note)
+    return { ok: false, error: "Say why the document cannot be provided." };
+
+  const outcome = await writeDb((db) => {
+    const row = db.claimDocuments.find(
+      (d) => d.id === documentId && d.accountId === accountId
+    );
+    if (!row) return { ok: false as const, error: "Document not found." };
+    const hasFiles = db.documentFiles.some(
+      (f) => f.documentId === row.id && !f.supersededAt
+    );
+    if (hasFiles) {
+      return {
+        ok: false as const,
+        error: "This document already has a file uploaded.",
+      };
+    }
+    if (row.status === "WAIVED")
+      return { ok: false as const, error: "Already waived." };
+    row.status = "WAIVER_REQUESTED";
+    row.waiver = {
+      reason: note,
+      by: session.name,
+      at: nowIso(),
+      status: "REQUESTED",
+    };
+    return { ok: true as const, name: row.name };
+  });
+  if (!outcome.ok) return outcome;
+
+  await recordEvent({
+    accountId,
+    actor: session,
+    type: "DOC_WAIVER_REQUESTED",
+    summary: `Waiver requested for "${outcome.name}" — ${note}`,
+    meta: { documentId },
+  });
+
+  const db = await readDb();
+  const account = db.accounts.find((a) => a.id === accountId);
+  if (account)
+    await notifyWaiverRequested(account, outcome.name, note, session);
+  return { ok: true };
+}
+
+/** IMGC allows the claim to proceed without the document, or sends the lender back to upload it. */
+export async function decideDocumentWaiver(
+  session: AppSession,
+  accountId: string,
+  documentId: string,
+  approve: boolean,
+  remarks: string
+): Promise<Outcome> {
+  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  const note = remarks.trim();
+  if (!approve && !note) {
+    return { ok: false, error: "Say why the waiver is declined." };
+  }
+
+  const outcome = await writeDb((db) => {
+    const row = db.claimDocuments.find(
+      (d) => d.id === documentId && d.accountId === accountId
+    );
+    if (!row || row.status !== "WAIVER_REQUESTED" || !row.waiver) {
+      return { ok: false as const, error: "No waiver is awaiting a decision." };
+    }
+    row.waiver = {
+      ...row.waiver,
+      status: approve ? "APPROVED" : "DENIED",
+      decidedBy: session.name,
+      decidedAt: nowIso(),
+      remarks: note || undefined,
+    };
+    // Declined: the document is the lender's to upload again.
+    row.status = approve ? "WAIVED" : "PENDING_UPLOAD";
+    return { ok: true as const, name: row.name };
+  });
+  if (!outcome.ok) return outcome;
+
+  await recordEvent({
+    accountId,
+    actor: session,
+    type: "DOC_WAIVER_DECIDED",
+    summary: `Waiver ${approve ? "approved" : "declined"} for "${outcome.name}"${note ? ` — ${note}` : ""}`,
+    meta: { documentId, approved: String(approve) },
+  });
+
+  const db = await readDb();
+  const account = db.accounts.find((a) => a.id === accountId);
+  if (account)
+    await notifyWaiverDecided(account, outcome.name, approve, note, session);
   return { ok: true };
 }

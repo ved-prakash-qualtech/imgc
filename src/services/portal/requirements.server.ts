@@ -58,6 +58,8 @@ export interface RequirementRow {
   /** Display reference for a lender-added additional document (AD-001). */
   refNo?: string;
   review?: ClaimDocument["review"];
+  /** The waiver request and its decision, when the lender asked for one. */
+  waiver?: ClaimDocument["waiver"];
   /** The remark the lender most recently needs to act on, whichever side wrote it. */
   latestRemark: string;
 }
@@ -94,7 +96,8 @@ function toRow(
     dueDate: doc.dueDate,
     active: isActive(doc),
     addedBy: doc.addedBy,
-    addedByName: doc.addedByName ?? (doc.addedBy === "SYSTEM" ? "System" : "IMGC"),
+    addedByName:
+      doc.addedByName ?? (doc.addedBy === "SYSTEM" ? "System" : "IMGC"),
     addedOn: doc.createdAt,
     requirementRemarks: doc.requirementRemarks,
 
@@ -108,11 +111,18 @@ function toRow(
     multiple:
       doc.multiple ||
       doc.addedBy === "LENDER" ||
-      ["lod", "legal-collection-feedback", "latest-technical-report", "income-banking", "noc"].includes(doc.slug || ""),
+      [
+        "lod",
+        "legal-collection-feedback",
+        "latest-technical-report",
+        "income-banking",
+        "noc",
+      ].includes(doc.slug || ""),
     conditional: doc.conditional ?? false,
     conditionReason: doc.conditionReason,
     refNo: doc.refNo,
     review: doc.review,
+    waiver: doc.waiver,
     latestRemark:
       doc.review?.remarks ||
       history.find((f) => f.id === doc.currentFileId)?.uploadRemarks ||
@@ -143,8 +153,7 @@ export async function listRequirements(
     .filter((d) => session.role === "IMGC" || isActive(d))
     .map((d) => toRow(d, db))
     .sort(
-      (a, b) =>
-        a.caseId.localeCompare(b.caseId) || a.name.localeCompare(b.name)
+      (a, b) => a.caseId.localeCompare(b.caseId) || a.name.localeCompare(b.name)
     );
 }
 
@@ -172,7 +181,10 @@ export async function listClaimDocuments(
   if (!claim) return [];
   const account = db.accounts.find((a) => a.id === claim.accountId);
   if (!account) return [];
-  if (session.role === "LENDER" && account.lenderOrgId !== session.lenderOrgId) {
+  if (
+    session.role === "LENDER" &&
+    account.lenderOrgId !== session.lenderOrgId
+  ) {
     return [];
   }
 
@@ -190,9 +202,11 @@ export async function listClaimDocuments(
     .map((d) => toRow(d, db))
     .sort((a, b) => {
       if (a.required !== b.required) return a.required ? -1 : 1;
-      const ar = rank(a), br = rank(b);
+      const ar = rank(a),
+        br = rank(b);
       if (ar !== br) return ar - br;
-      const ai = materialised(a.id), bi = materialised(b.id);
+      const ai = materialised(a.id),
+        bi = materialised(b.id);
       if (ai !== bi) return ai - bi;
       return a.addedOn.localeCompare(b.addedOn);
     });
@@ -202,7 +216,9 @@ export async function listClaimDocuments(
 export async function listCaseOptions(session: AppSession) {
   const db = await readDb();
   return db.accounts
-    .filter((a) => session.role === "IMGC" || a.lenderOrgId === session.lenderOrgId)
+    .filter(
+      (a) => session.role === "IMGC" || a.lenderOrgId === session.lenderOrgId
+    )
     .map((a) => ({
       id: a.id,
       loanNo: a.loanNo,

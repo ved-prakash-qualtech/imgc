@@ -310,7 +310,8 @@ function QueryTrailTab({
     (d) => d.active !== false && !(!d.required && d.status === "PENDING_UPLOAD")
   );
   const allDocsAccepted =
-    allRequiredAccepted && activeDocs.every((d) => d.status === "APPROVED");
+    allRequiredAccepted &&
+    activeDocs.every((d) => d.status === "APPROVED" || d.status === "WAIVED");
 
   const footerHasActions =
     (claim?.status === "INITIATED" && allDocsAccepted) ||

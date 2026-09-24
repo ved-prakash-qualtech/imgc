@@ -23,7 +23,6 @@ export type NavKey =
   | "admin-users"
   | "admin-retention"
   | "admin-doc-config"
-  | "admin-bulk-refund"
   // Retained from the base template so its demo pages still type-check.
   | "tenants"
   | "menus"
@@ -75,11 +74,6 @@ const ADMINISTRATION: NavItem = {
       key: "admin-doc-config",
       label: "Document Configuration",
       href: ROUTES.adminDocumentConfig,
-    },
-    {
-      key: "admin-bulk-refund",
-      label: "Bulk Refund Upload",
-      href: ROUTES.adminBulkRefund,
     },
   ],
 };

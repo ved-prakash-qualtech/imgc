@@ -37,6 +37,8 @@ const STATUS_LABEL: Record<DocStatus, string> = {
   APPROVED: "Accepted",
   REJECTED: "Ineligible",
   REUPLOAD_REQUIRED: "Query Raised",
+  WAIVER_REQUESTED: "Waiver requested",
+  WAIVED: "Waived",
 };
 
 const STATUS_TONE: Record<DocStatus, string> = {
@@ -46,6 +48,8 @@ const STATUS_TONE: Record<DocStatus, string> = {
   APPROVED: "bg-success/15 text-success-700",
   REJECTED: "bg-destructive/12 text-destructive",
   REUPLOAD_REQUIRED: "bg-warning/15 text-warning",
+  WAIVER_REQUESTED: "bg-warning/15 text-warning",
+  WAIVED: "bg-brand-muted text-brand-dark",
 };
 
 /** Flat colored text, no pill and no dot — a dense, non-interactive table column, matching the
@@ -399,15 +403,19 @@ export function ClaimDocumentsTable({
 
       const emptyAction =
         canUploadGeneral && !hasFiles ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 px-2.5 text-[11px]"
-            // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
-            onClick={() => setUploadTarget({ row: doc, mode: "upload" })}
-          >
-            <UploadIcon className="mr-1.5 size-3" /> Upload
-          </Button>
+          <span className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-[11px]"
+              // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
+              onClick={() => setUploadTarget({ row: doc, mode: "upload" })}
+            >
+              <UploadIcon className="mr-1.5 size-3" /> Upload
+            </Button>
+            {/* The document cannot be supplied at all: ask IMGC to waive it instead. */}
+            {/* Only a mandatory document needs waiving — an optional one can simply be left out. */}
+          </span>
         ) : null;
 
       if (!hasFiles) {
@@ -420,7 +428,19 @@ export function ClaimDocumentsTable({
               colSpan={showImgcRemark ? 5 : 4}
               className="px-2 py-1.5 text-[11px] text-neutral-400 align-top"
             >
-              Nothing uploaded yet.
+              {doc.waiver ? (
+                <span className="text-neutral-600">
+                  {doc.waiver.status === "APPROVED"
+                    ? "Waived by IMGC"
+                    : doc.waiver.status === "DENIED"
+                      ? "Waiver declined — please upload"
+                      : "Waiver requested"}
+                  : {doc.waiver.reason}
+                  {doc.waiver.remarks ? ` — IMGC: ${doc.waiver.remarks}` : ""}
+                </span>
+              ) : (
+                "Nothing uploaded yet."
+              )}
             </TableCell>
             {showActions && (
               <TableCell className="px-3 py-2 align-top">

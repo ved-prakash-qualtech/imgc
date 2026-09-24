@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
 /** Which account tab actually shows what this notification is about — matches the slugs
  *  `AccountWorkspace` reads via `?tab=`. Falls back to Overview for anything doc-unrelated. */
 function tabSlugForEvent(event: string): string {
-  if (event.startsWith("DOC_") || event === "CLAIM_SUBMITTED") return "initial-claims";
+  if (event.startsWith("DOC_") || event === "CLAIM_SUBMITTED")
+    return "initial-claims";
   return "overview";
 }
 
@@ -82,6 +83,11 @@ export default async function NotificationsPage() {
                         </p>
                         <p className="mt-1 truncate text-[11.5px] text-neutral-400">
                           To: {n.to.join(", ")}
+                          {n.cc && n.cc.length > 0 && (
+                            <span className="block text-neutral-400">
+                              Cc: {n.cc.join(", ")}
+                            </span>
+                          )}
                         </p>
                       </div>
                     </>
@@ -94,7 +100,11 @@ export default async function NotificationsPage() {
                     <li key={n.id}>
                       {n.accountId ? (
                         <Link
-                          href={accountHrefFor(session.role, n.accountId, n.event)}
+                          href={accountHrefFor(
+                            session.role,
+                            n.accountId,
+                            n.event
+                          )}
                           className="flex gap-3 px-5 py-4 transition-colors hover:bg-neutral-50"
                         >
                           {body}

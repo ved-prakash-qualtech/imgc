@@ -329,12 +329,18 @@ export default async function ClaimDetailsPage({
         )
       }
       history={
-        <Panel
-          title="Claim History"
-          description="Every status change and query on this claim, in order."
-        >
-          <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
-        </Panel>
+        // The lender reads the claim's progress on Track Claim; the full audit trail is IMGC's.
+        isLender ? null : (
+          <Panel
+            title="Claim History"
+            description="Every status change and query on this claim, in order."
+          >
+            <ClaimHistory
+              statusHistory={claim.statusHistory}
+              queries={queries}
+            />
+          </Panel>
+        )
       }
     />
   ) : (
@@ -535,12 +541,18 @@ export default async function ClaimDetailsPage({
         )
       }
       history={
-        <Panel
-          title="Claim History"
-          description="Every status change and query on this claim, in order."
-        >
-          <ClaimHistory statusHistory={claim.statusHistory} queries={queries} />
-        </Panel>
+        // The lender reads the claim's progress on Track Claim; the full audit trail is IMGC's.
+        isLender ? null : (
+          <Panel
+            title="Claim History"
+            description="Every status change and query on this claim, in order."
+          >
+            <ClaimHistory
+              statusHistory={claim.statusHistory}
+              queries={queries}
+            />
+          </Panel>
+        )
       }
     />
   );
