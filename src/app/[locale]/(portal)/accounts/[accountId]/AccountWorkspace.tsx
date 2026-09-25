@@ -9,13 +9,6 @@ import {
   setClaimStatusAction,
   startClaimReviewAction,
 } from "@/app/[locale]/(portal)/accounts/[accountId]/actions";
-import { markRefundReceivedAction } from "@/app/[locale]/(portal)/initiate-claim/actions";
-import { attachUpload } from "@/lib/uploads/attachUpload";
-import {
-  ACCEPTED_UPLOAD_TYPES,
-  MAX_UPLOAD_BYTES,
-  MAX_UPLOAD_LABEL,
-} from "@/constants/uploads";
 
 import { AuditTrailTab } from "@/app/[locale]/(portal)/accounts/[accountId]/AuditTrailTab";
 import { InitialClaimsTab } from "@/app/[locale]/(portal)/accounts/[accountId]/InitialClaimsTab";
@@ -193,75 +186,6 @@ function QueryTrailTab({
   );
   const [note, setNote] = useState("");
 
-  // "Refund Received" — its own small form (UTR + an optional proof file), not the note-only
-  // Approve/Ineligible dialog above: recording money received is a different fact from deciding
-  // the claim, so it gets its own state rather than overloading `deciding`/`note`.
-  const [refundOpen, setRefundOpen] = useState(false);
-  const [paymentDate, setPaymentDate] = useState(() =>
-    new Date().toISOString().slice(0, 10)
-  );
-  const [utr, setUtr] = useState("");
-  const [amount, setAmount] = useState("");
-  const [refundFile, setRefundFile] = useState<File | null>(null);
-  const [refundError, setRefundError] = useState("");
-
-  const onPickRefundFile = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const picked = event.target.files?.[0] ?? null;
-      setRefundError("");
-      if (!picked) return setRefundFile(null);
-      if (!(ACCEPTED_UPLOAD_TYPES as readonly string[]).includes(picked.type)) {
-        setRefundError("Only PDF, JPG, PNG or WEBP files are accepted.");
-        return setRefundFile(null);
-      }
-      if (picked.size > MAX_UPLOAD_BYTES) {
-        setRefundError(`That file is over the ${MAX_UPLOAD_LABEL} limit.`);
-        return setRefundFile(null);
-      }
-      setRefundFile(picked);
-    },
-    []
-  );
-
-  const submitRefund = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      if (!utr.trim()) {
-        setRefundError("Enter the UTR / reference number.");
-        return;
-      }
-      const amountNum = Number(amount);
-      if (!amount.trim() || !Number.isFinite(amountNum) || amountNum <= 0) {
-        setRefundError("Enter a valid amount.");
-        return;
-      }
-      const data = new FormData(event.currentTarget);
-      startTransition(async () => {
-        if (refundFile) {
-          try {
-            await attachUpload(data, refundFile, account.id);
-          } catch {
-            toast.error("That upload failed. Please try again.");
-            return;
-          }
-        }
-        if (!claim) return;
-        const result = await markRefundReceivedAction(claim.id, data);
-        if (!result.ok) {
-          toast.error(result.error ?? "That could not be recorded.");
-          return;
-        }
-        toast.success("Refund received — recorded.");
-        setRefundOpen(false);
-        setUtr("");
-        setAmount("");
-        setRefundFile(null);
-        setRefundError("");
-      });
-    },
-    [utr, amount, refundFile, account.id, claim]
-  );
-
   const decide = useCallback(
     (status: "APPROVED" | "REJECTED", decisionNote: string) => {
       startTransition(async () => {
@@ -298,7 +222,8 @@ function QueryTrailTab({
   );
   const allRequiredAccepted =
     requiredDocs.length > 0 &&
-    requiredDocs.every((d) => d.status === "APPROVED");
+    // A document IMGC waived is settled; it does not hold the review back.
+    requiredDocs.every((d) => d.status === "APPROVED" || d.status === "WAIVED");
 
   const claimDecided =
     isApproved || refundReceived || claim?.status === "REJECTED";
@@ -313,10 +238,11 @@ function QueryTrailTab({
     allRequiredAccepted &&
     activeDocs.every((d) => d.status === "APPROVED" || d.status === "WAIVED");
 
+  // The bar exists only when it has a button: an approved or ineligible claim is finished, and
+  // a claim sitting in a query is the lender's to answer.
   const footerHasActions =
     (claim?.status === "INITIATED" && allDocsAccepted) ||
     claim?.status === "UNDER_REVIEW" ||
-    (isApproved && !refundReceived) ||
     Boolean(
       claim &&
       !claimDecided &&
@@ -365,16 +291,6 @@ function QueryTrailTab({
             disabled={pending}
           >
             Ineligible
-          </Button>
-        )}
-        {isApproved && !refundReceived && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setRefundOpen(true)}
-            disabled={pending}
-          >
-            Refund Received
           </Button>
         )}
         {claim &&
@@ -470,118 +386,6 @@ function QueryTrailTab({
               {deciding === "APPROVED" ? "Approve" : "Ineligible"}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={refundOpen}
-        onOpenChange={(open) => {
-          if (!open && !pending) {
-            setRefundOpen(false);
-            setUtr("");
-            setAmount("");
-            setRefundFile(null);
-            setRefundError("");
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Refund received</DialogTitle>
-            <DialogDescription>
-              Record the payment date, UTR / reference number and amount
-              received against this claim. A proof file is optional — all of it
-              is visible to the lender once saved.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={submitRefund} className="flex flex-col gap-3">
-            <label className="block">
-              <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                Payment date *
-              </span>
-              <input
-                type="date"
-                name="paymentDate"
-                required
-                value={paymentDate}
-                onChange={(e) => setPaymentDate(e.target.value)}
-                className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-[13px] text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                UTR / reference number *
-              </span>
-              <input
-                name="utr"
-                required
-                value={utr}
-                onChange={(e) => setUtr(e.target.value)}
-                placeholder="e.g. UTR2026090112345"
-                className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-[13px] text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                Amount received (₹) *
-              </span>
-              {/* Free entry from the IMGC team — not checked against the computed claim amount,
-                  since a genuine partial settlement is a real case here, not an error. */}
-              <input
-                type="number"
-                name="amount"
-                required
-                min="0"
-                step="1"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="e.g. 500000"
-                className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-[13px] text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                Proof of payment (optional)
-              </span>
-              <input
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.webp"
-                onChange={onPickRefundFile}
-                className="block w-full text-[12.5px] text-neutral-600 file:mr-3 file:rounded-md file:border-0 file:bg-neutral-100 file:px-3 file:py-1.5 file:text-[12px] file:font-medium hover:file:bg-neutral-200"
-              />
-              {refundFile && (
-                <p className="mt-1 text-[11.5px] text-neutral-500">
-                  {refundFile.name}
-                </p>
-              )}
-            </label>
-            {refundError && (
-              <p
-                role="alert"
-                className="text-[12px] font-medium text-destructive"
-              >
-                {refundError}
-              </p>
-            )}
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setRefundOpen(false)}
-                disabled={pending}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={pending}>
-                Save
-              </Button>
-            </DialogFooter>
-          </form>
         </DialogContent>
       </Dialog>
     </div>

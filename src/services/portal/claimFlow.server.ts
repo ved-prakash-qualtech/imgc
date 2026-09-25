@@ -787,7 +787,6 @@ export async function createClaim(
   }
 
   const claimId = newId("clm");
-  const config = claimConfig(claimType);
 
   await writeDb((fresh) => {
     fresh.claims.push({
@@ -804,7 +803,6 @@ export async function createClaim(
           byId: session.userId,
           byName: session.name,
           byRole: session.role,
-          note: `${config.label} initiated`,
         },
       ],
       createdById: session.userId,

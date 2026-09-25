@@ -335,7 +335,12 @@ export function ClaimDocumentsTable({
       (doc.status !== "UNDER_REVIEW" ||
         doc.files.some((f) => f.review?.decision === "REJECTED")));
   const canUpload = (doc: RequirementRow) =>
-    !locked && doc.status !== "APPROVED" && isModifiable(doc);
+    !locked &&
+    doc.status !== "APPROVED" &&
+    // A waiver is pending or granted: there is nothing to upload against this document.
+    doc.status !== "WAIVER_REQUESTED" &&
+    doc.status !== "WAIVED" &&
+    isModifiable(doc);
   // Deleting is a draft-only act: once the claim is initiated a file is part of the record —
   // a rejected one is answered with Reupload, never removed.
   const canDelete = (doc: RequirementRow) =>

@@ -205,7 +205,12 @@ export function InitialClaimsTab({
               </div>
               {docs
                 .filter(
-                  (d) => d.status !== "PENDING_UPLOAD" || d.addedBy === "IMGC"
+                  (d) =>
+                    d.status !== "PENDING_UPLOAD" ||
+                    d.addedBy === "IMGC" ||
+                    // A declined waiver sends the document back to Pending; keeping it listed is
+                    // what holds the request and IMGC's answer on screen.
+                    Boolean(d.waiver)
                 )
                 .map((doc) => (
                   <ImgcDocumentRowItem
@@ -232,7 +237,12 @@ export function InitialClaimsTab({
             {(isLender || !submitted
               ? docs
               : docs.filter(
-                  (d) => d.status !== "PENDING_UPLOAD" || d.addedBy === "IMGC"
+                  (d) =>
+                    d.status !== "PENDING_UPLOAD" ||
+                    d.addedBy === "IMGC" ||
+                    // A declined waiver sends the document back to Pending; keeping it listed is
+                    // what holds the request and IMGC's answer on screen.
+                    Boolean(d.waiver)
                 )
             ).map((doc) => (
               <DocumentRowItem

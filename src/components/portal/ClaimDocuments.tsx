@@ -816,7 +816,12 @@ function DocTableRows({
   showImgcRemark: boolean;
 }>) {
   const hasFiles = doc.files.length > 0;
-  const canAddMore = !locked && doc.status !== "APPROVED";
+  const canAddMore =
+    !locked &&
+    doc.status !== "APPROVED" &&
+    // A waiver is pending or granted: there is nothing to upload against this document.
+    doc.status !== "WAIVER_REQUESTED" &&
+    doc.status !== "WAIVED";
   const rowSpan = hasFiles ? doc.files.length : 1;
 
   const canModifyDocuments =
