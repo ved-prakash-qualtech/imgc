@@ -188,11 +188,9 @@ export function LenderClaimStatusPanel({
                             </span>
                           )}
                         </p>
-                        {!isFuture && entry.note && (
-                          <p className="mt-1 rounded-md bg-neutral-100/80 px-2 py-1 text-[11.5px] text-neutral-600">
-                            {entry.note}
-                          </p>
-                        )}
+                        {/* The step's note is not repeated here — remarks belong to the
+                            Remarks panel and the query trail, which is where both sides read
+                            them. The trail shows what changed, when and by whom. */}
                       </div>
                     </li>
                   );

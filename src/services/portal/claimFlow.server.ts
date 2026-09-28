@@ -1061,7 +1061,7 @@ export async function submitClaim(
       // Post-review response (QUERY_UNDER_REVIEW / legacy QUERY_RAISED) returns to UNDER_REVIEW.
       // Exactly one advance fires here — the duplicate above has been removed.
       if (resubmittingInitiated) {
-        advance(db, claim, "INITIATED", session, "Query response received");
+        advance(db, claim, "INITIATED", session);
       } else {
         advance(db, claim, "UNDER_REVIEW", session, "Resubmission received");
       }
@@ -1456,7 +1456,9 @@ export async function raiseQuery(
     if (claim.status === "INITIATED") {
       targetStatus = "QUERY_INITIATED";
     }
-    advance(db, claim, targetStatus, session, input.reason.trim());
+    // The reason lives on the query itself; repeating it as a status note only fills the
+    // timeline with generated text.
+    advance(db, claim, targetStatus, session);
     claim.bucket = "LENDER";
 
     let bucketChangedFrom = null;
