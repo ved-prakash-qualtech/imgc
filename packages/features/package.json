@@ -37,6 +37,7 @@
     "./portal/ActionFooter": "./portal/ActionFooter.tsx",
     "./portal/AddLenderDocumentDialog": "./portal/AddLenderDocumentDialog.tsx",
     "./portal/AddRequirementForm": "./portal/AddRequirementForm.tsx",
+    "./portal/AppearanceStudioClient": "./portal/AppearanceStudioClient.tsx",
     "./portal/BucketToggle": "./portal/BucketToggle.tsx",
     "./portal/ClaimDetailSinglePage": "./portal/ClaimDetailSinglePage.tsx",
     "./portal/ClaimDetailTabs": "./portal/ClaimDetailTabs.tsx",

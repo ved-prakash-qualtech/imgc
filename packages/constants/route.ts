@@ -46,7 +46,12 @@ export const ROUTES = {
   adminRetention: "/admin/retention",
   /** IMGC only — configure which documents each lender's INITIAL claims require. */
   adminDocumentConfig: "/admin/document-config",
+  /** IMGC only — configure logos, portal titles, and brand colors per lender. */
+  adminBranding: "/admin/branding",
+  /** User-level personalization (Appearance Studio for individual users). */
+  personalization: "/personalization",
   /** IMGC Admin only — select a lender context. */
+  adminWorkspace: "/admin/workspace",
   logout: "/api/auth/logout",
 
   /* ── retained from the base template (unused by the portal nav) ── */

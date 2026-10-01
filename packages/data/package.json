@@ -41,6 +41,7 @@
     "./services/menus/roleGrants.server": "./services/menus/roleGrants.server.ts",
     "./services/portal/accounts.server": "./services/portal/accounts.server.ts",
     "./services/portal/audit.server": "./services/portal/audit.server.ts",
+    "./services/portal/brandingConfig.server": "./services/portal/brandingConfig.server.ts",
     "./services/portal/claimDashboard": "./services/portal/claimDashboard.ts",
     "./services/portal/claimDashboard.server": "./services/portal/claimDashboard.server.ts",
     "./services/portal/claimFlow.server": "./services/portal/claimFlow.server.ts",

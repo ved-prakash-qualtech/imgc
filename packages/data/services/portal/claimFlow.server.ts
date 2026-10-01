@@ -169,7 +169,7 @@ function decorate(claim: Claim, db: MockDb): ClaimRow {
     customerName: account?.borrowerName ?? "—",
     lenderName: org?.name ?? "—",
     product: account?.product ?? "—",
-    typeLabel: claimConfig(claim.claimType).label,
+    typeLabel: claimConfig(claim.claimType)?.label ?? "Initial Claim",
     openQuery:
       db.claimQueries
         .filter((q) => q.claimId === claim.id && !q.respondedAt)

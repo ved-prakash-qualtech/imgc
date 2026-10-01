@@ -75,8 +75,8 @@
   --danger-on-dark-soft: #ff9d97;
 
   /* Gradients (v1.0.1) */
-  --grad-hero: linear-gradient(135deg, #0466c8 0%, #044b95 100%);
-  --grad-nav: linear-gradient(90deg, #1e293b 0%, #0466c8 100%);
+  --grad-hero: linear-gradient(115deg, #2b1d12 0%, #8a4310 55%, #3a2415 100%);
+  --grad-nav: linear-gradient(90deg, #1e293b 0%, var(--brand-primary) 100%);
 
   /* Named surfaces, so a page never writes its own gradient. */
   --grad-band: linear-gradient(115deg, #2b1d12 0%, #8a4310 55%, #3a2415 100%);

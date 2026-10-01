@@ -10,8 +10,10 @@
   "exports": {
     "./additionalDocuments": "./additionalDocuments.ts",
     "./adminWorkspace": "./adminWorkspace.ts",
+    "./branding": "./branding.ts",
     "./buckets": "./buckets.ts",
-    "./initiateClaim": "./initiateClaim.ts"
+    "./initiateClaim": "./initiateClaim.ts",
+    "./personalization": "./personalization.ts"
   },
   "peerDependencies": {
     "next": "*",

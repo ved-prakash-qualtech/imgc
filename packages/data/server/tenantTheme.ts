@@ -29,17 +29,65 @@ export async function getTenantTheme(
   return findRegistryTenant(tenant)?.theme ?? null;
 }
 
-/** CSS custom-property overrides applied at the <html> level by the root layout. */
-export function themeStyle(theme: TenantTheme): React.CSSProperties {
+export interface CustomColorOverrides {
+  primary?: string;
+  sidebarBg?: string;
+  sidebarText?: string;
+  sidebarActive?: string;
+  chartAccent?: string;
+}
+
+/** CSS custom-property overrides applied at the <html> or shell container level. */
+export function themeStyle(
+  theme: TenantTheme,
+  customColors?: CustomColorOverrides
+): React.CSSProperties {
+  const primary = customColors?.primary || theme.brandPrimary;
+  const dark = theme.brandDark;
+  const muted = theme.brandMuted;
+  const light = theme.brandLight;
+
   return {
-    // The four source variables. `--color-brand-*` (Tailwind utilities), `--ring`, `--primary`,
-    // `--accent` and the chart palette all derive from these in globals.css, so overriding the
-    // source re-themes everything that follows from it — no component names a colour.
-    "--brand-primary": theme.brandPrimary,
-    "--brand-dark": theme.brandDark,
-    "--brand-muted": theme.brandMuted,
-    "--brand-light": theme.brandLight,
-    "--grad-hero": `linear-gradient(135deg, ${theme.brandPrimary} 0%, ${theme.brandDark} 100%)`,
-    "--grad-nav": `linear-gradient(90deg, #1e293b 0%, ${theme.brandPrimary} 100%)`,
+    // 1. miFIN™ raw brand tokens (palette & SVG variables)
+    "--brand-primary": primary,
+    "--brand-dark": dark,
+    "--brand-muted": muted,
+    "--brand-light": light,
+
+    // 2. Tailwind v4 utility tokens
+    "--color-brand-primary": primary,
+    "--color-brand-dark": dark,
+    "--color-brand-muted": muted,
+    "--color-brand-light": light,
+
+    // 3. Custom component colors (sidebar, chart)
+    ...(customColors?.sidebarBg
+      ? { "--sidebar-bg": customColors.sidebarBg }
+      : {}),
+    ...(customColors?.sidebarText
+      ? { "--sidebar-text-muted": customColors.sidebarText }
+      : {}),
+    ...(customColors?.chartAccent
+      ? { "--chart-accent": customColors.chartAccent }
+      : {}),
+
+    // 4. shadcn/ui semantic tokens (Buttons, rings, accents)
+    "--primary": primary,
+    "--primary-foreground": "#ffffff",
+    "--color-primary": primary,
+    "--color-primary-foreground": "#ffffff",
+
+    "--ring": primary,
+    "--color-ring": primary,
+
+    "--accent": light,
+    "--accent-foreground": primary,
+    "--color-accent": light,
+    "--color-accent-foreground": primary,
+
+    // 5. Hero and Navigation gradients
+    "--grad-hero": `linear-gradient(115deg, ${dark} 0%, ${primary} 55%, ${dark} 100%)`,
+    "--grad-band": `linear-gradient(115deg, ${dark} 0%, ${primary} 55%, ${dark} 100%)`,
+    "--grad-nav": `linear-gradient(90deg, #1e293b 0%, ${primary} 100%)`,
   } as React.CSSProperties;
 }

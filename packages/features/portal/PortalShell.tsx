@@ -6,8 +6,13 @@ import { requireSession, toSessionUser } from "@imgc/lib/auth/appSession";
 import {
   getAssignedOfficer,
   getLenderOrgById,
+  getUserById,
 } from "@imgc/data/services/portal/users.server";
+import { getGlobalBranding } from "@imgc/data/services/portal/brandingConfig.server";
 import { unreadCount } from "@imgc/data/services/portal/notifications.server";
+import { getAdminContextOrNull } from "@imgc/lib/auth/adminContext";
+import { themeStyle } from "@imgc/data/server/tenantTheme";
+import { cn } from "@imgc/lib/utils/twMergeUtils";
 
 /**
  * The signed-in frame for every portal page.
@@ -22,6 +27,9 @@ export async function PortalShell({
   titleAside,
   claimAgeing,
   children,
+  fullHeight,
+  noFooter,
+  contentClassName,
 }: Readonly<{
   activeKey?: NavKey;
   title: string;
@@ -29,15 +37,47 @@ export async function PortalShell({
   titleAside?: string;
   claimAgeing?: ReactNode;
   children: ReactNode;
+  fullHeight?: boolean;
+  noFooter?: boolean;
+  contentClassName?: string;
 }>) {
   const session = await requireSession();
-  const [org, unread, assignedOfficer] = await Promise.all([
-    session.role === "LENDER" ? getLenderOrgById(session.lenderOrgId) : null,
-    unreadCount(session),
-    getAssignedOfficer(session),
-  ]);
+  const ctx = await getAdminContextOrNull();
+  const [org, unread, assignedOfficer, adminOrg, userRecord, globalBranding] =
+    await Promise.all([
+      session.role === "LENDER" ? getLenderOrgById(session.lenderOrgId) : null,
+      unreadCount(session),
+      getAssignedOfficer(session),
+      ctx ? getLenderOrgById(ctx.lenderOrgId) : null,
+      getUserById(session.userId),
+      getGlobalBranding(),
+    ]);
 
   const badges = unread > 0 ? { notifications: unread } : undefined;
+
+  const activeOrg = org ?? adminOrg;
+  const userPersonalization = userRecord?.personalization;
+
+  // Personalization: Each user configures their own personal appearance studios.
+  // Themes are strictly kept separate and never implemented from IMGC to lender.
+  const effectiveTheme = userPersonalization?.theme;
+  const brandStyle = effectiveTheme
+    ? themeStyle(effectiveTheme, userPersonalization?.customColors)
+    : undefined;
+  const workspaceTitle = activeOrg?.portalTitle
+    ? activeOrg.portalTitle.replace(/ Portal$/i, "")
+    : session.role === "IMGC"
+      ? "IMGC"
+      : (org?.name ?? "Lender");
+
+  const isLenderView = session.role === "LENDER" || Boolean(ctx);
+  const effectiveLenderLogo = isLenderView
+    ? (activeOrg?.logoUrl ??
+      (activeOrg?.id === "org_acme" ? "/assets/icons/hdfclogo.png" : undefined))
+    : undefined;
+
+  const imgcMasterLogo =
+    globalBranding?.imgcLogoUrl || "/assets/icons/imgc-mark.svg";
 
   return (
     <DashboardShell
@@ -47,13 +87,31 @@ export async function PortalShell({
       navbarTitle={title}
       navbarTitleAside={titleAside}
       claimAgeing={claimAgeing}
-      workspace={session.role === "IMGC" ? "IMGC" : (org?.name ?? "Lender")}
+      workspace={workspaceTitle}
+      adminContextName={adminOrg?.name}
       user={toSessionUser(session)}
       unreadCount={unread}
       assignedOfficer={assignedOfficer}
       isAdmin={session.role === "IMGC" && session.isAdmin}
+      isImgc={session.role === "IMGC"}
+      logoUrl={imgcMasterLogo}
+      lenderLogoUrl={effectiveLenderLogo}
+      lenderName={activeOrg?.name}
+      style={brandStyle}
+      fullHeight={fullHeight}
+      noFooter={noFooter}
     >
-      <main className="flex-1 px-6 py-4">{children}</main>
+      <main
+        className={cn(
+          "flex-1",
+          fullHeight
+            ? "flex min-h-0 flex-col overflow-hidden p-0"
+            : "px-6 py-4",
+          contentClassName
+        )}
+      >
+        {children}
+      </main>
     </DashboardShell>
   );
 }

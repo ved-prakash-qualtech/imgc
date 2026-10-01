@@ -22,7 +22,13 @@ export const ZONE_PATHS: Readonly<Record<ContentZone, readonly string[]>> = {
     "/track-query-response",
   ],
   loans: ["/dashboard", "/dpd", "/buckets"],
-  admin: ["/admin", "/additional-documents", "/audit-trail", "/notifications"],
+  admin: [
+    "/admin",
+    "/additional-documents",
+    "/audit-trail",
+    "/notifications",
+    "/personalization",
+  ],
 };
 
 /** Where each zone listens in development. */

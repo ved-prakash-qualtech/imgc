@@ -22,12 +22,12 @@ must therefore live in the same zone.
 
 One Next.js app. All screens are under `src/app/[locale]/(portal)/`:
 
-| Area            | Routes                                                                                                               |
-| --------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Claims          | `accounts`, `initiate-claim` (Claim by IMGC), `claims`, `track-claim`, `claim-dashboard`, `track-query-response`     |
-| Loans           | `dashboard`, `dpd` (All Loans), `buckets`                                                                            |
-| Admin & support | `admin/*` (Lender Access, Retention, Document Configuration), `additional-documents`, `audit-trail`, `notifications` |
-| Entry           | `login`, shell, sidebar, session                                                                                     |
+| Area            | Routes                                                                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Claims          | `accounts`, `initiate-claim` (Claim by IMGC), `claims`, `track-claim`, `claim-dashboard`, `track-query-response`                        |
+| Loans           | `dashboard`, `dpd` (All Loans), `buckets`                                                                                               |
+| Admin & support | `admin/*` (Lender Access, Retention, Document Configuration), `additional-documents`, `audit-trail`, `notifications`, `personalization` |
+| Entry           | `login`, shell, sidebar, session                                                                                                        |
 
 Shared by everything: `src/components/*`, `src/lib/auth/*`, `src/proxy.ts`, `src/services/portal/*`,
 `src/server/mock/*` (in-process data), `src/translations/*`, `src/constants/*`, `src/config/*`.
@@ -53,7 +53,7 @@ Shared by everything: `src/components/*`, `src/lib/auth/*`, `src/proxy.ts`, `src
 | **shell**  | `/`, `/login`, `/api/auth/*`, `/forbidden`, routing                                                    | Owns the proxy (tenant + scope), the sidebar menu call, and rewrites. |
 | **claims** | `/accounts`, `/initiate-claim`, `/claims`, `/track-claim`, `/claim-dashboard`, `/track-query-response` | Tightly coupled screens — keep together.                              |
 | **loans**  | `/dashboard`, `/dpd`, `/buckets`                                                                       | Portfolio views.                                                      |
-| **admin**  | `/admin/*`, `/additional-documents`, `/audit-trail`, `/notifications`                                  | Least coupled — migrate first.                                        |
+| **admin**  | `/admin/*`, `/additional-documents`, `/audit-trail`, `/notifications`, `/personalization`              | Least coupled — migrate first.                                        |
 
 Final split should be confirmed against team ownership and release cadence (open question 3).
 

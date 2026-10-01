@@ -23,6 +23,9 @@ export type NavKey =
   | "admin-users"
   | "admin-retention"
   | "admin-doc-config"
+  | "admin-branding"
+  | "admin-workspace"
+  | "personalization"
   // Retained from the base template so its demo pages still type-check.
   | "tenants"
   | "menus"

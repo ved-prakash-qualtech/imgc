@@ -232,8 +232,16 @@ export const CLAIM_TYPES: Readonly<Record<ClaimTypeKey, ClaimTypeConfig>> = {
 
 export const CLAIM_TYPE_KEYS = Object.keys(CLAIM_TYPES) as ClaimTypeKey[];
 
-export function claimConfig(type: ClaimTypeKey): ClaimTypeConfig {
-  return CLAIM_TYPES[type];
+export function claimConfig(
+  type?: ClaimTypeKey | string | null
+): ClaimTypeConfig {
+  if (type && type in CLAIM_TYPES) {
+    return CLAIM_TYPES[type as ClaimTypeKey];
+  }
+  if (type === "SETTLEMENT" || type === "AUCTION") {
+    return CLAIM_TYPES.SUBSEQUENT;
+  }
+  return CLAIM_TYPES.INITIAL;
 }
 
 /* ── status presentation ───────────────────────────────────────────── */

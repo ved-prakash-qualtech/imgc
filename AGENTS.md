@@ -24,7 +24,7 @@ apps/
   shell/    sign-in, `/`, `/api/*`, and the rewrites that send every other path to its zone   :3000
   claims/   accounts, initiate-claim (Claim by IMGC), claims, track-claim, claim-dashboard    :3001
   loans/    dashboard, dpd, buckets                                                          :3002
-  admin/    admin/*, additional-documents, audit-trail, notifications                         :3003
+  admin/    admin/*, additional-documents, audit-trail, notifications, personalization                       :3003
 packages/   @imgc/types  i18n  constants  config  utils  store  lib  hooks  ui  data  actions  features
 tooling/    createNextConfig.ts — the one Next config every app calls
 ```

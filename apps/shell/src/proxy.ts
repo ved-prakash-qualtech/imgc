@@ -22,6 +22,6 @@ export default function proxy(req: NextRequest) {
  */
 export const config = {
   matcher: [
-    "/((?!api(?:/|$)|_next|_vercel|monitoring|(?:[a-z]{2}/)?(?:accounts|initiate-claim|claims|track-claim|claim-dashboard|track-query-response|dashboard|dpd|buckets|admin|additional-documents|audit-trail|notifications)(?:/|$)|.*\\..*).*)",
+    "/((?!api(?:/|$)|_next|_vercel|monitoring|(?:[a-z]{2}/)?(?:accounts|initiate-claim|claims|track-claim|claim-dashboard|track-query-response|dashboard|dpd|buckets|admin|additional-documents|audit-trail|notifications|personalization)(?:/|$)|.*\\..*).*)",
   ],
 };

@@ -28,7 +28,10 @@ export function CommandBand({
   children?: ReactNode;
 }>) {
   return (
-    <section className="rounded-2xl bg-[image:var(--grad-band)] p-3 shadow-lg shadow-band-shadow/25">
+    <section
+      className="rounded-2xl bg-[image:var(--grad-hero,var(--grad-band))] p-3 shadow-lg shadow-band-shadow/25"
+      style={{ backgroundImage: "var(--grad-hero, var(--grad-band))" }}
+    >
       {(title || subtitle || action) && (
         <header
           className={cn(
