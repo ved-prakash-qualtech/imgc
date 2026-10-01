@@ -58,7 +58,7 @@ const tabsTriggerVariants = cva(
       variant: {
         pill: "rounded-full px-4 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50 data-active:bg-brand-primary data-active:text-white data-active:hover:bg-brand-primary",
         underline:
-          "h-[40px] w-[133px] gap-[10px] px-2 py-[10px] border-b-[2px] border-transparent rounded-t-[8px] text-sm text-[#1F1F1F] hover:text-neutral-700 data-active:border-[var(--brand-blue)] data-active:text-brand-primary data-active:bg-[#E2F1FF]",
+          "h-[40px] w-[133px] gap-[10px] px-2 py-[10px] border-b-[2px] border-transparent rounded-t-[8px] text-sm text-neutral-950 hover:text-neutral-700 data-active:border-[var(--brand-blue)] data-active:text-brand-primary data-active:bg-[var(--surface-tab-active)]",
         count:
           "text-sm font-normal text-neutral-700 data-active:font-bold data-active:text-brand-primary",
         card: "rounded-full px-4 py-1.5 text-sm text-neutral-500 hover:text-neutral-700 data-active:bg-white data-active:text-brand-primary data-active:shadow-sm data-active:hover:text-brand-primary",

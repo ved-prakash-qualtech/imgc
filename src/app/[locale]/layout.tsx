@@ -10,6 +10,8 @@ import { QueryProvider } from "@/components/providers/QueryProvider";
 import { ToasterMount } from "@/components/layout/ToasterMount";
 import { APP_NAME, appConfig } from "@/constants/config";
 import { routing } from "@/i18n/routing";
+import { getTenantOrNull } from "@/lib/tenant";
+import { getTenantTheme, themeStyle } from "@/lib/tenantTheme";
 import "@/app/globals.css";
 
 const outfit = localFont({
@@ -50,6 +52,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function LocaleLayout({ children, params }: Props) {
   const { locale } = await params;
+  // Per-tenant branding: four CSS custom properties on <html>, nothing else. Components keep
+  // using the token names and never learn which tenant they are rendering for.
+  const theme = await getTenantTheme(await getTenantOrNull());
 
   if (!hasLocale(routing.locales, locale)) {
     notFound();
@@ -63,6 +68,7 @@ export default async function LocaleLayout({ children, params }: Props) {
       lang={locale}
       suppressHydrationWarning
       className={`${outfit.variable} ${inter.variable} h-full antialiased`}
+      style={theme ? themeStyle(theme) : undefined}
     >
       <body className="flex min-h-full flex-col" suppressHydrationWarning>
         <NextIntlClientProvider locale={locale} messages={messages}>

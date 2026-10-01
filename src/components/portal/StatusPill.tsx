@@ -1,3 +1,5 @@
+import { useTranslations } from "next-intl";
+
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { Bucket, ClaimStatus, DocStatus } from "@/server/mock/types";
 
@@ -46,39 +48,6 @@ const TONES = new Map<string, string>([
   ["DENIED", "bg-destructive/12 text-destructive"],
 ]);
 
-const LABELS = new Map<string, string>([
-  ["NOT_REQUESTED", "Not requested"],
-  ["PENDING_UPLOAD", "Pending upload"],
-  ["UNDER_REVIEW", "Under review"],
-  ["REUPLOAD_REQUIRED", "Re-upload required"],
-  ["REJECTED", "Ineligible"],
-  ["WAIVER_REQUESTED", "Waiver requested"],
-  ["WAIVED", "Waived"],
-  ["DRAFT", "Draft"],
-  ["NOT_STARTED", "Not started"],
-  ["SUBMITTED", "Submitted"],
-  ["APPROVED", "Approved"],
-  ["ACCEPTED", "Accepted"],
-  ["QUERIED", "Queried"],
-  ["QUERY_RAISED", "Query raised"],
-  ["QUERY_INITIATED", "Query Initiated"],
-  ["QUERY_UNDER_REVIEW", "Query Under Review"],
-  ["INITIATED", "Initiated"],
-  ["DOCUMENTS_RESUBMITTED", "Docs resubmitted"],
-  ["CLOSED", "Closed"],
-  ["REFUND_RECEIVED_BY_IMGC", "Refund Received by IMGC"],
-  ["COMPLETE", "Documents complete"],
-  ["INCOMPLETE", "Documents incomplete"],
-  ["URGENT", "Urgent"],
-  ["HIGH", "High"],
-  ["NORMAL", "Normal"],
-  ["LOW", "Low"],
-  ["IMGC", "IMGC"],
-  ["LENDER", "Lender"],
-  ["REQUESTED", "Reinstate requested"],
-  ["DENIED", "Reinstate denied"],
-]);
-
 /** Every `TONES` entry is "bg-* text-*" — pull just the text color back out for `flat`. */
 function textToneOf(tone: string): string {
   return (
@@ -91,9 +60,15 @@ export function StatusPill({
   className,
   maxChars,
   flat = false,
+  label: labelOverride,
 }: Readonly<{
   status: DocStatus | ClaimStatus | Bucket | string;
   className?: string;
+  /**
+   * Overrides the word for this status without changing the shared vocabulary — a REJECTED
+   * *document* reads "Rejected", while a REJECTED *claim* stays "Ineligible".
+   */
+  label?: string;
   /** Cap the visible label (e.g. in a narrow grid column); the full label moves to a tooltip. */
   maxChars?: number;
   /**
@@ -104,7 +79,10 @@ export function StatusPill({
    */
   flat?: boolean;
 }>) {
-  const label = LABELS.get(status) ?? status;
+  // One vocabulary for claims, documents and buckets, in the catalogue. `has` keeps an unknown
+  // value (an older stored status) rendering as itself rather than throwing.
+  const t = useTranslations("status");
+  const label = labelOverride ?? (t.has(status) ? t(status) : status);
   const clipped =
     maxChars && label.length > maxChars
       ? `${label.slice(0, maxChars).trimEnd()}...`
@@ -116,7 +94,7 @@ export function StatusPill({
     return (
       <span
         className={cn(
-          "text-[11.5px] font-semibold whitespace-nowrap",
+          "text-ui-body-sm font-semibold whitespace-nowrap",
           textToneOf(tone),
           className
         )}
@@ -130,7 +108,7 @@ export function StatusPill({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap",
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-ui-body-sm font-semibold whitespace-nowrap",
         tone,
         className
       )}

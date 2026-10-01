@@ -1,5 +1,10 @@
 "use server";
 
+import {
+  fail,
+  type ServerErrorCode,
+  type ServerErrorParams,
+} from "@/config/errorCodes";
 import { revalidatePath } from "next/cache";
 
 import { ROUTES } from "@/constants/route";
@@ -27,7 +32,11 @@ import { addRemark } from "@/services/portal/remarks.server";
 import { pushToPas } from "@/services/portal/pas.server";
 import { setClaimStatus } from "@/services/portal/accounts.server";
 
-export type Result = Readonly<{ ok: boolean; error?: string }>;
+export type Result = Readonly<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}>;
 
 function refresh(accountId: string): void {
   revalidatePath(ROUTES.account(accountId));
@@ -47,7 +56,7 @@ export async function uploadDocumentAction(
     const accountId = String(formData.get("accountId") ?? "");
     const documentId = String(formData.get("documentId") ?? "");
     const incoming = incomingUploadFrom(formData);
-    if (!incoming) return { ok: false, error: "Choose a file to upload." };
+    if (!incoming) return fail("FILE_REQUIRED");
 
     const replaceFileId = formData.get("replaceFileId")
       ? String(formData.get("replaceFileId"))

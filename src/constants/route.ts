@@ -47,7 +47,6 @@ export const ROUTES = {
   /** IMGC only — configure which documents each lender's INITIAL claims require. */
   adminDocumentConfig: "/admin/document-config",
   /** IMGC Admin only — select a lender context. */
-  adminWorkspace: "/admin/workspace",
   logout: "/api/auth/logout",
 
   /* ── retained from the base template (unused by the portal nav) ── */

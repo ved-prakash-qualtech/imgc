@@ -111,6 +111,63 @@
   --color-brand-muted: var(--brand-muted);
   --color-brand-light: var(--brand-light);
 
+  /*
+   * Spacing base unit. Tailwind derives every p-*, m-*, gap-*, w-* and h-* step from this, so
+   * density moves padding and gaps with the type rather than leaving text floating in fixed
+   * boxes. 0.25rem is Tailwind's own default, so --ui-scale: 1 changes nothing.
+   */
+  --spacing: calc(0.25rem * var(--ui-scale));
+
+  /*
+   * Dense UI type scale — `text-ui-body`, `text-ui-label`, … Named by role rather than by pixel
+   * size, and each one scales with `--ui-scale`. These carry no line-height, so they behave
+   * exactly like the literal sizes they replaced; leading stays a per-component decision.
+   */
+  --text-ui-nano: calc(8px * var(--ui-scale));
+  --text-ui-micro: calc(9px * var(--ui-scale));
+  --text-ui-micro-lg: calc(9.5px * var(--ui-scale));
+  --text-ui-tiny: calc(10px * var(--ui-scale));
+  --text-ui-caption: calc(10.5px * var(--ui-scale));
+  --text-ui-label: calc(11px * var(--ui-scale));
+  --text-ui-body-sm: calc(11.5px * var(--ui-scale));
+  --text-ui-body: calc(12px * var(--ui-scale));
+  --text-ui-body-lg: calc(12.5px * var(--ui-scale));
+  --text-ui-subhead: calc(13px * var(--ui-scale));
+  --text-ui-subhead-lg: calc(13.5px * var(--ui-scale));
+  --text-ui-lead: calc(14px * var(--ui-scale));
+  --text-ui-lead-lg: calc(14.5px * var(--ui-scale));
+  --text-ui-title: calc(15px * var(--ui-scale));
+  --text-ui-title-lg: calc(16px * var(--ui-scale));
+  --text-ui-heading: calc(17px * var(--ui-scale));
+  --text-ui-heading-lg: calc(18px * var(--ui-scale));
+  --text-ui-display-sm: calc(20px * var(--ui-scale));
+  --text-ui-display: calc(22px * var(--ui-scale));
+  --text-ui-display-lg: calc(24px * var(--ui-scale));
+  --text-ui-pico: calc(7.5px * var(--ui-scale));
+  --text-ui-heading-xl: calc(19px * var(--ui-scale));
+  --text-ui-display-xl: calc(26px * var(--ui-scale));
+  --text-ui-hero-sm: calc(34px * var(--ui-scale));
+  --text-ui-hero: calc(44px * var(--ui-scale));
+
+  /* Charts — `text-chart-2`, `bg-chart-positive`, etc. */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-positive: var(--chart-positive);
+  --color-chart-negative: var(--chart-negative);
+  --color-brand-on-dark: var(--brand-on-dark);
+  --color-brand-on-dark-strong: var(--brand-on-dark-strong);
+  --color-band-shadow: var(--band-shadow);
+  --color-info-on-dark: var(--info-on-dark);
+  --color-success-on-dark: var(--success-on-dark);
+  --color-success-on-dark-soft: var(--success-on-dark-soft);
+  --color-warning-on-dark: var(--warning-on-dark);
+  --color-danger-on-dark: var(--danger-on-dark);
+  --color-danger-on-dark-soft: var(--danger-on-dark-soft);
+
   /* miFIN™ neutral ramp — `bg-neutral-25`, `text-neutral-500`, etc. */
   --color-neutral-950: var(--neutral-950);
   --color-neutral-900: var(--neutral-900);
@@ -288,10 +345,12 @@
   width: 6px;
   height: 6px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background-color: var(--neutral-300);
   border-radius: 9999px;
 }
+
 .custom-scrollbar {
   -ms-overflow-style: auto;
   scrollbar-width: thin;

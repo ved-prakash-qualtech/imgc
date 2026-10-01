@@ -28,7 +28,7 @@ export function CommandBand({
   children?: ReactNode;
 }>) {
   return (
-    <section className="rounded-2xl bg-[linear-gradient(115deg,#2b1d12_0%,#8a4310_55%,#3a2415_100%)] p-3 shadow-lg shadow-[#2b1d12]/25">
+    <section className="rounded-2xl bg-[image:var(--grad-band)] p-3 shadow-lg shadow-band-shadow/25">
       {(title || subtitle || action) && (
         <header
           className={cn(
@@ -39,14 +39,14 @@ export function CommandBand({
           <div className="min-w-0">
             {title && (
               <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
-                <h2 className="font-outfit text-[17px] font-bold text-white">
+                <h2 className="font-outfit text-ui-heading font-bold text-white">
                   {title}
                 </h2>
                 {titleAside}
               </div>
             )}
             {subtitle && (
-              <p className="text-[12.5px] text-white/55">{subtitle}</p>
+              <p className="text-ui-body-lg text-white/55">{subtitle}</p>
             )}
           </div>
           {action && (
@@ -94,7 +94,7 @@ export function BandStat({
   return (
     <div className="rounded-xl border border-white/12 bg-white/8 px-3.5 py-2.5 backdrop-blur-sm">
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <p className="truncate text-[12px] font-medium text-white/70">
+        <p className="truncate text-ui-body font-medium text-white/70">
           {label}
         </p>
         {icon && (
@@ -102,11 +102,11 @@ export function BandStat({
             className={cn(
               "grid size-7 shrink-0 place-items-center rounded-lg",
               accent === "teal"
-                ? "bg-[#ffc48a]/20 text-[#ffc48a]"
+                ? "bg-brand-on-dark/20 text-brand-on-dark"
                 : accent === "amber"
                   ? "bg-warning/20 text-warning"
                   : accent === "rose"
-                    ? "bg-destructive/20 text-[#ff9d97]"
+                    ? "bg-destructive/20 text-danger-on-dark-soft"
                     : "bg-white/12 text-white/80"
             )}
           >
@@ -114,10 +114,10 @@ export function BandStat({
           </span>
         )}
       </div>
-      <p className="font-outfit text-[26px] font-bold leading-none text-white">
+      <p className="font-outfit text-ui-display-xl font-bold leading-none text-white">
         {value}
       </p>
-      <p className="mt-1.5 truncate text-[11.5px] text-white/50">{caption}</p>
+      <p className="mt-1.5 truncate text-ui-body-sm text-white/50">{caption}</p>
     </div>
   );
 }
@@ -138,11 +138,11 @@ export function Section({
     <section>
       <header className="mb-3 flex flex-wrap items-end justify-between gap-2">
         <div className="min-w-0">
-          <h2 className="text-[15px] font-semibold text-neutral-950">
+          <h2 className="text-ui-title font-semibold text-neutral-950">
             {title}
           </h2>
           {subtitle && (
-            <p className="text-[12.5px] text-neutral-500">{subtitle}</p>
+            <p className="text-ui-body-lg text-neutral-500">{subtitle}</p>
           )}
         </div>
         {action}

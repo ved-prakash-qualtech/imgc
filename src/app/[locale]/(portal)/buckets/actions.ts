@@ -1,5 +1,6 @@
 "use server";
 
+import type { ServerErrorCode, ServerErrorParams } from "@/config/errorCodes";
 import { revalidatePath } from "next/cache";
 
 import { ROUTES } from "@/constants/route";
@@ -11,7 +12,11 @@ import {
 } from "@/services/portal/accounts.server";
 import type { Bucket } from "@/server/mock/types";
 
-export type Result = Readonly<{ ok: boolean; error?: string }>;
+export type Result = Readonly<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}>;
 
 function refresh(accountId: string): void {
   revalidatePath(ROUTES.buckets);

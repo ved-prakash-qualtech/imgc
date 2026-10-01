@@ -45,8 +45,10 @@ export async function listAuditForAccount(
 
   // Backfill remarks for existing DOC_UPLOADED events that don't have them
   const db = await readDb();
-  const files = db.documentFiles.filter((f) => f.accountId === accountId && f.uploadRemarks);
-  
+  const files = db.documentFiles.filter(
+    (f) => f.accountId === accountId && f.uploadRemarks
+  );
+
   if (files.length > 0) {
     const fileRemarks = new Map(files.map((f) => [f.id, f.uploadRemarks]));
     return events.map((e) => {

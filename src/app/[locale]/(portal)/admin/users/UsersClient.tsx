@@ -4,7 +4,9 @@
    would mean threading the row back through a prop for no gain; this table renders
    a bounded page of rows, never the full dataset. */
 
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
 import { useCallback, useMemo, useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowDownIcon,
@@ -50,7 +52,7 @@ import type { LenderOrg } from "@/server/mock/types";
 import type { UserRow } from "@/services/portal/users.server";
 
 type SortKey = "name" | "email" | "role" | "organization" | "status";
-/** The organisations table's own sortable columns — "Actions" is not one. */
+/** The organisations table's own sortable columns — t("columns.actions") is not one. */
 type OrgSortKey = "name" | "emailDomain" | "users";
 type SortDirection = "asc" | "desc" | null;
 
@@ -94,7 +96,7 @@ function SortableTableHead<K extends string>({
   return (
     <TableHead
       onClick={() => onToggle(column)}
-      className={`h-8 cursor-pointer select-none px-1.5 text-[10.5px] transition-colors hover:bg-neutral-50 ${className || ""}`}
+      className={`h-8 cursor-pointer select-none px-1.5 text-ui-caption transition-colors hover:bg-neutral-50 ${className || ""}`}
     >
       <div className="flex items-center">
         {label}
@@ -135,15 +137,26 @@ function csvField(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
-function downloadUsersCsv(users: UserRow[]): void {
-  const headers = ["Name", "Email", "Role", "Organisation", "Sign-in"];
+function downloadUsersCsv(
+  users: UserRow[],
+  t: (key: string, values?: Record<string, string | number>) => string
+): void {
+  const headers = [
+    t("columnsMore.name"),
+    t("columns.email"),
+    t("columnsMore.role"),
+    t("columns.organisation"),
+    t("columns.signIn"),
+  ];
   const lines = users.map((u) =>
     [
       u.name,
       u.email,
       u.role,
       u.lenderOrgName ?? "IMGC",
-      u.role === "IMGC" ? `Employee ID ${u.employeeId}` : "Email one-time code",
+      u.role === "IMGC"
+        ? t("employeeId", { id: u.employeeId ?? "" })
+        : t("signInMethod"),
     ]
       .map(csvField)
       .join(",")
@@ -160,8 +173,12 @@ function downloadUsersCsv(users: UserRow[]): void {
   URL.revokeObjectURL(url);
 }
 
-function downloadOrgsCsv(orgs: LenderOrg[]): void {
-  const headers = ["Organisation", "Email Domain", "Stakeholder Mailboxes"];
+function downloadOrgsCsv(orgs: LenderOrg[], t: (key: string) => string): void {
+  const headers = [
+    t("columns.organisation"),
+    t("columns.emailDomain"),
+    t("columns.stakeholderMailboxes"),
+  ];
   const lines = orgs.map((o) =>
     [o.name, o.emailDomain, o.contactEmails.join("; ")].map(csvField).join(",")
   );
@@ -200,6 +217,7 @@ function OrgRow({
   userCount: number;
   onEdit: (next: { mode: "edit"; org: LenderOrg }) => void;
 }>) {
+  const t = useTranslations("admin.lenderAccess");
   const handleEdit = useCallback(
     () => onEdit({ mode: "edit", org }),
     [onEdit, org]
@@ -208,31 +226,31 @@ function OrgRow({
     <TableRow>
       <TableCell className="px-1.5 py-0.5">
         <div className="flex items-center gap-2">
-          <span className="grid size-5 shrink-0 place-items-center rounded-md bg-brand-light text-[10px] font-bold text-brand-dark">
+          <span className="grid size-5 shrink-0 place-items-center rounded-md bg-brand-light text-ui-tiny font-bold text-brand-dark">
             {initialsOf(org.name)}
           </span>
-          <span className="text-[12px] font-medium whitespace-nowrap text-neutral-950">
+          <span className="text-ui-body font-medium whitespace-nowrap text-neutral-950">
             {org.name}
           </span>
         </div>
       </TableCell>
       <TableCell className="px-1.5 py-0.5">
-        <code className="rounded bg-neutral-100 px-1.5 py-0.5 text-[11px] whitespace-nowrap">
+        <code className="rounded bg-neutral-100 px-1.5 py-0.5 text-ui-label whitespace-nowrap">
           @{org.emailDomain}
         </code>
       </TableCell>
       <TableCell className="px-1.5 py-0.5">
         <span
           className={cn(
-            "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold whitespace-nowrap",
+            "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-ui-caption font-semibold whitespace-nowrap",
             userCount === 0
               ? "bg-neutral-100 text-neutral-500"
               : "bg-info/12 text-info"
           )}
           title={
             userCount === 0
-              ? "No one from this organisation can sign in yet"
-              : `${userCount} lender user(s)`
+              ? t("noneCanSignIn")
+              : t("userCountTitle", { count: userCount })
           }
         >
           <UsersIcon className="size-3" />
@@ -241,7 +259,7 @@ function OrgRow({
       </TableCell>
       <TableCell className="px-1.5 py-0.5">
         <Button variant="outline" size="xs" onClick={handleEdit}>
-          <PencilIcon /> Edit
+          <PencilIcon /> {t("edit")}
         </Button>
       </TableCell>
     </TableRow>
@@ -269,6 +287,7 @@ function OrgForm({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
 }>) {
+  const t = useTranslations("admin.lenderAccess");
   const editing = mode === "edit";
   return (
     <form
@@ -278,14 +297,16 @@ function OrgForm({
       onSubmit={onSubmit}
       className="border-b border-neutral-100 bg-neutral-25 px-5 py-2"
     >
-      <p className="mb-2 flex items-center gap-1.5 text-[12.5px] font-semibold text-neutral-800">
+      <p className="mb-2 flex items-center gap-1.5 text-ui-body-lg font-semibold text-neutral-800">
         <Building2Icon className="size-3.5 text-brand-primary" />
-        {editing ? `Edit ${org?.name}` : "Add a lender organisation"}
+        {editing
+          ? t("form.editOrg", { name: org?.name ?? "" })
+          : t("addOrganisation")}
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <label className="min-w-[200px] flex-1">
-          <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-            Organisation name
+          <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+            {t("form.organisationName")}
           </span>
           <input
             name="orgName"
@@ -294,13 +315,13 @@ function OrgForm({
             // The form opens on the user's own button press, so focus follows their action.
             // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
-            placeholder="Bajaj Housing Finance"
-            className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            placeholder={t("placeholders.organisation")}
+            className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           />
         </label>
         <label className="min-w-[200px] flex-1">
-          <span className="mb-1 flex items-center gap-1 text-[12.5px] font-medium text-neutral-700">
-            Email domain
+          <span className="mb-1 flex items-center gap-1 text-ui-body-lg font-medium text-neutral-700">
+            {t("form.emailDomain")}
             {editing && <LockIcon className="size-3 text-neutral-400" />}
           </span>
           <input
@@ -308,35 +329,33 @@ function OrgForm({
             required={!editing}
             disabled={editing}
             defaultValue={org?.emailDomain ?? ""}
-            placeholder="bajajhousing.com"
-            className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500"
+            placeholder={t("placeholders.domain")}
+            className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500"
           />
         </label>
         <label className="min-w-[240px] flex-[2]">
-          <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-            Stakeholder mailboxes{" "}
+          <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+            {t("form.stakeholderMailboxes")}{" "}
             <span className="font-normal text-neutral-400">
-              (comma separated, optional)
+              {t("form.mailboxesHint")}
             </span>
           </span>
           <input
             name="contactEmails"
             defaultValue={org?.contactEmails.join(", ") ?? ""}
-            placeholder="claims@bajajhousing.com, ops@bajajhousing.com"
-            className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            placeholder={t("placeholders.mailboxes")}
+            className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           />
         </label>
         <Button type="submit" size="sm" disabled={pending}>
-          {editing ? "Save changes" : "Add organisation"}
+          {editing ? t("saveChanges") : t("addOrganisation")}
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
       </div>
-      <p className="mt-2 text-[11.5px] text-neutral-500">
-        {editing
-          ? "The domain cannot be changed — it is what scopes this lender's accounts, claims and users."
-          : "Anyone later granted access at this domain is scoped to this organisation automatically."}
+      <p className="mt-2 text-ui-body-sm text-neutral-500">
+        {editing ? t("form.domainLockedHelp") : t("form.addOrgHelp")}
       </p>
     </form>
   );
@@ -346,6 +365,8 @@ export function UsersClient({
   users,
   orgs,
 }: Readonly<{ users: UserRow[]; orgs: LenderOrg[] }>) {
+  const errorText = useServerErrorMessage();
+  const t = useTranslations("admin.lenderAccess");
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
@@ -496,8 +517,8 @@ export function UsersClient({
   );
 
   const handleExportUsers = useCallback(
-    () => downloadUsersCsv(filtered),
-    [filtered]
+    () => downloadUsersCsv(filtered, t),
+    [filtered, t]
   );
 
   /* ── granting access ─────────────────────────────────────────────── */
@@ -506,7 +527,7 @@ export function UsersClient({
    * Which lender the new user belongs to: "" until chosen, then the lender's email domain — the
    * key the server scopes on. Holding the *domain* rather than an id is deliberate: it is exactly
    * what the address has to end in, so the two cannot drift apart. A lender that does not exist
-   * yet is onboarded on the "Lender organisations" tab first, not from inside this form.
+   * yet is onboarded on the t("organisations") tab first, not from inside this form.
    */
   const [grantOrg, setGrantOrg] = useState("");
   /** Mailbox name only — the domain comes from the selected lender. */
@@ -613,7 +634,7 @@ export function UsersClient({
     return counts;
   }, [users]);
 
-  /** "Awaiting first user" is the state Option B made reachable — an organisation onboarded
+  /** t("awaitingFirstUser") is the state Option B made reachable — an organisation onboarded
    *  before anyone from it has a login — so it is worth being able to filter down to it. */
   const [orgFilter, setOrgFilter] = useState<"ALL" | "AWAITING" | "ACTIVE">(
     () => orgFilterFromParam(searchParams.get("orgs"))
@@ -717,8 +738,8 @@ export function UsersClient({
   }
 
   const handleExportOrgs = useCallback(
-    () => downloadOrgsCsv(visibleOrgs),
-    [visibleOrgs]
+    () => downloadOrgsCsv(visibleOrgs, t),
+    [visibleOrgs, t]
   );
 
   // Plain functions, not `useCallback`: this project builds with the React Compiler
@@ -753,13 +774,13 @@ export function UsersClient({
           )
         : await updateLenderOrgAction(orgId, name, mailboxes);
       if (!result.ok) {
-        toast.error(result.error ?? "That could not be saved.");
+        toast.error(errorText(result) ?? t("toast.saveFailed"));
         return;
       }
       toast.success(
         creating
-          ? `"${name.trim()}" added — lenders on that domain will scope to it.`
-          : "Organisation updated."
+          ? t("form.orgAdded", { name: name.trim() })
+          : t("toast.organisationUpdated")
       );
       form.reset();
       setOrgForm(null);
@@ -776,10 +797,10 @@ export function UsersClient({
     if (!email) {
       toast.error(
         !selectedGrantOrg
-          ? "Choose a lender first."
+          ? t("toast.chooseLender")
           : grantLocal.includes("@")
-            ? "That address's domain doesn't match the lender selected — fix one or the other."
-            : "Enter the mailbox name."
+            ? t("form.domainMismatch")
+            : t("toast.enterMailbox")
       );
       return;
     }
@@ -792,10 +813,10 @@ export function UsersClient({
         ""
       );
       if (!result.ok) {
-        toast.error(result.error ?? "Access could not be granted.");
+        toast.error(errorText(result) ?? t("toast.accessFailed"));
         return;
       }
-      toast.success("Lender access granted — a welcome message has been sent.");
+      toast.success(t("form.accessGranted"));
       form.reset();
       // `form.reset()` does not clear controlled inputs, so the lender and address have to be
       // cleared explicitly, or the next open starts pre-filled with the last grant.
@@ -812,7 +833,7 @@ export function UsersClient({
       <div
         className="flex flex-wrap gap-1 border-b border-neutral-200"
         role="tablist"
-        aria-label="Lender access sections"
+        aria-label={t("sectionsLabel")}
       >
         <button
           type="button"
@@ -820,14 +841,14 @@ export function UsersClient({
           aria-selected={tab === "users"}
           onClick={showUsers}
           className={cn(
-            "-mb-px border-b-2 px-3.5 py-1.5 text-[13px] font-medium transition-colors",
+            "-mb-px border-b-2 px-3.5 py-1.5 text-ui-subhead font-medium transition-colors",
             tab === "users"
               ? "border-brand-primary text-brand-primary"
               : "border-transparent text-neutral-500 hover:text-neutral-800"
           )}
         >
-          Lender access
-          <span className="ml-1.5 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-bold text-neutral-600">
+          {t("tabs.users")}
+          <span className="ml-1.5 rounded-full bg-neutral-100 px-1.5 py-0.5 text-ui-caption font-bold text-neutral-600">
             {users.length}
           </span>
         </button>
@@ -837,23 +858,23 @@ export function UsersClient({
           aria-selected={tab === "organisations"}
           onClick={showOrganisations}
           className={cn(
-            "-mb-px border-b-2 px-3.5 py-1.5 text-[13px] font-medium transition-colors",
+            "-mb-px border-b-2 px-3.5 py-1.5 text-ui-subhead font-medium transition-colors",
             tab === "organisations"
               ? "border-brand-primary text-brand-primary"
               : "border-transparent text-neutral-500 hover:text-neutral-800"
           )}
         >
-          Lender organisations
+          {t("tabs.organisations")}
           <span
             className={cn(
-              "ml-1.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold",
+              "ml-1.5 rounded-full px-1.5 py-0.5 text-ui-caption font-bold",
               awaitingFirstUser > 0
                 ? "bg-warning/15 text-warning"
                 : "bg-neutral-100 text-neutral-600"
             )}
             title={
               awaitingFirstUser > 0
-                ? `${awaitingFirstUser} organisation(s) with nobody able to sign in yet`
+                ? t("awaitingOrgsTitle", { count: awaitingFirstUser })
                 : undefined
             }
           >
@@ -876,18 +897,18 @@ export function UsersClient({
             >
               <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
                 <label className="block">
-                  <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                    Full name
+                  <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+                    {t("form.fullName")}
                   </span>
                   <input
                     name="name"
                     required
-                    // The form opens on the user's own "Grant access" press, so focus follows
+                    // The form opens on the user's own t("grantAccess") press, so focus follows
                     // the action they took.
                     // eslint-disable-next-line jsx-a11y/no-autofocus
                     autoFocus
-                    placeholder="Arjun Mehta"
-                    className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                    placeholder={t("placeholders.person")}
+                    className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                   />
                 </label>
                 {/* The lender is picked first, because it is the decision the rest of the form
@@ -896,16 +917,16 @@ export function UsersClient({
                 expressible. A lender that does not exist yet is added on the "Lender
                 organisations" tab, not from here. */}
                 <label className="block">
-                  <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                    Lender organisation
+                  <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+                    {t("form.lenderOrganisation")}
                   </span>
                   <div className="relative">
                     <select
                       value={grantOrg}
                       onChange={(e) => handleGrantOrgChange(e.target.value)}
-                      className="h-9 w-full appearance-none truncate rounded-lg border border-neutral-200 bg-white pl-3 pr-8 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                      className="h-9 w-full appearance-none truncate rounded-lg border border-neutral-200 bg-white pl-3 pr-8 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     >
-                      <option value="">Select a lender…</option>
+                      <option value="">{t("form.selectLender")}</option>
                       {orgs.map((o) => (
                         <option key={o.id} value={o.emailDomain}>
                           {o.name}
@@ -917,8 +938,8 @@ export function UsersClient({
                 </label>
 
                 <label className="block">
-                  <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                    Work email
+                  <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+                    {t("form.workEmail")}
                   </span>
                   {selectedGrantOrg ? (
                     // Mailbox name, with the lender's domain fixed alongside it — but a whole address
@@ -939,38 +960,38 @@ export function UsersClient({
                           }
                           onBlur={handleGrantLocalBlur}
                           required
-                          placeholder="arjun"
-                          aria-label="Mailbox name"
+                          placeholder={t("form.mailboxPlaceholder")}
+                          aria-label={t("form.mailboxName")}
                           aria-invalid={Boolean(grantMailboxError)}
-                          className="min-w-0 flex-1 px-3 text-[13px] outline-none"
+                          className="min-w-0 flex-1 px-3 text-ui-subhead outline-none"
                         />
-                        <span className="flex items-center whitespace-nowrap border-l border-neutral-200 bg-neutral-50 px-2.5 text-[12.5px] text-neutral-500">
+                        <span className="flex items-center whitespace-nowrap border-l border-neutral-200 bg-neutral-50 px-2.5 text-ui-body-lg text-neutral-500">
                           @{selectedGrantOrg.emailDomain}
                         </span>
                       </div>
                       {grantMailboxError && (
-                        <p className="mt-1 text-[11.5px] text-destructive">
+                        <p className="mt-1 text-ui-body-sm text-destructive">
                           {grantMailboxError}
                         </p>
                       )}
                     </>
                   ) : (
-                    <div className="flex h-9 items-center rounded-lg border border-dashed border-neutral-200 px-3 text-[12.5px] text-neutral-400">
-                      Select a lender first
+                    <div className="flex h-9 items-center rounded-lg border border-dashed border-neutral-200 px-3 text-ui-body-lg text-neutral-400">
+                      {t("form.selectLenderFirst")}
                     </div>
                   )}
                 </label>
               </div>
 
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[11.5px] text-neutral-500">
+                <p className="text-ui-body-sm text-neutral-500">
                   {selectedGrantOrg
-                    ? `They will see only ${selectedGrantOrg.name}'s accounts.`
-                    : "Pick the lender first; the address's domain is what scopes them."}
+                    ? t("form.scopedTo", { org: selectedGrantOrg.name })
+                    : t("form.pickLenderFirst")}
                 </p>
                 <div className="flex items-center gap-2">
                   <Button type="submit" size="sm" disabled={pending}>
-                    Grant access
+                    {t("grantAccess")}
                   </Button>
                   <Button
                     type="button"
@@ -994,30 +1015,30 @@ export function UsersClient({
               <input
                 value={query}
                 onChange={handleQueryChange}
-                placeholder="Name, email, organisation…"
-                aria-label="Search users"
-                className="h-8 w-[260px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                placeholder={t("filters.searchUsersPlaceholder")}
+                aria-label={t("filters.searchUsers")}
+                className="h-8 w-[260px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
               />
             </div>
             <div className="relative">
               <select
-                aria-label="Role"
+                aria-label={t("filters.roleLabel")}
                 value={roleFilter}
                 onChange={(e) => handleRoleFilterChange(e.target.value)}
-                className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-[12.5px] font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-ui-body-lg font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
               >
-                <option value="ALL">All roles</option>
-                <option value="LENDER">Lender users</option>
-                <option value="IMGC">IMGC staff</option>
+                <option value="ALL">{t("filters.allRoles")}</option>
+                <option value="LENDER">{t("filters.lenderUsers")}</option>
+                <option value="IMGC">{t("filters.imgcStaff")}</option>
               </select>
               <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
             </div>
             <div className="ml-auto flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={handleExportUsers}>
-                <DownloadIcon /> Export CSV
+                <DownloadIcon /> {t("exportCsv")}
               </Button>
               <Button size="sm" onClick={() => setOpen((v) => !v)}>
-                <UserPlusIcon /> Grant access
+                <UserPlusIcon /> {t("grantAccess")}
               </Button>
             </div>
           </div>
@@ -1028,35 +1049,35 @@ export function UsersClient({
                 <TableRow>
                   <SortableTableHead
                     column="name"
-                    label="Name"
+                    label={t("columnsMore.name")}
                     sortKey={sortKey}
                     sortDirection={sortDirection}
                     onToggle={toggleSort}
                   />
                   <SortableTableHead
                     column="email"
-                    label="Email"
+                    label={t("columns.email")}
                     sortKey={sortKey}
                     sortDirection={sortDirection}
                     onToggle={toggleSort}
                   />
                   <SortableTableHead
                     column="role"
-                    label="Role"
+                    label={t("columnsMore.role")}
                     sortKey={sortKey}
                     sortDirection={sortDirection}
                     onToggle={toggleSort}
                   />
                   <SortableTableHead
                     column="organization"
-                    label="Organisation"
+                    label={t("columns.organisation")}
                     sortKey={sortKey}
                     sortDirection={sortDirection}
                     onToggle={toggleSort}
                   />
                   <SortableTableHead
                     column="status"
-                    label="Sign-in"
+                    label={t("columns.signIn")}
                     sortKey={sortKey}
                     sortDirection={sortDirection}
                     onToggle={toggleSort}
@@ -1068,24 +1089,24 @@ export function UsersClient({
                   <TableRow>
                     <TableCell
                       colSpan={5}
-                      className="py-12 text-center text-[13px] text-neutral-500"
+                      className="py-12 text-center text-ui-subhead text-neutral-500"
                     >
-                      No users match your search.
+                      {t("noUsersMatch")}
                     </TableCell>
                   </TableRow>
                 ) : (
                   currentUsers.map((u) => (
                     <TableRow key={u.id}>
-                      <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
+                      <TableCell className="px-1.5 py-1.5 text-ui-body font-medium whitespace-nowrap text-neutral-950">
                         {u.name}
                       </TableCell>
-                      <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-600">
+                      <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap text-neutral-600">
                         {u.email}
                       </TableCell>
                       <TableCell className="px-1.5 py-1.5">
                         <span
                           className={cn(
-                            "rounded px-1.5 py-0.5 text-[10.5px] font-semibold whitespace-nowrap",
+                            "rounded px-1.5 py-0.5 text-ui-caption font-semibold whitespace-nowrap",
                             u.role === "IMGC"
                               ? "bg-brand-muted text-brand-dark"
                               : "bg-warning/15 text-warning"
@@ -1094,13 +1115,13 @@ export function UsersClient({
                           {u.role}
                         </span>
                       </TableCell>
-                      <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-600">
+                      <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap text-neutral-600">
                         {u.lenderOrgName ?? "IMGC"}
                       </TableCell>
-                      <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-500">
+                      <TableCell className="px-1.5 py-1.5 text-ui-body-sm whitespace-nowrap text-neutral-500">
                         {u.role === "IMGC"
-                          ? `Employee ID ${u.employeeId}`
-                          : "Email one-time code"}
+                          ? t("employeeId", { id: u.employeeId ?? "" })
+                          : t("signInMethod")}
                       </TableCell>
                     </TableRow>
                   ))
@@ -1110,30 +1131,30 @@ export function UsersClient({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-1.5">
-            <div className="flex items-center gap-3 text-[12px] text-neutral-500">
+            <div className="flex items-center gap-3 text-ui-body text-neutral-500">
               <div className="flex items-center gap-2">
-                <span>Rows per page</span>
+                <span>{t("rowsPerPage")}</span>
                 <Select
                   value={String(pageSize)}
                   onValueChange={handlePageSizeChange}
                 >
                   <SelectTrigger
                     size="sm"
-                    className="h-8 w-[70px] bg-white text-[12px]"
+                    className="h-8 w-[70px] bg-white text-ui-body"
                   >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="5" className="text-[12px]">
+                    <SelectItem value="5" className="text-ui-body">
                       5
                     </SelectItem>
-                    <SelectItem value="10" className="text-[12px]">
+                    <SelectItem value="10" className="text-ui-body">
                       10
                     </SelectItem>
-                    <SelectItem value="20" className="text-[12px]">
+                    <SelectItem value="20" className="text-ui-body">
                       20
                     </SelectItem>
-                    <SelectItem value="50" className="text-[12px]">
+                    <SelectItem value="50" className="text-ui-body">
                       50
                     </SelectItem>
                   </SelectContent>
@@ -1143,19 +1164,21 @@ export function UsersClient({
                 "Lender Users" tile in the band above — it counts lenders only, this counts
                 everyone who can sign in. */}
               <span className="hidden sm:inline">
-                Total {filtered.length} user{filtered.length === 1 ? "" : "s"}
+                {t("totalUsers", { count: filtered.length })}
                 {roleFilter === "ALL" && !query.trim() && (
                   <span className="text-neutral-400">
-                    {" "}
-                    · {lenderUserCount} lender · {imgcUserCount} IMGC staff
+                    {t("userSplit", {
+                      lender: lenderUserCount,
+                      staff: imgcUserCount,
+                    })}
                   </span>
                 )}
               </span>
             </div>
 
             <div className="flex items-center gap-4">
-              <span className="hidden text-[12px] text-neutral-500 sm:inline">
-                Page {currentPage} of {pageCount}
+              <span className="hidden text-ui-body text-neutral-500 sm:inline">
+                {t("pageOf", { page: currentPage, pageCount })}
               </span>
               <PaginationNumbers
                 page={currentPage}
@@ -1171,15 +1194,15 @@ export function UsersClient({
         <Panel
           size="compact"
           id="organisations"
-          title="Lender organisations"
-          description="Scope is keyed on the email domain — every account, claim and user a lender sees follows from it."
+          title={t("organisations")}
+          description={t("orgsDescription")}
           actions={
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={handleExportOrgs}>
-                <DownloadIcon /> Export CSV
+                <DownloadIcon /> {t("exportCsv")}
               </Button>
               <Button size="sm" onClick={openCreateOrg}>
-                <PlusIcon /> Add organisation
+                <PlusIcon /> {t("addOrganisation")}
               </Button>
             </div>
           }
@@ -1203,21 +1226,21 @@ export function UsersClient({
               <input
                 value={orgQuery}
                 onChange={handleOrgQueryChange}
-                placeholder="Organisation, domain, mailbox…"
-                aria-label="Search lender organisations"
-                className="h-8 w-[260px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                placeholder={t("filters.searchOrgsPlaceholder")}
+                aria-label={t("filters.searchOrgs")}
+                className="h-8 w-[260px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
               />
             </div>
             <div className="relative">
               <select
-                aria-label="Access state"
+                aria-label={t("filters.accessState")}
                 value={orgFilter}
                 onChange={(e) => handleOrgFilterChange(e.target.value)}
-                className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-[12.5px] font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-ui-body-lg font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
               >
-                <option value="ALL">All organisations</option>
-                <option value="ACTIVE">Has users</option>
-                <option value="AWAITING">Awaiting first user</option>
+                <option value="ALL">{t("filters.allOrganisations")}</option>
+                <option value="ACTIVE">{t("filters.hasUsers")}</option>
+                <option value="AWAITING">{t("awaitingFirstUser")}</option>
               </select>
               <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
             </div>
@@ -1229,27 +1252,27 @@ export function UsersClient({
                 <TableRow>
                   <SortableTableHead
                     column="name"
-                    label="Organisation"
+                    label={t("columns.organisation")}
                     sortKey={orgSortKey}
                     sortDirection={orgSortDirection}
                     onToggle={toggleOrgSort}
                   />
                   <SortableTableHead
                     column="emailDomain"
-                    label="Email domain"
+                    label={t("columnsMore.emailDomain")}
                     sortKey={orgSortKey}
                     sortDirection={orgSortDirection}
                     onToggle={toggleOrgSort}
                   />
                   <SortableTableHead
                     column="users"
-                    label="Users"
+                    label={t("columnsMore.users")}
                     sortKey={orgSortKey}
                     sortDirection={orgSortDirection}
                     onToggle={toggleOrgSort}
                   />
-                  <TableHead className="h-8 px-1.5 text-left text-[10.5px]">
-                    Actions
+                  <TableHead className="h-8 px-1.5 text-left text-ui-caption">
+                    {t("columns.actions")}
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -1258,11 +1281,9 @@ export function UsersClient({
                   <TableRow>
                     <TableCell
                       colSpan={4}
-                      className="py-10 text-center text-[13px] text-neutral-500"
+                      className="py-10 text-center text-ui-subhead text-neutral-500"
                     >
-                      {orgs.length === 0
-                        ? "No lender organisations yet — add one to start onboarding."
-                        : "No organisation matches your search."}
+                      {orgs.length === 0 ? t("noOrgsYet") : t("noOrgMatch")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -1280,44 +1301,43 @@ export function UsersClient({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-1.5">
-            <div className="flex items-center gap-3 text-[12px] text-neutral-500">
+            <div className="flex items-center gap-3 text-ui-body text-neutral-500">
               <div className="flex items-center gap-2">
-                <span>Rows per page</span>
+                <span>{t("rowsPerPage")}</span>
                 <Select
                   value={String(orgPageSize)}
                   onValueChange={handleOrgPageSizeChange}
                 >
                   <SelectTrigger
                     size="sm"
-                    className="h-8 w-[70px] bg-white text-[12px]"
+                    className="h-8 w-[70px] bg-white text-ui-body"
                   >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="5" className="text-[12px]">
+                    <SelectItem value="5" className="text-ui-body">
                       5
                     </SelectItem>
-                    <SelectItem value="10" className="text-[12px]">
+                    <SelectItem value="10" className="text-ui-body">
                       10
                     </SelectItem>
-                    <SelectItem value="20" className="text-[12px]">
+                    <SelectItem value="20" className="text-ui-body">
                       20
                     </SelectItem>
-                    <SelectItem value="50" className="text-[12px]">
+                    <SelectItem value="50" className="text-ui-body">
                       50
                     </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <span className="hidden sm:inline">
-                Total {visibleOrgs.length} organisation
-                {visibleOrgs.length === 1 ? "" : "s"}
+                {t("totalOrganisations", { count: visibleOrgs.length })}
               </span>
             </div>
 
             <div className="flex items-center gap-4">
-              <span className="hidden text-[12px] text-neutral-500 sm:inline">
-                Page {currentOrgPage} of {orgPageCount}
+              <span className="hidden text-ui-body text-neutral-500 sm:inline">
+                {t("pageOf", { page: currentOrgPage, pageCount: orgPageCount })}
               </span>
               <PaginationNumbers
                 page={currentOrgPage}

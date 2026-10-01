@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -41,9 +42,15 @@ export function useConfirmDelete(): {
   dialog: React.ReactNode;
 } {
   const [request, setRequest] = useState<ConfirmRequest | null>(null);
-
+  const t = useTranslations("claim.confirmDelete");
   const ask = useCallback((next: ConfirmRequest) => setRequest(next), []);
   const close = useCallback(() => setRequest(null), []);
+  const onOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) close();
+    },
+    [close]
+  );
 
   const onConfirm = useCallback(() => {
     // Read it before clearing: the handler may re-render this component.
@@ -53,15 +60,15 @@ export function useConfirmDelete(): {
   }, [request]);
 
   const dialog = (
-    <Dialog open={request !== null} onOpenChange={(open) => !open && close()}>
+    <Dialog open={request !== null} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{request?.title ?? "Delete this file?"}</DialogTitle>
+          <DialogTitle>{request?.title ?? t("defaultTitle")}</DialogTitle>
           <DialogDescription>{request?.description ?? ""}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button type="button" size="sm" variant="outline" onClick={close}>
-            Cancel
+            {t("cancel")}
           </Button>
           <Button
             type="button"
@@ -69,7 +76,7 @@ export function useConfirmDelete(): {
             variant="destructive"
             onClick={onConfirm}
           >
-            {request?.confirmLabel ?? "Delete"}
+            {request?.confirmLabel ?? t("confirm")}
           </Button>
         </DialogFooter>
       </DialogContent>

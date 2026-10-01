@@ -1,8 +1,10 @@
 /* eslint-disable react-perf/jsx-no-new-function-as-prop */
 "use client";
 
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
 import { useCallback, useRef, useState, useTransition } from "react";
 import { FileXIcon, PaperclipIcon, UploadIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { uploadRequirementAction } from "@/app/[locale]/(portal)/additional-documents/actions";
@@ -50,6 +52,8 @@ export function UploadDialog({
   mode?: "upload" | "add" | "replace";
   replaceFileId?: string;
 }>) {
+  const errorText = useServerErrorMessage();
+  const t = useTranslations("claimDocuments");
   const [pending, startTransition] = useTransition();
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -85,7 +89,7 @@ export function UploadDialog({
       const validFiles: File[] = [];
       for (const f of filesToProcess) {
         if (!(ACCEPTED as readonly string[]).includes(f.type)) {
-          setError("Only PDF, JPG, PNG or WEBP files are accepted.");
+          setError(t("toast.fileTypeRejected"));
           setFiles([]);
           return;
         }
@@ -102,7 +106,7 @@ export function UploadDialog({
       }
       setFiles(validFiles);
     },
-    [row?.multiple, isReupload]
+    [row?.multiple, isReupload, t]
   );
 
   const onDrop = useCallback(
@@ -139,7 +143,7 @@ export function UploadDialog({
       if (!row) return;
       if (waiverMode) {
         if (!waiverReason.trim()) {
-          setError("Say why the document cannot be provided.");
+          setError(t("toast.waiverReasonRequired"));
           return;
         }
         startTransition(async () => {
@@ -151,17 +155,17 @@ export function UploadDialog({
             waiverReason
           );
           if (!result.ok) {
-            toast.error(result.error ?? "That waiver could not be requested.");
+            toast.error(errorText(result) ?? t("toast.waiverFailed"));
             return;
           }
           reset();
           onOpenChange(false);
-          toast.success("Waiver requested — IMGC will decide on it.");
+          toast.success(t("toast.waiverRequested"));
         });
         return;
       }
       if (files.length === 0) {
-        setError("Choose a file to upload.");
+        setError(t("toast.chooseFile"));
         return;
       }
       const baseData = new FormData(event.currentTarget);
@@ -210,8 +214,8 @@ export function UploadDialog({
         if (failCount > 0) {
           toast.error(
             files.length === 1
-              ? "That upload failed. Please try again."
-              : `${failCount} file(s) failed to upload.`
+              ? t("toast.uploadFailed")
+              : t("toast.uploadFailedMany", { count: failCount })
           );
         }
       });
@@ -222,9 +226,11 @@ export function UploadDialog({
       reset,
       onOpenChange,
       effectiveMode,
+      t,
       replaceFileId,
       waiverMode,
       waiverReason,
+      errorText,
     ]
   );
 
@@ -241,13 +247,15 @@ export function UploadDialog({
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>
-            {effectiveMode === "add"
-              ? "Add file"
-              : waiverMode
-                ? "Request a waiver"
-                : effectiveMode === "replace"
-                  ? "Replace"
-                  : "Upload"}{" "}
+            {t(
+              effectiveMode === "add"
+                ? "upload.titleAdd"
+                : waiverMode
+                  ? "upload.titleWaiver"
+                  : effectiveMode === "replace"
+                    ? "upload.titleReplace"
+                    : "upload.titleUpload"
+            )}{" "}
             · {row.name}
           </DialogTitle>
           <DialogDescription>
@@ -257,13 +265,13 @@ export function UploadDialog({
         </DialogHeader>
 
         {row.review?.remarks && isReupload && (
-          <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[12.5px] text-neutral-800">
+          <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-ui-body-lg text-neutral-800">
             <span className="font-semibold">IMGC asked for: </span>
             {row.review.remarks}
           </p>
         )}
         {row.description && (
-          <p className="rounded-md border border-brand-primary/15 bg-brand-light/50 px-3 py-2 text-[12.5px] text-neutral-700">
+          <p className="rounded-md border border-brand-primary/15 bg-brand-light/50 px-3 py-2 text-ui-body-lg text-neutral-700">
             {row.description}
           </p>
         )}
@@ -271,8 +279,8 @@ export function UploadDialog({
         <form onSubmit={submit} className="space-y-3">
           {waiverMode ? (
             <div>
-              <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                Why it cannot be provided *
+              <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+                {t("waiver.reasonLabel")}
               </span>
               <textarea
                 value={waiverReason}
@@ -281,34 +289,33 @@ export function UploadDialog({
                   if (error) setError("");
                 }}
                 rows={3}
-                placeholder="e.g. The original NOC was lost; an FIR copy is on file"
+                placeholder={t("waiver.reasonPlaceholder")}
                 className={cn(
-                  "w-full rounded-lg border bg-white px-3 py-2 text-[13px] outline-none focus:ring-2",
+                  "w-full rounded-lg border bg-white px-3 py-2 text-ui-subhead outline-none focus:ring-2",
                   error
                     ? "border-destructive focus:ring-destructive/20"
                     : "border-neutral-200 focus:border-brand-primary focus:ring-brand-primary/20"
                 )}
               />
-              <p className="mt-1 text-[11.5px] text-neutral-500">
-                IMGC decides whether the claim can go ahead without this
-                document.
+              <p className="mt-1 text-ui-body-sm text-neutral-500">
+                {t("waiver.note")}
               </p>
               {error && (
-                <p className="mt-1 text-[11.5px] text-destructive">{error}</p>
+                <p className="mt-1 text-ui-body-sm text-destructive">{error}</p>
               )}
             </div>
           ) : (
             <>
               <div>
-                <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                  File *
+                <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+                  {t("upload.fileLabel")}
                 </span>
                 <label
                   onDragOver={onDragOver}
                   onDragLeave={onDragLeave}
                   onDrop={onDrop}
                   className={cn(
-                    "flex flex-col cursor-pointer justify-center gap-2 rounded-lg border border-dashed px-3 py-3 text-[13px] transition",
+                    "flex flex-col cursor-pointer justify-center gap-2 rounded-lg border border-dashed px-3 py-3 text-ui-subhead transition",
                     error
                       ? "border-destructive bg-destructive/5 text-destructive"
                       : isDragging
@@ -333,13 +340,13 @@ export function UploadDialog({
                         <div key={i} className="flex items-center gap-2">
                           <PaperclipIcon className="size-4 shrink-0 text-success-600" />
                           <span className="truncate font-medium">{f.name}</span>
-                          <span className="ml-auto shrink-0 text-[11.5px] text-neutral-500">
+                          <span className="ml-auto shrink-0 text-ui-body-sm text-neutral-500">
                             {bytes(f.size)}
                           </span>
                         </div>
                       ))}
                       {row.multiple && !isReupload && (
-                        <div className="mt-1 flex items-center justify-center text-[11.5px] text-neutral-500 hover:text-neutral-700">
+                        <div className="mt-1 flex items-center justify-center text-ui-body-sm text-neutral-500 hover:text-neutral-700">
                           Click or drag to add more files
                         </div>
                       )}
@@ -357,7 +364,7 @@ export function UploadDialog({
                 {error && (
                   <p
                     role="alert"
-                    className="mt-1 text-[12px] font-medium text-destructive"
+                    className="mt-1 text-ui-body font-medium text-destructive"
                   >
                     {error}
                   </p>
@@ -365,14 +372,14 @@ export function UploadDialog({
               </div>
 
               <label className="block">
-                <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                  Remarks
+                <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+                  {t("upload.remarksLabel")}
                 </span>
                 <textarea
                   name="remarks"
                   rows={2}
-                  placeholder="Anything IMGC should know about this document."
-                  className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                  placeholder={t("upload.remarksPlaceholder")}
+                  className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                 />
               </label>
             </>
@@ -395,7 +402,7 @@ export function UploadDialog({
                     setError("");
                   }}
                 >
-                  <FileXIcon /> Request waiver
+                  <FileXIcon /> {t("actions.requestWaiver")}
                 </Button>
               )}
             {waiverMode && (
@@ -409,7 +416,7 @@ export function UploadDialog({
                   setError("");
                 }}
               >
-                Back to upload
+                {t("actions.backToUpload")}
               </Button>
             )}
             <Button
@@ -419,7 +426,7 @@ export function UploadDialog({
               onClick={() => onOpenChange(false)}
               disabled={pending}
             >
-              Cancel
+              {t("actions.cancel")}
             </Button>
             <Button type="submit" size="sm" disabled={pending}>
               {waiverMode ? (
@@ -428,7 +435,8 @@ export function UploadDialog({
                 </>
               ) : (
                 <>
-                  <UploadIcon /> {isReupload ? "Re-upload" : "Upload"}
+                  <UploadIcon />{" "}
+                  {t(isReupload ? "actions.reupload" : "actions.upload")}
                 </>
               )}
             </Button>

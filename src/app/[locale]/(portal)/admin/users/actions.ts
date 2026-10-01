@@ -1,5 +1,6 @@
 "use server";
 
+import type { ServerErrorCode, ServerErrorParams } from "@/config/errorCodes";
 import { revalidatePath } from "next/cache";
 
 import { ROUTES } from "@/constants/route";
@@ -11,7 +12,11 @@ import {
   updateLenderOrg,
 } from "@/services/portal/users.server";
 
-export type Result = Readonly<{ ok: boolean; error?: string }>;
+export type Result = Readonly<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}>;
 
 /** BRD: initial lender access is granted by IMGC; the email domain decides what they will see. */
 export async function grantLenderAccessAction(

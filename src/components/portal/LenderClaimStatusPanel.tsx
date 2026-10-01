@@ -1,6 +1,7 @@
 "use client";
 
-import { CheckIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { BuildingIcon, CheckIcon } from "lucide-react";
 
 import { CLAIM_STATUS_LABELS } from "@/config/claimConfig";
 import { timelineEntries } from "@/components/portal/ClaimStatusHistoryGraph";
@@ -35,12 +36,16 @@ export function LenderClaimStatusPanel({
   history,
   currentStatus,
   action,
+  initiatedByImgc = false,
 }: Readonly<{
   history: readonly ClaimStatusEntry[];
   currentStatus: ClaimStatusEntry["status"];
   /** Right-hand slot on the bar (e.g. IMGC's Export CSV on the Decision tab). */
   action?: React.ReactNode;
+  /** Claim by IMGC — the claim was started by IMGC for the lender, not by the lender. */
+  initiatedByImgc?: boolean;
 }>) {
+  const t = useTranslations("claim.claimDetail");
   const entries = timelineEntries(history, currentStatus);
   const visualCurrentStatus =
     currentStatus === "DOCUMENTS_RESUBMITTED" ? "UNDER_REVIEW" : currentStatus;
@@ -57,9 +62,17 @@ export function LenderClaimStatusPanel({
     >
       <div className="flex flex-wrap items-center gap-4 px-3 py-2">
         <div className="flex items-center gap-3">
-          <h2 className="text-[14.5px] font-semibold text-neutral-950">
+          <h2 className="text-ui-lead-lg font-semibold text-neutral-950">
             Claim Status
           </h2>
+          {initiatedByImgc && (
+            <span
+              className="rounded-full border border-brand-primary/40 bg-brand-light/70 px-2 py-0.5 text-ui-caption font-semibold whitespace-nowrap text-brand-primary"
+              title={t("startedByImgc")}
+            >
+              Claim Initiated by IMGC
+            </span>
+          )}
           <div
             className={cn(
               "flex items-center rounded-full border px-2 py-1",
@@ -72,7 +85,7 @@ export function LenderClaimStatusPanel({
           >
             <p
               className={cn(
-                "text-[11.5px] leading-tight font-semibold whitespace-nowrap",
+                "text-ui-body-sm leading-tight font-semibold whitespace-nowrap",
                 visualCurrentStatus === "APPROVED"
                   ? "text-success-700"
                   : visualCurrentStatus === "REJECTED"
@@ -84,7 +97,7 @@ export function LenderClaimStatusPanel({
               {CLAIM_STATUS_LABELS[visualCurrentStatus]}
               <span
                 className={cn(
-                  "ml-1.5 rounded-full px-1 py-0.5 text-[8px] font-bold tracking-wide uppercase",
+                  "ml-1.5 rounded-full px-1 py-0.5 text-ui-nano font-bold tracking-wide uppercase",
                   visualCurrentStatus === "APPROVED"
                     ? "bg-success/20 text-success-700"
                     : visualCurrentStatus === "REJECTED"
@@ -99,12 +112,20 @@ export function LenderClaimStatusPanel({
         </div>
 
         <Dialog>
-          <DialogTrigger className="text-[12.5px] font-medium text-brand-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/20 rounded-sm">
+          <DialogTrigger className="text-ui-body-lg font-medium text-brand-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/20 rounded-sm">
             Status Audit Trail
           </DialogTrigger>
           <DialogContent className="flex max-h-[85vh] w-full sm:max-w-md flex-col overflow-hidden p-0">
             <DialogHeader className="shrink-0 border-b border-neutral-100 px-5 py-4">
               <DialogTitle className="text-lg">Status Audit Trail</DialogTitle>
+              {/* Said once, at the top: who started the claim is a fact about the claim, not a
+                  step in it — and per-step attribution is easy to read past. */}
+              {initiatedByImgc && (
+                <p className="mt-1 flex items-center gap-1.5 text-ui-body-lg font-medium text-brand-primary">
+                  <BuildingIcon className="size-3.5 shrink-0" />
+                  Claim Initiated by IMGC on behalf of the lender
+                </p>
+              )}
             </DialogHeader>
             <div className="flex-1 overflow-y-auto bg-neutral-50/50 px-5 py-5 custom-scrollbar">
               <ol className="relative ml-2 border-l border-neutral-200">
@@ -129,12 +150,12 @@ export function LenderClaimStatusPanel({
                       >
                         {isCurrent ? (
                           <span className="relative grid place-items-center leading-none">
-                            <span className="text-[11px] leading-none font-bold">
+                            <span className="text-ui-label leading-none font-bold">
                               {i + 1}
                             </span>
                           </span>
                         ) : isFuture ? (
-                          <span className="text-[11px] leading-none font-bold">
+                          <span className="text-ui-label leading-none font-bold">
                             {i + 1}
                           </span>
                         ) : (
@@ -144,7 +165,7 @@ export function LenderClaimStatusPanel({
                       <div className="flex flex-col">
                         <h3
                           className={cn(
-                            "text-[13px] font-semibold leading-tight",
+                            "text-ui-subhead font-semibold leading-tight",
                             isCurrent
                               ? "text-brand-primary"
                               : isFuture
@@ -154,7 +175,7 @@ export function LenderClaimStatusPanel({
                         >
                           {CLAIM_STATUS_LABELS[entry.status]}
                         </h3>
-                        <p className="mt-0.5 text-[11.5px] text-neutral-500">
+                        <p className="mt-0.5 text-ui-body-sm text-neutral-500">
                           {isFuture ? "—" : when(entry.at)}
                         </p>
                         {/* The full chain of who did what, when — every entry already carries
@@ -163,7 +184,7 @@ export function LenderClaimStatusPanel({
                             is what a reader actually wants at a glance. */}
                         {!isFuture && (
                           <p
-                            className="mt-0.5 text-[11.5px] text-neutral-600"
+                            className="mt-0.5 text-ui-body-sm text-neutral-600"
                             title={`User ID: ${entry.byId}`}
                           >
                             by{" "}
@@ -175,15 +196,15 @@ export function LenderClaimStatusPanel({
                         )}
                         <p className="mt-1 flex items-center gap-1.5">
                           {isCurrent ? (
-                            <span className="rounded-full bg-brand-primary/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-brand-primary uppercase">
+                            <span className="rounded-full bg-brand-primary/15 px-1.5 py-0.5 text-ui-micro font-bold tracking-wide text-brand-primary uppercase">
                               Current
                             </span>
                           ) : isFuture ? (
-                            <span className="rounded-full bg-neutral-200/50 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-neutral-500 uppercase">
+                            <span className="rounded-full bg-neutral-200/50 px-1.5 py-0.5 text-ui-micro font-bold tracking-wide text-neutral-500 uppercase">
                               Pending
                             </span>
                           ) : (
-                            <span className="rounded-full bg-success-500/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-success-700 uppercase">
+                            <span className="rounded-full bg-success-500/15 px-1.5 py-0.5 text-ui-micro font-bold tracking-wide text-success-700 uppercase">
                               Completed
                             </span>
                           )}

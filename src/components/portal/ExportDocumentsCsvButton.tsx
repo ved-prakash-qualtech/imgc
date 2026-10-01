@@ -16,7 +16,7 @@ const STATUS: Record<string, string> = {
   PENDING_UPLOAD: "Pending",
   UNDER_REVIEW: "Under review",
   APPROVED: "Accepted",
-  REJECTED: "Ineligible",
+  REJECTED: "Rejected",
   REUPLOAD_REQUIRED: "Re-upload required",
   NOT_REQUESTED: "Not requested",
 };
@@ -66,7 +66,7 @@ export function ExportDocumentsCsvButton({
             f.originalName,
             f.size,
             f.uploadRemarks?.trim() ?? "",
-            r ? (r.decision === "APPROVED" ? "Accepted" : "Ineligible") : "",
+            r ? (r.decision === "APPROVED" ? "Accepted" : "Rejected") : "",
             r?.remarks ?? "",
             r?.byName ?? "",
             r?.at ? new Date(r.at).toLocaleString("en-IN") : "",

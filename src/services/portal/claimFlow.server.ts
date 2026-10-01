@@ -1,5 +1,12 @@
 /* eslint-disable use-client/browser-api */
+
 import "server-only";
+
+import {
+  fail,
+  type ServerErrorCode,
+  type ServerErrorParams,
+} from "@/config/errorCodes";
 
 import { readDb, writeDb } from "@/server/mock/db";
 import {
@@ -43,7 +50,8 @@ import type {
 
 export type Outcome = Readonly<{
   ok: boolean;
-  error?: string;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
   claimId?: string;
   claimNo?: string;
   /** So the caller can revalidate the account's own pages — not every mutation has one to give. */
@@ -108,7 +116,7 @@ function scoped(
     db.accounts
       .filter((a) => {
         if (session.role === "IMGC") {
-          if (session.isAdmin && ctx?.lenderOrgId) {
+          if (ctx?.lenderOrgId) {
             return a.lenderOrgId === ctx.lenderOrgId;
           }
           return true;
@@ -171,9 +179,14 @@ function decorate(claim: Claim, db: MockDb): ClaimRow {
   };
 }
 
-export async function listClaims(session: AppSession): Promise<ClaimRow[]> {
+export async function listClaims(
+  session: AppSession,
+  /** See `listAccounts` — IMGC's dashboard reads every lender regardless of who they are
+   *  currently initiating a claim for. */
+  opts?: { ignoreLenderContext?: boolean }
+): Promise<ClaimRow[]> {
   const db = await readDb();
-  const ctx = await getAdminContextOrNull();
+  const ctx = opts?.ignoreLenderContext ? null : await getAdminContextOrNull();
   const ids = scoped(db, session, ctx);
   return db.claims
     .filter((c) => ids.has(c.accountId))
@@ -761,29 +774,25 @@ export async function createClaim(
 ): Promise<Outcome> {
   const db = await readDb();
   const account = db.accounts.find((a) => a.id === accountId);
-  if (!account) return { ok: false, error: "Account not found." };
+  if (!account) return fail("ACCOUNT_NOT_FOUND");
 
   if (session.role === "LENDER") {
     if (account.lenderOrgId !== session.lenderOrgId) {
-      return { ok: false, error: "That account belongs to another lender." };
+      return fail("ACCOUNT_OTHER_LENDER");
     }
-  } else if (session.role === "IMGC" && session.isAdmin) {
+  } else if (session.role === "IMGC") {
     const ctx = await getAdminContextOrNull();
     if (!ctx?.lenderOrgId || account.lenderOrgId !== ctx.lenderOrgId) {
-      return { ok: false, error: "That account belongs to another lender." };
+      return fail("ACCOUNT_OTHER_LENDER");
     }
   } else {
-    return { ok: false, error: "Only a lender can raise a claim." };
+    return fail("CLAIM_LENDER_ONLY");
   }
 
   const existing = db.claims.find((c) => c.accountId === accountId);
   if (existing) return { ok: true, claimId: existing.id };
   if (!account.npa && !account.writeOff) {
-    return {
-      ok: false,
-      error:
-        "A claim can only be raised once the account is NPA or written off.",
-    };
+    return fail("CLAIM_REQUIRES_NPA");
   }
 
   const claimId = newId("clm");
@@ -795,16 +804,16 @@ export async function createClaim(
       accountId,
       claimType,
       status: "DRAFT",
-      fields: {},
-      statusHistory: [
-        {
-          status: "DRAFT",
-          at: nowIso(),
-          byId: session.userId,
-          byName: session.name,
-          byRole: session.role,
-        },
-      ],
+      // Claim by IMGC: recorded on the claim itself, so both sides can say who started it long
+      // after the session that did it has gone.
+      fields:
+        session.role === "IMGC"
+          ? { __initiatedByImgc: "true", __initiatedByImgcName: session.name }
+          : {},
+      // Empty on purpose. A claim row is created the moment the workspace opens, so a Draft entry
+      // here would say the lender did something they have not done. The first entry is written by
+      // Save Draft, or by the submission itself if they never save.
+      statusHistory: [],
       createdById: session.userId,
       createdByName: session.name,
       createdAt: nowIso(),
@@ -838,12 +847,9 @@ export async function switchClaimType(
 
   const outcome = await writeDb((db) => {
     const claim = db.claims.find((c) => c.id === claimId);
-    if (!claim) return { ok: false as const, error: "Claim not found." };
+    if (!claim) return fail("CLAIM_NOT_FOUND");
     if (claim.status !== "DRAFT") {
-      return {
-        ok: false as const,
-        error: "The claim type can only change while it is a draft.",
-      };
+      return fail("CLAIM_TYPE_DRAFT_ONLY");
     }
     if (claim.claimType === newType)
       return { ok: true as const, changed: false };
@@ -885,7 +891,10 @@ export async function switchClaimType(
 export async function saveClaimDraft(
   session: AppSession,
   claimId: string,
-  fields: Record<string, string>
+  fields: Record<string, string>,
+  /** True only from the Save Draft button. `submitClaim` saves through here too, and a submission
+   *  is not a draft — recording one there is what put a phantom Draft on every claim. */
+  recordDraftEntry = false
 ): Promise<Outcome> {
   const guard = await assertLenderOwns(session, claimId);
   if (!guard.ok) return guard;
@@ -896,6 +905,19 @@ export async function saveClaimDraft(
     claim.fields = { ...claim.fields, ...fields };
     claim.lastUpdatedAt = nowIso();
     claim.draftSaved = true;
+    if (
+      recordDraftEntry &&
+      claim.status === "DRAFT" &&
+      !claim.statusHistory.some((h) => h.status === "DRAFT")
+    ) {
+      claim.statusHistory.push({
+        status: "DRAFT",
+        at: nowIso(),
+        byId: session.userId,
+        byName: session.name,
+        byRole: session.role,
+      });
+    }
     // Saving keeps every upload made so far.
     const docIds = new Set(
       db.claimDocuments.filter((d) => d.claimId === claimId).map((d) => d.id)
@@ -983,15 +1005,17 @@ export async function submitClaim(
   await saveClaimDraft(session, claimId, fields);
   const check = await checkSubmittable(claimId);
   if (!check.ok) {
-    const parts = [
-      check.missingFields.length
-        ? `fields: ${check.missingFields.join(", ")}`
-        : "",
-      check.missingDocuments.length
-        ? `documents: ${check.missingDocuments.join(", ")}`
-        : "",
-    ].filter(Boolean);
-    return { ok: false, error: `Still outstanding — ${parts.join("; ")}.` };
+    // Which names are missing is data; the sentence around them is the catalogue's job, so the
+    // three shapes get three codes rather than one string assembled here.
+    const fields = check.missingFields.join(", ");
+    const documents = check.missingDocuments.join(", ");
+    if (fields && documents) {
+      return fail("CLAIM_SUBMIT_INCOMPLETE_BOTH", { fields, documents });
+    }
+    if (fields) {
+      return fail("CLAIM_SUBMIT_INCOMPLETE_FIELDS", { fields });
+    }
+    return fail("CLAIM_SUBMIT_INCOMPLETE_DOCUMENTS", { documents });
   }
 
   const {
@@ -1109,7 +1133,9 @@ export async function submitClaim(
     accountId: guard.accountId!,
     actor: session,
     type: "CLAIM_SUBMITTED",
-    summary: `Claim ${claimNo} submitted to IMGC`,
+    summary: `Claim ${claimNo} submitted to IMGC${
+      guard.onBehalfOfLenderOrgId ? " — Claim Initiated by IMGC" : ""
+    }`,
     meta: {
       claimId,
       ...(guard.onBehalfOfLenderOrgId
@@ -1160,7 +1186,7 @@ export async function startClaimReview(
   accountId: string,
   note: string
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
   const remark = note.trim();
 
   const claimIdLookup = await writeDb((db) => {
@@ -1168,16 +1194,12 @@ export async function startClaimReview(
     return claim ? claim.id : "";
   });
 
-  if (!claimIdLookup) return { ok: false, error: "Claim not found." };
+  if (!claimIdLookup) return fail("CLAIM_NOT_FOUND");
 
   const docs = await listClaimDocuments(session, claimIdLookup);
   const summary = summariseDocs(docs);
   if (!summary.complete) {
-    return {
-      ok: false,
-      error:
-        "Please approve all required documents before submitting the claim for review.",
-    };
+    return fail("CLAIM_SUBMIT_NEEDS_APPROVALS");
   }
 
   const { claimId, account } = await writeDb((db) => {
@@ -1202,8 +1224,7 @@ export async function startClaimReview(
     return { claimId: claim.id, account };
   });
 
-  if (!claimId || !account)
-    return { ok: false, error: "Claim not found or not in Initiated status." };
+  if (!claimId || !account) return fail("CLAIM_NOT_INITIATED");
 
   await recordEvent({
     accountId,
@@ -1224,11 +1245,11 @@ export async function updateClaimStatus(
   status: ClaimStatus,
   remarks: string
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
 
   const outcome = await writeDb((db) => {
     const claim = db.claims.find((c) => c.id === claimId);
-    if (!claim) return { ok: false as const, error: "Claim not found." };
+    if (!claim) return fail("CLAIM_NOT_FOUND");
     advance(db, claim, status, session, remarks || undefined);
     if (status === "APPROVED" || status === "REJECTED" || status === "CLOSED") {
       claim.decision = {
@@ -1298,25 +1319,22 @@ export async function markRefundReceived(
   paymentDate: string,
   file?: IncomingUpload
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
   const trimmedUtr = utr.trim();
-  if (!trimmedUtr)
-    return { ok: false, error: "Enter the UTR / reference number." };
+  if (!trimmedUtr) return fail("UTR_REQUIRED");
   if (!Number.isFinite(amount) || amount <= 0) {
-    return { ok: false, error: "Enter a valid amount." };
+    return fail("AMOUNT_INVALID");
   }
   const trimmedDate = paymentDate.trim() || nowIso().slice(0, 10);
 
   const claimBefore = (await readDb()).claims.find((c) => c.id === claimId);
-  if (!claimBefore) return { ok: false, error: "Claim not found." };
+  if (!claimBefore) return fail("CLAIM_NOT_FOUND");
   if (claimBefore.status !== "APPROVED") {
-    return {
-      ok: false,
-      error:
-        claimBefore.status === "REFUND_RECEIVED_BY_IMGC"
-          ? "The refund for this claim has already been recorded."
-          : "Only an approved claim can be marked as refund received.",
-    };
+    return fail(
+      claimBefore.status === "REFUND_RECEIVED_BY_IMGC"
+        ? "REFUND_ALREADY_RECORDED"
+        : "REFUND_NEEDS_APPROVED_CLAIM"
+    );
   }
 
   let stored: { fileId: string; fileName: string } | undefined;
@@ -1352,15 +1370,13 @@ export async function markRefundReceived(
 
   const outcome = await writeDb((db) => {
     const claim = db.claims.find((c) => c.id === claimId);
-    if (!claim) return { ok: false as const, error: "Claim not found." };
+    if (!claim) return fail("CLAIM_NOT_FOUND");
     if (claim.status !== "APPROVED") {
-      return {
-        ok: false as const,
-        error:
-          claim.status === "REFUND_RECEIVED_BY_IMGC"
-            ? "The refund for this claim has already been recorded."
-            : "Only an approved claim can be marked as refund received.",
-      };
+      return fail(
+        claim.status === "REFUND_RECEIVED_BY_IMGC"
+          ? "REFUND_ALREADY_RECORDED"
+          : "REFUND_NEEDS_APPROVED_CLAIM"
+      );
     }
     advance(
       db,
@@ -1417,15 +1433,14 @@ export async function raiseQuery(
   claimId: string,
   input: { reason: string; remarks: string; requestedDocuments: string[] }
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
-  if (!input.reason.trim())
-    return { ok: false, error: "A query needs a reason." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
+  if (!input.reason.trim()) return fail("QUERY_REASON_REQUIRED");
 
   const outcome = await writeDb((db) => {
     const claim = db.claims.find((c) => c.id === claimId);
-    if (!claim) return { ok: false as const, error: "Claim not found." };
+    if (!claim) return fail("CLAIM_NOT_FOUND");
     if (TERMINAL_STATUSES.has(claim.status)) {
-      return { ok: false as const, error: "That claim is already closed." };
+      return fail("CLAIM_ALREADY_CLOSED");
     }
 
     const raisedAt = nowIso();
@@ -1525,21 +1540,21 @@ async function assertLenderOwns(
 ): Promise<Outcome & { accountId?: string; onBehalfOfLenderOrgId?: string }> {
   const db = await readDb();
   const claim = db.claims.find((c) => c.id === claimId);
-  if (!claim) return { ok: false, error: "Claim not found." };
+  if (!claim) return fail("CLAIM_NOT_FOUND");
   const account = db.accounts.find((a) => a.id === claim.accountId);
-  if (!account) return { ok: false, error: "Account not found." };
+  if (!account) return fail("ACCOUNT_NOT_FOUND");
 
   if (session.role === "LENDER") {
     if (account.lenderOrgId !== session.lenderOrgId) {
-      return { ok: false, error: "That claim belongs to another lender." };
+      return fail("CLAIM_OTHER_LENDER");
     }
     return { ok: true, accountId: claim.accountId };
   }
 
-  if (session.role === "IMGC" && session.isAdmin) {
+  if (session.role === "IMGC") {
     const ctx = await getAdminContextOrNull();
     if (!ctx?.lenderOrgId || ctx.lenderOrgId !== account.lenderOrgId) {
-      return { ok: false, error: "That claim belongs to another lender." };
+      return fail("CLAIM_OTHER_LENDER");
     }
     return {
       ok: true,
@@ -1548,7 +1563,7 @@ async function assertLenderOwns(
     };
   }
 
-  return { ok: false, error: "That claim belongs to another lender." };
+  return fail("CLAIM_OTHER_LENDER");
 }
 
 async function notify(
@@ -1604,13 +1619,13 @@ export async function addLenderDocument(
   if (!guard.ok) return guard;
 
   const name = input.name.trim();
-  if (!name) return { ok: false, error: "Give the document a name." };
+  if (!name) return fail("DOCUMENT_NAME_REQUIRED");
 
   const db = await readDb();
   const claim = db.claims.find((c) => c.id === claimId);
-  if (!claim) return { ok: false, error: "Claim not found." };
+  if (!claim) return fail("CLAIM_NOT_FOUND");
   if (TERMINAL_STATUSES.has(claim.status)) {
-    return { ok: false, error: "This claim is closed." };
+    return fail("CLAIM_CLOSED");
   }
   const accountId = claim.accountId;
 
@@ -1620,11 +1635,7 @@ export async function addLenderDocument(
   const clash = db.claimDocuments.some(
     (d) => d.claimId === claimId && d.name.toLowerCase() === name.toLowerCase()
   );
-  if (clash)
-    return {
-      ok: false,
-      error: "A document with that name is already on this claim.",
-    };
+  if (clash) return fail("DOCUMENT_NAME_DUPLICATE_ON_CLAIM");
 
   const docId = newId("addoc");
   const refNo = `AD-${String(existingAd + 1).padStart(3, "0")}`;
@@ -1719,7 +1730,7 @@ export async function upsertDocumentRemark(
   const doc = db.claimDocuments.find(
     (d) => d.id === documentId && d.claimId === claimId
   );
-  if (!doc) return { ok: false, error: "Document not found." };
+  if (!doc) return fail("DOCUMENT_NOT_FOUND");
 
   await writeDb((fresh) => {
     fresh.remarks = fresh.remarks.filter(

@@ -1,5 +1,6 @@
 "use client";
 
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
 import { useCallback, useTransition } from "react";
 import { ArrowLeftRightIcon, InboxIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -27,6 +28,7 @@ export function BucketToggle({
   bucket: Bucket;
   size?: "xs" | "sm";
 }>) {
+  const errorText = useServerErrorMessage();
   const [pending, startTransition] = useTransition();
 
   const to: Bucket = bucket === "IMGC" ? "LENDER" : "IMGC";
@@ -36,7 +38,7 @@ export function BucketToggle({
     startTransition(async () => {
       const result = await shiftBucketAction(accountId, to, "");
       if (!result.ok) {
-        toast.error(result.error ?? "That move failed.");
+        toast.error(errorText(result) ?? "That move failed.");
         return;
       }
       toast.success(
@@ -45,7 +47,7 @@ export function BucketToggle({
           : `${loanNo} handed back to the lender — stakeholders notified.`
       );
     });
-  }, [accountId, to, pulling, loanNo]);
+  }, [accountId, to, pulling, loanNo, errorText]);
 
   return (
     <Button

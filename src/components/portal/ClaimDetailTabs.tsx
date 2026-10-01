@@ -59,22 +59,14 @@ export function ClaimDetailTabs({
     ...(history ? [{ key: "history" as TabKey, content: history }] : []),
   ];
 
-  const activeTabs = TABS.filter(t => t.key !== "history" || history);
+  const activeTabs = TABS.filter((t) => t.key !== "history" || history);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* ── Tab bar row ── */}
       <div className="mb-4 flex shrink-0 flex-wrap items-end gap-8 border-b border-neutral-200 px-1 pt-1">
-        {backLink && (
-          <div className="pb-2">
-            {backLink}
-          </div>
-        )}
-        <div
-          className="flex gap-6"
-          role="tablist"
-          aria-label="Claim sections"
-        >
+        {backLink && <div className="pb-2">{backLink}</div>}
+        <div className="flex gap-6" role="tablist" aria-label="Claim sections">
           {activeTabs.map((t) => (
             <button
               key={t.key}
@@ -86,7 +78,7 @@ export function ClaimDetailTabs({
               onClick={handleTabClick}
               data-tab-key={t.key}
               className={cn(
-                "pb-2 text-[14px] font-medium transition-colors border-b-2",
+                "pb-2 text-ui-lead font-medium transition-colors border-b-2",
                 tab === t.key
                   ? "border-brand-primary text-brand-primary"
                   : "border-transparent text-neutral-500 hover:text-neutral-700"

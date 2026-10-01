@@ -49,9 +49,61 @@
   --info-100: #e0f2fe;
   --info-50: #f0f9ff;
 
+  /* Charts and sparklines — a named palette so a widget never picks a raw colour. The first
+     entry follows the tenant's brand; the rest are fixed so a six-series chart stays readable
+     whatever the brand hue is. */
+  --chart-1: var(--brand-primary);
+  --chart-2: #10b981;
+  --chart-3: #3b82f6;
+  --chart-4: #f59e0b;
+  --chart-5: #14b8a6;
+  --chart-6: #a855f7;
+  --chart-positive: #22c55e;
+  --chart-negative: #ef4444;
+
+  /* Tints used on the dark command band, where the brand tokens are too strong to read. */
+  --brand-on-dark: #ffc48a;
+  --brand-on-dark-strong: #d9860f;
+
+  /* Semantic tints for text and icons on a dark ground, where the normal semantic colours are
+     too dark to read. */
+  --info-on-dark: #93c5fd;
+  --success-on-dark: #5eead4;
+  --success-on-dark-soft: #86efac;
+  --warning-on-dark: #fcd34d;
+  --danger-on-dark: #fca5a5;
+  --danger-on-dark-soft: #ff9d97;
+
   /* Gradients (v1.0.1) */
   --grad-hero: linear-gradient(135deg, #0466c8 0%, #044b95 100%);
   --grad-nav: linear-gradient(90deg, #1e293b 0%, #0466c8 100%);
+
+  /* Named surfaces, so a page never writes its own gradient. */
+  --grad-band: linear-gradient(115deg, #2b1d12 0%, #8a4310 55%, #3a2415 100%);
+  --grad-sidebar: linear-gradient(180deg, #5c5c5c 0%, #383838 100%);
+  --grad-login: linear-gradient(
+    180deg,
+    #fff -6.3%,
+    #fff3e9 42.72%,
+    #fad9bc 96.7%
+  );
+  --grad-bar: linear-gradient(180deg, #4f7bff 0%, #c7d6ff 100%);
+  --surface-login: #fdf1e2;
+  --band-shadow: #2b1d12;
+
+  /* Shadow and overlay tints — the only colours that carry alpha, kept here so a component
+     never writes an rgba() of its own. */
+  --shadow-ink: rgb(15 23 42 / 8%);
+  --shadow-ink-strong: rgb(0 0 0 / 25%);
+  --glow-white: rgb(255 255 255 / 100%);
+  --glow-white-soft: rgb(255 255 255 / 80%);
+  --grad-login-wash: linear-gradient(
+    115deg,
+    rgb(253 235 211 / 84%) 0%,
+    rgb(247 175 108 / 68%) 32%,
+    rgb(238 101 25 / 80%) 100%
+  );
+  --surface-tab-active: #e2f1ff;
 
   /* Radius */
   --r-sm: 4px;

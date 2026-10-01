@@ -1,5 +1,11 @@
 import "server-only";
 
+import {
+  fail,
+  type ServerErrorCode,
+  type ServerErrorParams,
+} from "@/config/errorCodes";
+
 import { readDb, writeDb } from "@/server/mock/db";
 import { newId, nowIso } from "@/server/mock/ids";
 import { recordEvent } from "@/services/portal/audit.server";
@@ -13,7 +19,11 @@ export async function listRemarks(
 ): Promise<Remark[]> {
   const db = await readDb();
   return db.remarks
-    .filter((r) => r.accountId === accountId && (documentId ? r.documentId === documentId : true))
+    .filter(
+      (r) =>
+        r.accountId === accountId &&
+        (documentId ? r.documentId === documentId : true)
+    )
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
@@ -22,15 +32,22 @@ export async function addRemark(
   accountId: string,
   body: string,
   documentId?: string
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}> {
   const trimmed = body.trim();
-  if (!trimmed) return { ok: false, error: "Write something first." };
+  if (!trimmed) return fail("REMARK_EMPTY");
 
   const db = await readDb();
   const account = db.accounts.find((a) => a.id === accountId);
-  if (!account) return { ok: false, error: "Account not found." };
-  if (session.role === "LENDER" && account.lenderOrgId !== session.lenderOrgId) {
-    return { ok: false, error: "This account belongs to another lender." };
+  if (!account) return fail("ACCOUNT_NOT_FOUND");
+  if (
+    session.role === "LENDER" &&
+    account.lenderOrgId !== session.lenderOrgId
+  ) {
+    return fail("ACCOUNT_OTHER_LENDER");
   }
   const docName = documentId
     ? db.claimDocuments.find((d) => d.id === documentId)?.name

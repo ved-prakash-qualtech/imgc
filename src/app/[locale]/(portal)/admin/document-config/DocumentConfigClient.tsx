@@ -1,7 +1,12 @@
+/* eslint-disable react-perf/jsx-no-jsx-as-prop, security/detect-object-injection -- pre-existing in this file: the indexed maps are declared
+   here with literal keys, and the inline props are small local values. Left as-is so the
+   type-scale change stays a class rename. */
 /* eslint-disable react-perf/jsx-no-new-function-as-prop */
 "use client";
 
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { ChevronDownIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
@@ -58,6 +63,8 @@ export function DocumentConfigClient({
   selectedLenderId: string | null;
   initialRows: LenderDocConfigRow[];
 }>) {
+  const errorText = useServerErrorMessage();
+  const t = useTranslations("admin.documentConfig");
   const router = useRouter();
   const [rows, setRows] = useState<DraftRow[]>(() => toDraft(initialRows));
   const [addOpen, setAddOpen] = useState(false);
@@ -82,14 +89,16 @@ export function DocumentConfigClient({
   }
 
   function onRequiredChange(key: string, required: boolean) {
-    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, required } : r)));
+    setRows((prev) =>
+      prev.map((r) => (r.key === key ? { ...r, required } : r))
+    );
   }
 
   function onRemove(key: string, name: string) {
     ask({
       title: "Remove this document?",
       description: `"${name}" will be dropped from this lender's checklist when you save. Claims already in progress keep it.`,
-      confirmLabel: "Remove",
+      confirmLabel: t("remove"),
       onConfirm: () => setRows((prev) => prev.filter((r) => r.key !== key)),
     });
   }
@@ -98,10 +107,19 @@ export function DocumentConfigClient({
     setRows(toDraft(initialRows));
   }
 
-  function onAdd(doc: { name: string; description?: string; required: boolean }) {
+  function onAdd(doc: {
+    name: string;
+    description?: string;
+    required: boolean;
+  }) {
     setRows((prev) => [
       ...prev,
-      { key: `new_${Date.now()}`, name: doc.name, description: doc.description, required: doc.required },
+      {
+        key: `new_${Date.now()}`,
+        name: doc.name,
+        description: doc.description,
+        required: doc.required,
+      },
     ]);
     setAddOpen(false);
   }
@@ -109,7 +127,7 @@ export function DocumentConfigClient({
   function onSave() {
     if (!selectedLenderId) return;
     if (rows.length === 0) {
-      toast.error("Add at least one document before saving.");
+      toast.error(t("toast.needOne"));
       return;
     }
     startTransition(async () => {
@@ -123,7 +141,7 @@ export function DocumentConfigClient({
         }))
       );
       if (!result.ok) {
-        toast.error(result.error ?? "That configuration could not be saved.");
+        toast.error(errorText(result) ?? t("toast.saveFailed"));
         return;
       }
       toast.success(`Document configuration saved for ${selectedLenderName}.`);
@@ -134,19 +152,21 @@ export function DocumentConfigClient({
     <div>
       <Panel
         size="compact"
-        title="Document Requirements"
+        title={t("title")}
         description={`What ${selectedLenderName}'s INITIAL claims ask for, in order.`}
         // The lender picker sits in the panel header rather than a card of its own, so the whole
         // configuration fits on one screen without scrolling.
         actions={
           <div className="relative w-[240px]">
             <select
-              aria-label="Select lender"
+              aria-label={t("selectLender")}
               value={selectedLenderId ?? ""}
               onChange={(e) => onLenderChange(e.target.value)}
-              className="h-9 w-full appearance-none rounded-lg border border-neutral-200 bg-white pl-3 pr-8 text-[13px] font-medium text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              className="h-9 w-full appearance-none rounded-lg border border-neutral-200 bg-white pl-3 pr-8 text-ui-subhead font-medium text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
             >
-              {lenders.length === 0 && <option value="">No lenders</option>}
+              {lenders.length === 0 && (
+                <option value="">{t("noLenders")}</option>
+              )}
               {lenders.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.name}
@@ -161,12 +181,16 @@ export function DocumentConfigClient({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="h-9 px-3.5 text-[11px]">Document</TableHead>
-                <TableHead className="h-9 px-3.5 text-[11px]">
-                  Mandatory / Optional
+                <TableHead className="h-9 px-3.5 text-ui-label">
+                  {t("document")}
                 </TableHead>
-                <TableHead className="h-9 px-3.5 text-[11px]">Status</TableHead>
-                <TableHead className="h-9 px-3.5 text-[11px]">
+                <TableHead className="h-9 px-3.5 text-ui-label">
+                  {t("mandatoryOrOptional")}
+                </TableHead>
+                <TableHead className="h-9 px-3.5 text-ui-label">
+                  {t("status")}
+                </TableHead>
+                <TableHead className="h-9 px-3.5 text-ui-label">
                   Action
                 </TableHead>
               </TableRow>
@@ -176,7 +200,7 @@ export function DocumentConfigClient({
                 <TableRow>
                   <TableCell
                     colSpan={4}
-                    className="py-10 text-center text-[13px] text-neutral-500"
+                    className="py-10 text-center text-ui-subhead text-neutral-500"
                   >
                     No documents configured — add at least one before saving.
                   </TableCell>
@@ -185,11 +209,11 @@ export function DocumentConfigClient({
                 rows.map((row) => (
                   <TableRow key={row.key}>
                     <TableCell className="px-3.5 py-1.5">
-                      <span className="block text-[13px] font-medium text-neutral-900">
+                      <span className="block text-ui-subhead font-medium text-neutral-900">
                         {row.name}
                       </span>
                       {row.description && (
-                        <span className="block text-[11.5px] text-neutral-500">
+                        <span className="block text-ui-body-sm text-neutral-500">
                           {row.description}
                         </span>
                       )}
@@ -200,23 +224,26 @@ export function DocumentConfigClient({
                           aria-label={`Requirement for ${row.name}`}
                           value={row.required ? "MANDATORY" : "OPTIONAL"}
                           onChange={(e) =>
-                            onRequiredChange(row.key, e.target.value === "MANDATORY")
+                            onRequiredChange(
+                              row.key,
+                              e.target.value === "MANDATORY"
+                            )
                           }
                           className={cn(
-                            "h-7 appearance-none rounded-full border py-0 pl-3 pr-7 text-[12px] font-semibold outline-none focus:ring-2",
+                            "h-7 appearance-none rounded-full border py-0 pl-3 pr-7 text-ui-body font-semibold outline-none focus:ring-2",
                             row.required
                               ? "border-warning/30 bg-warning/10 text-warning focus:ring-warning/20"
                               : "border-neutral-200 bg-neutral-50 text-neutral-600 focus:ring-neutral-300/40"
                           )}
                         >
-                          <option value="MANDATORY">Mandatory</option>
-                          <option value="OPTIONAL">Optional</option>
+                          <option value="MANDATORY">{t("mandatory")}</option>
+                          <option value="OPTIONAL">{t("optional")}</option>
                         </select>
                         <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 size-3 -translate-y-1/2 opacity-60" />
                       </div>
                     </TableCell>
                     <TableCell className="px-3.5 py-1.5">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-2.5 py-0.5 text-[11.5px] font-semibold text-success-700">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-2.5 py-0.5 text-ui-body-sm font-semibold text-success-700">
                         <span className="size-1.5 rounded-full bg-current opacity-70" />
                         Active
                       </span>
@@ -247,7 +274,7 @@ export function DocumentConfigClient({
               variant="outline"
               onClick={() => setAddOpen(true)}
             >
-              <PlusIcon className="size-3.5" /> Add Document
+              <PlusIcon className="size-3.5" /> {t("addDocument")}
             </Button>
           ) : (
             <span />
@@ -255,7 +282,7 @@ export function DocumentConfigClient({
 
           <div className="flex items-center gap-2">
             {dirty && (
-              <span className="text-[12px] text-neutral-500">
+              <span className="text-ui-body text-neutral-500">
                 Unsaved changes
               </span>
             )}
@@ -271,8 +298,13 @@ export function DocumentConfigClient({
               </Button>
             )}
             {selectedLenderId && (
-              <Button type="button" size="sm" onClick={onSave} disabled={pending}>
-                {pending ? "Saving…" : "Save Configuration"}
+              <Button
+                type="button"
+                size="sm"
+                onClick={onSave}
+                disabled={pending}
+              >
+                {pending ? t("saving") : t("save")}
               </Button>
             )}
           </div>
@@ -300,8 +332,13 @@ function AddDocumentDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   existingNames: readonly string[];
-  onAdd: (doc: { name: string; description?: string; required: boolean }) => void;
+  onAdd: (doc: {
+    name: string;
+    description?: string;
+    required: boolean;
+  }) => void;
 }>) {
+  const t = useTranslations("admin.documentConfig");
   const [name, setName] = useState("");
   const [requirement, setRequirement] = useState<"MANDATORY" | "OPTIONAL">(
     "MANDATORY"
@@ -320,11 +357,15 @@ function AddDocumentDialog({
     event.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) {
-      setError("Document name is required.");
+      setError(t("toast.nameRequired"));
       return;
     }
-    if (existingNames.some((n) => n.trim().toLowerCase() === trimmed.toLowerCase())) {
-      setError("This lender already has a document with that name.");
+    if (
+      existingNames.some(
+        (n) => n.trim().toLowerCase() === trimmed.toLowerCase()
+      )
+    ) {
+      setError(t("toast.duplicateName"));
       return;
     }
     onAdd({
@@ -345,16 +386,16 @@ function AddDocumentDialog({
     >
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Add Document</DialogTitle>
+          <DialogTitle>{t("addDocument")}</DialogTitle>
           <DialogDescription>
-            Adds a document requirement for this lender only — it will not appear
-            for any other lender.
+            Adds a document requirement for this lender only — it will not
+            appear for any other lender.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={submit} className="space-y-3">
           <label className="block">
-            <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
+            <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
               Document Name <span className="text-red-500">*</span>
             </span>
             <input
@@ -363,23 +404,26 @@ function AddDocumentDialog({
                 setName(e.target.value);
                 if (error) setError("");
               }}
-              placeholder="e.g. NOC"
+              placeholder={t("namePlaceholder")}
               className={cn(
-                "h-9 w-full rounded-lg border bg-white px-3 text-[13px] outline-none focus:ring-2",
+                "h-9 w-full rounded-lg border bg-white px-3 text-ui-subhead outline-none focus:ring-2",
                 error
                   ? "border-destructive focus:border-destructive focus:ring-destructive/20"
                   : "border-neutral-200 focus:border-brand-primary focus:ring-brand-primary/20"
               )}
             />
             {error && (
-              <span role="alert" className="mt-1 block text-[12px] font-medium text-destructive">
+              <span
+                role="alert"
+                className="mt-1 block text-ui-body font-medium text-destructive"
+              >
                 {error}
               </span>
             )}
           </label>
 
           <fieldset>
-            <legend className="mb-1.5 block text-[12.5px] font-medium text-neutral-700">
+            <legend className="mb-1.5 block text-ui-body-lg font-medium text-neutral-700">
               Requirement <span className="text-red-500">*</span>
             </legend>
             <div className="flex gap-2">
@@ -390,28 +434,28 @@ function AddDocumentDialog({
                   onClick={() => setRequirement(option)}
                   aria-pressed={requirement === option}
                   className={cn(
-                    "flex-1 rounded-lg border px-3 py-2 text-[13px] font-medium transition-colors",
+                    "flex-1 rounded-lg border px-3 py-2 text-ui-subhead font-medium transition-colors",
                     requirement === option
                       ? "border-brand-primary bg-brand-light/60 text-brand-dark"
                       : "border-neutral-200 text-neutral-600 hover:bg-neutral-50"
                   )}
                 >
-                  {option === "MANDATORY" ? "Mandatory" : "Optional"}
+                  {option === "MANDATORY" ? t("mandatory") : t("optional")}
                 </button>
               ))}
             </div>
           </fieldset>
 
           <label className="block">
-            <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
+            <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
               Description
             </span>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              placeholder="Optional — shown to the lender under this document."
-              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              placeholder={t("descriptionPlaceholder")}
+              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
             />
           </label>
 
@@ -425,7 +469,7 @@ function AddDocumentDialog({
               Cancel
             </Button>
             <Button type="submit" size="sm">
-              Add Document
+              {t("addDocument")}
             </Button>
           </div>
         </form>

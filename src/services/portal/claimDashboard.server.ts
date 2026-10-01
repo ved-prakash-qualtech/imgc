@@ -120,16 +120,22 @@ export async function getClaimDashboard(
   const lenderUnderProgress: LenderUnderProgressRow[] =
     session.role === "LENDER"
       ? claims
-          .filter((claim) => ["QUERY_RAISED", "QUERY_INITIATED", "QUERY_UNDER_REVIEW"].includes(claim.status))
+          .filter((claim) =>
+            ["QUERY_RAISED", "QUERY_INITIATED", "QUERY_UNDER_REVIEW"].includes(
+              claim.status
+            )
+          )
           .map((claim) => {
             const account = db.accounts.find((a) => a.id === claim.accountId);
             const latestQuery = db.claimQueries
               .filter((query) => query.claimId === claim.id)
               .sort((a, b) => b.raisedAt.localeCompare(a.raisedAt))[0];
-            const statusLabel = 
-              claim.status === "QUERY_INITIATED" ? "Query Initiated" :
-              claim.status === "QUERY_UNDER_REVIEW" ? "Query Under Review" :
-              "Query Raised";
+            const statusLabel =
+              claim.status === "QUERY_INITIATED"
+                ? "Query Initiated"
+                : claim.status === "QUERY_UNDER_REVIEW"
+                  ? "Query Under Review"
+                  : "Query Raised";
 
             return {
               claimId: claim.id,
@@ -156,7 +162,10 @@ export async function getClaimDashboard(
     const existing = buckets.get(k) ?? { count: 0, amount: 0 };
     const account = db.accounts.find((a) => a.id === claim.accountId);
     const amt = claimAmountFor(account?.loanAmount ?? 0);
-    buckets.set(k, { count: existing.count + 1, amount: existing.amount + amt });
+    buckets.set(k, {
+      count: existing.count + 1,
+      amount: existing.amount + amt,
+    });
   }
   const monthly: MonthlyPoint[] = lastMonths(months).map((m) => ({
     month: m.month,

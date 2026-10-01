@@ -1,3 +1,7 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+
 import { Panel } from "@/components/portal/Panel";
 import type { AccountRow } from "@/services/portal/accounts.server";
 
@@ -31,8 +35,8 @@ function imgcApprovalDate(disbursementIso: string): string {
 function Row({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div className="flex items-center justify-between gap-4 px-5 py-1.5 odd:bg-neutral-25">
-      <dt className="text-[12px] text-neutral-500">{label}</dt>
-      <dd className="text-right text-[12.5px] font-medium whitespace-nowrap text-neutral-900">
+      <dt className="text-ui-body text-neutral-500">{label}</dt>
+      <dd className="text-right text-ui-body-lg font-medium whitespace-nowrap text-neutral-900">
         {value}
       </dd>
     </div>
@@ -45,50 +49,54 @@ function Row({ label, value }: Readonly<{ label: string; value: string }>) {
  * No inputs, no edit control: the lender cannot change loan information, and there is no second
  * editable copy of it anywhere. Open a different account and the corresponding loan loads here.
  */
-export function LoanDetailsCard({ account }: Readonly<{ account: AccountRow }>) {
+export function LoanDetailsCard({
+  account,
+}: Readonly<{ account: AccountRow }>) {
+  const t = useTranslations("claim.loanDetails");
   const orderedFields = (
     <>
       {/* Row 1 */}
-      <Row label="Lender" value={account.lenderOrgName} />
+      <Row label={t("lender")} value={account.lenderOrgName} />
       <Row
-        label="EMI Amount"
+        label={t("emiAmount")}
         value={inr.format(25000 + (account.loanAmount % 5000))}
       />
       {/* Row 2 */}
-      <Row label="Loan Account Number" value={account.loanNo} />
+      <Row label={t("loanAccountNumber")} value={account.loanNo} />
       <Row
-        label="DPD"
+        label={t("dpd")}
         value={account.dpd !== undefined ? String(account.dpd) : "—"}
       />
       {/* Row 3 */}
-      <Row label="Customer Name" value={account.borrowerName} />
-      <Row label="NPA" value="Yes" />
+      <Row label={t("customerName")} value={account.borrowerName} />
+      <Row label={t("npa")} value={t("yes")} />
       {/* Row 4 */}
-      <Row label="Property Type" value={account.propertyType} />
-      <Row label="Product" value={account.product} />
+      <Row label={t("propertyType")} value={account.propertyType} />
+      <Row label={t("product")} value={account.product} />
       {/* Row 5 */}
-      <Row label="Property Status" value={account.propertyStatus} />
-      <Row label="Disbursement Date" value={date(account.disbursementDate)} />
-      {/* Row 6 */}
-      <Row label="Loan Amount" value={inr.format(account.loanAmount)} />
+      <Row label={t("propertyStatus")} value={account.propertyStatus} />
       <Row
-        label="IMGC Approval Date"
+        label={t("disbursementDate")}
+        value={date(account.disbursementDate)}
+      />
+      {/* Row 6 */}
+      <Row label={t("loanAmount")} value={inr.format(account.loanAmount)} />
+      <Row
+        label={t("imgcApprovalDate")}
         value={date(imgcApprovalDate(account.disbursementDate))}
       />
       {/* Row 7 */}
       <Row
-        label="Outstanding Amount"
+        label={t("outstandingAmount")}
         value={inr.format(account.outstandingAmount)}
       />
-      <Row label="Tenure" value={years(account.tenureMonths)} />
+      <Row label={t("tenure")} value={years(account.tenureMonths)} />
     </>
   );
 
   return (
-    <Panel title="Loan details">
-      <dl className="grid sm:grid-cols-2">
-        {orderedFields}
-      </dl>
+    <Panel title={t("title")}>
+      <dl className="grid sm:grid-cols-2">{orderedFields}</dl>
     </Panel>
   );
 }

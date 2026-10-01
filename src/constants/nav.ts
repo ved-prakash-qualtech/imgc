@@ -23,7 +23,6 @@ export type NavKey =
   | "admin-users"
   | "admin-retention"
   | "admin-doc-config"
-  | "admin-workspace"
   // Retained from the base template so its demo pages still type-check.
   | "tenants"
   | "menus"
@@ -79,32 +78,19 @@ const ADMINISTRATION: NavItem = {
   ],
 };
 
-export function navFor(
-  role: Role,
-  isAdmin?: boolean,
-  hasContext?: boolean
-): NavItem[] {
+export function navFor(role: Role): NavItem[] {
   if (role === "LENDER") return [CLAIM_DASHBOARD, CLAIM];
 
-  const imgcItems = [CLAIM_DASHBOARD];
-  if (!isAdmin) {
-    imgcItems.push(ACCOUNTS);
-  }
+  const imgcItems = [CLAIM_DASHBOARD, ACCOUNTS];
+
+  // Claim by IMGC: initiating and tracking a claim on a lender's behalf. Without a lender chosen
+  // it opens the picker; with one chosen it is the lender's own Initiate Claim screen.
+  imgcItems.push({
+    key: "initiate-claim",
+    label: "Claim by IMGC",
+    href: ROUTES.initiateClaim,
+  } as NavItem);
+
   imgcItems.push(ADMINISTRATION);
-
-  if (isAdmin) {
-    imgcItems.push({
-      key: "admin-workspace",
-      label: "Admin Workspace",
-      href: ROUTES.adminWorkspace,
-    } as NavItem);
-
-    if (hasContext) {
-      imgcItems.push({
-        ...CLAIM,
-        label: "Initiate Claim",
-      });
-    }
-  }
   return imgcItems;
 }

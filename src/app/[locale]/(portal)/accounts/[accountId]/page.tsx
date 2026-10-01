@@ -95,7 +95,7 @@ export default async function AccountPage({
               href={ROUTES.accounts}
               storageKey={ACCOUNTS_FILTER_KEY}
               label="All accounts"
-              className="-mt-1 inline-flex items-center gap-1.5 text-[13px] font-medium text-neutral-500 hover:text-neutral-800"
+              className="-mt-1 inline-flex items-center gap-1.5 text-ui-subhead font-medium text-neutral-500 hover:text-neutral-800"
             />
           }
           account={account}

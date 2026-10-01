@@ -6,6 +6,8 @@ import {
   XCircleIcon,
 } from "lucide-react";
 
+import { useTranslations } from "next-intl";
+
 import { CommandBand } from "@/components/portal/CommandBand";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type {
@@ -32,7 +34,7 @@ const exactInr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
  */
 
 type Tone = "blue" | "amber" | "violet" | "green" | "rose" | "gold";
-type PendingWith = "Lender" | "IMGC Claims Team" | "None" | "Split";
+type PendingWith = "LENDER" | "IMGC" | "None" | "Split";
 
 const TONE: Record<Tone, { bg: string; icon: string }> = {
   blue: { bg: "border-info/30", icon: "bg-info/10 text-info" },
@@ -46,40 +48,43 @@ const TONE: Record<Tone, { bg: string; icon: string }> = {
     bg: "border-destructive/30",
     icon: "bg-destructive/10 text-destructive",
   },
-  gold: { bg: "border-[#ffc48a]/50", icon: "bg-[#ffc48a]/20 text-[#d9860f]" },
+  gold: {
+    bg: "border-brand-on-dark/50",
+    icon: "bg-brand-on-dark/20 text-brand-on-dark-strong",
+  },
 };
 
 const TILES: ReadonlyArray<{
   key: OverviewTileKey;
-  label: string;
+  labelKey: string;
   icon: React.ReactNode;
   tone: Tone;
   pendingWith: PendingWith;
 }> = [
   {
     key: "initiation",
-    label: "To be initiated",
+    labelKey: "toBeInitiated",
     icon: <FilePlus2Icon className="size-4" />,
     tone: "rose",
-    pendingWith: "Lender",
+    pendingWith: "LENDER",
   },
   {
     key: "underReview",
-    label: "Under Review",
+    labelKey: "underReview",
     icon: <ClipboardListIcon className="size-4" />,
     tone: "amber",
-    pendingWith: "IMGC Claims Team",
+    pendingWith: "IMGC",
   },
   {
     key: "approved",
-    label: "Approved",
+    labelKey: "approved",
     icon: <CheckCircle2Icon className="size-4" />,
     tone: "violet",
     pendingWith: "None",
   },
   {
     key: "rejected",
-    label: "Ineligible",
+    labelKey: "ineligible",
     icon: <XCircleIcon className="size-4" />,
     tone: "gold",
     pendingWith: "None",
@@ -92,7 +97,7 @@ export function ClaimOverviewBand({
   counts,
   hrefs,
   showDraftQueryKpis,
-  title = "Claims Overview",
+  title,
   subtitle,
   action,
   titleAside,
@@ -110,26 +115,28 @@ export function ClaimOverviewBand({
   /** Beside the band's title, on the left. */
   titleAside?: React.ReactNode;
 }>) {
+  const t = useTranslations("dashboard");
+  const tStatus = useTranslations("status");
   const activeTiles = showDraftQueryKpis
     ? ([
         TILES[0]!,
         {
           key: "draft",
-          label: "Draft",
+          labelKey: "draft",
           icon: <FilePlus2Icon className="size-4" />,
           tone: "blue",
-          pendingWith: "Lender",
+          pendingWith: "LENDER",
         }, // started, not yet submitted
         {
           key: "initiated",
-          label: "Initiated",
+          labelKey: "initiated",
           icon: <CheckCircle2Icon className="size-4" />, // Or another suitable icon
           tone: "blue",
-          pendingWith: "IMGC Claims Team",
+          pendingWith: "IMGC",
         },
         {
           key: "queried",
-          label: "Queried",
+          labelKey: "queried",
           icon: <ClipboardListIcon className="size-4" />,
           tone: "amber",
           pendingWith: "Split",
@@ -142,7 +149,7 @@ export function ClaimOverviewBand({
 
   return (
     <CommandBand
-      title={title}
+      title={title ?? t("claimsOverview")}
       subtitle={subtitle}
       stats={EMPTY_STATS}
       action={action}
@@ -176,7 +183,9 @@ export function ClaimOverviewBand({
                 <span
                   className={cn(
                     "font-outfit font-bold leading-none text-neutral-900",
-                    activeTiles.length >= 6 ? "text-[18px]" : "text-[20px]"
+                    activeTiles.length >= 6
+                      ? "text-ui-heading-lg"
+                      : "text-ui-display-sm"
                   )}
                 >
                   {String(counts[tile.key]).padStart(2, "0")}
@@ -199,10 +208,10 @@ export function ClaimOverviewBand({
                       activeTiles.length >= 6 ? "text-xs" : "text-sm"
                     )}
                   >
-                    {tile.label}
+                    {t(`tiles.${tile.labelKey}`)}
                   </p>
                   {(tile.key === "approved" || tile.key === "rejected") && (
-                    <span className="shrink-0 rounded bg-brand-primary/10 px-1 py-[1px] text-[7.5px] font-bold uppercase tracking-wider text-brand-primary border border-brand-primary/20">
+                    <span className="shrink-0 rounded bg-brand-primary/10 px-1 py-[1px] text-ui-pico font-bold uppercase tracking-wider text-brand-primary border border-brand-primary/20">
                       CFY
                     </span>
                   )}
@@ -210,23 +219,23 @@ export function ClaimOverviewBand({
                 {/* One line, not two: the tallest tile sets the whole band's height. */}
                 {tile.pendingWith !== "None" &&
                   tile.pendingWith !== "Split" && (
-                    <p className="mt-0.5 truncate text-[9px] font-medium text-neutral-500">
-                      Pending with &middot; {tile.pendingWith}
+                    <p className="mt-0.5 truncate text-ui-caption font-bold text-brand-primary">
+                      {t("pendingWith")} &middot; {tStatus(tile.pendingWith)}
                     </p>
                   )}
                 {tile.pendingWith === "Split" && isQueried && (
-                  <p className="mt-0.5 truncate text-[9px] font-medium text-neutral-500">
-                    Lender {counts.queryInitiated ?? 0} &middot; IMGC{" "}
-                    {counts.queryUnderReview ?? 0}
+                  <p className="mt-0.5 truncate text-ui-caption font-bold text-brand-primary">
+                    {tStatus("LENDER")} {counts.queryInitiated ?? 0} &middot;{" "}
+                    {tStatus("IMGC")} {counts.queryUnderReview ?? 0}
                   </p>
                 )}
                 {/* Claim amount across exactly the claims this tile counts. */}
                 <p
-                  className="mt-0.5 text-[11px] font-semibold leading-tight tabular-nums text-neutral-700"
+                  className="mt-0.5 text-ui-label font-semibold leading-tight tabular-nums text-neutral-700"
                   title={`Claim amount: ₹${exactInr.format(counts.claimAmount[tile.key])}`}
                 >
-                  <span className="block text-[9.5px] font-medium leading-tight text-neutral-400">
-                    Claim Amount
+                  <span className="block text-ui-micro-lg font-medium leading-tight text-neutral-400">
+                    {t("claimAmount")}
                   </span>
                   {crore(counts.claimAmount[tile.key])}
                 </p>
@@ -238,12 +247,16 @@ export function ClaimOverviewBand({
               key={tile.key}
               href={href}
               className={className}
-              title={tile.label}
+              title={t(`tiles.${tile.labelKey}`)}
             >
               {content}
             </Link>
           ) : (
-            <div key={tile.key} className={className} title={tile.label}>
+            <div
+              key={tile.key}
+              className={className}
+              title={t(`tiles.${tile.labelKey}`)}
+            >
               {content}
             </div>
           );

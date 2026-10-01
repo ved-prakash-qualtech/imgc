@@ -1,5 +1,6 @@
 "use client";
 
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
 import { useCallback, useMemo, useState, useTransition } from "react";
 import {
   ArrowUpDownIcon,
@@ -26,20 +27,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useTranslations } from "next-intl";
+
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { RequirementRow } from "@/services/portal/requirements.server";
 import type { DocStatus } from "@/server/mock/types";
-
-const STATUS_LABEL: Record<DocStatus, string> = {
-  NOT_REQUESTED: "Not requested",
-  PENDING_UPLOAD: "Pending",
-  UNDER_REVIEW: "Uploaded",
-  APPROVED: "Accepted",
-  REJECTED: "Ineligible",
-  REUPLOAD_REQUIRED: "Query Raised",
-  WAIVER_REQUESTED: "Waiver requested",
-  WAIVED: "Waived",
-};
 
 const STATUS_TONE: Record<DocStatus, string> = {
   NOT_REQUESTED: "bg-neutral-50 text-neutral-400",
@@ -55,16 +47,16 @@ const STATUS_TONE: Record<DocStatus, string> = {
 /** Flat colored text, no pill and no dot — a dense, non-interactive table column, matching the
  *  same `flat` treatment `StatusPill` uses elsewhere in the portal's tables. */
 function StatusChip({ status }: Readonly<{ status: DocStatus }>) {
+  const t = useTranslations("claimDocuments.status");
   return (
     <span
       className={cn(
-        "text-[10.5px] font-semibold",
+        "text-ui-caption font-semibold",
         // eslint-disable-next-line security/detect-object-injection
         STATUS_TONE[status].split(" ").find((c) => c.startsWith("text-"))
       )}
     >
-      {/* eslint-disable-next-line security/detect-object-injection */}
-      {STATUS_LABEL[status]}
+      {t(status)}
     </span>
   );
 }
@@ -131,8 +123,9 @@ function TableLayout({
   /** IMGC's column appears once IMGC has decided at least one file in this table. */
   showImgcRemark: boolean;
 }) {
+  const t = useTranslations("claimDocuments");
   const plain =
-    "h-7 bg-neutral-50 px-2 text-[10px] font-medium text-neutral-500";
+    "h-7 bg-neutral-50 px-2 text-ui-tiny font-medium text-neutral-500";
   const head = (field: SortField, label: string) => (
     <TableHead className={plain}>
       <button
@@ -156,14 +149,14 @@ function TableLayout({
       <Table>
         <TableHeader className="sticky top-0 bg-white shadow-sm z-10">
           <TableRow>
-            {head("name", "Document Type")}
-            {head("fileName", "File Name")}
-            <TableHead className={plain}>Lender Remark</TableHead>
+            {head("name", t("table.documentType"))}
+            {head("fileName", t("table.fileName"))}
+            <TableHead className={plain}>{t("table.lenderRemark")}</TableHead>
             {showImgcRemark && (
-              <TableHead className={plain}>IMGC Remark</TableHead>
+              <TableHead className={plain}>{t("table.imgcRemark")}</TableHead>
             )}
-            <TableHead className={plain}>Uploaded By</TableHead>
-            {head("dateTime", "Date/Time")}
+            <TableHead className={plain}>{t("table.uploadedBy")}</TableHead>
+            {head("dateTime", t("table.dateTime"))}
             {/* Pinned to the right edge: the table is wider than the panel on a laptop screen, and
                 an Upload/Reupload button that scrolls out of sight reads as "there is no button". */}
             {showActions && (
@@ -203,8 +196,10 @@ export function ClaimDocumentsTable({
   bare?: boolean;
   claimStatus?: string;
 }>) {
+  const errorText = useServerErrorMessage();
   // No sort until a header is clicked: the list arrives mandatory-first in IMGC's configured
   // order, and that is the order the lender should work down.
+  const t = useTranslations("claimDocuments");
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
@@ -295,13 +290,13 @@ export function ClaimDocumentsTable({
           fileId
         );
         if (!result.ok) {
-          toast.error(result.error ?? "Could not delete that file.");
+          toast.error(errorText(result) ?? t("toast.deleteFailed"));
           return;
         }
-        toast.success("File removed.");
+        toast.success(t("toast.fileRemoved"));
       });
     },
-    []
+    [t, errorText]
   );
 
   // Deleting a file is not undoable, so the trash icon asks first.
@@ -309,13 +304,13 @@ export function ClaimDocumentsTable({
     (accId: string, documentId: string, fileId: string, fileName?: string) => {
       ask({
         description: fileName
-          ? `"${fileName}" will be permanently deleted. This cannot be undone.`
-          : "This file will be permanently deleted. This cannot be undone.",
-        confirmLabel: "Delete file",
+          ? t("delete.confirmNamed", { name: fileName })
+          : t("delete.confirm"),
+        confirmLabel: t("delete.title"),
         onConfirm: () => removeFile(accId, documentId, fileId),
       });
     },
-    [ask, removeFile]
+    [ask, removeFile, t]
   );
 
   const requiredActions = null;
@@ -391,7 +386,7 @@ export function ClaimDocumentsTable({
 
       const docNameCell = (
         <div className="flex flex-col gap-0.5">
-          <span className="text-[11.5px] font-semibold leading-tight text-neutral-900">
+          <span className="text-ui-body-sm font-semibold leading-tight text-neutral-900">
             {doc.name}
             {doc.required && <span className="text-destructive ml-1">*</span>}
           </span>
@@ -400,7 +395,7 @@ export function ClaimDocumentsTable({
           </div>
           {doc.refNo && (
             <div className="flex flex-wrap gap-1">
-              <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-500">
+              <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-ui-tiny font-semibold text-neutral-500">
                 {doc.refNo}
               </span>
             </div>
@@ -416,7 +411,7 @@ export function ClaimDocumentsTable({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 px-2.5 text-[11px]"
+              className="h-7 px-2.5 text-ui-label"
               // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
               onClick={() => setUploadTarget({ row: doc, mode: "upload" })}
             >
@@ -437,18 +432,18 @@ export function ClaimDocumentsTable({
               // A waiver reads across the same columns a file does: the lender's reason under
               // Lender Remark, IMGC's answer under IMGC Remark.
               <>
-                <TableCell className="px-2 py-1.5 text-[11px] text-neutral-400 align-top">
+                <TableCell className="px-2 py-1.5 text-ui-label text-neutral-400 align-top">
                   —
                 </TableCell>
                 <TableCell
-                  className="max-w-[150px] px-2 py-1.5 text-[10.5px] text-neutral-600 align-top"
+                  className="max-w-[150px] px-2 py-1.5 text-ui-caption text-neutral-600 align-top"
                   title={doc.waiver.reason}
                 >
-                  Waiver: {clip(doc.waiver.reason, 28)}
+                  {t("waiver.label", { reason: clip(doc.waiver.reason, 28) })}
                 </TableCell>
                 {showImgcRemark && (
                   <TableCell
-                    className="max-w-[150px] px-2 py-1.5 text-[10.5px] align-top"
+                    className="max-w-[150px] px-2 py-1.5 text-ui-caption align-top"
                     title={doc.waiver.remarks}
                   >
                     {doc.waiver.status === "APPROVED" ? (
@@ -466,23 +461,25 @@ export function ClaimDocumentsTable({
                           : ""}
                       </span>
                     ) : (
-                      <span className="text-neutral-400">Awaiting IMGC</span>
+                      <span className="text-neutral-400">
+                        {t("table.awaitingImgc")}
+                      </span>
                     )}
                   </TableCell>
                 )}
-                <TableCell className="px-2 py-1.5 text-[10.5px] text-neutral-600 align-top">
+                <TableCell className="px-2 py-1.5 text-ui-caption text-neutral-600 align-top">
                   {doc.waiver.by}
                 </TableCell>
-                <TableCell className="px-2 py-1.5 text-[10.5px] text-neutral-500 align-top">
+                <TableCell className="px-2 py-1.5 text-ui-caption text-neutral-500 align-top">
                   {when(doc.waiver.at)}
                 </TableCell>
               </>
             ) : (
               <TableCell
                 colSpan={showImgcRemark ? 5 : 4}
-                className="px-2 py-1.5 text-[11px] text-neutral-400 align-top"
+                className="px-2 py-1.5 text-ui-label text-neutral-400 align-top"
               >
-                Nothing uploaded yet.
+                {t("sections.nothingUploaded")}
               </TableCell>
             )}
             {showActions && (
@@ -509,7 +506,7 @@ export function ClaimDocumentsTable({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 px-2.5 text-[11px]"
+                className="h-7 px-2.5 text-ui-label"
                 // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                 onClick={() =>
                   setUploadTarget({
@@ -533,8 +530,8 @@ export function ClaimDocumentsTable({
                 variant="outline"
                 size="xs"
                 className="size-7 p-0"
-                title="Add file"
-                aria-label="Add file"
+                title={t("actions.addFile")}
+                aria-label={t("actions.addFile")}
                 // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
                 onClick={() => setUploadTarget({ row: doc, mode: "add" })}
               >
@@ -556,7 +553,7 @@ export function ClaimDocumentsTable({
                 </TableCell>
               </>
             )}
-            <TableCell className="px-2 py-1.5 text-[11px] font-medium align-top">
+            <TableCell className="px-2 py-1.5 text-ui-label font-medium align-top">
               <a
                 href={`/api/portal/files/${file.id}`}
                 target="_blank"
@@ -567,12 +564,12 @@ export function ClaimDocumentsTable({
                 {clip(file.originalName, 18)}
               </a>
               {/* Size sits under the name, as on IMGC's Decision tab - no column of its own. */}
-              <span className="block text-[10px] font-normal text-neutral-400">
+              <span className="block text-ui-tiny font-normal text-neutral-400">
                 {formatBytes(file.size)}
               </span>
             </TableCell>
             <TableCell
-              className="max-w-[150px] px-2 py-1.5 text-[10.5px] text-neutral-600 align-top"
+              className="max-w-[150px] px-2 py-1.5 text-ui-caption text-neutral-600 align-top"
               title={file.uploadRemarks?.trim() || undefined}
             >
               {file.uploadRemarks?.trim() ? (
@@ -590,14 +587,14 @@ export function ClaimDocumentsTable({
                     maxChars={28}
                   />
                 ) : (
-                  <span className="text-[10.5px] text-neutral-300">—</span>
+                  <span className="text-ui-caption text-neutral-300">—</span>
                 )}
               </TableCell>
             )}
-            <TableCell className="px-2 py-1.5 text-[10.5px] text-neutral-500 align-top whitespace-nowrap">
+            <TableCell className="px-2 py-1.5 text-ui-caption text-neutral-500 align-top whitespace-nowrap">
               {file.uploadedByName || "—"}
             </TableCell>
-            <TableCell className="px-2 py-1.5 text-[10.5px] text-neutral-500 align-top whitespace-nowrap">
+            <TableCell className="px-2 py-1.5 text-ui-caption text-neutral-500 align-top whitespace-nowrap">
               {when(file.uploadedAt)}
             </TableCell>
             {showActions && (
@@ -612,9 +609,9 @@ export function ClaimDocumentsTable({
                       onClick={() =>
                         onDelete(accountId, doc.id, file.id, file.originalName)
                       }
-                      aria-label="Delete file"
+                      aria-label={t("actions.delete")}
                       disabled={deleting}
-                      title="Delete file"
+                      title={t("actions.delete")}
                     >
                       <TrashIcon className="size-3.5" />
                     </Button>
@@ -633,7 +630,7 @@ export function ClaimDocumentsTable({
     <div className="flex flex-col gap-6">
       {/* ── Required documents ───────────────────────────────── */}
       <Panel
-        title="Required documents"
+        title={t("sections.required")}
         className={bare ? "border-neutral-200 shadow-none" : undefined}
         actions={requiredActions}
       >
@@ -655,12 +652,12 @@ export function ClaimDocumentsTable({
       {/* ── Additional documents ─────────────────────────────── */}
       {showAdditional && (
         <Panel
-          title="Additional documents"
+          title={t("sections.additional")}
           className={bare ? "border-neutral-200 shadow-none" : undefined}
           actions={additionalActions}
         >
           {additional.length === 0 ? (
-            <p className="px-5 py-4 text-center text-[13px] text-neutral-500">
+            <p className="px-5 py-4 text-center text-ui-subhead text-neutral-500">
               No additional documents added.
             </p>
           ) : (

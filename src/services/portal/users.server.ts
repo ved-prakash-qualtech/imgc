@@ -1,4 +1,15 @@
+// `"server-only"` below throws at build time if this module reaches a client bundle, so it
+// can never run in a browser — this rule is flagging a local identifier (`name`) that
+// happens to share a name with a global browser API, not an actual browser-api call.
+/* eslint-disable use-client/browser-api */
+
 import "server-only";
+
+import {
+  fail,
+  type ServerErrorCode,
+  type ServerErrorParams,
+} from "@/config/errorCodes";
 
 import { readDb, writeDb } from "@/server/mock/db";
 import { newId, nowIso } from "@/server/mock/ids";
@@ -21,11 +32,14 @@ export async function findByEmail(email: string): Promise<User | null> {
   return db.users.find((u) => u.email.toLowerCase() === normalized) ?? null;
 }
 
-export async function findByEmployeeId(employeeId: string): Promise<User | null> {
+export async function findByEmployeeId(
+  employeeId: string
+): Promise<User | null> {
   const normalized = employeeId.trim().toUpperCase();
   const db = await readDb();
   return (
-    db.users.find((u) => (u.employeeId ?? "").toUpperCase() === normalized) ?? null
+    db.users.find((u) => (u.employeeId ?? "").toUpperCase() === normalized) ??
+    null
   );
 }
 
@@ -39,7 +53,9 @@ export async function authenticateImgc(
   return (await verifyPassword(password, user.passwordHash)) ? user : null;
 }
 
-export async function getLenderOrgById(id: string | undefined): Promise<LenderOrg | null> {
+export async function getLenderOrgById(
+  id: string | undefined
+): Promise<LenderOrg | null> {
   if (!id) return null;
   const db = await readDb();
   return db.lenderOrgs.find((o) => o.id === id) ?? null;
@@ -69,8 +85,12 @@ export async function getAssignedOfficer(
   const db = await readDb();
   const counts = new Map<string, number>();
   for (const account of db.accounts) {
-    if (account.lenderOrgId !== session.lenderOrgId || !account.assignedUserId) continue;
-    counts.set(account.assignedUserId, (counts.get(account.assignedUserId) ?? 0) + 1);
+    if (account.lenderOrgId !== session.lenderOrgId || !account.assignedUserId)
+      continue;
+    counts.set(
+      account.assignedUserId,
+      (counts.get(account.assignedUserId) ?? 0) + 1
+    );
   }
   if (counts.size === 0) return null;
 
@@ -122,6 +142,9 @@ function parseMailboxes(raw: string): string[] {
  * quantifier inside a quantified group, which backtracks catastrophically on a long
  * near-match; this input comes from a form field, so it is worth not writing that.
  */
+// `-+` and `[a-z0-9]+` match disjoint character sets, so the outer `*` has no ambiguity to
+// backtrack over, and `isValidDomain` bounds the length before this ever runs.
+// eslint-disable-next-line security/detect-unsafe-regex
 const DOMAIN_LABEL_RE = /^[a-z0-9]+(-+[a-z0-9]+)*$/;
 
 function isValidDomain(domain: string): boolean {
@@ -153,31 +176,34 @@ export interface LenderOrgInput {
 export async function createLenderOrg(
   session: AppSession,
   input: LenderOrgInput
-): Promise<{ ok: boolean; error?: string }> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+): Promise<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}> {
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
 
   const name = input.name.trim();
   const emailDomain = normaliseDomain(input.emailDomain);
   const contactEmails = parseMailboxes(input.contactEmails);
 
-  if (!name) return { ok: false, error: "Give the organisation a name." };
-  if (!emailDomain) return { ok: false, error: "Give the organisation an email domain." };
+  if (!name) return fail("ORG_NAME_REQUIRED");
+  if (!emailDomain) return fail("ORG_DOMAIN_REQUIRED");
   if (!isValidDomain(emailDomain)) {
-    return { ok: false, error: `"${emailDomain}" is not a valid domain.` };
+    return fail("DOMAIN_INVALID", { domain: emailDomain });
   }
   const badEmail = contactEmails.find((e) => !EMAIL_RE.test(e));
-  if (badEmail) return { ok: false, error: `"${badEmail}" is not a valid email address.` };
+  if (badEmail) return fail("EMAIL_INVALID_VALUE", { email: badEmail });
 
   return writeDb((db) => {
     const clash = db.lenderOrgs.find((o) => o.emailDomain === emailDomain);
     if (clash) {
-      return {
-        ok: false as const,
-        error: `@${emailDomain} already belongs to ${clash.name}.`,
-      };
+      return fail("DOMAIN_TAKEN", { domain: emailDomain, org: clash.name });
     }
-    if (db.lenderOrgs.some((o) => o.name.toLowerCase() === name.toLowerCase())) {
-      return { ok: false as const, error: `An organisation named "${name}" already exists.` };
+    if (
+      db.lenderOrgs.some((o) => o.name.toLowerCase() === name.toLowerCase())
+    ) {
+      return fail("ORG_NAME_TAKEN", { name });
     }
     db.lenderOrgs.push({ id: newId("org"), name, emailDomain, contactEmails });
     return { ok: true as const };
@@ -195,23 +221,27 @@ export async function updateLenderOrg(
   session: AppSession,
   orgId: string,
   input: { name: string; contactEmails: string }
-): Promise<{ ok: boolean; error?: string }> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+): Promise<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}> {
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
 
   const name = input.name.trim();
   const contactEmails = parseMailboxes(input.contactEmails);
-  if (!name) return { ok: false, error: "Give the organisation a name." };
+  if (!name) return fail("ORG_NAME_REQUIRED");
   const badEmail = contactEmails.find((e) => !EMAIL_RE.test(e));
-  if (badEmail) return { ok: false, error: `"${badEmail}" is not a valid email address.` };
+  if (badEmail) return fail("EMAIL_INVALID_VALUE", { email: badEmail });
 
   return writeDb((db) => {
     const org = db.lenderOrgs.find((o) => o.id === orgId);
-    if (!org) return { ok: false as const, error: "That organisation no longer exists." };
+    if (!org) return fail("ORG_NOT_FOUND");
     const clash = db.lenderOrgs.find(
       (o) => o.id !== orgId && o.name.toLowerCase() === name.toLowerCase()
     );
     if (clash) {
-      return { ok: false as const, error: `An organisation named "${name}" already exists.` };
+      return fail("ORG_NAME_TAKEN", { name });
     }
     org.name = name;
     org.contactEmails = contactEmails;
@@ -226,22 +256,26 @@ export async function updateLenderOrg(
 export async function createLenderAccess(
   session: AppSession,
   input: { name: string; email: string; orgName?: string }
-): Promise<{ ok: boolean; error?: string }> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+): Promise<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}> {
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
 
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
-  if (!name) return { ok: false, error: "Give the user a name." };
+  if (!name) return fail("USER_NAME_REQUIRED");
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    return { ok: false, error: "That is not a valid email address." };
+    return fail("EMAIL_INVALID");
   }
 
   const domain = domainOf(email);
-  if (!domain) return { ok: false, error: "That email has no domain." };
+  if (!domain) return fail("EMAIL_NO_DOMAIN");
 
   const outcome = await writeDb((db) => {
     if (db.users.some((u) => u.email.toLowerCase() === email)) {
-      return { ok: false as const, error: "That email already has access." };
+      return fail("EMAIL_ALREADY_HAS_ACCESS");
     }
     let org = db.lenderOrgs.find((o) => o.emailDomain === domain);
     if (!org) {

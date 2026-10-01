@@ -5,6 +5,7 @@
    load, not in a list. */
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDownIcon } from "lucide-react";
 
@@ -42,7 +43,7 @@ function FilterSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none rounded-full border border-neutral-200 bg-white py-1 pl-2.5 pr-7 text-[11.5px] font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
+        className="appearance-none rounded-full border border-neutral-200 bg-white py-1 pl-2.5 pr-7 text-ui-body-sm font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
         aria-label={label}
       >
         {children}
@@ -63,6 +64,7 @@ function MonthlyBars({
   status: MonthlyStatusKey;
   unit: "Lakhs" | "Crores";
 }>) {
+  const t = useTranslations("dashboard");
   const formattedData = data.map((d) => ({
     ...d,
     amountInUnit: unit === "Lakhs" ? d.amount / 100000 : d.amount / 10000000,
@@ -111,14 +113,14 @@ function MonthlyBars({
           viewBox={`0 0 ${W} ${H}`}
           className="min-w-[520px] w-full"
           role="img"
-          aria-label="Month-on-month claim counts and amounts"
+          aria-label={t("chart.monthOnMonthCounts")}
         >
           {/* Axis Titles */}
           <text
             x={padL - 6}
             y={padT - 8}
             textAnchor="end"
-            className="fill-brand-primary text-[9px] font-bold uppercase tracking-wider"
+            className="fill-brand-primary text-ui-micro font-bold uppercase tracking-wider"
           >
             Amount
           </text>
@@ -126,7 +128,7 @@ function MonthlyBars({
             x={W - padR + 6}
             y={padT - 8}
             textAnchor="start"
-            className="fill-[#10b981] text-[9px] font-bold uppercase tracking-wider"
+            className="fill-chart-2 text-ui-micro font-bold uppercase tracking-wider"
           >
             Count
           </text>
@@ -149,7 +151,7 @@ function MonthlyBars({
                   x={padL - 6}
                   y={y + 3}
                   textAnchor="end"
-                  className="fill-brand-primary text-[9px] font-medium"
+                  className="fill-brand-primary text-ui-micro font-medium"
                 >
                   {amtTick}
                 </text>
@@ -157,7 +159,7 @@ function MonthlyBars({
                   x={W - padR + 6}
                   y={y + 3}
                   textAnchor="start"
-                  className="fill-[#10b981] text-[9px] font-medium"
+                  className="fill-chart-2 text-ui-micro font-medium"
                 >
                   {countTick}
                 </text>
@@ -180,7 +182,7 @@ function MonthlyBars({
                   rx={3}
                   fill="var(--brand-primary)"
                 >
-                  <title>{`${d.label} Amount: ${d.amountInUnit.toFixed(2)} ${unit}`}</title>
+                  <title>{`${d.label} ${t("chart.amount")}: ${d.amountInUnit.toFixed(2)} ${unit === "Lakhs" ? t("chart.lakhs") : t("chart.crores")}`}</title>
                 </rect>
               </g>
             );
@@ -189,7 +191,7 @@ function MonthlyBars({
           <path
             d={`M ${linePoints}`}
             fill="none"
-            stroke="#10b981"
+            stroke="var(--chart-2)"
             strokeWidth={2.5}
             pointerEvents="none"
           />
@@ -204,8 +206,8 @@ function MonthlyBars({
                   cx={cx}
                   cy={cy}
                   r={4.5}
-                  fill="#fff"
-                  stroke="#10b981"
+                  fill="var(--white)"
+                  stroke="var(--chart-2)"
                   strokeWidth={2}
                   className="cursor-pointer hover:stroke-[3px] transition-all"
                 >
@@ -215,7 +217,7 @@ function MonthlyBars({
                   x={cx}
                   y={padT + plotH + 14}
                   textAnchor="middle"
-                  className="fill-neutral-500 text-[10px] pointer-events-none"
+                  className="fill-neutral-500 text-ui-tiny pointer-events-none"
                 >
                   {d.label}
                 </text>
@@ -260,9 +262,9 @@ function MonthlyBars({
                     x={amtX}
                     y={amtY}
                     textAnchor={amtAnchor}
-                    className="fill-brand-primary text-[9px] font-bold pointer-events-none"
+                    className="fill-brand-primary text-ui-micro font-bold pointer-events-none"
                     style={{
-                      stroke: "#fff",
+                      stroke: "var(--white)",
                       strokeWidth: 1.5,
                       paintOrder: "stroke",
                       strokeLinejoin: "round",
@@ -276,9 +278,9 @@ function MonthlyBars({
                     x={countX}
                     y={countY}
                     textAnchor={countAnchor}
-                    className="fill-[#10b981] text-[10px] font-bold pointer-events-none"
+                    className="fill-chart-2 text-ui-tiny font-bold pointer-events-none"
                     style={{
-                      stroke: "#fff",
+                      stroke: "var(--white)",
                       strokeWidth: 1.5,
                       paintOrder: "stroke",
                       strokeLinejoin: "round",
@@ -314,8 +316,8 @@ function MonthlyBars({
               cx={34}
               cy={-3}
               r={4}
-              fill="#fff"
-              stroke="#10b981"
+              fill="var(--white)"
+              stroke="var(--chart-2)"
               strokeWidth={2}
             />
             <text
@@ -335,27 +337,28 @@ function MonthlyBars({
       <div className="mt-1 flex items-center justify-between rounded-lg border border-neutral-100 bg-neutral-50 px-4 py-2 shadow-sm mx-2 mb-1">
         <div>
           <div className="flex items-center gap-2 mb-0.5">
-            <h4 className="text-[9px] font-bold uppercase tracking-wider text-neutral-500">
-              Total{" "}
-              {status === "APPROVED"
-                ? "Approved"
-                : status === "REJECTED"
-                  ? "Ineligible"
-                  : "Claims"}
+            <h4 className="text-ui-micro font-bold uppercase tracking-wider text-neutral-500">
+              {t(
+                status === "APPROVED"
+                  ? "chart.totalApprovedLabel"
+                  : status === "REJECTED"
+                    ? "chart.totalIneligibleLabel"
+                    : "chart.totalClaimsLabel"
+              )}
             </h4>
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-lg font-bold text-neutral-800">
               {formattedData.reduce((acc, d) => acc + d.count, 0)}
             </span>
-            <span className="text-[10px] font-medium text-neutral-500">
+            <span className="text-ui-tiny font-medium text-neutral-500">
               Claims
             </span>
           </div>
         </div>
         <div className="text-right">
-          <h4 className="mb-0.5 text-[9px] font-bold uppercase tracking-wider text-neutral-500">
-            Total Amount ({unit})
+          <h4 className="mb-0.5 text-ui-micro font-bold uppercase tracking-wider text-neutral-500">
+            {t("chart.totalAmountUnit", { unit })}
           </h4>
           <div className="flex justify-end">
             <span className="text-lg font-bold text-brand-primary">
@@ -380,7 +383,7 @@ function LenderProgressBars({
   const max = Math.max(1, ...rows.map((r) => r.inProgress));
   if (rows.every((r) => r.total === 0)) {
     return (
-      <p className="px-1 py-6 text-center text-[12.5px] text-neutral-500">
+      <p className="px-1 py-6 text-center text-ui-body-lg text-neutral-500">
         No claims for this selection.
       </p>
     );
@@ -389,7 +392,7 @@ function LenderProgressBars({
     <ul className="space-y-1">
       {rows.map((r) => (
         <li key={r.lenderOrgId} className="flex items-center gap-2">
-          <span className="w-40 shrink-0 truncate text-[12px] text-neutral-700">
+          <span className="w-40 shrink-0 truncate text-ui-body text-neutral-700">
             {r.lenderName}
           </span>
           <div className="relative h-4 flex-1 overflow-hidden rounded bg-neutral-100">
@@ -398,7 +401,7 @@ function LenderProgressBars({
               style={{ width: `${(r.inProgress / max) * 100}%` }}
             />
           </div>
-          <span className="w-24 shrink-0 text-right text-[11.5px] tabular-nums text-neutral-600">
+          <span className="w-24 shrink-0 text-right text-ui-body-sm tabular-nums text-neutral-600">
             <span className="font-semibold text-neutral-900">
               {r.inProgress}
             </span>
@@ -429,23 +432,31 @@ function LenderUnderProgressTable({
   rows: ClaimDashboardData["lenderUnderProgress"];
   onSelect: (claimId: string) => void;
 }>) {
+  const t = useTranslations("dashboard");
+  const tGrid = useTranslations("grids");
   if (rows.length === 0) {
     return (
-      <p className="px-1 py-6 text-center text-[12.5px] text-neutral-500">
+      <p className="px-1 py-6 text-center text-ui-body-lg text-neutral-500">
         No claims for this selection.
       </p>
     );
   }
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[430px] text-left text-[12px]">
-        <thead className="border-b border-neutral-200 text-[11px] uppercase tracking-wide text-neutral-400">
+      <table className="w-full min-w-[430px] text-left text-ui-body">
+        <thead className="border-b border-neutral-200 text-ui-label uppercase tracking-wide text-neutral-400">
           <tr>
-            <th className="px-1 py-1.5 font-medium">Loan ID</th>
-            <th className="px-1 py-1.5 font-medium">Applicant</th>
-            <th className="px-1 py-1.5 font-medium">Status</th>
+            <th className="px-1 py-1.5 font-medium">
+              {tGrid("columns.loanId")}
+            </th>
+            <th className="px-1 py-1.5 font-medium">
+              {tGrid("columns.applicant")}
+            </th>
+            <th className="px-1 py-1.5 font-medium">
+              {tGrid("columns.status")}
+            </th>
             <th className="px-1 py-1.5 text-right font-medium">
-              Latest Query Date
+              {t("chart.latestQueryDate")}
             </th>
           </tr>
         </thead>
@@ -491,6 +502,8 @@ export function ClaimDashboardView({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   lenderOrgId,
 }: Props) {
+  const t = useTranslations("dashboard");
+  const tGrid = useTranslations("grids");
   const router = useRouter();
   const searchParams = useSearchParams();
   const [unit, setUnit] = useState<"Lakhs" | "Crores">("Lakhs");
@@ -520,7 +533,7 @@ export function ClaimDashboardView({
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Panel
         size="compact"
-        title="Month-on-month claim status"
+        title={t("chart.monthOnMonth")}
         // Panel wraps its `actions` slot in a `shrink-0` flex item, so `flex-wrap` alone here
         // does nothing: an unconstrained flex row's own width is computed as if nothing ever
         // wraps, so `shrink-0` still locked it at the full single-line width — wider than the
@@ -533,20 +546,20 @@ export function ClaimDashboardView({
               <button
                 type="button"
                 onClick={() => setUnit("Lakhs")}
-                className={`px-2.5 py-1 text-[10.5px] font-medium border border-neutral-200 rounded-l-lg transition-colors ${unit === "Lakhs" ? "bg-brand-primary text-white border-brand-primary" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}
+                className={`px-2.5 py-1 text-ui-caption font-medium border border-neutral-200 rounded-l-lg transition-colors ${unit === "Lakhs" ? "bg-brand-primary text-white border-brand-primary" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}
               >
-                Lakhs
+                {t("chart.lakhs")}
               </button>
               <button
                 type="button"
                 onClick={() => setUnit("Crores")}
-                className={`px-2.5 py-1 text-[10.5px] font-medium border border-l-0 border-neutral-200 rounded-r-lg transition-colors ${unit === "Crores" ? "bg-brand-primary text-white border-brand-primary border-l-brand-primary" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}
+                className={`px-2.5 py-1 text-ui-caption font-medium border border-l-0 border-neutral-200 rounded-r-lg transition-colors ${unit === "Crores" ? "bg-brand-primary text-white border-brand-primary border-l-brand-primary" : "bg-white text-neutral-600 hover:bg-neutral-50"}`}
               >
-                CRs
+                {t("chart.crores")}
               </button>
             </div>
             <FilterSelect
-              label="Status"
+              label={tGrid("columns.status")}
               value={status}
               onChange={(v) => setParam("status", v)}
             >
@@ -557,7 +570,7 @@ export function ClaimDashboardView({
               ))}
             </FilterSelect>
             <FilterSelect
-              label="Time window"
+              label={t("chart.timeWindow")}
               value={String(months)}
               onChange={(v) => setParam("months", v)}
             >
@@ -579,7 +592,9 @@ export function ClaimDashboardView({
       <Panel
         size="compact"
         title={
-          data.isLender ? "Query Raised · Not Responded" : "Claim Under Review"
+          data.isLender
+            ? t("chart.queryRaisedNotResponded")
+            : t("underReviewPanel")
         }
         className="flex flex-col h-full"
       >

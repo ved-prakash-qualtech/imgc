@@ -3,6 +3,7 @@
 
 import { ownerForStatus } from "@/config/claimOwner";
 import { useCallback, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowDownIcon,
@@ -160,13 +161,18 @@ function statusLabel(v: StatusOption): string {
     .join(" ");
 }
 
-function purposeDisplay(v: string): string {
-  return v === "ALL" ? "All Loan Types" : v;
+function purposeDisplayWith(t: (key: string) => string) {
+  return (v: string): string => (v === "ALL" ? t("filters.allLoanTypes") : v);
 }
 
-function bucketDisplay(v: (typeof BUCKETS)[number]): string {
-  if (v === "ALL") return "All Owners";
-  return v === "IMGC" ? "IMGC" : "Lender";
+function bucketDisplayWith(
+  t: (key: string) => string,
+  tStatus: (key: string) => string
+) {
+  return (v: (typeof BUCKETS)[number]): string =>
+    v === "ALL"
+      ? t("filters.allOwners")
+      : tStatus(v === "IMGC" ? "IMGC" : "LENDER");
 }
 
 /** A claim record exists the moment the lender opens the workspace — that's a plumbing detail
@@ -197,19 +203,19 @@ function csvField(value: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function downloadCsv(rows: EligibleRow[]): void {
+function downloadCsv(rows: EligibleRow[], t: (key: string) => string): void {
   const headers = [
-    "Loan ID",
-    "Claim No",
-    "Applicant",
-    "Loan Type",
-    "Loan Amount",
-    "O/S Amount",
-    "Claim Amount",
+    t("columns.loanId"),
+    t("columns.claimNo"),
+    t("columns.applicant"),
+    t("columns.loanType"),
+    t("columns.loanAmount"),
+    t("columns.outstandingAmount"),
+    t("columns.claimAmount"),
     "DPD",
     "Status",
-    "Owner",
-    "Initiation Date",
+    t("columns.owner"),
+    t("columns.initiationDate"),
   ];
   const lines = rows.map((a) =>
     [
@@ -283,7 +289,7 @@ const SortableTableHead = ({
     <TableHead
       onClick={handleClick}
       title={title}
-      className="h-7 cursor-pointer select-none px-0.5 text-[10px] transition-colors hover:bg-neutral-50"
+      className="h-7 cursor-pointer select-none px-0.5 text-ui-tiny transition-colors hover:bg-neutral-50"
     >
       <div className="flex items-center">
         {label}
@@ -316,7 +322,7 @@ function FilterSelect<T extends string>({
         aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
-        className="h-7 appearance-none rounded-full border border-neutral-200 bg-white pl-2.5 pr-7 text-center text-[11.5px] font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+        className="h-7 appearance-none rounded-full border border-neutral-200 bg-white pl-2.5 pr-7 text-center text-ui-body-sm font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
       >
         {options.map((option) => (
           <option key={option} value={option}>
@@ -336,11 +342,12 @@ function StatusMultiSelect({
   value: StatusFilter[];
   onChange: (next: StatusFilter[]) => void;
 }>) {
+  const t = useTranslations("grids");
   const [open, setOpen] = useState(false);
   const selected = new Set(value);
   const label =
     value.length === 0
-      ? "All Claim Status"
+      ? t("filters.allClaimStatus")
       : value.length === 1
         ? value[0] === "ACTIVE_NPA"
           ? "Active NPA"
@@ -364,8 +371,8 @@ function StatusMultiSelect({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        aria-label="All Claim Status"
-        className="inline-flex h-7 max-w-[170px] items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-[11.5px] font-medium text-neutral-700 outline-none transition-colors hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+        aria-label={t("filters.allClaimStatus")}
+        className="inline-flex h-7 max-w-[170px] items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-ui-body-sm font-medium text-neutral-700 outline-none transition-colors hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
       >
         <span className="truncate">{label}</span>
         <ChevronDownIcon className="size-3.5 shrink-0 text-neutral-400" />
@@ -412,6 +419,8 @@ export function EligibleCasesClient({
   accounts,
   trackView,
 }: Readonly<{ accounts: EligibleRow[]; trackView?: "tabs" | "single" }>) {
+  const t = useTranslations("grids");
+  const tStatus = useTranslations("status");
   const router = useRouter();
   const searchParams = useSearchParams();
   // Same as the IMGC grid: recorded here, re-applied by the workspace's Back link.
@@ -655,7 +664,7 @@ export function EligibleCasesClient({
     currentPage * pageSize
   );
 
-  const handleExport = useCallback(() => downloadCsv(rows), [rows]);
+  const handleExport = useCallback(() => downloadCsv(rows, t), [rows, t]);
 
   return (
     <Panel size="compact">
@@ -665,25 +674,25 @@ export function EligibleCasesClient({
           <input
             value={query}
             onChange={handleQueryChange}
-            placeholder="Loan ID, claim no. or applicant"
-            aria-label="Search cases"
-            className="h-7 w-[215px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-[12px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            placeholder={t("search.casesPlaceholder")}
+            aria-label={t("search.casesLabel")}
+            className="h-7 w-[215px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-ui-body outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           />
         </div>
         <StatusMultiSelect value={status} onChange={handleStatusChange} />
         <FilterSelect
-          label="Loan Types"
+          label={t("columns.loanTypes")}
           options={["ALL", ...products] as const}
           value={product}
           onChange={handleProductChange}
-          display={purposeDisplay}
+          display={purposeDisplayWith(t)}
         />
         <FilterSelect
-          label="Owner"
+          label={t("columns.owner")}
           options={BUCKETS}
           value={bucket}
           onChange={handleBucketChange}
-          display={bucketDisplay}
+          display={bucketDisplayWith(t, tStatus)}
         />
         {/* Sits in the filter row rather than a panel header, and wears the same pill the
             selects beside it wear — `ml-auto` keeps it at the right edge of the row however
@@ -691,7 +700,7 @@ export function EligibleCasesClient({
         <button
           type="button"
           onClick={handleExport}
-          className="ml-auto inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-[11.5px] font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+          className="ml-auto inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-ui-body-sm font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
         >
           <DownloadIcon className="size-3.5" /> Export CSV
         </button>
@@ -703,85 +712,87 @@ export function EligibleCasesClient({
             <TableRow>
               <SortableTableHead
                 column="loanNo"
-                label="Loan ID"
+                label={t("columns.loanId")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="claimNo"
-                label="Claim No."
+                label={t("columns.claimNoDotted")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="borrowerName"
-                label="Applicant"
+                label={t("columns.applicant")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="purpose"
-                label="Loan Types"
+                label={t("columns.loanTypes")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="loanAmount"
-                label="Loan Amount"
+                label={t("columns.loanAmount")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="outstandingAmount"
-                label="O/S Amount"
+                label={t("columns.outstandingAmount")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="claimAmount"
-                label="Claim Amount"
+                label={t("columns.claimAmount")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="dpd"
-                label="DPD"
+                label={t("columns.dpd")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="status"
-                label="Status"
+                label={t("columns.status")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="bucket"
-                label="Owner"
+                label={t("columns.owner")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="submittedAt"
-                label="Initiation Date"
+                label={t("columns.initiationDate")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <TableHead className="h-7 px-0.5 text-[10px] font-semibold text-neutral-500">
-                Ageing
+              <TableHead className="h-7 px-0.5 text-ui-tiny font-semibold text-neutral-500">
+                {t("columns.ageing")}
               </TableHead>
-              <TableHead className="h-7 px-0.5 text-[10px]">Actions</TableHead>
+              <TableHead className="h-7 px-0.5 text-ui-tiny">
+                {t("columns.actions")}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -789,7 +800,7 @@ export function EligibleCasesClient({
               <TableRow>
                 <TableCell
                   colSpan={11}
-                  className="py-12 text-center text-[13px] text-neutral-500"
+                  className="py-12 text-center text-ui-subhead text-neutral-500"
                 >
                   No claims match your search.
                 </TableCell>
@@ -797,41 +808,41 @@ export function EligibleCasesClient({
             ) : (
               currentRows.map((a) => (
                 <TableRow key={a.id}>
-                  <TableCell className="px-0.5 py-1 text-[11.5px]">
-                    <span className="inline-flex items-center rounded-full bg-info/12 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap text-info">
+                  <TableCell className="px-0.5 py-1 text-ui-body-sm">
+                    <span className="inline-flex items-center rounded-full bg-info/12 px-1 py-0.5 text-ui-tiny font-semibold whitespace-nowrap text-info">
                       {a.loanNo}
                     </span>
                   </TableCell>
-                  <TableCell className="px-0.5 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
+                  <TableCell className="px-0.5 py-1 text-ui-body-sm whitespace-nowrap text-neutral-500">
                     {a.claim?.claimNo || "—"}
                   </TableCell>
-                  <TableCell className="px-0.5 py-1 text-[11.5px] font-medium whitespace-nowrap text-neutral-900">
+                  <TableCell className="px-0.5 py-1 text-ui-body-sm font-medium whitespace-nowrap text-neutral-900">
                     {a.borrowerName}
                   </TableCell>
-                  <TableCell className="px-0.5 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
+                  <TableCell className="px-0.5 py-1 text-ui-body-sm whitespace-nowrap text-neutral-500">
                     {a.product}
                   </TableCell>
-                  <TableCell className="px-0.5 py-1 text-[11.5px]">
-                    <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-success-700">
+                  <TableCell className="px-0.5 py-1 text-ui-body-sm">
+                    <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-ui-tiny font-semibold whitespace-nowrap tabular-nums text-success-700">
                       {inr.format(a.loanAmount)}
                     </span>
                   </TableCell>
                   {/* Outstanding is what the claim is actually about - principal plus interest still
                       owed today - so it reads in the warning tone, apart from the sanctioned amount. */}
-                  <TableCell className="px-0.5 py-1 text-[11.5px]">
-                    <span className="inline-flex items-center rounded-full bg-warning/10 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-warning">
+                  <TableCell className="px-0.5 py-1 text-ui-body-sm">
+                    <span className="inline-flex items-center rounded-full bg-warning/10 px-1 py-0.5 text-ui-tiny font-semibold whitespace-nowrap tabular-nums text-warning">
                       {inr.format(a.outstandingAmount)}
                     </span>
                   </TableCell>
-                  <TableCell className="px-0.5 py-1 text-[11.5px]">
+                  <TableCell className="px-0.5 py-1 text-ui-body-sm">
                     <span
-                      className="inline-flex items-center rounded-full bg-brand-primary/10 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-brand-primary"
+                      className="inline-flex items-center rounded-full bg-brand-primary/10 px-1 py-0.5 text-ui-tiny font-semibold whitespace-nowrap tabular-nums text-brand-primary"
                       title="20% of the loan amount"
                     >
                       {inr.format(claimAmountFor(a.loanAmount))}
                     </span>
                   </TableCell>
-                  <TableCell className="px-0.5 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-500">
+                  <TableCell className="px-0.5 py-1 text-ui-body-sm tabular-nums whitespace-nowrap text-neutral-500">
                     {a.dpd ? `${a.dpd} days` : "—"}
                   </TableCell>
                   <TableCell className="px-0.5 py-1">
@@ -839,12 +850,12 @@ export function EligibleCasesClient({
                       <StatusPill
                         status={a.claim.status}
                         flat
-                        className="text-[10px]"
+                        className="text-ui-tiny"
                         maxChars={10}
                       />
                     ) : (
                       <span
-                        className="text-[10px] font-semibold whitespace-nowrap text-neutral-500"
+                        className="text-ui-tiny font-semibold whitespace-nowrap text-neutral-500"
                         title="Not started"
                       >
                         Not starte...
@@ -855,13 +866,13 @@ export function EligibleCasesClient({
                     <StatusPill
                       status={ownerOf(a)}
                       flat
-                      className="text-[10px]"
+                      className="text-ui-tiny"
                     />
                   </TableCell>
-                  <TableCell className="px-0.5 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-500">
+                  <TableCell className="px-0.5 py-1 text-ui-body-sm tabular-nums whitespace-nowrap text-neutral-500">
                     {dateOrDash(a.submittedAt)}
                   </TableCell>
-                  <TableCell className="px-0.5 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
+                  <TableCell className="px-0.5 py-1 text-ui-body-sm whitespace-nowrap text-neutral-500">
                     <LiveClaimAgeing
                       statusHistory={a.claim?.statusHistory}
                       hideStatusText
@@ -886,27 +897,27 @@ export function EligibleCasesClient({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-3 py-1.5">
-        <div className="flex items-center gap-2 text-[12px] text-neutral-500">
+        <div className="flex items-center gap-2 text-ui-body text-neutral-500">
           <div className="flex items-center gap-2">
-            <span>Rows per page</span>
+            <span>{t("misc.rowsPerPage")}</span>
             <Select
               value={String(pageSize)}
               onValueChange={handlePageSizeChange}
             >
               <SelectTrigger
                 size="sm"
-                className="h-7 w-[62px] bg-white text-[12px]"
+                className="h-7 w-[62px] bg-white text-ui-body"
               >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="10" className="text-[12px]">
+                <SelectItem value="10" className="text-ui-body">
                   10
                 </SelectItem>
-                <SelectItem value="20" className="text-[12px]">
+                <SelectItem value="20" className="text-ui-body">
                   20
                 </SelectItem>
-                <SelectItem value="50" className="text-[12px]">
+                <SelectItem value="50" className="text-ui-body">
                   50
                 </SelectItem>
               </SelectContent>
@@ -918,7 +929,7 @@ export function EligibleCasesClient({
         </div>
 
         <div className="flex items-center gap-4">
-          <span className="hidden text-[12px] text-neutral-500 sm:inline">
+          <span className="hidden text-ui-body text-neutral-500 sm:inline">
             Page {currentPage} of {pageCount}
           </span>
           <PaginationNumbers

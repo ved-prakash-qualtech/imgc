@@ -2,6 +2,8 @@ import Link from "next/link";
 import { MailIcon } from "lucide-react";
 import { Section } from "@/components/portal/CommandBand";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { getTranslations } from "next-intl/server";
+
 import { requireSession } from "@/lib/auth/appSession";
 import {
   listNotifications,
@@ -36,22 +38,23 @@ function accountHrefFor(role: Role, accountId: string, event: string): string {
 
 export default async function NotificationsPage() {
   const session = await requireSession();
+  const t = await getTranslations("notifications");
 
   const notifications = await listNotifications(session);
   // Opening the list is what marks it read — the badge clears for this role only.
   await markNotificationsRead(session);
 
   return (
-    <PortalShell title="Notifications">
+    <PortalShell title={t("title")}>
       <div className="space-y-4">
         <Section
-          title={`${notifications.length} message${notifications.length === 1 ? "" : "s"}`}
-          subtitle="Prototype: nothing is delivered by email — this is the record of what would be sent."
+          title={t("messageCount", { count: notifications.length })}
+          subtitle={t("subtitle")}
         >
           <div className="rounded-xl border border-neutral-100 bg-white shadow-sm">
             {notifications.length === 0 ? (
-              <p className="px-5 py-12 text-center text-[13px] text-neutral-500">
-                Nothing has been sent yet.
+              <p className="px-5 py-12 text-center text-ui-subhead text-neutral-500">
+                {t("empty")}
               </p>
             ) : (
               <ol className="divide-y divide-neutral-100">
@@ -63,13 +66,13 @@ export default async function NotificationsPage() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-[13.5px] font-semibold text-neutral-950">
+                          <span className="text-ui-subhead-lg font-semibold text-neutral-950">
                             {n.subject}
                           </span>
-                          <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-500">
+                          <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-ui-tiny font-bold uppercase tracking-wide text-neutral-500">
                             {n.event.replaceAll("_", " ")}
                           </span>
-                          <span className="text-[11.5px] text-neutral-400">
+                          <span className="text-ui-body-sm text-neutral-400">
                             {new Date(n.sentAt).toLocaleString("en-IN", {
                               day: "2-digit",
                               month: "short",
@@ -78,14 +81,14 @@ export default async function NotificationsPage() {
                             })}
                           </span>
                         </div>
-                        <p className="mt-1 text-[13px] leading-relaxed text-neutral-700">
+                        <p className="mt-1 text-ui-subhead leading-relaxed text-neutral-700">
                           {n.body}
                         </p>
-                        <p className="mt-1 truncate text-[11.5px] text-neutral-400">
-                          To: {n.to.join(", ")}
+                        <p className="mt-1 truncate text-ui-body-sm text-neutral-400">
+                          {t("to")} {n.to.join(", ")}
                           {n.cc && n.cc.length > 0 && (
                             <span className="block text-neutral-400">
-                              Cc: {n.cc.join(", ")}
+                              {t("cc")} {n.cc.join(", ")}
                             </span>
                           )}
                         </p>

@@ -35,12 +35,12 @@ function StatCard({
         className
       )}
     >
-      <p className="text-[13px] text-neutral-500">{label}</p>
+      <p className="text-ui-subhead text-neutral-500">{label}</p>
       <p className="mt-1 text-2xl font-semibold text-neutral-950">{value}</p>
       {delta && (
         <p
           className={cn(
-            "mt-2 flex items-center gap-1 text-[13px] font-medium",
+            "mt-2 flex items-center gap-1 text-ui-subhead font-medium",
             delta.trend === "up" ? "text-success-500" : "text-danger-600"
           )}
         >

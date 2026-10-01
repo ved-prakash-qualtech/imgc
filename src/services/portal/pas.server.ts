@@ -1,5 +1,11 @@
 import "server-only";
 
+import {
+  fail,
+  type ServerErrorCode,
+  type ServerErrorParams,
+} from "@/config/errorCodes";
+
 import { readDb } from "@/server/mock/db";
 import { getPasValues, updatePasValue } from "@/server/mock/pas";
 import { recordEvent } from "@/services/portal/audit.server";
@@ -11,7 +17,10 @@ import type { PasValue } from "@/server/mock/types";
  * through `server/mock/pas.ts`, which is the seam a real PAS integration replaces.
  */
 
-async function canReach(session: AppSession, accountId: string): Promise<boolean> {
+async function canReach(
+  session: AppSession,
+  accountId: string
+): Promise<boolean> {
   const db = await readDb();
   const account = db.accounts.find((a) => a.id === accountId);
   if (!account) return false;
@@ -31,12 +40,16 @@ export async function pushToPas(
   accountId: string,
   key: string,
   value: string
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}> {
   if (!(await canReach(session, accountId))) {
-    return { ok: false, error: "This account belongs to another lender." };
+    return fail("ACCOUNT_OTHER_LENDER");
   }
   const trimmed = value.trim();
-  if (!trimmed) return { ok: false, error: "Give the field a value." };
+  if (!trimmed) return fail("FIELD_VALUE_REQUIRED");
 
   const before = (await getPasValues(accountId)).find((v) => v.key === key);
   const updated = await updatePasValue({
@@ -45,7 +58,7 @@ export async function pushToPas(
     value: trimmed,
     actor: session.name,
   });
-  if (!updated) return { ok: false, error: "That PAS field does not exist." };
+  if (!updated) return fail("PAS_FIELD_UNKNOWN");
 
   await recordEvent({
     accountId,

@@ -25,12 +25,14 @@ export function ActionFooter({
   return (
     <div
       className={cn(
-        "sticky bottom-2 z-20 mt-1 flex shrink-0 items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-1 shadow-[0_-2px_12px_rgba(15,23,42,0.08)]",
+        "sticky bottom-2 z-20 mt-1 flex shrink-0 items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-1 shadow-[0_-2px_12px_var(--shadow-ink)]",
         className
       )}
     >
-      <div className="min-w-0 flex-1 pl-2 text-[12px]">{message}</div>
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{children}</div>
+      <div className="min-w-0 flex-1 pl-2 text-ui-body">{message}</div>
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        {children}
+      </div>
     </div>
   );
 }

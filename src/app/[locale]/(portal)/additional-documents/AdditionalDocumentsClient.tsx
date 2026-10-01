@@ -5,7 +5,9 @@
    would mean threading the row back through a prop for no gain; this table renders a
    bounded page of rows, never the full dataset. */
 
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
 import { useCallback, useMemo, useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import {
   ArrowDownIcon,
@@ -116,7 +118,7 @@ const SortableTableHead = ({
   <TableHead
     onClick={() => onToggle(column)}
     className={cn(
-      "h-8 cursor-pointer select-none px-1.5 text-[10.5px] transition-colors hover:bg-neutral-50",
+      "h-8 cursor-pointer select-none px-1.5 text-ui-caption transition-colors hover:bg-neutral-50",
       className
     )}
   >
@@ -146,24 +148,24 @@ function csvField(value: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function downloadCsv(rows: RequirementRow[]): void {
+function downloadCsv(rows: RequirementRow[], t: (key: string) => string): void {
   const headers = [
-    "Case ID",
-    "Customer",
-    "Document",
-    "Required",
-    "Status",
-    "Lender",
-    "Added By",
-    "Added On",
+    t("columns.caseId"),
+    t("columns.customer"),
+    t("columns.document"),
+    t("columns.required"),
+    t("columns.status"),
+    t("columns.lender"),
+    t("columns.addedBy"),
+    t("columns.addedOn"),
   ];
   const lines = rows.map((r) =>
     [
       r.caseId,
       r.customerName,
       r.name,
-      r.required ? "Required" : "Optional",
-      r.active ? r.status : "DEACTIVATED",
+      r.required ? t("required") : t("optional"),
+      r.active ? r.status : t("deactivated"),
       r.lenderName,
       r.addedByName,
       r.addedOn.slice(0, 10),
@@ -206,7 +208,7 @@ function FilterSelect({
         aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-[12.5px] font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+        className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-ui-body-lg font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
       >
         <option value="">{allLabel}</option>
         {options.map((option) => (
@@ -238,6 +240,8 @@ export function AdditionalDocumentsClient({
    *  (`?q=<loan no>`) instead of dropping the reader into the unfiltered list. */
   initialQuery?: string;
 }>) {
+  const errorText = useServerErrorMessage();
+  const t = useTranslations("additionalDocuments");
   const [pending, startTransition] = useTransition();
 
   const [query, setQuery] = useState(initialQuery);
@@ -399,7 +403,10 @@ export function AdditionalDocumentsClient({
     setPageSize(Number(val ?? "10"));
     setPage(1);
   }, []);
-  const handleExport = useCallback(() => downloadCsv(filtered), [filtered]);
+  const handleExport = useCallback(
+    () => downloadCsv(filtered, t),
+    [filtered, t]
+  );
 
   const onAdd = useCallback(
     async (input: RequirementInput) => {
@@ -414,7 +421,7 @@ export function AdditionalDocumentsClient({
 
   const onEdit = useCallback(
     async (input: RequirementInput) => {
-      if (!editing) return { ok: false, error: "Nothing selected." };
+      if (!editing) return { ok: false, error: t("toast.nothingSelected") };
       const result = await updateRequirementAction(
         editing.accountId,
         editing.id,
@@ -422,33 +429,40 @@ export function AdditionalDocumentsClient({
       );
       return result;
     },
-    [editing]
+    [editing, t]
   );
 
-  const onToggle = useCallback((row: RequirementRow) => {
-    startTransition(async () => {
-      const result = await setActiveAction(row.accountId, row.id, !row.active);
-      if (!result.ok) {
-        toast.error(result.error ?? "That change failed.");
-        return;
-      }
-      toast.success(
-        row.active
-          ? `"${row.name}" deactivated — the lender no longer sees it.`
-          : `"${row.name}" reactivated.`
-      );
-    });
-  }, []);
+  const onToggle = useCallback(
+    (row: RequirementRow) => {
+      startTransition(async () => {
+        const result = await setActiveAction(
+          row.accountId,
+          row.id,
+          !row.active
+        );
+        if (!result.ok) {
+          toast.error(errorText(result) ?? t("toast.changeFailed"));
+          return;
+        }
+        toast.success(
+          row.active
+            ? t("toast.deactivated", { name: row.name })
+            : t("toast.reactivated", { name: row.name })
+        );
+      });
+    },
+    [t, errorText]
+  );
 
   return (
     <>
       <Panel
-        title={`${filtered.length} requirement${filtered.length === 1 ? "" : "s"}`}
-        description="Every additional document IMGC has asked a lender for, across all cases."
+        title={t("title", { count: filtered.length })}
+        description={t("description")}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleExport}>
-              <DownloadIcon /> Export CSV
+              <DownloadIcon /> {t("exportCsv")}
             </Button>
             <Button
               size="sm"
@@ -457,7 +471,7 @@ export function AdditionalDocumentsClient({
                 setAdding((v) => !v);
               }}
             >
-              <PlusIcon /> Add Document Requirement
+              <PlusIcon /> {t("addRequirement")}
             </Button>
           </div>
         }
@@ -475,14 +489,14 @@ export function AdditionalDocumentsClient({
         {editing && (
           <AddRequirementForm
             accountProduct={editing.product}
-            submitLabel="Save changes"
+            submitLabel={t("saveChanges")}
             initial={{
               name: editing.name,
               category: editing.category,
               description: editing.description,
               required: editing.required,
               applicableProduct: editing.product,
-              applicableCaseType: "Initial Claim",
+              applicableCaseType: t("initialClaim"),
               dueDate: editing.dueDate ?? "",
               remarks: editing.requirementRemarks ?? "",
               active: editing.active,
@@ -501,67 +515,67 @@ export function AdditionalDocumentsClient({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Case, customer, document, lender…"
-              aria-label="Search requirements"
-              className="h-8 w-[240px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              placeholder={t("searchPlaceholder")}
+              aria-label={t("searchLabel")}
+              className="h-8 w-[240px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
             />
           </div>
           <FilterSelect
-            label="Status"
-            allLabel="Document Status"
+            label={t("filters.status")}
+            allLabel={t("documentStatus")}
             options={STATUSES}
             value={status}
             onChange={setStatus}
             render={(s) => s.replace(/_/g, " ").toLowerCase()}
           />
           <FilterSelect
-            label="Required"
-            allLabel="Required or optional"
+            label={t("columns.required")}
+            allLabel={t("requiredOrOptional")}
             options={["REQUIRED", "OPTIONAL"]}
             value={necessity}
             onChange={setNecessity}
-            render={(v) => (v === "REQUIRED" ? "Required" : "Optional")}
+            render={(v) => (v === "REQUIRED" ? t("required") : t("optional"))}
           />
           <FilterSelect
-            label="Case"
-            allLabel="All cases"
+            label={t("filters.case")}
+            allLabel={t("filters.allCases")}
             options={options.cases}
             value={caseId}
             onChange={setCaseId}
           />
           <FilterSelect
-            label="Lender"
-            allLabel="All lenders"
+            label={t("filters.lender")}
+            allLabel={t("filters.allLenders")}
             options={options.lenders}
             value={lender}
             onChange={setLender}
           />
           <FilterSelect
-            label="Product"
-            allLabel="All products"
+            label={t("filters.product")}
+            allLabel={t("filters.allProducts")}
             options={options.products}
             value={product}
             onChange={setProduct}
           />
           <FilterSelect
-            label="Document"
-            allLabel="All documents"
+            label={t("filters.document")}
+            allLabel={t("filters.allDocuments")}
             options={options.documents}
             value={document}
             onChange={setDocument}
           />
-          <label className="flex items-center gap-1.5 text-[11.5px] text-neutral-500">
-            Added from
+          <label className="flex items-center gap-1.5 text-ui-body-sm text-neutral-500">
+            {t("addedFrom")}
             <input
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="h-8 rounded-full border border-neutral-200 px-2.5 text-[12.5px] outline-none focus:border-brand-primary"
+              className="h-8 rounded-full border border-neutral-200 px-2.5 text-ui-body-lg outline-none focus:border-brand-primary"
             />
           </label>
           {anyFilter && (
             <Button size="xs" variant="outline" onClick={clearFilters}>
-              Clear filters
+              {t("clearFilters")}
             </Button>
           )}
         </div>
@@ -573,61 +587,61 @@ export function AdditionalDocumentsClient({
               <TableRow>
                 <SortableTableHead
                   column="caseId"
-                  label="Case ID"
+                  label={t("columns.caseId")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
                 />
                 <SortableTableHead
                   column="customerName"
-                  label="Customer"
+                  label={t("columns.customer")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
                 />
                 <SortableTableHead
                   column="documentName"
-                  label="Document"
+                  label={t("columns.document")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
                 />
                 <SortableTableHead
                   column="required"
-                  label="Required"
+                  label={t("columns.required")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
                 />
                 <SortableTableHead
                   column="status"
-                  label="Status"
+                  label={t("columns.status")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
                 />
                 <SortableTableHead
                   column="lenderName"
-                  label="Lender"
+                  label={t("columns.lender")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
                 />
                 <SortableTableHead
                   column="addedByName"
-                  label="Added by"
+                  label={t("columns.addedBy")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
                 />
                 <SortableTableHead
                   column="addedOn"
-                  label="Added on"
+                  label={t("columns.addedOn")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
                 />
-                <TableHead className="h-8 px-1.5 text-[10.5px]">
+                <TableHead className="h-8 px-1.5 text-ui-caption">
                   Action
                 </TableHead>
               </TableRow>
@@ -637,13 +651,11 @@ export function AdditionalDocumentsClient({
                 <TableRow>
                   <TableCell colSpan={9} className="py-14 text-center">
                     <SearchXIcon className="mx-auto mb-2 size-6 text-neutral-300" />
-                    <p className="text-[13px] font-medium text-neutral-700">
-                      No requirements match those filters.
+                    <p className="text-ui-subhead font-medium text-neutral-700">
+                      {t("empty")}
                     </p>
-                    <p className="mt-0.5 text-[12.5px] text-neutral-500">
-                      {anyFilter
-                        ? "Try widening the search, or clear the filters."
-                        : "Add a document requirement to get started."}
+                    <p className="mt-0.5 text-ui-body-lg text-neutral-500">
+                      {anyFilter ? t("emptyFiltered") : t("emptyNone")}
                     </p>
                   </TableCell>
                 </TableRow>
@@ -656,19 +668,19 @@ export function AdditionalDocumentsClient({
                     <TableCell className="px-1.5 py-1.5">
                       <Link
                         href={ROUTES.account(r.accountId)}
-                        className="inline-flex items-center rounded-full bg-info/12 px-1.5 py-0.5 text-[10.5px] font-semibold whitespace-nowrap text-info hover:underline"
+                        className="inline-flex items-center rounded-full bg-info/12 px-1.5 py-0.5 text-ui-caption font-semibold whitespace-nowrap text-info hover:underline"
                       >
                         {r.caseId}
                       </Link>
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap">
+                    <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap">
                       {r.customerName}
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5">
-                      <span className="text-[12px] font-medium whitespace-nowrap text-neutral-900">
+                      <span className="text-ui-body font-medium whitespace-nowrap text-neutral-900">
                         {r.name}
                       </span>
-                      <span className="block text-[10.5px] whitespace-nowrap text-neutral-500">
+                      <span className="block text-ui-caption whitespace-nowrap text-neutral-500">
                         {r.category}
                         {r.version > 0 && ` · v${r.version}`}
                       </span>
@@ -676,13 +688,13 @@ export function AdditionalDocumentsClient({
                     <TableCell className="px-1.5 py-1.5">
                       <span
                         className={cn(
-                          "rounded px-1 py-0.5 text-[9.5px] font-semibold whitespace-nowrap uppercase tracking-wide",
+                          "rounded px-1 py-0.5 text-ui-micro-lg font-semibold whitespace-nowrap uppercase tracking-wide",
                           r.required
                             ? "bg-neutral-100 text-neutral-600"
                             : "bg-neutral-50 text-neutral-400"
                         )}
                       >
-                        {r.required ? "Required" : "Optional"}
+                        {r.required ? t("required") : t("optional")}
                       </span>
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5">
@@ -690,21 +702,21 @@ export function AdditionalDocumentsClient({
                         <StatusPill
                           status={r.status}
                           flat
-                          className="text-[10.5px]"
+                          className="text-ui-caption"
                         />
                       ) : (
-                        <span className="rounded-full bg-neutral-200 px-1.5 py-0.5 text-[10.5px] font-semibold whitespace-nowrap text-neutral-600">
-                          Deactivated
+                        <span className="rounded-full bg-neutral-200 px-1.5 py-0.5 text-ui-caption font-semibold whitespace-nowrap text-neutral-600">
+                          {t("deactivated")}
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
+                    <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap text-neutral-500">
                       {r.lenderName}
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
+                    <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap text-neutral-500">
                       {r.addedByName}
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
+                    <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap text-neutral-500">
                       {shortDate(r.addedOn)}
                     </TableCell>
                     <TableCell className="px-1.5 py-1.5">
@@ -713,14 +725,10 @@ export function AdditionalDocumentsClient({
                           size="xs"
                           variant="outline"
                           onClick={() => setReviewing(r)}
-                          title={
-                            r.file
-                              ? "Review the uploaded document"
-                              : "View the requirement"
-                          }
+                          title={r.file ? t("reviewHint") : t("viewHint")}
                         >
                           <EyeIcon />
-                          {r.file ? "Review" : "View"}
+                          {r.file ? t("review") : t("view")}
                         </Button>
                         <Button
                           size="xs"
@@ -729,7 +737,7 @@ export function AdditionalDocumentsClient({
                             setAdding(false);
                             setEditing(r);
                           }}
-                          title="Edit this requirement"
+                          title={t("editHint")}
                         >
                           <PencilIcon />
                         </Button>
@@ -738,7 +746,7 @@ export function AdditionalDocumentsClient({
                           variant="outline"
                           onClick={() => onToggle(r)}
                           disabled={pending}
-                          title={r.active ? "Deactivate" : "Reactivate"}
+                          title={r.active ? t("deactivate") : t("reactivate")}
                         >
                           {r.active ? <BanIcon /> : <RotateCcwIcon />}
                         </Button>
@@ -752,43 +760,42 @@ export function AdditionalDocumentsClient({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-2">
-          <div className="flex items-center gap-3 text-[12px] text-neutral-500">
+          <div className="flex items-center gap-3 text-ui-body text-neutral-500">
             <div className="flex items-center gap-2">
-              <span>Rows per page</span>
+              <span>{t("rowsPerPage")}</span>
               <Select
                 value={String(pageSize)}
                 onValueChange={handlePageSizeChange}
               >
                 <SelectTrigger
                   size="sm"
-                  className="h-8 w-[70px] bg-white text-[12px]"
+                  className="h-8 w-[70px] bg-white text-ui-body"
                 >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="10" className="text-[12px]">
+                  <SelectItem value="10" className="text-ui-body">
                     10
                   </SelectItem>
-                  <SelectItem value="20" className="text-[12px]">
+                  <SelectItem value="20" className="text-ui-body">
                     20
                   </SelectItem>
-                  <SelectItem value="50" className="text-[12px]">
+                  <SelectItem value="50" className="text-ui-body">
                     50
                   </SelectItem>
-                  <SelectItem value="100" className="text-[12px]">
+                  <SelectItem value="100" className="text-ui-body">
                     100
                   </SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <span className="hidden sm:inline">
-              Total {filtered.length} requirement
-              {filtered.length === 1 ? "" : "s"}
+              {t("total", { count: filtered.length })}
             </span>
           </div>
 
           <div className="flex items-center gap-4">
-            <span className="hidden text-[12px] text-neutral-500 sm:inline">
+            <span className="hidden text-ui-body text-neutral-500 sm:inline">
               Page {currentPage} of {pageCount}
             </span>
             <PaginationNumbers

@@ -1,3 +1,4 @@
+/* eslint-disable react-perf/jsx-no-new-array-as-prop, react-perf/jsx-no-jsx-as-prop, security/detect-object-injection -- KPI tiles are built from a fixed, locally-declared map; the keys are literals in this file, not input. */
 import {
   AtSignIcon,
   BuildingIcon,
@@ -10,6 +11,8 @@ import { Link } from "@/i18n/navigation";
 import { UsersClient } from "@/app/[locale]/(portal)/admin/users/UsersClient";
 import { CommandBand } from "@/components/portal/CommandBand";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { getTranslations } from "next-intl/server";
+
 import { requireSession } from "@/lib/auth/appSession";
 import { cn } from "@/lib/utils/twMergeUtils";
 import { listLenderOrgs, listUsers } from "@/services/portal/users.server";
@@ -19,13 +22,19 @@ export const dynamic = "force-dynamic";
 /** Same tile palette the Claims Overview band uses, so the two headers read as one system. */
 const TONE = {
   blue: { border: "border-info/30", icon: "bg-info/10 text-info" },
-  rose: { border: "border-destructive/30", icon: "bg-destructive/10 text-destructive" },
+  rose: {
+    border: "border-destructive/30",
+    icon: "bg-destructive/10 text-destructive",
+  },
   amber: { border: "border-warning/30", icon: "bg-warning/10 text-warning" },
   violet: {
     border: "border-brand-primary/30",
     icon: "bg-brand-primary/10 text-brand-primary",
   },
-  gold: { border: "border-[#ffc48a]/50", icon: "bg-[#ffc48a]/20 text-[#d9860f]" },
+  gold: {
+    border: "border-brand-on-dark/50",
+    icon: "bg-brand-on-dark/20 text-brand-on-dark-strong",
+  },
 } as const;
 
 /**
@@ -63,7 +72,7 @@ function StatTile({
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="font-outfit text-[20px] font-bold leading-none text-neutral-900">
+        <span className="font-outfit text-ui-display-sm font-bold leading-none text-neutral-900">
           {String(value).padStart(2, "0")}
         </span>
         <span
@@ -75,7 +84,7 @@ function StatTile({
           {icon}
         </span>
       </div>
-      <p className="mt-1 truncate text-[12px] font-medium text-neutral-500">
+      <p className="mt-1 truncate text-ui-body font-medium text-neutral-500">
         {label}
       </p>
     </Link>
@@ -84,8 +93,12 @@ function StatTile({
 
 /** IMGC only. */
 export default async function AdminUsersPage() {
+  const t = await getTranslations("admin.lenderAccess");
   const session = await requireSession();
-  const [users, orgs] = await Promise.all([listUsers(session), listLenderOrgs()]);
+  const [users, orgs] = await Promise.all([
+    listUsers(session),
+    listLenderOrgs(),
+  ]);
 
   const lenders = users.filter((u) => u.role === "LENDER").length;
   const staff = users.filter((u) => u.role === "IMGC").length;
@@ -100,48 +113,48 @@ export default async function AdminUsersPage() {
   const awaitingFirstUser = orgs.filter((o) => !orgsWithUsers.has(o.id)).length;
 
   return (
-    <PortalShell activeKey="admin-users" title="Lender Access">
+    <PortalShell activeKey="admin-users" title={t("pageTitle")}>
       <div className="space-y-2">
         <CommandBand title="" stats={[]}>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-5">
             <StatTile
               value={orgs.length}
-              label="Lender Organisations"
+              label={t("tiles.organisations")}
               icon={<BuildingIcon className="size-4" />}
               tone="blue"
-              title="Lender organisations onboarded — show all of them"
+              title={t("tiles.organisationsHint")}
               href="/admin/users?tab=organisations&orgs=ALL"
             />
             <StatTile
               value={lenders}
-              label="Lender Users"
+              label={t("tiles.lenderUsers")}
               icon={<UsersIcon className="size-4" />}
               tone="violet"
-              title="Sign in with a one-time code emailed to them — show only these"
+              title={t("tiles.lenderUsersHint")}
               href="/admin/users?tab=users&role=LENDER"
             />
             <StatTile
               value={staff}
-              label="IMGC Staff"
+              label={t("tiles.imgcStaff")}
               icon={<ShieldIcon className="size-4" />}
               tone="amber"
-              title="Sign in with an Employee ID and password — show only these"
+              title={t("tiles.imgcStaffHint")}
               href="/admin/users?tab=users&role=IMGC"
             />
             <StatTile
               value={domains}
-              label="Email Domains"
+              label={t("tiles.emailDomains")}
               icon={<AtSignIcon className="size-4" />}
               tone="gold"
-              title="One domain per organisation — sorted by domain"
+              title={t("tiles.emailDomainsHint")}
               href="/admin/users?tab=organisations&orgs=ALL"
             />
             <StatTile
               value={awaitingFirstUser}
-              label="Awaiting First User"
+              label={t("tiles.awaitingFirstUser")}
               icon={<UserPlusIcon className="size-4" />}
               tone="rose"
-              title="Organisations onboarded but with nobody able to sign in yet"
+              title={t("tiles.awaitingFirstUserHint")}
               href="/admin/users?tab=organisations&orgs=AWAITING"
             />
           </div>

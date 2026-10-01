@@ -1,5 +1,11 @@
 import "server-only";
 
+import {
+  fail,
+  type ServerErrorCode,
+  type ServerErrorParams,
+} from "@/config/errorCodes";
+
 import { CLAIM_TYPES } from "@/config/claimConfig";
 import { newId, nowIso } from "@/server/mock/ids";
 import { readDb, writeDb } from "@/server/mock/db";
@@ -16,7 +22,11 @@ import type { LenderDocumentRequirement } from "@/server/mock/types";
  * the save — nothing here ever reaches into a claim already in progress.
  */
 
-export type Outcome = Readonly<{ ok: boolean; error?: string }>;
+export type Outcome = Readonly<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}>;
 
 export interface LenderDocConfigRow {
   id: string;
@@ -32,7 +42,7 @@ export interface LenderDocConfigRow {
 }
 
 function requireImgc(session: AppSession): Outcome | null {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
   return null;
 }
 
@@ -104,21 +114,18 @@ export async function saveLenderDocumentConfig(
 
   const db = await readDb();
   if (!db.lenderOrgs.some((o) => o.id === lenderOrgId)) {
-    return { ok: false, error: "Lender not found." };
+    return fail("LENDER_NOT_FOUND");
   }
   if (rows.length === 0) {
-    return {
-      ok: false,
-      error: "A lender needs at least one document configured.",
-    };
+    return fail("LENDER_NEEDS_ONE_DOCUMENT");
   }
 
   const seenNames = new Set<string>();
   for (const row of rows) {
     const key = row.name.trim().toLowerCase();
-    if (!key) return { ok: false, error: "Every document needs a name." };
+    if (!key) return fail("DOCUMENT_NAME_REQUIRED_ALL");
     if (seenNames.has(key)) {
-      return { ok: false, error: `"${row.name.trim()}" is listed more than once.` };
+      return fail("DOCUMENT_LISTED_TWICE", { name: row.name.trim() });
     }
     seenNames.add(key);
   }

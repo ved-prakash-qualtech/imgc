@@ -72,7 +72,7 @@ export function AuditTimeline({
 
   if (filtered.length === 0) {
     return (
-      <div className="py-6 text-center text-[11px] text-muted-foreground">
+      <div className="py-6 text-center text-ui-label text-muted-foreground">
         No audit entries yet.
       </div>
     );
@@ -96,25 +96,25 @@ export function AuditTimeline({
             <div className="rounded-md border border-border bg-card p-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="text-[11px] font-semibold capitalize text-foreground">
+                  <div className="text-ui-label font-semibold capitalize text-foreground">
                     {e.action} · {e.entityName ?? e.entityId}
                   </div>
                   {e.detail && (
-                    <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                    <p className="mt-0.5 truncate text-ui-tiny text-muted-foreground">
                       {e.detail}
                     </p>
                   )}
                 </div>
                 <span
                   className={cn(
-                    "shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase",
+                    "shrink-0 rounded-full border px-1.5 py-0.5 text-ui-micro font-semibold uppercase",
                     tone
                   )}
                 >
                   {e.entity}
                 </span>
               </div>
-              <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
+              <div className="mt-1 flex items-center justify-between text-ui-tiny text-muted-foreground">
                 <span>{e.actor}</span>
                 <span>{fmt(e.at)}</span>
               </div>

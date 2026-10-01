@@ -1,5 +1,6 @@
 "use server";
 
+import { fail } from "@/config/errorCodes";
 import { revalidatePath } from "next/cache";
 
 import { ROUTES } from "@/constants/route";
@@ -77,7 +78,7 @@ export async function addLenderDocumentAction(
     const session = await requireSession();
     const claimId = String(formData.get("claimId") ?? "");
     const incoming = incomingUploadFrom(formData);
-    if (!incoming) return { ok: false, error: "Choose a file to upload." };
+    if (!incoming) return fail("FILE_REQUIRED");
     const result = await addLenderDocument(session, claimId, {
       name: String(formData.get("name") ?? ""),
       description: String(formData.get("description") ?? ""),
@@ -116,7 +117,7 @@ export async function saveDraftAction(
 ): Promise<Outcome> {
   return runAction(async () => {
     const session = await requireSession();
-    const result = await saveClaimDraft(session, claimId, fields);
+    const result = await saveClaimDraft(session, claimId, fields, true);
     if (result.ok) refreshAll(accountId, claimId);
     return result;
   });

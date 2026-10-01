@@ -18,7 +18,6 @@ export type DashboardShellProps = Readonly<{
   navbarTitleAside?: string;
   claimAgeing?: React.ReactNode;
   workspace?: string;
-  adminContextName?: string | null;
   user?: SessionUser | null;
   /** Unread notification count for the navbar bell badge. */
   unreadCount?: number;
@@ -65,7 +64,6 @@ export function DashboardShell({
   navbarTitleAside,
   claimAgeing,
   workspace,
-  adminContextName,
   user,
   unreadCount,
   assignedOfficer,
@@ -74,7 +72,7 @@ export function DashboardShell({
 }: DashboardShellProps) {
   if (activeKey && !granted(items, activeKey)) {
     const isAdminOverride = activeKey === "initiate-claim" && isAdmin;
-    
+
     if (!isAdminOverride) {
       forbidden();
     }
@@ -102,7 +100,6 @@ export function DashboardShell({
             titleAside: navbarTitleAside,
             claimAgeing: claimAgeing,
             workspace,
-            adminContextName,
             user,
             unreadCount,
             assignedOfficer,

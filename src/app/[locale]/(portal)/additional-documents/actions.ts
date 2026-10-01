@@ -1,5 +1,10 @@
 "use server";
 
+import {
+  fail,
+  type ServerErrorCode,
+  type ServerErrorParams,
+} from "@/config/errorCodes";
 import { revalidatePath } from "next/cache";
 
 import { ROUTES } from "@/constants/route";
@@ -20,7 +25,11 @@ import {
   type UploadMeta,
 } from "@/services/portal/claims.server";
 
-export type Result = Readonly<{ ok: boolean; error?: string }>;
+export type Result = Readonly<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}>;
 
 /**
  * Every mutation on the additional-documents workflow refreshes the same set of routes.
@@ -43,7 +52,7 @@ export async function addRequirementAction(
 ): Promise<Result> {
   return runAction(async () => {
     const session = await requireSession();
-    if (!accountId) return { ok: false, error: "Choose a case first." };
+    if (!accountId) return fail("CASE_REQUIRED");
     const result = await addRequirement(session, accountId, input);
     if (result.ok) refreshAll(accountId);
     return result;
@@ -126,7 +135,7 @@ export async function uploadRequirementAction(
     const accountId = String(formData.get("accountId") ?? "");
     const documentId = String(formData.get("documentId") ?? "");
     const incoming = incomingUploadFrom(formData);
-    if (!incoming) return { ok: false, error: "Choose a file to upload." };
+    if (!incoming) return fail("FILE_REQUIRED");
 
     const meta: UploadMeta = {
       documentNumber: String(formData.get("documentNumber") ?? ""),

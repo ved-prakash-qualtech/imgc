@@ -27,28 +27,28 @@ type KpiTone = "blue" | "mint" | "green" | "amber" | "rose";
 const KPI_TONE: Record<KpiTone, { bg: string; icon: string; spark: string }> = {
   blue: {
     bg: "bg-info/8 border-info/15",
-    icon: "bg-info/20 text-[#93c5fd]",
-    spark: "#3b82f6",
+    icon: "bg-info/20 text-info-on-dark",
+    spark: "var(--chart-3)",
   }, // text-blue-300 equivalent
   mint: {
     bg: "bg-success/8 border-success/15",
-    icon: "bg-success/20 text-[#5eead4]",
-    spark: "#14b8a6",
+    icon: "bg-success/20 text-success-on-dark",
+    spark: "var(--chart-5)",
   }, // text-teal-300 equivalent
   green: {
     bg: "bg-success/8 border-success/15",
-    icon: "bg-success/20 text-[#86efac]",
-    spark: "#22c55e",
+    icon: "bg-success/20 text-success-on-dark-soft",
+    spark: "var(--chart-positive)",
   }, // text-green-300 equivalent
   amber: {
     bg: "bg-warning/8 border-warning/20",
-    icon: "bg-warning/20 text-[#fcd34d]",
-    spark: "#f59e0b",
+    icon: "bg-warning/20 text-warning-on-dark",
+    spark: "var(--chart-4)",
   }, // text-amber-300 equivalent
   rose: {
     bg: "bg-destructive/8 border-destructive/15",
-    icon: "bg-destructive/20 text-[#fca5a5]",
-    spark: "#ef4444",
+    icon: "bg-destructive/20 text-danger-on-dark",
+    spark: "var(--chart-negative)",
   }, // text-red-300 equivalent
 };
 
@@ -59,7 +59,10 @@ function nextSeed(h: number): number {
 
 /** Exported so other KPI bands using this same dark-tile-with-squiggle language (the Lender
  *  dashboard's claim-stage band) don't hand-roll a second copy. */
-export function Sparkline({ seed, color }: Readonly<{ seed: string; color: string }>) {
+export function Sparkline({
+  seed,
+  color,
+}: Readonly<{ seed: string; color: string }>) {
   const initial = [...seed].reduce(
     (h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0,
     0
@@ -111,7 +114,7 @@ function KpiCard({
   const content = (
     <>
       <div className="flex items-start justify-between gap-2">
-        <p className="truncate text-[12px] font-medium text-white/70">
+        <p className="truncate text-ui-body font-medium text-white/70">
           {label}
         </p>
         <span
@@ -123,11 +126,11 @@ function KpiCard({
           {icon}
         </span>
       </div>
-      <p className="font-outfit text-[22px] font-bold leading-none text-white">
+      <p className="font-outfit text-ui-display font-bold leading-none text-white">
         {value}
       </p>
       <Sparkline seed={label} color={t.spark} />
-      <p className="truncate text-[11.5px] text-white/50">{caption}</p>
+      <p className="truncate text-ui-body-sm text-white/50">{caption}</p>
     </>
   );
 
@@ -278,16 +281,16 @@ function CollectionsTrendCard({
             key={t.label}
             className="flex min-w-0 flex-1 flex-col items-center gap-1.5"
           >
-            <span className="w-full truncate text-center text-[10px] text-neutral-400">
+            <span className="w-full truncate text-center text-ui-tiny text-neutral-400">
               {t.amount > 0 ? formatCr(t.amount) : ""}
             </span>
             <div className="flex h-16 w-full items-end">
               <div
-                className="w-full rounded-t-md bg-[linear-gradient(180deg,#4f7bff_0%,#c7d6ff_100%)]"
+                className="w-full rounded-t-md bg-[image:var(--grad-bar)]"
                 style={{ height: `${Math.max(4, (t.amount / max) * 100)}%` }}
               />
             </div>
-            <span className="w-full truncate text-center text-[10px] text-neutral-500">
+            <span className="w-full truncate text-center text-ui-tiny text-neutral-500">
               {t.label}
             </span>
           </div>
@@ -298,9 +301,9 @@ function CollectionsTrendCard({
 }
 
 const STATUS_COLOR: Record<"active" | "overdue" | "closed", string> = {
-  active: "#22c55e",
-  overdue: "#ef4444",
-  closed: "#a3a3a3",
+  active: "var(--chart-positive)",
+  overdue: "var(--chart-negative)",
+  closed: "var(--neutral-400)",
 };
 
 export function StatusBreakdownCard({
@@ -333,14 +336,14 @@ export function StatusBreakdownCard({
         >
           <div className="grid size-14 place-items-center rounded-full bg-white text-center">
             <div>
-              <p className="font-outfit text-[16px] font-bold leading-none text-neutral-950">
+              <p className="font-outfit text-ui-title-lg font-bold leading-none text-neutral-950">
                 {loansOnBook}
               </p>
-              <p className="text-[10.5px] text-neutral-500">LOANS</p>
+              <p className="text-ui-caption text-neutral-500">LOANS</p>
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[11.5px] text-neutral-600">
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-ui-body-sm text-neutral-600">
           <Legend
             color={STATUS_COLOR.active}
             label={`Active (${breakdown.active})`}
@@ -353,7 +356,7 @@ export function StatusBreakdownCard({
             color={STATUS_COLOR.closed}
             label={`Closed (${breakdown.closed})`}
           />
-          <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+          <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-ui-label font-semibold text-destructive">
             NPA ({npaLoans})
           </span>
         </div>
@@ -383,7 +386,7 @@ function UrgentCollectionsCard({
       subtitle="Top overdue accounts by days late"
     >
       {urgent.length === 0 ? (
-        <p className="flex flex-1 items-center justify-center text-center text-[12.5px] text-neutral-500">
+        <p className="flex flex-1 items-center justify-center text-center text-ui-body-lg text-neutral-500">
           Nothing overdue right now.
         </p>
       ) : (
@@ -395,10 +398,10 @@ function UrgentCollectionsCard({
                 className="flex items-center justify-between gap-2 px-1 py-0.5 hover:bg-neutral-50"
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-[12.5px] font-semibold text-neutral-950">
+                  <span className="block truncate text-ui-body-lg font-semibold text-neutral-950">
                     {u.borrowerName}
                   </span>
-                  <span className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-neutral-500">
+                  <span className="mt-0.5 flex flex-wrap items-center gap-1 text-ui-label text-neutral-500">
                     <span>{u.loanNo}</span>
                     {u.npa && (
                       <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 font-semibold text-destructive">
@@ -413,12 +416,12 @@ function UrgentCollectionsCard({
                   </span>
                 </span>
                 <span className="shrink-0 text-right">
-                  <span className="block text-[13px] font-bold text-neutral-950">
+                  <span className="block text-ui-subhead font-bold text-neutral-950">
                     {formatCr(u.outstandingAmount)}
                   </span>
                   <span
                     className={cn(
-                      "block text-[11px]",
+                      "block text-ui-label",
                       u.daysLate > 30 ? "text-destructive" : "text-neutral-500"
                     )}
                   >
@@ -432,7 +435,7 @@ function UrgentCollectionsCard({
       )}
       <Link
         href={`${ROUTES.accounts}?npa=yes`}
-        className="mt-2 inline-flex text-[12px] font-semibold text-brand-primary hover:underline"
+        className="mt-2 inline-flex text-ui-body font-semibold text-brand-primary hover:underline"
       >
         View all overdue loans →
       </Link>

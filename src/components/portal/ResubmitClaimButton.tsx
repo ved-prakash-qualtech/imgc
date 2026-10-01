@@ -1,6 +1,7 @@
 /* eslint-disable react-perf/jsx-no-new-function-as-prop */
 "use client";
 
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -16,6 +17,7 @@ export function ResubmitClaimButton({
   accountId: string;
   claimId: string;
 }>) {
+  const errorText = useServerErrorMessage();
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -24,7 +26,7 @@ export function ResubmitClaimButton({
       // Pass empty string or omit __queryResponse since we are not sending chat messages
       const result = await submitClaimAction(accountId, claimId, {});
       if (!result.ok) {
-        toast.error(result.error ?? "Failed to resubmit the claim.");
+        toast.error(errorText(result) ?? "Failed to resubmit the claim.");
         return;
       }
       toast.success("Claim successfully resubmitted to IMGC for review.");

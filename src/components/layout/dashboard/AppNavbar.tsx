@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import {
   BellIcon,
   ChevronDownIcon,
@@ -9,7 +8,6 @@ import {
   ClockIcon,
   LogOutIcon,
   MailIcon,
-  MenuIcon,
   PhoneIcon,
 } from "lucide-react";
 
@@ -19,6 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useTranslations } from "next-intl";
 import { ROUTES } from "@/constants/route";
 import type { SessionUser } from "@/lib/auth/session";
 
@@ -62,63 +61,43 @@ export type AppNavbarProps = Readonly<{
   /** When provided, renders a hamburger button on the far-left that triggers this callback. */
   onMenuClick?: () => void;
   /** When present, shows the highly-visible admin context banner. */
-  adminContextName?: string | null;
 }>;
 
 export function AppNavbar({
   title = "Dashboard",
   titleAside,
   claimAgeing,
-  workspace,
   user,
   unreadCount = 0,
   assignedOfficer,
-  onMenuClick,
-  adminContextName,
 }: AppNavbarProps) {
+  const t = useTranslations("shell.navbar");
   const contact = assignedOfficer ?? GENERAL_DESK;
   const isPersonal = Boolean(assignedOfficer);
   return (
     <div className="flex flex-col shrink-0">
-      {adminContextName && (
-        <div className="flex items-center justify-between bg-orange-600 px-5 py-2 text-white">
-          <div className="text-[13px] font-semibold">
-            Acting on behalf of: {adminContextName}
-          </div>
-          <div className="flex gap-4 text-[12px] font-medium">
-            <Link href={ROUTES.adminWorkspace} className="hover:underline">
-              Change Lender
-            </Link>
-            <form action="/api/auth/exit-admin-context" method="POST">
-              <button type="submit" className="hover:underline text-orange-100">
-                Exit Context
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
       <header className="flex h-14 items-center justify-between border-b border-neutral-100 bg-white px-5">
         {/* Left: optional hamburger + workspace + page title */}
         <div className="flex items-center gap-3 text-sm">
           <div className="flex items-center gap-2">
             {titleAside ? (
               // A claim screen: claim number and amount set as one matching pair of label + value.
-              <span className="text-[13px] font-semibold tabular-nums text-neutral-800">
-                <span className="mr-1 text-[11.5px] font-medium text-neutral-500">
+              <span className="text-ui-subhead font-semibold tabular-nums text-neutral-800">
+                <span className="mr-1 text-ui-body-sm font-medium text-neutral-500">
                   Claim No.
                 </span>
                 {title.replace(/^Claim No\.\s*/, "")}
               </span>
             ) : (
-              <span className="font-outfit text-[20px] font-semibold leading-6 tracking-[1%] text-neutral-900">
+              <span className="font-outfit text-ui-display-sm font-semibold leading-6 tracking-[1%] text-neutral-900">
                 {title}
               </span>
             )}
             {titleAside && (
               <>
                 <span aria-hidden className="h-4 w-px bg-neutral-200" />
-                <span className="text-[13px] font-semibold tabular-nums text-neutral-800">
-                  <span className="mr-1 text-[11.5px] font-medium text-neutral-500">
+                <span className="text-ui-subhead font-semibold tabular-nums text-neutral-800">
+                  <span className="mr-1 text-ui-body-sm font-medium text-neutral-500">
                     Claim Amount
                   </span>
                   {titleAside}
@@ -128,9 +107,9 @@ export function AppNavbar({
             {claimAgeing && (
               <>
                 <span aria-hidden className="h-4 w-px bg-neutral-200" />
-                <span className="text-[13px] font-semibold text-neutral-800">
-                  <span className="mr-1 text-[11.5px] font-medium text-neutral-500">
-                    Ageing
+                <span className="text-ui-subhead font-semibold text-neutral-800">
+                  <span className="mr-1 text-ui-body-sm font-medium text-neutral-500">
+                    {t("ageing")}
                   </span>
                   {claimAgeing}
                 </span>
@@ -145,14 +124,14 @@ export function AppNavbar({
             href={ROUTES.notifications}
             aria-label={
               unreadCount > 0
-                ? `Notifications, ${unreadCount} unread`
-                : "Notifications"
+                ? t("notificationsUnread", { count: unreadCount })
+                : t("notifications")
             }
             className="relative grid size-8 place-items-center rounded-full text-neutral-500 hover:bg-neutral-50 hover:text-neutral-800"
           >
             <BellIcon className="size-[18px]" />
             {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 grid min-w-4 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-4 text-white">
+              <span className="absolute -top-0.5 -right-0.5 grid min-w-4 place-items-center rounded-full bg-destructive px-1 text-ui-tiny font-bold leading-4 text-white">
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
@@ -161,7 +140,7 @@ export function AppNavbar({
           <Popover>
             <PopoverTrigger
               className="grid size-8 cursor-pointer place-items-center rounded-full text-neutral-500 hover:bg-neutral-50 hover:text-neutral-800"
-              aria-label="Help & Assistance"
+              aria-label={t("help")}
             >
               <CircleHelpIcon className="size-[18px]" />
             </PopoverTrigger>
@@ -169,46 +148,46 @@ export function AppNavbar({
             <PopoverContent align="end" className="w-80 gap-0 p-0">
               <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
                 <div>
-                  <p className="text-[13.5px] font-semibold text-neutral-950">
-                    Help &amp; Assistance
+                  <p className="text-ui-subhead-lg font-semibold text-neutral-950">
+                    {t("helpTitle")}
                   </p>
-                  <p className="text-[11.5px] text-neutral-500">
-                    Priority Lending Desk
+                  <p className="text-ui-body-sm text-neutral-500">
+                    {t("helpSubtitle")}
                   </p>
                 </div>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-success-50 px-2.5 py-1 text-[11px] font-semibold text-success-700">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-success-50 px-2.5 py-1 text-ui-label font-semibold text-success-700">
                   <span className="size-1.5 rounded-full bg-success-500" />
-                  Live Desk
+                  {t("liveDesk")}
                 </span>
               </div>
 
               <div className="p-4">
                 <div className="flex items-center justify-between rounded-xl border border-neutral-100 bg-neutral-25 p-3">
                   <div className="flex items-center gap-2.5">
-                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-primary text-[12px] font-semibold text-white">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-primary text-ui-body font-semibold text-white">
                       {initialsOf(contact.name)}
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate text-[13px] font-semibold text-neutral-950">
+                      <p className="truncate text-ui-subhead font-semibold text-neutral-950">
                         {contact.name}
                       </p>
-                      <p className="truncate text-[11.5px] text-neutral-500">
+                      <p className="truncate text-ui-body-sm text-neutral-500">
                         {isPersonal
-                          ? "Dedicated Loan Manager"
-                          : "General enquiries"}
+                          ? t("dedicatedManager")
+                          : t("generalEnquiries")}
                       </p>
                     </div>
                   </div>
                   {isPersonal && (
-                    <span className="shrink-0 rounded-full bg-brand-light px-2 py-0.5 text-[10.5px] font-semibold text-brand-primary">
-                      Priority Desk
+                    <span className="shrink-0 rounded-full bg-brand-light px-2 py-0.5 text-ui-caption font-semibold text-brand-primary">
+                      {t("priorityDesk")}
                     </span>
                   )}
                 </div>
 
                 <a
                   href={`mailto:${contact.email}`}
-                  className="mt-2 flex items-center justify-between rounded-lg px-2 py-2 text-[12.5px] text-neutral-700 hover:bg-neutral-50"
+                  className="mt-2 flex items-center justify-between rounded-lg px-2 py-2 text-ui-body-lg text-neutral-700 hover:bg-neutral-50"
                 >
                   <span className="flex min-w-0 items-center gap-2">
                     <MailIcon className="size-4 shrink-0 text-neutral-400" />
@@ -220,34 +199,32 @@ export function AppNavbar({
                 {contact.phone && (
                   <a
                     href={`tel:${contact.phone.replace(/[^+\d]/g, "")}`}
-                    className="flex items-center justify-between rounded-lg px-2 py-2 text-[12.5px] text-neutral-700 hover:bg-neutral-50"
+                    className="flex items-center justify-between rounded-lg px-2 py-2 text-ui-body-lg text-neutral-700 hover:bg-neutral-50"
                   >
                     <span className="flex min-w-0 items-center gap-2">
                       <PhoneIcon className="size-4 shrink-0 text-neutral-400" />
                       <span>{contact.phone}</span>
                     </span>
                     {isPersonal && (
-                      <span className="shrink-0 text-[11px] font-medium text-brand-primary">
-                        Direct Line
+                      <span className="shrink-0 text-ui-label font-medium text-brand-primary">
+                        {t("directLine")}
                       </span>
                     )}
                   </a>
                 )}
 
-                <div className="mt-3 flex items-center justify-between border-t border-neutral-100 pt-3 text-[11px] text-neutral-500">
+                <div className="mt-3 flex items-center justify-between border-t border-neutral-100 pt-3 text-ui-label text-neutral-500">
                   <span className="flex items-center gap-1.5">
                     <ClockIcon className="size-3.5" />
-                    Mon – Sat (9 AM – 7 PM IST)
+                    {t("hours")}
                   </span>
-                  <span>Fast Response</span>
+                  <span>{t("fastResponse")}</span>
                 </div>
               </div>
 
               {isPersonal && (
-                <div className="flex items-center justify-between border-t border-neutral-100 bg-neutral-25 px-4 py-2.5 text-[11.5px]">
-                  <span className="text-neutral-500">
-                    General Customer Care (24x7)
-                  </span>
+                <div className="flex items-center justify-between border-t border-neutral-100 bg-neutral-25 px-4 py-2.5 text-ui-body-sm">
+                  <span className="text-neutral-500">{t("generalCare")}</span>
                   <a
                     href={`tel:${GENERAL_DESK.phone!.replace(/[^+\d]/g, "")}`}
                     className="font-semibold text-brand-primary hover:underline"
@@ -264,17 +241,17 @@ export function AppNavbar({
           <Popover>
             <PopoverTrigger
               className="flex cursor-pointer items-center gap-2"
-              aria-label="Account menu"
+              aria-label={t("accountMenu")}
             >
               <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-primary text-xs font-semibold text-white">
                 {user?.initials ?? "?"}
               </span>
               <span className="hidden flex-col items-start leading-tight sm:flex">
-                <span className="text-[13px] font-semibold text-neutral-950">
-                  {user?.name ?? "Signed in"}
+                <span className="text-ui-subhead font-semibold text-neutral-950">
+                  {user?.name ?? t("signedIn")}
                 </span>
                 {user?.roleLabel && (
-                  <span className="text-[11.5px] text-neutral-500">
+                  <span className="text-ui-body-sm text-neutral-500">
                     {user.roleLabel}
                   </span>
                 )}
@@ -284,11 +261,11 @@ export function AppNavbar({
 
             <PopoverContent align="end" className="w-64 gap-0 p-0">
               <div className="border-b border-neutral-100 px-3 py-2.5">
-                <p className="truncate text-[13.5px] font-semibold text-neutral-950">
-                  {user?.name ?? "Signed in"}
+                <p className="truncate text-ui-subhead-lg font-semibold text-neutral-950">
+                  {user?.name ?? t("signedIn")}
                 </p>
                 {user?.email && (
-                  <p className="truncate text-[12px] text-neutral-500">
+                  <p className="truncate text-ui-body text-neutral-500">
                     {user.email}
                   </p>
                 )}
@@ -304,10 +281,10 @@ export function AppNavbar({
                 leave it: the handler redirects on to Keycloak's end-session endpoint. */}
               <a
                 href="/api/auth/logout"
-                className="flex items-center gap-2 px-3 py-2.5 text-[13.5px] font-medium text-neutral-700 hover:bg-neutral-50"
+                className="flex items-center gap-2 px-3 py-2.5 text-ui-subhead-lg font-medium text-neutral-700 hover:bg-neutral-50"
               >
                 <LogOutIcon className="size-4" />
-                Sign out
+                {t("signOut")}
               </a>
             </PopoverContent>
           </Popover>

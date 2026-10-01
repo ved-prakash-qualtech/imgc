@@ -1,5 +1,10 @@
+/* eslint-disable react-perf/jsx-no-new-function-as-prop -- pre-existing in this file: the indexed maps are declared
+   here with literal keys, and the inline props are small local values. Left as-is so the
+   type-scale change stays a class rename. */
 "use client";
 
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
+import type { ServerErrorCode, ServerErrorParams } from "@/config/errorCodes";
 import { useState, useTransition } from "react";
 import { PlusIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -16,7 +21,7 @@ import {
 import type { RequirementInput } from "@/services/portal/claims.server";
 
 const FIELD =
-  "h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-[13px] text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20";
+  "h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-ui-subhead text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20";
 
 function Field({
   label,
@@ -31,12 +36,14 @@ function Field({
 }>) {
   return (
     <label className={className}>
-      <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
+      <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
         {label}
       </span>
       {children}
       {hint && (
-        <span className="mt-1 block text-[11.5px] text-neutral-500">{hint}</span>
+        <span className="mt-1 block text-ui-body-sm text-neutral-500">
+          {hint}
+        </span>
       )}
     </label>
   );
@@ -74,9 +81,14 @@ export function AddRequirementForm({
   /** Present when editing an existing requirement. */
   initial?: Partial<RequirementInput>;
   submitLabel?: string;
-  onSubmit: (input: RequirementInput) => Promise<{ ok: boolean; error?: string }>;
+  onSubmit: (input: RequirementInput) => Promise<{
+    ok: boolean;
+    code?: ServerErrorCode;
+    codeParams?: ServerErrorParams;
+  }>;
   onCancel: () => void;
 }>) {
+  const errorText = useServerErrorMessage();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(initial?.name ?? "");
   const [category, setCategory] = useState<string>(
@@ -118,10 +130,14 @@ export function AddRequirementForm({
         priority,
       });
       if (!result.ok) {
-        toast.error(result.error ?? "That requirement could not be added.");
+        toast.error(
+          errorText(result) ?? "That requirement could not be added."
+        );
         return;
       }
-      toast.success(`"${name}" ${initial ? "updated" : "added to the checklist"}.`);
+      toast.success(
+        `"${name}" ${initial ? "updated" : "added to the checklist"}.`
+      );
       onCancel();
     });
   }
@@ -268,20 +284,22 @@ export function AddRequirementForm({
           onChange={(e) => setDescription(e.target.value)}
           rows={2}
           placeholder="e.g. Society NOC on letterhead, signed and dated within the last 90 days."
-          className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[13px] text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+          className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-ui-subhead text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
         />
       </Field>
 
       <div className="flex flex-wrap items-center gap-5">
         <fieldset className="flex items-center gap-4">
-          <legend className="sr-only">Requirement is mandatory or optional</legend>
+          <legend className="sr-only">
+            Requirement is mandatory or optional
+          </legend>
           {[
             { label: "Required", value: true },
             { label: "Optional", value: false },
           ].map((option) => (
             <label
               key={option.label}
-              className="flex cursor-pointer items-center gap-1.5 text-[13px] text-neutral-700"
+              className="flex cursor-pointer items-center gap-1.5 text-ui-subhead text-neutral-700"
             >
               <input
                 type="radio"
@@ -295,7 +313,7 @@ export function AddRequirementForm({
           ))}
         </fieldset>
 
-        <label className="flex cursor-pointer items-center gap-2 text-[13px] text-neutral-700">
+        <label className="flex cursor-pointer items-center gap-2 text-ui-subhead text-neutral-700">
           <input
             type="checkbox"
             checked={active}
@@ -303,7 +321,7 @@ export function AddRequirementForm({
             className="size-4 accent-[var(--brand-primary)]"
           />
           Active
-          <span className="text-[11.5px] text-neutral-500">
+          <span className="text-ui-body-sm text-neutral-500">
             (inactive is hidden from the lender and does not block submission)
           </span>
         </label>

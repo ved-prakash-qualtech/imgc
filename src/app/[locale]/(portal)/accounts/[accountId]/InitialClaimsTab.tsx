@@ -4,6 +4,7 @@
    hoisting them out would mean threading each row back through a prop for no gain; each list
    here renders a bounded set of a claim's own requirements, never an unbounded dataset. */
 
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
 import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -20,6 +21,7 @@ import {
   UploadIcon,
   XIcon,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import {
@@ -100,6 +102,8 @@ export function InitialClaimsTab({
   retentionDays,
   queriedDocNames,
 }: Props) {
+  const errorText = useServerErrorMessage();
+  const t = useTranslations("decisionTab");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   /** Remarks typed against a row but not yet sent — what Save persists. */
@@ -133,38 +137,38 @@ export function InitialClaimsTab({
     for (const [docId, body] of entries) {
       const result = await addRemarkAction(accountId, body, docId);
       if (!result.ok) {
-        toast.error(result.error ?? "That remark could not be saved.");
+        toast.error(errorText(result) ?? t("toast.remarkFailed"));
         return false;
       }
     }
     setDrafts({});
     return true;
-  }, [drafts, accountId]);
+  }, [drafts, accountId, t, errorText]);
 
   const onSave = useCallback(() => {
     startTransition(async () => {
       if (!(await persistDrafts())) return;
-      toast.success("Saved.");
+      toast.success(t("toast.remarkSaved"));
     });
-  }, [persistDrafts]);
+  }, [persistDrafts, t]);
 
   const onSaveAndSubmit = useCallback(() => {
     startTransition(async () => {
       if (!(await persistDrafts())) return;
       const result = await submitClaimAction(accountId);
       if (!result.ok) {
-        toast.error(result.error ?? "The claim could not be submitted.");
+        toast.error(errorText(result) ?? t("toast.claimSubmitFailed"));
         return;
       }
-      toast.success("Initial claim submitted to IMGC.");
+      toast.success(t("toast.claimSubmitted"));
     });
-  }, [persistDrafts, accountId]);
+  }, [persistDrafts, accountId, t, errorText]);
 
   const onCancel = useCallback(() => {
     setDrafts({});
     router.refresh();
-    toast.info("Unsaved remarks discarded.");
-  }, [router]);
+    toast.info(t("toast.remarksDiscarded"));
+  }, [router, t]);
 
   const onToggleActive = useCallback(
     (documentId: string, active: boolean) => {
@@ -175,15 +179,17 @@ export function InitialClaimsTab({
           active
         );
         if (!result.ok) {
-          toast.error(result.error ?? "That requirement could not be updated.");
+          toast.error(errorText(result) ?? t("toast.requirementFailed"));
           return;
         }
         toast.success(
-          active ? "Requirement reactivated." : "Requirement withdrawn."
+          active
+            ? t("toast.requirementReactivated")
+            : t("toast.requirementWithdrawn")
         );
       });
     },
-    [accountId]
+    [accountId, t, errorText]
   );
 
   return (
@@ -191,16 +197,28 @@ export function InitialClaimsTab({
       <Panel>
         {role === "IMGC" ? (
           <div className="overflow-x-auto">
-            <div className="flex min-w-[960px] flex-col divide-y divide-neutral-100 text-left text-[12px]">
-              <div className="flex items-center bg-neutral-50 py-2 text-[10.5px] font-medium text-neutral-500">
-                <div className="w-[140px] shrink-0 px-3">Document Type</div>
+            <div className="flex min-w-[960px] flex-col divide-y divide-neutral-100 text-left text-ui-body">
+              <div className="flex items-center bg-neutral-50 py-2 text-ui-caption font-medium text-neutral-500">
+                <div className="w-[140px] shrink-0 px-3">
+                  {t("table.documentType")}
+                </div>
                 <div className="flex flex-1 items-center justify-between gap-2 px-3">
-                  <div className="w-[140px] shrink-0">File Name</div>
-                  <div className="w-[140px] shrink-0">Lender Remark</div>
-                  <div className="w-[140px] shrink-0">IMGC Remark</div>
-                  <div className="w-[85px] shrink-0">Uploaded By</div>
-                  <div className="w-[100px] shrink-0">Date/Time</div>
-                  <div className="w-[140px] shrink-0">Actions</div>
+                  <div className="w-[140px] shrink-0">
+                    {t("table.fileName")}
+                  </div>
+                  <div className="w-[140px] shrink-0">
+                    {t("table.lenderRemark")}
+                  </div>
+                  <div className="w-[140px] shrink-0">
+                    {t("table.imgcRemark")}
+                  </div>
+                  <div className="w-[85px] shrink-0">
+                    {t("table.uploadedBy")}
+                  </div>
+                  <div className="w-[100px] shrink-0">
+                    {t("table.dateTime")}
+                  </div>
+                  <div className="w-[140px] shrink-0">{t("table.actions")}</div>
                 </div>
               </div>
               {docs
@@ -267,10 +285,8 @@ export function InitialClaimsTab({
 
       {isLender && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-100 bg-white px-5 py-3.5 shadow-sm">
-          <p className="text-[12.5px] text-neutral-500">
-            {canSubmit
-              ? "Every mandatory document is in — you can submit this claim."
-              : "Submit unlocks once every mandatory document has been uploaded."}
+          <p className="text-ui-body-lg text-neutral-500">
+            {canSubmit ? t("submit.ready") : t("submit.blocked")}
           </p>
           <div className="flex items-center gap-2">
             <Button
@@ -299,7 +315,7 @@ export function InitialClaimsTab({
       )}
 
       {isLender && dirty && (
-        <p className="text-[12px] text-warning">
+        <p className="text-ui-body text-warning">
           You have unsaved remarks. Save keeps them; Cancel discards them.
         </p>
       )}
@@ -333,12 +349,14 @@ function DocumentRowItem({
   onToggleActive: (documentId: string, active: boolean) => void;
   retentionDays: number;
   /** Does an open query already name this document — so a fresh rejection (already synced into
-   *  a query) doesn't get a redundant "Raise Query" button. */
+   *  a query) doesn't get a redundant t("submit.raiseQuery") button. */
   hasOpenQuery: boolean;
   /** Owned by the parent, keyed by document id — every row opens and closes independently. */
   expanded: boolean;
   onToggleExpanded: (docId: string) => void;
 }>) {
+  const errorText = useServerErrorMessage();
+  const t = useTranslations("decisionTab");
   const [busy, startTransition] = useTransition();
   const [rejecting, setRejecting] = useState(false);
   const [previewingFileId, setPreviewingFileId] = useState<string | null>(null);
@@ -364,19 +382,19 @@ function DocumentRowItem({
           await attachUpload(data, file, accountId);
         } catch {
           if (fileInput.current) fileInput.current.value = "";
-          toast.error("That upload failed. Please try again.");
+          toast.error(t("toast.uploadFailed"));
           return;
         }
         const result = await uploadDocumentAction(data);
         if (fileInput.current) fileInput.current.value = "";
         if (!result.ok) {
-          toast.error(result.error ?? "That upload failed.");
+          toast.error(errorText(result) ?? t("toast.uploadFailedShort"));
           return;
         }
         toast.success(`"${doc.name}" uploaded.`);
       });
     },
-    [accountId, doc.id, doc.name]
+    [accountId, doc.id, doc.name, t, errorText]
   );
 
   const decide = useCallback(
@@ -389,26 +407,26 @@ function DocumentRowItem({
           reason
         );
         if (!result.ok) {
-          toast.error(result.error ?? "That decision could not be recorded.");
+          toast.error(errorText(result) ?? t("toast.decisionFailed"));
           return;
         }
         toast.success(`"${doc.name}" ${decision.toLowerCase()}.`);
         setRejecting(false);
       });
     },
-    [accountId, doc.id, doc.name]
+    [accountId, doc.id, doc.name, t, errorText]
   );
 
   const onReactivate = useCallback(() => {
     startTransition(async () => {
       const result = await reactivateDocumentAction(accountId, doc.id);
       if (!result.ok) {
-        toast.error(result.error ?? "That could not be undone.");
+        toast.error(errorText(result) ?? t("toast.undoFailed"));
         return;
       }
       toast.success(`"${doc.name}" is back under review.`);
     });
-  }, [accountId, doc.id, doc.name]);
+  }, [accountId, doc.id, doc.name, t, errorText]);
 
   const onRaiseQuery = useCallback(() => {
     startTransition(async () => {
@@ -417,23 +435,23 @@ function DocumentRowItem({
         doc.id
       );
       if (!result.ok) {
-        toast.error(result.error ?? "That query could not be raised.");
+        toast.error(errorText(result) ?? t("toast.queryFailed"));
         return;
       }
       toast.success(`Query raised for "${doc.name}".`);
     });
-  }, [accountId, doc.id, doc.name]);
+  }, [accountId, doc.id, doc.name, t, errorText]);
 
   const onReinstateRequest = useCallback(() => {
     startTransition(async () => {
       const result = await requestReinstateAction(accountId, doc.id, "");
       if (!result.ok) {
-        toast.error(result.error ?? "That request could not be sent.");
+        toast.error(errorText(result) ?? t("toast.reinstateFailed"));
         return;
       }
-      toast.success("Reinstatement requested — IMGC will review it.");
+      toast.success(t("toast.reinstateRequested"));
     });
-  }, [accountId, doc.id]);
+  }, [accountId, doc.id, t, errorText]);
 
   const onReinstateDecision = useCallback(
     (approve: boolean) => {
@@ -445,13 +463,15 @@ function DocumentRowItem({
           ""
         );
         if (!result.ok) {
-          toast.error(result.error ?? "That decision could not be recorded.");
+          toast.error(errorText(result) ?? t("toast.decisionFailed"));
           return;
         }
-        toast.success(approve ? "Reinstated." : "Reinstatement denied.");
+        toast.success(
+          approve ? t("toast.reinstated") : t("toast.reinstateDenied")
+        );
       });
     },
-    [accountId, doc.id]
+    [accountId, doc.id, t, errorText]
   );
 
   const reinstate = doc.rejection?.reinstate;
@@ -472,34 +492,37 @@ function DocumentRowItem({
       >
         <div className="flex flex-wrap items-center gap-2">
           <FileTextIcon className="size-4 shrink-0 text-neutral-400" />
-          <span className="text-[13.5px] font-semibold text-neutral-950">
+          <span className="text-ui-subhead-lg font-semibold text-neutral-950">
             {doc.name}
           </span>
           <span
             className={cn(
-              "rounded px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide",
+              "rounded px-1.5 py-0.5 text-ui-caption font-semibold uppercase tracking-wide",
               doc.required
                 ? "bg-neutral-100 text-neutral-600"
                 : "bg-neutral-50 text-neutral-400"
             )}
           >
-            {doc.required ? "Mandatory" : "Optional"}
+            {doc.required ? t("badges.mandatory") : t("badges.optional")}
           </span>
           {doc.addedBy === "IMGC" && (
-            <span className="rounded bg-brand-light px-1.5 py-0.5 text-[10.5px] font-semibold text-brand-dark">
+            <span className="rounded bg-brand-light px-1.5 py-0.5 text-ui-caption font-semibold text-brand-dark">
               Added by IMGC
             </span>
           )}
-          <StatusPill status={doc.status} />
+          <StatusPill
+            status={doc.status}
+            label={doc.status === "REJECTED" ? "Rejected" : undefined}
+          />
           {inactive && (
-            <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-600">
+            <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-ui-caption font-semibold uppercase tracking-wide text-neutral-600">
               Withdrawn
             </span>
           )}
           {due !== null && outstanding && !inactive && (
             <span
               className={cn(
-                "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10.5px] font-semibold",
+                "flex items-center gap-1 rounded px-1.5 py-0.5 text-ui-caption font-semibold",
                 due < 0
                   ? "bg-destructive/10 text-destructive"
                   : due <= 3
@@ -511,7 +534,7 @@ function DocumentRowItem({
               {due < 0
                 ? `Overdue by ${Math.abs(due)}d`
                 : due === 0
-                  ? "Due today"
+                  ? t("badges.dueToday")
                   : `Due in ${due}d`}
             </span>
           )}
@@ -535,7 +558,7 @@ function DocumentRowItem({
                 (doc.category ||
                   doc.applicableProduct ||
                   doc.applicableCaseType) && (
-                  <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-neutral-500">
+                  <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-ui-body-sm text-neutral-500">
                     {doc.category && (
                       <span className="font-medium">{doc.category}</span>
                     )}
@@ -554,7 +577,7 @@ function DocumentRowItem({
               {doc.description && (
                 <p
                   className={cn(
-                    "mt-1.5 text-[12px] text-neutral-700",
+                    "mt-1.5 text-ui-body text-neutral-700",
                     role === "IMGC"
                       ? ""
                       : "rounded-md border border-brand-primary/15 bg-brand-light/50 px-2.5 py-1.5 leading-relaxed"
@@ -565,7 +588,7 @@ function DocumentRowItem({
               )}
 
               {doc.requirementRemarks && role === "IMGC" && (
-                <p className="mt-1 text-[11.5px] italic text-neutral-500">
+                <p className="mt-1 text-ui-body-sm italic text-neutral-500">
                   IMGC note: {doc.requirementRemarks}
                 </p>
               )}
@@ -575,7 +598,7 @@ function DocumentRowItem({
                   {doc.files.map((f) => (
                     <p
                       key={f.id}
-                      className="flex flex-wrap items-center gap-1.5 text-[12px] text-neutral-500"
+                      className="flex flex-wrap items-center gap-1.5 text-ui-body text-neutral-500"
                     >
                       <PaperclipIcon className="size-3.5" />
                       <span className="font-medium text-neutral-700">
@@ -590,7 +613,7 @@ function DocumentRowItem({
                           href={`/api/portal/files/${f.id}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                          className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-ui-label font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
                         >
                           <EyeIcon className="size-3" /> View
                         </a>
@@ -598,7 +621,7 @@ function DocumentRowItem({
                         <button
                           type="button"
                           onClick={() => setPreviewingFileId(f.id)}
-                          className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                          className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-ui-label font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
                         >
                           <EyeIcon className="size-3" /> View
                         </button>
@@ -607,19 +630,21 @@ function DocumentRowItem({
                   ))}
                 </div>
               ) : (
-                <p className="mt-1.5 text-[12px] text-neutral-400">
+                <p className="mt-1.5 text-ui-body text-neutral-400">
                   Nothing uploaded yet.
                 </p>
               )}
 
               {doc.rejection && (
                 <div className="mt-2 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2">
-                  <p className="text-[12.5px] text-destructive">
-                    <span className="font-semibold">Ineligible</span> by{" "}
-                    {doc.rejection.by} on {when(doc.rejection.at)} —{" "}
+                  <p className="text-ui-body-lg text-destructive">
+                    <span className="font-semibold">
+                      {t("badges.rejected")}
+                    </span>{" "}
+                    by {doc.rejection.by} on {when(doc.rejection.at)} —{" "}
                     {doc.rejection.reason}
                   </p>
-                  <p className="mt-0.5 text-[11.5px] text-neutral-500">
+                  <p className="mt-0.5 text-ui-body-sm text-neutral-500">
                     Kept for {retentionDays} days ·{" "}
                     {reinstate?.status === "REQUESTED"
                       ? "held pending a reinstatement decision"
@@ -695,7 +720,9 @@ function DocumentRowItem({
                       )}
                     >
                       <UploadIcon className="size-3.5" />
-                      {doc.status === "PENDING_UPLOAD" ? "Upload" : "Replace"}
+                      {doc.status === "PENDING_UPLOAD"
+                        ? t("fileActions.upload")
+                        : t("fileActions.replace")}
                     </label>
                   </>
                 )}
@@ -734,7 +761,7 @@ function DocumentRowItem({
                     variant="outline"
                     onClick={onReactivate}
                     disabled={working}
-                    title="Undo the rejection — the document goes back under review"
+                    title={t("requirement.undoRejectionHint")}
                   >
                     <RotateCcwIcon /> Undo Rejection
                   </Button>
@@ -744,7 +771,7 @@ function DocumentRowItem({
                       variant="outline"
                       onClick={onRaiseQuery}
                       disabled={working}
-                      title="This rejection has no open query yet — raise one so the lender sees it"
+                      title={t("requirement.noQueryHint")}
                     >
                       <MessageSquareWarningIcon /> Raise Query
                     </Button>
@@ -762,12 +789,14 @@ function DocumentRowItem({
                   disabled={working}
                   title={
                     inactive
-                      ? "Ask the lender for this document again"
-                      : "Stop asking for this document — it will not block submission"
+                      ? t("requirement.reactivateHint")
+                      : t("requirement.withdrawHint")
                   }
                 >
                   {inactive ? <RotateCcwIcon /> : <BanIcon />}
-                  {inactive ? "Reactivate" : "Withdraw"}
+                  {inactive
+                    ? t("requirement.reactivate")
+                    : t("requirement.withdraw")}
                 </Button>
               )}
             </div>
@@ -785,7 +814,7 @@ function DocumentRowItem({
               }}
             >
               <label className="min-w-[260px] flex-1">
-                <span className="mb-1 block text-[12px] font-medium text-neutral-700">
+                <span className="mb-1 block text-ui-body font-medium text-neutral-700">
                   Reason for rejection
                 </span>
                 <input
@@ -795,8 +824,8 @@ function DocumentRowItem({
                   // be filed without it.
                   // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
-                  placeholder="e.g. Valuation report is older than 6 months"
-                  className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                  placeholder={t("requirement.reasonPlaceholder")}
+                  className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                 />
               </label>
               <Button
@@ -824,9 +853,9 @@ function DocumentRowItem({
               <input
                 value={draft}
                 onChange={(e) => onDraftChange(doc.id, e.target.value)}
-                placeholder="Add a remark against this document…"
+                placeholder={t("requirement.remarkPlaceholder")}
                 aria-label={`Remark on ${doc.name}`}
-                className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-[12.5px] outline-none placeholder:text-neutral-400 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-ui-body-lg outline-none placeholder:text-neutral-400 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
               />
             </div>
           )}
@@ -860,6 +889,8 @@ function ImgcDocumentRowItem({
   retentionDays: number;
   hasOpenQuery: boolean;
 }>) {
+  const errorText = useServerErrorMessage();
+  const t = useTranslations("decisionTab");
   const [busy, startTransition] = useTransition();
   // Which file IMGC is deciding, and which way. Each file under a requirement is judged on its
   // own, and both decisions need a remark before they can be recorded.
@@ -889,16 +920,18 @@ function ImgcDocumentRowItem({
         );
         setBusyFileId(null);
         if (!result.ok) {
-          toast.error(result.error ?? "That decision could not be recorded.");
+          toast.error(errorText(result) ?? t("toast.decisionFailed"));
           return;
         }
         toast.success(
-          decision === "APPROVED" ? "File accepted." : "File rejected."
+          decision === "APPROVED"
+            ? t("toast.fileAccepted")
+            : t("toast.fileRejected")
         );
         setDeciding(null);
       });
     },
-    [accountId, doc.id]
+    [accountId, doc.id, t, errorText]
   );
 
   const onUndoFile = useCallback(
@@ -908,25 +941,25 @@ function ImgcDocumentRowItem({
         const result = await undoFileDecisionAction(accountId, doc.id, fileId);
         setBusyFileId(null);
         if (!result.ok) {
-          toast.error(result.error ?? "That decision could not be undone.");
+          toast.error(errorText(result) ?? t("toast.fileUndoFailed"));
           return;
         }
-        toast.success("File is back under review.");
+        toast.success(t("toast.fileBackUnderReview"));
       });
     },
-    [accountId, doc.id]
+    [accountId, doc.id, t, errorText]
   );
 
   const onReactivate = useCallback(() => {
     startTransition(async () => {
       const result = await reactivateDocumentAction(accountId, doc.id);
       if (!result.ok) {
-        toast.error(result.error ?? "That could not be undone.");
+        toast.error(errorText(result) ?? t("toast.undoFailed"));
         return;
       }
       toast.success(`"${doc.name}" is back under review.`);
     });
-  }, [accountId, doc.id, doc.name]);
+  }, [accountId, doc.id, doc.name, t, errorText]);
 
   // Declining needs a reason — the lender has to know what to do next — so it opens a dialog;
   // allowing the waiver does not.
@@ -943,27 +976,29 @@ function ImgcDocumentRowItem({
           remarks
         );
         if (!result.ok) {
-          toast.error(result.error ?? "That waiver could not be decided.");
+          toast.error(errorText(result) ?? t("toast.waiverDecisionFailed"));
           return;
         }
         setDecliningWaiver(false);
         setWaiverNote("");
-        toast.success(approve ? "Document waived." : "Waiver declined.");
+        toast.success(
+          approve ? t("toast.documentWaived") : t("toast.waiverDeclined")
+        );
       });
     },
-    [accountId, doc.id]
+    [accountId, doc.id, t, errorText]
   );
 
   const onUndoAccepted = useCallback(() => {
     startTransition(async () => {
       const result = await undoAcceptedDocumentAction(accountId, doc.id);
       if (!result.ok) {
-        toast.error(result.error ?? "Acceptance could not be undone.");
+        toast.error(errorText(result) ?? t("toast.acceptanceUndoFailed"));
         return;
       }
       toast.success(`"${doc.name}" is back under review.`);
     });
-  }, [accountId, doc.id, doc.name]);
+  }, [accountId, doc.id, doc.name, t, errorText]);
 
   const onToggleActive = useCallback(
     (active: boolean) => {
@@ -974,15 +1009,17 @@ function ImgcDocumentRowItem({
           active
         );
         if (!result.ok) {
-          toast.error(result.error ?? "That requirement could not be updated.");
+          toast.error(errorText(result) ?? t("toast.requirementFailed"));
           return;
         }
         toast.success(
-          active ? "Requirement reactivated." : "Requirement withdrawn."
+          active
+            ? t("toast.requirementReactivated")
+            : t("toast.requirementWithdrawn")
         );
       });
     },
-    [accountId, doc.id]
+    [accountId, doc.id, t, errorText]
   );
 
   const onReinstateDecision = useCallback(
@@ -995,13 +1032,15 @@ function ImgcDocumentRowItem({
           ""
         );
         if (!result.ok) {
-          toast.error(result.error ?? "That decision could not be recorded.");
+          toast.error(errorText(result) ?? t("toast.decisionFailed"));
           return;
         }
-        toast.success(approve ? "Reinstated." : "Reinstatement denied.");
+        toast.success(
+          approve ? t("toast.reinstated") : t("toast.reinstateDenied")
+        );
       });
     },
-    [accountId, doc.id]
+    [accountId, doc.id, t, errorText]
   );
 
   const reinstate = doc.rejection?.reinstate;
@@ -1018,7 +1057,7 @@ function ImgcDocumentRowItem({
       <div className="flex items-stretch">
         <div className="flex w-[140px] shrink-0 flex-col items-start gap-1.5 border-r border-neutral-100 px-3 py-3">
           <span
-            className="line-clamp-2 text-[12px] font-semibold leading-tight text-neutral-950"
+            className="line-clamp-2 text-ui-body font-semibold leading-tight text-neutral-950"
             title={doc.name}
           >
             {doc.name}
@@ -1026,9 +1065,10 @@ function ImgcDocumentRowItem({
           </span>
           <StatusPill
             status={doc.status === "APPROVED" ? "ACCEPTED" : doc.status}
+            label={doc.status === "REJECTED" ? "Rejected" : undefined}
           />
           {inactive && (
-            <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">
+            <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-ui-tiny font-semibold uppercase tracking-wide text-neutral-600">
               Withdrawn
             </span>
           )}
@@ -1039,17 +1079,17 @@ function ImgcDocumentRowItem({
             <div className="flex flex-1 items-center justify-between gap-2 px-3 py-3">
               {/* A waiver reads across the same columns a file does: the lender's reason under
                   Lender Remark, IMGC's answer under IMGC Remark, and who asked and when. */}
-              <div className="w-[140px] shrink-0 text-[11.5px] text-neutral-400">
-                {doc.waiver ? "—" : "Nothing uploaded yet."}
+              <div className="w-[140px] shrink-0 text-ui-body-sm text-neutral-400">
+                {doc.waiver ? "—" : t("badges.nothingUploaded")}
               </div>
               <div
-                className="w-[140px] shrink-0 text-[11px] text-neutral-600"
+                className="w-[140px] shrink-0 text-ui-label text-neutral-600"
                 title={doc.waiver?.reason}
               >
                 {doc.waiver ? clip(doc.waiver.reason, 34) : ""}
               </div>
               <div
-                className="w-[140px] shrink-0 text-[11px]"
+                className="w-[140px] shrink-0 text-ui-label"
                 title={doc.waiver?.remarks}
               >
                 {doc.waiver && doc.waiver.status !== "REQUESTED" && (
@@ -1060,17 +1100,19 @@ function ImgcDocumentRowItem({
                         : "font-medium text-destructive"
                     }
                   >
-                    {doc.waiver.status === "APPROVED" ? "Waived" : "Declined"}
+                    {doc.waiver.status === "APPROVED"
+                      ? t("badges.waived")
+                      : t("badges.declined")}
                     {doc.waiver.remarks
                       ? `: ${clip(doc.waiver.remarks, 26)}`
                       : ""}
                   </span>
                 )}
               </div>
-              <div className="w-[85px] shrink-0 text-[11px] text-neutral-600">
+              <div className="w-[85px] shrink-0 text-ui-label text-neutral-600">
                 {doc.waiver?.by ?? ""}
               </div>
-              <div className="w-[100px] shrink-0 text-[11px] text-neutral-500">
+              <div className="w-[100px] shrink-0 text-ui-label text-neutral-500">
                 {doc.waiver ? when(doc.waiver.at) : ""}
               </div>
               <div className="flex w-[140px] shrink-0 flex-wrap gap-2">
@@ -1083,8 +1125,8 @@ function ImgcDocumentRowItem({
                       onClick={() => onDecideWaiver(true)}
                       disabled={working}
                       className="size-7 p-0"
-                      aria-label="Waive"
-                      title="Waive — the claim proceeds without this document"
+                      aria-label={t("waiver.approve")}
+                      title={t("waiver.approveHint")}
                     >
                       <CheckIcon className="size-4" />
                     </Button>
@@ -1094,8 +1136,8 @@ function ImgcDocumentRowItem({
                       onClick={() => setDecliningWaiver(true)}
                       disabled={working}
                       className="size-7 p-0 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      aria-label="Decline waiver"
-                      title="Decline — the lender must upload the document"
+                      aria-label={t("waiver.decline")}
+                      title={t("waiver.declineHint")}
                     >
                       <XIcon className="size-4" />
                     </Button>
@@ -1107,14 +1149,16 @@ function ImgcDocumentRowItem({
                     variant="outline"
                     onClick={() => onToggleActive(inactive)}
                     disabled={working}
-                    className="h-7 px-2.5 text-[11px]"
+                    className="h-7 px-2.5 text-ui-label"
                   >
                     {inactive ? (
                       <RotateCcwIcon className="mr-1 size-3" />
                     ) : (
                       <BanIcon className="mr-1 size-3" />
                     )}
-                    {inactive ? "Reactivate" : "Withdraw"}
+                    {inactive
+                      ? t("requirement.reactivate")
+                      : t("requirement.withdraw")}
                   </Button>
                 )}
               </div>
@@ -1131,7 +1175,7 @@ function ImgcDocumentRowItem({
                 )}
               >
                 <div
-                  className="w-[140px] shrink-0 text-[11.5px] font-medium text-neutral-700"
+                  className="w-[140px] shrink-0 text-ui-body-sm font-medium text-neutral-700"
                   title={f.originalName}
                 >
                   <div className="truncate">
@@ -1156,12 +1200,12 @@ function ImgcDocumentRowItem({
                       </button>
                     )}
                   </div>
-                  <span className="text-[11px] font-normal text-neutral-400">
+                  <span className="text-ui-label font-normal text-neutral-400">
                     {bytes(f.size)}
                   </span>
                 </div>
                 <div
-                  className="w-[140px] shrink-0 line-clamp-3 text-[11px] text-neutral-600"
+                  className="w-[140px] shrink-0 line-clamp-3 text-ui-label text-neutral-600"
                   title={f.uploadRemarks?.trim() || undefined}
                 >
                   {f.uploadRemarks?.trim() ? (
@@ -1178,16 +1222,16 @@ function ImgcDocumentRowItem({
                       maxChars={34}
                     />
                   ) : (
-                    <span className="text-[11px] text-neutral-300">—</span>
+                    <span className="text-ui-label text-neutral-300">—</span>
                   )}
                 </div>
                 <div
-                  className="w-[85px] shrink-0 truncate text-[11px] text-neutral-500"
+                  className="w-[85px] shrink-0 truncate text-ui-label text-neutral-500"
                   title={f.uploadedByName}
                 >
                   {f.uploadedByName}
                 </div>
-                <div className="w-[100px] shrink-0 text-[11px] text-neutral-500">
+                <div className="w-[100px] shrink-0 text-ui-label text-neutral-500">
                   {when(f.uploadedAt)}
                 </div>
 
@@ -1199,14 +1243,14 @@ function ImgcDocumentRowItem({
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                        title="View"
+                        title={t("fileActions.view")}
                       >
                         <EyeIcon className="size-4" />
                       </a>
                       <a
                         href={`/api/portal/files/${f.id}?download=1`}
                         className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                        title="Download"
+                        title={t("fileActions.download")}
                       >
                         <DownloadIcon className="size-4" />
                       </a>
@@ -1217,17 +1261,15 @@ function ImgcDocumentRowItem({
                         type="button"
                         onClick={() => setPreviewingFileId(f.id)}
                         className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                        title="View"
+                        title={t("fileActions.view")}
                       >
                         <EyeIcon className="size-4" />
                       </button>
                       <button
                         type="button"
-                        onClick={() =>
-                          toast.error("Demo files cannot be downloaded")
-                        }
+                        onClick={() => toast.error(t("toast.demoDownload"))}
                         className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                        title="Download"
+                        title={t("fileActions.download")}
                       >
                         <DownloadIcon className="size-4" />
                       </button>
@@ -1255,7 +1297,7 @@ function ImgcDocumentRowItem({
                           }
                           disabled={busyFileId === f.id}
                           className="size-7 p-0"
-                          title="Accept this file"
+                          title={t("fileActions.accept")}
                         >
                           <CheckIcon className="size-4" />
                         </Button>
@@ -1271,7 +1313,7 @@ function ImgcDocumentRowItem({
                           }
                           disabled={busyFileId === f.id}
                           className="size-7 p-0 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          title="Reject this file"
+                          title={t("fileActions.reject")}
                         >
                           <XIcon className="size-4" />
                         </Button>
@@ -1286,11 +1328,11 @@ function ImgcDocumentRowItem({
                       disabled={busyFileId === f.id}
                       title={
                         f.review.decision === "APPROVED"
-                          ? "Undo the acceptance of this file"
-                          : "Undo the rejection of this file"
+                          ? t("fileActions.undoAccept")
+                          : t("fileActions.undoReject")
                       }
                       className="size-7 p-0"
-                      aria-label="Undo"
+                      aria-label={t("fileActions.undo")}
                     >
                       <RotateCcwIcon className="size-4" />
                     </Button>
@@ -1305,9 +1347,9 @@ function ImgcDocumentRowItem({
                         variant="outline"
                         onClick={onReactivate}
                         disabled={working}
-                        title="Undo the rejection"
+                        title={t("fileActions.undoRejection")}
                         className="size-7 p-0"
-                        aria-label="Undo"
+                        aria-label={t("fileActions.undo")}
                       >
                         <RotateCcwIcon className="size-4" />
                       </Button>
@@ -1321,9 +1363,9 @@ function ImgcDocumentRowItem({
                         variant="outline"
                         onClick={onUndoAccepted}
                         disabled={working}
-                        title="Undo the acceptance"
+                        title={t("fileActions.undoAcceptance")}
                         className="size-7 p-0"
-                        aria-label="Undo"
+                        aria-label={t("fileActions.undo")}
                       >
                         <RotateCcwIcon className="size-4" />
                       </Button>
@@ -1335,14 +1377,16 @@ function ImgcDocumentRowItem({
                       variant="outline"
                       onClick={() => onToggleActive(inactive)}
                       disabled={working}
-                      className="h-7 px-2.5 text-[11px]"
+                      className="h-7 px-2.5 text-ui-label"
                     >
                       {inactive ? (
                         <RotateCcwIcon className="mr-1 size-3" />
                       ) : (
                         <BanIcon className="mr-1 size-3" />
                       )}
-                      {inactive ? "Reactivate" : "Withdraw"}
+                      {inactive
+                        ? t("requirement.reactivate")
+                        : t("requirement.withdraw")}
                     </Button>
                   )}
 
@@ -1353,7 +1397,7 @@ function ImgcDocumentRowItem({
                         variant="success"
                         onClick={() => onReinstateDecision(true)}
                         disabled={working}
-                        className="h-7 px-2.5 text-[11px]"
+                        className="h-7 px-2.5 text-ui-label"
                       >
                         Approve Reinstatement
                       </Button>
@@ -1362,7 +1406,7 @@ function ImgcDocumentRowItem({
                         variant="outline"
                         onClick={() => onReinstateDecision(false)}
                         disabled={working}
-                        className="h-7 px-2.5 text-[11px]"
+                        className="h-7 px-2.5 text-ui-label"
                       >
                         Deny
                       </Button>
@@ -1393,7 +1437,7 @@ function ImgcDocumentRowItem({
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
               setWaiverNote(e.target.value)
             }
-            placeholder="Why the waiver cannot be allowed"
+            placeholder={t("waiver.declineReasonPlaceholder")}
             rows={3}
           />
           <DialogFooter>
@@ -1410,7 +1454,7 @@ function ImgcDocumentRowItem({
               variant="destructive"
               onClick={() => {
                 if (!waiverNote.trim()) {
-                  toast.error("Say why the waiver is declined.");
+                  toast.error(t("waiver.declineReasonRequired"));
                   return;
                 }
                 onDecideWaiver(false, waiverNote.trim());
@@ -1433,12 +1477,14 @@ function ImgcDocumentRowItem({
           <DialogContent className="sm:max-w-[480px]">
             <DialogHeader>
               <DialogTitle>
-                {deciding.decision === "APPROVED" ? "Accept" : "Reject"}{" "}
+                {deciding.decision === "APPROVED"
+                  ? t("decision.accept")
+                  : t("decision.reject")}{" "}
                 {deciding.fileName}
               </DialogTitle>
               <DialogDescription>
                 {deciding.decision === "APPROVED"
-                  ? "An optional remark can be added before this file is accepted."
+                  ? t("decision.acceptNote")
                   : "A reason is required before this file can be rejected — the lender will see it."}
               </DialogDescription>
             </DialogHeader>
@@ -1459,10 +1505,10 @@ function ImgcDocumentRowItem({
               }}
             >
               <label className="block">
-                <span className="mb-1 block text-[12px] font-medium text-neutral-700">
+                <span className="mb-1 block text-ui-body font-medium text-neutral-700">
                   {deciding.decision === "APPROVED"
-                    ? "Remark for accepting"
-                    : "Reason for rejecting"}{" "}
+                    ? t("decision.remarkForAccepting")
+                    : t("decision.reasonForRejecting")}{" "}
                   <span className="font-semibold text-neutral-900">
                     {deciding.fileName}
                   </span>
@@ -1488,7 +1534,7 @@ function ImgcDocumentRowItem({
                       ? "e.g. Statement covers all 12 months, figures verified"
                       : "e.g. Valuation report is older than 6 months"
                   }
-                  className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                  className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                 />
               </label>
               <div className="flex justify-end gap-2">
@@ -1509,8 +1555,8 @@ function ImgcDocumentRowItem({
                   disabled={busyFileId === deciding.fileId}
                 >
                   {deciding.decision === "APPROVED"
-                    ? "Accept file"
-                    : "Reject file"}
+                    ? t("decision.acceptTitle")
+                    : t("decision.rejectTitle")}
                 </Button>
               </div>
             </form>
@@ -1521,8 +1567,8 @@ function ImgcDocumentRowItem({
       {/* Show rejection reason inline if rejected, to preserve info */}
       {doc.rejection && doc.status === "REJECTED" && (
         <div className="mx-4 mb-3 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2">
-          <p className="text-[12px] text-destructive">
-            <span className="font-semibold">Ineligible</span> by{" "}
+          <p className="text-ui-body text-destructive">
+            <span className="font-semibold">{t("badges.rejected")}</span> by{" "}
             {doc.rejection.by} on {when(doc.rejection.at)} —{" "}
             {doc.rejection.reason}
           </p>
@@ -1560,7 +1606,7 @@ function DocumentPreviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[420px]">
         <DialogHeader>
-          <DialogTitle className="truncate text-[15px]">
+          <DialogTitle className="truncate text-ui-title">
             {file.originalName}
           </DialogTitle>
           <DialogDescription>
@@ -1572,7 +1618,7 @@ function DocumentPreviewDialog({
           <div className="mx-auto flex aspect-[1/1.3] w-full max-w-[240px] flex-col rounded-md border border-neutral-200 bg-white p-4 shadow-sm">
             <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
               <FileTextIcon className="size-4 text-destructive" />
-              <span className="truncate text-[11px] font-semibold text-neutral-700">
+              <span className="truncate text-ui-label font-semibold text-neutral-700">
                 {file.originalName}
               </span>
             </div>
@@ -1585,7 +1631,7 @@ function DocumentPreviewDialog({
               <div className="h-1.5 w-full rounded bg-neutral-100" />
               <div className="h-1.5 w-3/4 rounded bg-neutral-100" />
             </div>
-            <p className="mt-2 border-t border-neutral-100 pt-2 text-center text-[9.5px] text-neutral-400">
+            <p className="mt-2 border-t border-neutral-100 pt-2 text-center text-ui-micro-lg text-neutral-400">
               Demo preview · {bytes(file.size)}
             </p>
           </div>

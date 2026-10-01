@@ -143,7 +143,7 @@ export function ClaimStatusHistoryGraph({
 
   if (entries.length === 0) {
     return (
-      <p className="px-1 text-[13px] text-neutral-500">
+      <p className="px-1 text-ui-subhead text-neutral-500">
         No status history yet.
       </p>
     );
@@ -199,11 +199,11 @@ export function ClaimStatusHistoryGraph({
                       ) : null}
                       <span className="relative grid place-items-center leading-none">
                         {isCurrent ? (
-                          <span className="text-[8px] leading-none font-bold">
+                          <span className="text-ui-nano leading-none font-bold">
                             {i + 1}
                           </span>
                         ) : isFuture ? (
-                          <span className="text-[8px] leading-none font-bold">
+                          <span className="text-ui-nano leading-none font-bold">
                             {i + 1}
                           </span>
                         ) : (
@@ -213,7 +213,7 @@ export function ClaimStatusHistoryGraph({
                     </span>
                     <p
                       className={cn(
-                        "text-[11px] leading-tight font-semibold whitespace-nowrap",
+                        "text-ui-label leading-tight font-semibold whitespace-nowrap",
                         isCurrent
                           ? "text-brand-primary"
                           : isFuture
@@ -223,7 +223,7 @@ export function ClaimStatusHistoryGraph({
                     >
                       {CLAIM_STATUS_LABELS[entry.status]}
                       {isCurrent && (
-                        <span className="ml-1 rounded-full bg-brand-primary/15 px-1 py-0.5 text-[8px] font-bold tracking-wide text-brand-primary uppercase">
+                        <span className="ml-1 rounded-full bg-brand-primary/15 px-1 py-0.5 text-ui-nano font-bold tracking-wide text-brand-primary uppercase">
                           Current
                         </span>
                       )}

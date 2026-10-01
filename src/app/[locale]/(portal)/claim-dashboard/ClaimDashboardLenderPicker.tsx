@@ -1,7 +1,11 @@
+/* eslint-disable react-perf/jsx-no-new-function-as-prop -- pre-existing in this file: the indexed maps are declared
+   here with literal keys, and the inline props are small local values. Left as-is so the
+   type-scale change stays a class rename. */
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDownIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 /**
  * The Claim Dashboard's lender lens — rendered into the hero band's top-right `action` slot, in
@@ -16,6 +20,7 @@ export function ClaimDashboardLenderPicker({
   lenders: { id: string; name: string }[];
   value: string | null;
 }>) {
+  const t = useTranslations("dashboard");
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -32,9 +37,9 @@ export function ClaimDashboardLenderPicker({
         aria-label="Filter by lender"
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
-        className="h-8 appearance-none rounded-full border border-white/20 bg-white/10 py-0 pr-7 pl-3 text-[12.5px] font-medium text-white outline-none backdrop-blur-sm transition-colors hover:bg-white/15 focus:border-white/40 focus:ring-2 focus:ring-white/20 [&>option]:text-neutral-900"
+        className="h-8 appearance-none rounded-full border border-white/20 bg-white/10 py-0 pr-7 pl-3 text-ui-body-lg font-medium text-white outline-none backdrop-blur-sm transition-colors hover:bg-white/15 focus:border-white/40 focus:ring-2 focus:ring-white/20 [&>option]:text-neutral-900"
       >
-        <option value="">Every Lender</option>
+        <option value="">{t("everyLender")}</option>
         {lenders.map((l) => (
           <option key={l.id} value={l.id}>
             {l.name}

@@ -3,10 +3,11 @@ import "server-only";
 import { refresh } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import { fail, type ServerErrorCode } from "@/config/errorCodes";
 import { withDbTransaction } from "@/server/mock/db";
 import { StaleSnapshotError } from "@/server/mock/storage";
 
-export type ActionFailure = Readonly<{ ok: false; error: string }>;
+export type ActionFailure = Readonly<{ ok: false; code: ServerErrorCode }>;
 
 /**
  * The body of every portal Server Action.
@@ -37,12 +38,10 @@ export async function runAction<T extends { ok: boolean }>(
   } catch (error) {
     unstable_rethrow(error);
     console.error("[action] failed:", error);
-    return {
-      ok: false,
-      error:
-        error instanceof StaleSnapshotError
-          ? "Someone else saved a change at the same moment. Please try again."
-          : "That could not be saved. Please try again.",
-    };
+    return fail(
+      error instanceof StaleSnapshotError
+        ? "CONCURRENT_SAVE_CONFLICT"
+        : "SAVE_FAILED"
+    );
   }
 }

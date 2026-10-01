@@ -1,8 +1,10 @@
 /* eslint-disable react-perf/jsx-no-new-function-as-prop, react-perf/jsx-no-jsx-as-prop */
 "use client";
 
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import {
@@ -43,6 +45,13 @@ const TABS = ["Loan Details", "Decision", "Audit Trail"] as const;
 
 /** URL-friendly slugs for `?tab=` — a notification linking into an account picks the tab that
  *  actually shows what it's about (see notifications/page.tsx's `tabSlugForEvent`). */
+/** Catalogue key per tab — the array values stay as identifiers, so `?tab=` keeps working. */
+const TAB_LABEL_KEY: Record<(typeof TABS)[number], string> = {
+  "Loan Details": "loanDetails",
+  Decision: "decision",
+  "Audit Trail": "auditTrail",
+};
+
 const TAB_SLUGS: Record<(typeof TABS)[number], string> = {
   "Loan Details": "overview",
   Decision: "query-trail",
@@ -94,6 +103,7 @@ export function AccountWorkspace({
   openQueries,
   backLink,
 }: Props) {
+  const t = useTranslations("accountWorkspace");
   // A notification deep-links here with `?tab=initial-claims` etc. — land on that tab instead of
   // always defaulting to Loan Details. Read once; switching tabs afterwards stays plain local state.
   const searchParams = useSearchParams();
@@ -112,7 +122,7 @@ export function AccountWorkspace({
       <div
         className="mb-5 flex flex-wrap items-center gap-1 border-b border-neutral-200"
         role="tablist"
-        aria-label="Account sections"
+        aria-label={t("tabs.sectionsLabel")}
       >
         {backLink && <div className="mr-4 flex items-center">{backLink}</div>}
         {TABS.map((name) => (
@@ -123,13 +133,14 @@ export function AccountWorkspace({
             aria-selected={tab === name}
             onClick={() => setTab(name)}
             className={cn(
-              "-mb-px border-b-2 px-3.5 py-2.5 text-[13.5px] font-medium transition-colors",
+              "-mb-px border-b-2 px-3.5 py-2.5 text-ui-subhead-lg font-medium transition-colors",
               tab === name
                 ? "border-brand-primary text-brand-primary"
                 : "border-transparent text-neutral-500 hover:text-neutral-800"
             )}
           >
-            {name}
+            {/* eslint-disable-next-line security/detect-object-injection */}
+            {t(`tabs.${TAB_LABEL_KEY[name]}`)}
           </button>
         ))}
       </div>
@@ -179,6 +190,8 @@ function QueryTrailTab({
   claimDocs: DocumentRow[];
   documentsSection: React.ReactNode;
 }>) {
+  const errorText = useServerErrorMessage();
+  const t = useTranslations("accountWorkspace");
   const [pending, startTransition] = useTransition();
   // Approve/Reject open a dialog for an optional note; both sides read it under Remarks.
   const [deciding, setDeciding] = useState<"APPROVED" | "REJECTED" | null>(
@@ -195,15 +208,15 @@ function QueryTrailTab({
           decisionNote
         );
         if (!result.ok) {
-          toast.error(result.error ?? "That status could not be set.");
+          toast.error(errorText(result) ?? t("toast.statusFailed"));
           return;
         }
         setDeciding(null);
         setNote("");
-        toast.success(`Claim marked ${status.toLowerCase()}.`);
+        toast.success(t("toast.claimMarked", { status: status.toLowerCase() }));
       });
     },
-    [account.id]
+    [account.id, t, errorText]
   );
 
   if (role !== "IMGC") return null;
@@ -260,17 +273,15 @@ function QueryTrailTab({
               startTransition(async () => {
                 const result = await startClaimReviewAction(account.id, "");
                 if (!result.ok) {
-                  toast.error(
-                    result.error ?? "The claim review could not be started."
-                  );
+                  toast.error(errorText(result) ?? t("toast.reviewFailed"));
                   return;
                 }
-                toast.success("Review started.");
+                toast.success(t("toast.reviewStarted"));
               });
             }}
             disabled={pending}
           >
-            Submit for Review
+            {t("actions.submitForReview")}
           </Button>
         )}
         {claim?.status === "UNDER_REVIEW" && !isApproved && !refundReceived && (
@@ -280,7 +291,7 @@ function QueryTrailTab({
             onClick={() => setDeciding("APPROVED")}
             disabled={pending}
           >
-            Mark approved
+            {t("actions.markApproved")}
           </Button>
         )}
         {claim?.status === "UNDER_REVIEW" && (
@@ -311,6 +322,7 @@ function QueryTrailTab({
         <ClaimStatusBar
           history={claim.statusHistory}
           currentStatus={claim.status}
+          initiatedByImgc={claim.fields.__initiatedByImgc === "true"}
           action={
             <ExportDocumentsCsvButton
               docs={claimDocs}
@@ -327,6 +339,7 @@ function QueryTrailTab({
           lender={claimRemarks.lender}
           imgc={claimRemarks.imgc}
           decision={claimRemarks.decision}
+          initiatedByImgc={claimRemarks.initiatedByImgc}
         />
       )}
 
@@ -347,16 +360,20 @@ function QueryTrailTab({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {deciding === "APPROVED" ? "Mark approved" : "Mark ineligible"}
+              {t(
+                deciding === "APPROVED"
+                  ? "actions.markApproved"
+                  : "actions.markIneligible"
+              )}
             </DialogTitle>
             <DialogDescription>
-              A note is required. The lender sees it under Remarks.
+              {t("decisionDialog.noteRequired")}
             </DialogDescription>
           </DialogHeader>
           <Textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Note (required)"
+            placeholder={t("decisionDialog.notePlaceholder")}
             rows={3}
           />
           <DialogFooter>
@@ -369,21 +386,25 @@ function QueryTrailTab({
               }}
               disabled={pending}
             >
-              Cancel
+              {t("actions.cancel")}
             </Button>
             <Button
               size="sm"
               variant={deciding === "APPROVED" ? "success" : "destructive"}
               onClick={() => {
                 if (!note.trim()) {
-                  toast.error("Add a note before you continue.");
+                  toast.error(t("decisionDialog.noteMissing"));
                   return;
                 }
                 if (deciding) decide(deciding, note.trim());
               }}
               disabled={pending}
             >
-              {deciding === "APPROVED" ? "Approve" : "Ineligible"}
+              {t(
+                deciding === "APPROVED"
+                  ? "actions.approve"
+                  : "actions.ineligible"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -401,13 +422,14 @@ function OverviewTab({
 }: Readonly<{
   account: AccountRow;
 }>) {
+  const t = useTranslations("accountWorkspace");
   return (
     <div className="space-y-4">
       <LoanDetailsCard account={account} />
 
       {account.pushRecipients.length > 0 && (
-        <Panel title="Notification recipients">
-          <p className="px-5 py-4 text-[13px] text-neutral-600">
+        <Panel title={t("panels.notificationRecipients")}>
+          <p className="px-5 py-4 text-ui-subhead text-neutral-600">
             {account.pushRecipients.join(", ")}
           </p>
         </Panel>

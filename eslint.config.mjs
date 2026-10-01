@@ -157,6 +157,38 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  {
+    // The UI is token-driven: a component names a token, never a colour. A raw hex here is a
+    // colour that no tenant theme, dark mode or rebrand can ever reach — the whole point of the
+    // token layer. Add the value to src/styles/theme/colors.css and use the token instead.
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/styles/**",
+      // The one place a colour is a value rather than a style: the tenant's own brand, and the
+      // fallback used when a tenant has none.
+      "src/lib/tenantTheme.ts",
+      "src/server/standInRegistry.ts",
+      "src/components/identity-control/**",
+      "src/lib/identity-control/**",
+      "src/stories/**",
+      "src/server/mock/**",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "warn",
+        {
+          selector: "Literal[value=/#[0-9a-fA-F]{3,8}/]",
+          message:
+            "Hard-coded colour. Use a design token (e.g. text-brand-primary, var(--chart-2)) — add the value to src/styles/theme/colors.css if it does not exist yet.",
+        },
+        {
+          selector: "TemplateElement[value.raw=/#[0-9a-fA-F]{3,8}/]",
+          message:
+            "Hard-coded colour. Use a design token — add the value to src/styles/theme/colors.css if it does not exist yet.",
+        },
+      ],
+    },
+  },
   eslintConfigPrettier,
   ...storybook.configs["flat/recommended"],
 ]);

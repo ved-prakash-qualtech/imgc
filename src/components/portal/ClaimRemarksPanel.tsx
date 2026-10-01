@@ -34,14 +34,28 @@ function when(iso: string): string {
  * back to showing with no date rather than being dropped.
  */
 export function buildClaimRemarkItems(
-  claim: Pick<Claim, "id" | "fields" | "decision"> | null,
+  claim: Pick<
+    Claim,
+    "id" | "fields" | "decision" | "createdAt" | "createdByName"
+  > | null,
   remarks: readonly Remark[]
 ): Readonly<{
   lender?: ClaimRemarkItem;
   imgc?: ClaimRemarkItem;
   decision?: ClaimRemarkItem;
+  initiatedByImgc?: ClaimRemarkItem;
 }> {
   if (!claim) return {};
+
+  // Claim by IMGC — shown to both sides, so neither wonders why a lender's claim appeared.
+  const initiatedByImgc =
+    claim.fields.__initiatedByImgc === "true"
+      ? {
+          text: "Claim Initiated by IMGC on behalf of the lender.",
+          at: claim.createdAt,
+          byName: claim.fields.__initiatedByImgcName ?? claim.createdByName,
+        }
+      : undefined;
 
   const initiation = remarks.find(
     (r) => r.claimId === claim.id && r.source === "CLAIM_INITIATION"
@@ -74,7 +88,7 @@ export function buildClaimRemarkItems(
       ? { text: claim.fields.__imgcDecisionRemark }
       : undefined;
 
-  return { lender, imgc, decision };
+  return { lender, imgc, decision, initiatedByImgc };
 }
 
 /**
@@ -87,12 +101,15 @@ export function ClaimRemarksPanel({
   lender,
   imgc,
   decision,
+  initiatedByImgc,
 }: Readonly<{
   lender?: ClaimRemarkItem;
   imgc?: ClaimRemarkItem;
   decision?: ClaimRemarkItem;
+  initiatedByImgc?: ClaimRemarkItem;
 }>) {
   const slots: [string, ClaimRemarkItem | undefined][] = [
+    ["Claim Initiated by IMGC", initiatedByImgc],
     ["Lender", lender],
     ["IMGC", imgc],
     ["IMGC decision", decision],
@@ -103,7 +120,7 @@ export function ClaimRemarksPanel({
   if (items.length === 0) return null;
   return (
     <Panel title="Remarks">
-      <div className="flex flex-col gap-3 px-4 py-3 text-[12.5px]">
+      <div className="flex flex-col gap-3 px-4 py-3 text-ui-body-lg">
         {items.map(([who, item]) => (
           <div key={who}>
             <p className="whitespace-pre-wrap text-neutral-800">
@@ -113,7 +130,7 @@ export function ClaimRemarksPanel({
               {item.text.trim()}
             </p>
             {(item.at ?? item.byName) && (
-              <p className="mt-0.5 text-[11px] text-neutral-400">
+              <p className="mt-0.5 text-ui-label text-neutral-400">
                 {item.byName}
                 {item.byName && item.at && " · "}
                 {item.at && when(item.at)}

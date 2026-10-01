@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import type { ChangeEvent, KeyboardEvent } from "react";
+import { useTranslations } from "next-intl";
 import {
   ChevronLeft,
   ChevronRight,
@@ -47,6 +48,7 @@ export function Pagination({
   label?: string;
   pageSizeOptions?: number[];
 }) {
+  const t = useTranslations("pagination");
   const [jump, setJump] = useState("");
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const safe = Math.min(page, pageCount);
@@ -123,7 +125,7 @@ export function Pagination({
             variant="outline"
             disabled={safe <= 1}
             onClick={goFirst}
-            aria-label="First page"
+            aria-label={t("firstPage")}
           >
             <ChevronsLeft className="h-4 w-4" />
           </Button>
@@ -132,7 +134,7 @@ export function Pagination({
             variant="outline"
             disabled={safe <= 1}
             onClick={goPrevious}
-            aria-label="Previous page"
+            aria-label={t("previousPage")}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -144,7 +146,7 @@ export function Pagination({
             variant="outline"
             disabled={safe >= pageCount}
             onClick={goNext}
-            aria-label="Next page"
+            aria-label={t("nextPage")}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -153,7 +155,7 @@ export function Pagination({
             variant="outline"
             disabled={safe >= pageCount}
             onClick={goLast}
-            aria-label="Last page"
+            aria-label={t("lastPage")}
           >
             <ChevronsRight className="h-4 w-4" />
           </Button>
@@ -161,9 +163,9 @@ export function Pagination({
             value={jump}
             onChange={handleJumpChange}
             onKeyDown={handleJumpKeyDown}
-            placeholder="Go #"
+            placeholder={t("jumpPlaceholder")}
             className="ml-2 h-8 w-16 text-xs"
-            aria-label="Jump to page"
+            aria-label={t("jumpToPage")}
           />
         </div>
       </div>

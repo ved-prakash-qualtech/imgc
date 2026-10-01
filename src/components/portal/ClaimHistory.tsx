@@ -1,3 +1,7 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+
 import { CLAIM_STATUS_LABELS } from "@/config/claimConfig";
 import {
   Table,
@@ -28,10 +32,15 @@ type HistoryRow = Readonly<{
 }>;
 
 /** Turns the claim's own status transitions into history rows. */
-function fromStatusHistory(history: readonly ClaimStatusEntry[]): HistoryRow[] {
+function fromStatusHistory(
+  history: readonly ClaimStatusEntry[],
+  tStatus: (key: string) => string
+): HistoryRow[] {
   return history.map((entry) => ({
     at: entry.at,
-    activity: CLAIM_STATUS_LABELS[entry.status],
+    // The catalogue is the label of record; CLAIM_STATUS_LABELS stays the fallback for a
+    // status the catalogue has not been given a name for yet.
+    activity: tStatus(entry.status) || CLAIM_STATUS_LABELS[entry.status],
     by: entry.byName,
     role: entry.byRole,
     remarks: entry.note ?? "—",
@@ -40,12 +49,15 @@ function fromStatusHistory(history: readonly ClaimStatusEntry[]): HistoryRow[] {
 
 /** Queries are their own record, not status transitions — folded in here rather than modelled
  *  as a second history, so one table shows everything that happened to the claim in order. */
-function fromQueries(queries: readonly ClaimQuery[]): HistoryRow[] {
+function fromQueries(
+  queries: readonly ClaimQuery[],
+  t: (key: string) => string
+): HistoryRow[] {
   const rows: HistoryRow[] = [];
   for (const q of queries) {
     rows.push({
       at: q.raisedAt,
-      activity: "Query Raised",
+      activity: t("queryRaised"),
       by: q.raisedByName,
       role: "IMGC",
       remarks: q.reason,
@@ -53,8 +65,8 @@ function fromQueries(queries: readonly ClaimQuery[]): HistoryRow[] {
     if (q.respondedAt) {
       rows.push({
         at: q.respondedAt,
-        activity: "Query Response Submitted",
-        by: q.respondedByName ?? "Lender",
+        activity: t("queryResponseSubmitted"),
+        by: q.respondedByName ?? t("lender"),
         role: "LENDER",
         remarks: q.responseRemarks || "—",
       });
@@ -77,14 +89,19 @@ export function ClaimHistory({
   statusHistory: readonly ClaimStatusEntry[];
   queries: readonly ClaimQuery[];
 }>) {
-  const rows = [...fromStatusHistory(statusHistory), ...fromQueries(queries)].sort(
-    (a, b) => a.at.localeCompare(b.at)
-  );
+  const t = useTranslations("claim.claimHistory");
+  const tStatus = useTranslations("status");
+  const rows = [
+    ...fromStatusHistory(statusHistory, (k) =>
+      tStatus.has(k) ? tStatus(k) : ""
+    ),
+    ...fromQueries(queries, t),
+  ].sort((a, b) => a.at.localeCompare(b.at));
 
   if (rows.length === 0) {
     return (
-      <p className="px-5 py-8 text-center text-[13px] text-neutral-500">
-        No history recorded yet.
+      <p className="px-5 py-8 text-center text-ui-subhead text-neutral-500">
+        {t("empty")}
       </p>
     );
   }
@@ -95,29 +112,37 @@ export function ClaimHistory({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">Date &amp; Time</TableHead>
-            <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">Activity</TableHead>
-            <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">Performed By</TableHead>
-            <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">Remarks</TableHead>
+            <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
+              {t("columns.dateTime")}
+            </TableHead>
+            <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
+              {t("columns.activity")}
+            </TableHead>
+            <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
+              {t("columns.performedBy")}
+            </TableHead>
+            <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
+              {t("columns.remarks")}
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((row, i) => (
             <TableRow key={`${row.at}-${row.activity}-${i}`}>
-              <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-500">
+              <TableCell className="px-1.5 py-1.5 text-ui-body-sm whitespace-nowrap text-neutral-500">
                 {when(row.at)}
               </TableCell>
-              <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-900">
+              <TableCell className="px-1.5 py-1.5 text-ui-body font-medium whitespace-nowrap text-neutral-900">
                 {row.activity}
               </TableCell>
-              <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap">
+              <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap">
                 {row.by}
-                <span className="ml-1 rounded bg-neutral-100 px-1 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-neutral-500">
+                <span className="ml-1 rounded bg-neutral-100 px-1 py-0.5 text-ui-micro-lg font-semibold uppercase tracking-wide text-neutral-500">
                   {row.role}
                 </span>
               </TableCell>
               <TableCell className="max-w-[320px] px-1.5 py-1.5">
-                <span className="line-clamp-2 text-[11.5px] text-neutral-600">
+                <span className="line-clamp-2 text-ui-body-sm text-neutral-600">
                   {row.remarks}
                 </span>
               </TableCell>

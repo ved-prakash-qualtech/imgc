@@ -32,6 +32,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ROUTES } from "@/constants/route";
+import { getTranslations } from "next-intl/server";
+
 import { requireSession } from "@/lib/auth/appSession";
 import { CLAIMS_FILTER_KEY } from "@/lib/hooks/useRememberedFilters";
 import { getAccount } from "@/services/portal/accounts.server";
@@ -72,6 +74,8 @@ export default async function ClaimDetailsPage({
   const { claimId } = await params;
   const { view } = await searchParams;
   const isSingleView = view === "single";
+  const t = await getTranslations("claim.claimDetail");
+  const tHistory = await getTranslations("claim.claimHistory");
   const session = await requireSession();
 
   const claim = await getClaim(session, claimId);
@@ -86,13 +90,12 @@ export default async function ClaimDetailsPage({
   const claimRemarks = buildClaimRemarkItems(claim, remarks);
   const isLender = session.role === "LENDER";
   const adminCtx = await getAdminContextOrNull();
-  const showLenderLayout =
-    isLender || (session.role === "IMGC" && session.isAdmin === true);
+  // IMGC working for a lender ("Claim by IMGC") sees the lender's own layout, so the claim reads
+  // to them exactly as it reads to the lender they are acting for.
+  const showLenderLayout = isLender || (session.role === "IMGC" && !!adminCtx);
   const canActAsLender =
     isLender ||
-    (session.role === "IMGC" &&
-      session.isAdmin === true &&
-      adminCtx?.lenderOrgId === account?.lenderOrgId);
+    (session.role === "IMGC" && adminCtx?.lenderOrgId === account?.lenderOrgId);
 
   // Answering a formal query is one way back to IMGC. The other is a rejection the lender has
   // already fixed: IMGC can reject a file without raising a query (the claim stays where it is),
@@ -155,8 +158,8 @@ export default async function ClaimDetailsPage({
             <GridBackLink
               href={ROUTES.initiateClaim}
               storageKey={CLAIMS_FILTER_KEY}
-              label="Back"
-              className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
+              label={t("back")}
+              className="inline-flex shrink-0 items-center gap-1 text-ui-body-lg font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
             />
           )}
           {!terminal && !showLenderLayout && (
@@ -169,6 +172,7 @@ export default async function ClaimDetailsPage({
           {showLenderLayout ? (
             <LenderClaimStatusPanel
               key="claim-status"
+              initiatedByImgc={claim.fields.__initiatedByImgc === "true"}
               history={claim.statusHistory}
               currentStatus={claim.status}
             />
@@ -187,13 +191,13 @@ export default async function ClaimDetailsPage({
             <Panel key="decision" title="Decision Remarks" className="shrink-0">
               <div className="px-4 py-3">
                 {claim.decision.remarks && (
-                  <p className="rounded-md bg-neutral-50 p-2 text-[13px] text-neutral-700">
+                  <p className="rounded-md bg-neutral-50 p-2 text-ui-subhead text-neutral-700">
                     {claim.decision.remarks}
                   </p>
                 )}
                 {refundReceivedEntry && (
                   <div className="mt-2 border-t border-neutral-100 pt-2">
-                    <p className="flex flex-wrap items-center gap-2 text-[13.5px]">
+                    <p className="flex flex-wrap items-center gap-2 text-ui-subhead-lg">
                       <StatusPill status="REFUND_RECEIVED_BY_IMGC" />
                       <span className="text-neutral-700">
                         by {refundReceivedEntry.byName} ·{" "}
@@ -201,7 +205,7 @@ export default async function ClaimDetailsPage({
                       </span>
                     </p>
                     {claim.refundReceipt && (
-                      <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-neutral-600">
+                      <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-ui-body-lg text-neutral-600">
                         <span>
                           Date:{" "}
                           <span className="font-semibold text-neutral-900">
@@ -256,6 +260,7 @@ export default async function ClaimDetailsPage({
                 lender={claimRemarks.lender}
                 imgc={claimRemarks.imgc}
                 decision={claimRemarks.decision}
+                initiatedByImgc={claimRemarks.initiatedByImgc}
               />
             )}
             {canActAsLender && canResubmit && (
@@ -268,25 +273,25 @@ export default async function ClaimDetailsPage({
             )}
           </div>
         ) : (
-          <Panel title="Documents">
+          <Panel title={t("documents")}>
             {/* 7 rows visible (32px header + 7 × ~46.5px row) before it scrolls. */}
             <div className="custom-scrollbar max-h-[358px] overflow-y-auto overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
                       Document
                     </TableHead>
-                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
                       Required
                     </TableHead>
-                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
                       Version
                     </TableHead>
-                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
                       Status
                     </TableHead>
-                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
                       Actions
                     </TableHead>
                   </TableRow>
@@ -295,24 +300,24 @@ export default async function ClaimDetailsPage({
                   {documents.map((d) => (
                     <TableRow key={d.id}>
                       <TableCell className="px-1.5 py-1.5">
-                        <span className="text-[12px] font-medium whitespace-nowrap text-neutral-900">
+                        <span className="text-ui-body font-medium whitespace-nowrap text-neutral-900">
                           {d.name}
                         </span>
-                        <span className="block text-[10.5px] whitespace-nowrap text-neutral-500">
+                        <span className="block text-ui-caption whitespace-nowrap text-neutral-500">
                           {d.category}
                         </span>
                       </TableCell>
-                      <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-600">
-                        {d.required ? "Required" : "Optional"}
+                      <TableCell className="px-1.5 py-1.5 text-ui-body-sm whitespace-nowrap text-neutral-600">
+                        {d.required ? t("required") : t("optional")}
                       </TableCell>
-                      <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-600">
+                      <TableCell className="px-1.5 py-1.5 text-ui-body-sm whitespace-nowrap text-neutral-600">
                         {d.version > 0 ? `v${d.version}` : "—"}
                       </TableCell>
                       <TableCell className="px-1.5 py-1.5">
                         <StatusPill
                           status={d.status}
                           flat
-                          className="text-[10.5px]"
+                          className="text-ui-caption"
                         />
                       </TableCell>
                       <TableCell className="px-1.5 py-1.5">
@@ -321,12 +326,12 @@ export default async function ClaimDetailsPage({
                             href={`/api/portal/files/${(d.file || (d.files && d.files[0]))?.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                            className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-ui-label font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
                           >
                             <EyeIcon className="size-3" /> View
                           </a>
                         ) : (
-                          <span className="text-[11px] text-neutral-400">
+                          <span className="text-ui-label text-neutral-400">
                             —
                           </span>
                         )}
@@ -342,8 +347,8 @@ export default async function ClaimDetailsPage({
       history={
         showLenderLayout ? null : (
           <Panel
-            title="Claim History"
-            description="Every status change and query on this claim, in order."
+            title={tHistory("title")}
+            description={tHistory("description")}
           >
             <ClaimHistory
               statusHistory={claim.statusHistory}
@@ -364,8 +369,8 @@ export default async function ClaimDetailsPage({
             <GridBackLink
               href={ROUTES.initiateClaim}
               storageKey={CLAIMS_FILTER_KEY}
-              label="Back"
-              className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
+              label={t("back")}
+              className="inline-flex shrink-0 items-center gap-1 text-ui-body-lg font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
             />
           )}
           {!terminal && !showLenderLayout && (
@@ -378,6 +383,7 @@ export default async function ClaimDetailsPage({
           {showLenderLayout ? (
             <LenderClaimStatusPanel
               key="claim-status"
+              initiatedByImgc={claim.fields.__initiatedByImgc === "true"}
               history={claim.statusHistory}
               currentStatus={claim.status}
             />
@@ -396,13 +402,13 @@ export default async function ClaimDetailsPage({
             <Panel key="decision" title="Decision Remarks" className="shrink-0">
               <div className="px-4 py-3">
                 {claim.decision.remarks && (
-                  <p className="rounded-md bg-neutral-50 p-2 text-[13px] text-neutral-700">
+                  <p className="rounded-md bg-neutral-50 p-2 text-ui-subhead text-neutral-700">
                     {claim.decision.remarks}
                   </p>
                 )}
                 {refundReceivedEntry && (
                   <div className="mt-2 border-t border-neutral-100 pt-2">
-                    <p className="flex flex-wrap items-center gap-2 text-[13.5px]">
+                    <p className="flex flex-wrap items-center gap-2 text-ui-subhead-lg">
                       <StatusPill status="REFUND_RECEIVED_BY_IMGC" />
                       <span className="text-neutral-700">
                         by {refundReceivedEntry.byName} ·{" "}
@@ -410,7 +416,7 @@ export default async function ClaimDetailsPage({
                       </span>
                     </p>
                     {claim.refundReceipt && (
-                      <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-neutral-600">
+                      <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-ui-body-lg text-neutral-600">
                         <span>
                           Date:{" "}
                           <span className="font-semibold text-neutral-900">
@@ -477,29 +483,30 @@ export default async function ClaimDetailsPage({
                 lender={claimRemarks.lender}
                 imgc={claimRemarks.imgc}
                 decision={claimRemarks.decision}
+                initiatedByImgc={claimRemarks.initiatedByImgc}
               />
             )}
           </div>
         ) : (
-          <Panel title="Documents">
+          <Panel title={t("documents")}>
             {/* 7 rows visible (32px header + 7 × ~46.5px row) before it scrolls. */}
             <div className="custom-scrollbar max-h-[358px] overflow-y-auto overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
                       Document
                     </TableHead>
-                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
                       Required
                     </TableHead>
-                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
                       Version
                     </TableHead>
-                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
                       Status
                     </TableHead>
-                    <TableHead className="h-8 px-1.5 text-[10.5px] sticky top-0 bg-white shadow-sm z-10">
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
                       Actions
                     </TableHead>
                   </TableRow>
@@ -508,24 +515,24 @@ export default async function ClaimDetailsPage({
                   {documents.map((d) => (
                     <TableRow key={d.id}>
                       <TableCell className="px-1.5 py-1.5">
-                        <span className="text-[12px] font-medium whitespace-nowrap text-neutral-900">
+                        <span className="text-ui-body font-medium whitespace-nowrap text-neutral-900">
                           {d.name}
                         </span>
-                        <span className="block text-[10.5px] whitespace-nowrap text-neutral-500">
+                        <span className="block text-ui-caption whitespace-nowrap text-neutral-500">
                           {d.category}
                         </span>
                       </TableCell>
-                      <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-600">
-                        {d.required ? "Required" : "Optional"}
+                      <TableCell className="px-1.5 py-1.5 text-ui-body-sm whitespace-nowrap text-neutral-600">
+                        {d.required ? t("required") : t("optional")}
                       </TableCell>
-                      <TableCell className="px-1.5 py-1.5 text-[11.5px] whitespace-nowrap text-neutral-600">
+                      <TableCell className="px-1.5 py-1.5 text-ui-body-sm whitespace-nowrap text-neutral-600">
                         {d.version > 0 ? `v${d.version}` : "—"}
                       </TableCell>
                       <TableCell className="px-1.5 py-1.5">
                         <StatusPill
                           status={d.status}
                           flat
-                          className="text-[10.5px]"
+                          className="text-ui-caption"
                         />
                       </TableCell>
                       <TableCell className="px-1.5 py-1.5">
@@ -534,12 +541,12 @@ export default async function ClaimDetailsPage({
                             href={`/api/portal/files/${(d.file || (d.files && d.files[0]))?.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                            className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-ui-label font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
                           >
                             <EyeIcon className="size-3" /> View
                           </a>
                         ) : (
-                          <span className="text-[11px] text-neutral-400">
+                          <span className="text-ui-label text-neutral-400">
                             —
                           </span>
                         )}
@@ -555,8 +562,8 @@ export default async function ClaimDetailsPage({
       history={
         showLenderLayout ? null : (
           <Panel
-            title="Claim History"
-            description="Every status change and query on this claim, in order."
+            title={tHistory("title")}
+            description={tHistory("description")}
           >
             <ClaimHistory
               statusHistory={claim.statusHistory}

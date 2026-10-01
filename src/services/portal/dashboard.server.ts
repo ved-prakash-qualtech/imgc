@@ -2,9 +2,11 @@
 // never run in a browser — this rule is flagging a local identifier (`status`/`closed`) that
 // happens to share a name with a global browser API, not an actual browser-api call.
 /* eslint-disable use-client/browser-api */
-import "server-only";
 
 /* eslint-disable security/detect-object-injection */
+
+import "server-only";
+
 import { readDb } from "@/server/mock/db";
 import { ROUTES } from "@/constants/route";
 import { listClaims } from "@/services/portal/claimFlow.server";
@@ -23,6 +25,9 @@ import type { Claim, ClaimDocument } from "@/server/mock/types";
 export interface Tile {
   key: string;
   label: string;
+  /** Catalogue key for `label` — the client translates this and falls back
+   *  to `label`. */
+  labelKey?: string;
   value: number;
   tone:
     "neutral" | "info" | "warning" | "success" | "danger" | "violet" | "teal";
@@ -33,6 +38,9 @@ export interface Tile {
 export interface Ring {
   key: string;
   label: string;
+  /** Catalogue key for `label` — the client translates this and falls back
+   *  to `label`. */
+  labelKey?: string;
   value: number;
   /** Denominator the ring fills against. */
   total: number;
@@ -42,6 +50,7 @@ export interface Ring {
 
 export interface AgingBand {
   label: string;
+  labelKey?: string;
   count: number;
   share: number;
   tone: "info" | "brand" | "warning" | "danger";
@@ -572,6 +581,7 @@ export async function buildDashboardSummary(
         {
           key: "new",
           label: "To Be Initiated",
+          labelKey: "tiles.toBeInitiated",
           value: notStartedCount,
           tone: "neutral",
           href: "/initiate-claim?status=NOT_STARTED",
@@ -579,6 +589,7 @@ export async function buildDashboardSummary(
         {
           key: "collecting",
           label: "Draft",
+          labelKey: "tiles.draft",
           value: claimStatusCount("DRAFT"),
           tone: "info",
           href: "/initiate-claim?status=DRAFT",
@@ -586,6 +597,7 @@ export async function buildDashboardSummary(
         {
           key: "submitted",
           label: "Initiated",
+          labelKey: "tiles.initiated",
           value: claimStatusCount("INITIATED"),
           tone: "teal",
           href: "/initiate-claim?status=INITIATED",
@@ -593,6 +605,7 @@ export async function buildDashboardSummary(
         {
           key: "queried",
           label: "Queried",
+          labelKey: "tiles.queried",
           value:
             claimStatusCount("QUERY_INITIATED") +
             claimStatusCount("QUERY_UNDER_REVIEW"),
@@ -602,6 +615,7 @@ export async function buildDashboardSummary(
         {
           key: "active",
           label: "Under Review",
+          labelKey: "tiles.underReview",
           value: claimStatusCount("UNDER_REVIEW"),
           tone: "violet",
           href: "/initiate-claim?status=UNDER_REVIEW",
@@ -609,6 +623,7 @@ export async function buildDashboardSummary(
         {
           key: "approved",
           label: "Approved",
+          labelKey: "tiles.approved",
           value: claimStatusCount("APPROVED"),
           tone: "success",
           href: "/initiate-claim?status=APPROVED",
@@ -616,6 +631,7 @@ export async function buildDashboardSummary(
         {
           key: "rejected",
           label: "Ineligible",
+          labelKey: "tiles.ineligible",
           value: claimStatusCount("REJECTED"),
           tone: "danger",
           href: "/initiate-claim?status=REJECTED",
@@ -625,6 +641,7 @@ export async function buildDashboardSummary(
         {
           key: "total-loans",
           label: "Total Loans",
+          labelKey: "tiles.totalLoans",
           value: accounts.length,
           tone: "neutral",
           href: withLender("/dpd"),
@@ -632,6 +649,7 @@ export async function buildDashboardSummary(
         {
           key: "new",
           label: "New",
+          labelKey: "tiles.new",
           value: notStartedCount,
           tone: "neutral",
           href: funnelHref("New"),
@@ -639,6 +657,7 @@ export async function buildDashboardSummary(
         {
           key: "collecting",
           label: "Underwriting",
+          labelKey: "tiles.underwriting",
           value: claimStatusCount("DRAFT"),
           tone: "info",
           href: funnelHref("Underwriting"),
@@ -646,6 +665,7 @@ export async function buildDashboardSummary(
         {
           key: "queried",
           label: "Queried",
+          labelKey: "tiles.queried",
           value: queriedCount,
           tone: "warning",
           href: funnelHref("Queried"),
@@ -653,6 +673,7 @@ export async function buildDashboardSummary(
         {
           key: "approved",
           label: "Approved",
+          labelKey: "tiles.approved",
           value: approvedCount,
           tone: "success",
           href: funnelHref("Approved"),
@@ -660,6 +681,7 @@ export async function buildDashboardSummary(
         {
           key: "rejected",
           label: "Ineligible",
+          labelKey: "tiles.ineligible",
           value: claimStatusCount("REJECTED"),
           tone: "danger",
           href: funnelHref("Ineligible"),
@@ -672,6 +694,7 @@ export async function buildDashboardSummary(
         {
           key: "expired",
           label: "Expired",
+          labelKey: "tiles.expired",
           value: expiredCount,
           tone: "danger",
           href: funnelHref("Expired"),
@@ -684,6 +707,7 @@ export async function buildDashboardSummary(
           // both dashboards.
           key: "active",
           label: "Active",
+          labelKey: "tiles.active",
           value: activeCount,
           tone: "success",
           href: withLender("/dpd?loanStatus=Active"),
@@ -694,6 +718,7 @@ export async function buildDashboardSummary(
     {
       key: "accounts",
       label: "Total NPA Account",
+      labelKey: "rings.totalNpa",
       value: npaCount,
       total: accounts.length || 1,
       href: withLender("/dpd?npa=YES"),
@@ -701,6 +726,7 @@ export async function buildDashboardSummary(
     {
       key: "in-progress",
       label: "Loan In Progress",
+      labelKey: "rings.loanInProgress",
       value:
         notStartedCount +
         claimStatusCount("DRAFT") +
@@ -712,6 +738,7 @@ export async function buildDashboardSummary(
     {
       key: "submitted",
       label: "Active Loans",
+      labelKey: "rings.activeLoans",
       value:
         byStatus("INITIATED") +
         byStatus("SUBMITTED") +
@@ -724,6 +751,7 @@ export async function buildDashboardSummary(
     {
       key: "queried",
       label: "Queries Awaiting Response",
+      labelKey: "rings.queriesAwaiting",
       value: queriedCount,
       total: accounts.length || 1,
       // Same "Queried" fold (QUERY_RAISED + DOCUMENTS_RESUBMITTED) `queriedCount` above already
@@ -734,6 +762,7 @@ export async function buildDashboardSummary(
     {
       key: "rejected-docs",
       label: "Ineligible Documents",
+      labelKey: "rings.ineligibleDocuments",
       value: rejectedDocCount,
       total: documentsRequired || 1,
       // Same role-specific destination the "Rejected documents" Actionable-item card already
@@ -775,13 +804,14 @@ export async function buildDashboardSummary(
     ages.filter((d) => d >= min && d <= max).length;
 
   const openTotal = ages.length || 1;
-  const raw: ReadonlyArray<[string, number, AgingBand["tone"]]> = [
-    ["0-2 Days", band(0, 2), "info"],
-    ["3-5 Days", band(3, 5), "brand"],
-    ["5-8 Days", band(6, 8), "warning"],
-    ["8+ Days", ages.filter((d) => d > 8).length, "danger"],
+  const raw: ReadonlyArray<[string, number, AgingBand["tone"], string]> = [
+    ["0-2 Days", band(0, 2), "info", "aging.d0to2"],
+    ["3-5 Days", band(3, 5), "brand", "aging.d3to5"],
+    ["5-8 Days", band(6, 8), "warning", "aging.d5to8"],
+    ["8+ Days", ages.filter((d) => d > 8).length, "danger", "aging.d8plus"],
   ];
-  const aging: AgingBand[] = raw.map(([label, count, tone]) => ({
+  const aging: AgingBand[] = raw.map(([label, count, tone, labelKey]) => ({
+    labelKey,
     label,
     count,
     share: Math.round((count / openTotal) * 100),

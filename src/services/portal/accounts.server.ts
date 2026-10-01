@@ -2,7 +2,14 @@
 // never run in a browser — this rule is flagging a local identifier (`status`/`closed`) that
 // happens to share a name with a global browser API, not an actual browser-api call.
 /* eslint-disable use-client/browser-api */
+
 import "server-only";
+
+import {
+  fail,
+  type ServerErrorCode,
+  type ServerErrorParams,
+} from "@/config/errorCodes";
 
 import { readDb, writeDb } from "@/server/mock/db";
 import { recordEvent } from "@/services/portal/audit.server";
@@ -58,7 +65,7 @@ function inScope(
   ctx?: AdminContext | null
 ): boolean {
   if (session.role === "IMGC") {
-    if (session.isAdmin && ctx?.lenderOrgId) {
+    if (ctx?.lenderOrgId) {
       return account.lenderOrgId === ctx.lenderOrgId;
     }
     return true;
@@ -178,9 +185,14 @@ function decorate(
   };
 }
 
-export async function listAccounts(session: AppSession): Promise<AccountRow[]> {
+export async function listAccounts(
+  session: AppSession,
+  /** IMGC's own screens (the dashboard) read every lender even while acting for one on Claim by
+   *  IMGC — the lender context narrows that screen, not IMGC's whole view. */
+  opts?: { ignoreLenderContext?: boolean }
+): Promise<AccountRow[]> {
   const db = await readDb();
-  const ctx = await getAdminContextOrNull();
+  const ctx = opts?.ignoreLenderContext ? null : await getAdminContextOrNull();
   return db.accounts
     .filter((a) => inScope(session, a, ctx))
     .map((a) =>
@@ -226,15 +238,18 @@ export async function shiftBucket(
   accountId: string,
   to: Bucket,
   extraRecipients: string[]
-): Promise<{ ok: boolean; error?: string }> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+): Promise<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}> {
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
 
   const outcome = await writeDb((db) => {
     const account = db.accounts.find((a) => a.id === accountId);
-    if (!account) return { ok: false as const, error: "Account not found." };
+    if (!account) return fail("ACCOUNT_NOT_FOUND");
     const from = account.bucket;
-    if (from === to)
-      return { ok: false as const, error: `Already in the ${to} bucket.` };
+    if (from === to) return fail("ALREADY_IN_BUCKET", { bucket: to });
     account.bucket = to;
     account.stage = to === "IMGC" ? "Under IMGC review" : "Document collection";
     account.pushRecipients = Array.from(
@@ -264,17 +279,21 @@ export async function setClaimStatus(
   accountId: string,
   status: Extract<ClaimStatus, "APPROVED" | "QUERIED" | "REJECTED">,
   note: string
-): Promise<{ ok: boolean; error?: string }> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+): Promise<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}> {
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
 
   const trimmedNote = note.trim();
   if (status !== "QUERIED" && !trimmedNote) {
-    return { ok: false, error: "Add a note before you continue." };
+    return fail("NOTE_REQUIRED");
   }
 
   const outcome = await writeDb((db) => {
     const account = db.accounts.find((a) => a.id === accountId);
-    if (!account) return { ok: false as const, error: "Account not found." };
+    if (!account) return fail("ACCOUNT_NOT_FOUND");
     const from = account.claimStatus;
     return { ok: true as const, from, account: { ...account } };
   });
@@ -292,17 +311,13 @@ export async function setClaimStatus(
       : await listDocuments(session, accountId);
     const summary = summariseDocs(docs);
     if (!summary.complete) {
-      return {
-        ok: false,
-        error:
-          "Please approve all required documents before marking the claim approved.",
-      };
+      return fail("CLAIM_APPROVE_NEEDS_APPROVALS");
     }
   }
 
   const updateOutcome = await writeDb((db) => {
     const account = db.accounts.find((a) => a.id === accountId);
-    if (!account) return { ok: false as const, error: "Account not found." };
+    if (!account) return fail("ACCOUNT_NOT_FOUND");
 
     let bucketChangedFrom = null;
     if (status === "QUERIED" && account.bucket !== "LENDER") {
@@ -381,8 +396,12 @@ export async function setPushRecipients(
   session: AppSession,
   accountId: string,
   recipients: string[]
-): Promise<{ ok: boolean; error?: string }> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+): Promise<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}> {
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
   await writeDb((db) => {
     const account = db.accounts.find((a) => a.id === accountId);
     if (account) {

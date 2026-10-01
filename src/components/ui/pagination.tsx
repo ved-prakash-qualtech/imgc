@@ -1,9 +1,13 @@
+"use client";
+
 import * as React from "react";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
   MoreHorizontalIcon,
 } from "lucide-react";
+
+import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/twMergeUtils";
@@ -16,9 +20,10 @@ import { cn } from "@/lib/utils/twMergeUtils";
  */
 
 function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
+  const t = useTranslations("pagination");
   return (
     <nav
-      aria-label="Pagination"
+      aria-label={t("label")}
       data-slot="pagination"
       // `flex-wrap` so a row that doesn't fit (7+ page pills plus Prev/Next on a phone-width
       // footer) drops its overflow onto a second line instead of forcing the whole page wider —
@@ -43,7 +48,7 @@ function PaginationLink({
       data-slot="pagination-link"
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "inline-flex size-8 items-center justify-center rounded-md text-[12px] font-medium transition-colors",
+        "inline-flex size-8 items-center justify-center rounded-md text-ui-body font-medium transition-colors",
         isActive
           ? "bg-brand-primary text-white"
           : "text-neutral-700 hover:bg-neutral-50",
@@ -73,19 +78,20 @@ function PaginationPrevious({
   className,
   ...props
 }: React.ComponentProps<"button">) {
+  const t = useTranslations("pagination");
   return (
     <Button
       type="button"
       variant="ghost"
       size="sm"
-      aria-label="Previous page"
-      className={cn("gap-1 px-2 text-[12px] text-neutral-700", className)}
+      aria-label={t("previousPage")}
+      className={cn("gap-1 px-2 text-ui-body text-neutral-700", className)}
       {...props}
     >
       <ChevronLeftIcon className="size-4" />
       {/* Below `sm`, the label is what pushed this row past a phone-width footer — the
           chevron plus the aria-label above carry the same meaning without the width. */}
-      <span className="hidden sm:inline">Prev</span>
+      <span className="hidden sm:inline">{t("prev")}</span>
     </Button>
   );
 }
@@ -94,16 +100,17 @@ function PaginationNext({
   className,
   ...props
 }: React.ComponentProps<"button">) {
+  const t = useTranslations("pagination");
   return (
     <Button
       type="button"
       variant="ghost"
       size="sm"
-      aria-label="Next page"
-      className={cn("gap-1 px-2 text-[12px] text-neutral-700", className)}
+      aria-label={t("nextPage")}
+      className={cn("gap-1 px-2 text-ui-body text-neutral-700", className)}
       {...props}
     >
-      <span className="hidden sm:inline">Next</span>
+      <span className="hidden sm:inline">{t("next")}</span>
       <ChevronRightIcon className="size-4" />
     </Button>
   );

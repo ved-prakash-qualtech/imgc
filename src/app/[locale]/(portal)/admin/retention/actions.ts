@@ -1,5 +1,10 @@
 "use server";
 
+import {
+  fail,
+  type ServerErrorCode,
+  type ServerErrorParams,
+} from "@/config/errorCodes";
 import { revalidatePath } from "next/cache";
 
 import { ROUTES } from "@/constants/route";
@@ -11,12 +16,17 @@ import {
 } from "@/services/portal/claims.server";
 import { sweepExpiredRejections } from "@/services/portal/retention.server";
 
-export type Result = Readonly<{ ok: boolean; error?: string; purged?: number }>;
+export type Result = Readonly<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+  purged?: number;
+}>;
 
 export async function runSweepAction(): Promise<Result> {
   return runAction(async () => {
     const session = await requireSession();
-    if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+    if (session.role !== "IMGC") return fail("IMGC_ONLY");
     const { purged } = await sweepExpiredRejections();
     revalidatePath(ROUTES.adminRetention);
     return { ok: true, purged };

@@ -1,5 +1,6 @@
 "use server";
 
+import type { ServerErrorCode, ServerErrorParams } from "@/config/errorCodes";
 import { revalidatePath } from "next/cache";
 import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
@@ -10,23 +11,23 @@ import { listLenderOrgs } from "@/services/portal/users.server";
 
 export async function enterAdminContextAction(
   lenderOrgId: string
-): Promise<{ error?: string } | void> {
+): Promise<{ code?: ServerErrorCode; codeParams?: ServerErrorParams } | void> {
   const session = await requireSession();
 
-  if (session.role !== "IMGC" || !session.isAdmin) {
+  if (session.role !== "IMGC") {
     return {
-      error: "Forbidden: Only IMGC Admins can establish a lender context.",
+      code: "IMGC_STAFF_ONLY_FOR_LENDER",
     };
   }
 
   if (!lenderOrgId) {
-    return { error: "Please select a lender." };
+    return { code: "LENDER_NOT_SELECTED" };
   }
 
   const orgs = await listLenderOrgs();
   const org = orgs.find((o) => o.id === lenderOrgId);
   if (!org) {
-    return { error: "Invalid lender selected." };
+    return { code: "LENDER_INVALID" };
   }
 
   await setAdminContext(lenderOrgId);
@@ -39,7 +40,7 @@ export async function exitAdminContextAction(): Promise<void> {
   const session = await requireSession();
 
   // Only process if it's an admin, though technically anyone could clear a cookie they shouldn't have.
-  if (session.role === "IMGC" && session.isAdmin) {
+  if (session.role === "IMGC") {
     await clearAdminContext();
   }
 

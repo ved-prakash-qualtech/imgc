@@ -1,7 +1,8 @@
-/* eslint-disable security/detect-object-injection, react-perf/jsx-no-new-function-as-prop */
+/* eslint-disable react-perf/jsx-no-new-function-as-prop */
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowDownIcon,
@@ -31,13 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  DPD_BANDS,
-  DPD_BAND_LABEL,
-  dpdInBand,
-  formatDpd,
-  type DpdBand,
-} from "@/lib/dpd";
+import { DPD_BANDS, dpdInBand, formatDpd, type DpdBand } from "@/lib/dpd";
 import type { EligibleRow } from "@/types/portal/eligibleClaim";
 import type { Role } from "@/server/mock/types";
 
@@ -48,12 +43,20 @@ function isNotStarted(a: EligibleRow): boolean {
   return !a.claim || !a.claim.hasProgress;
 }
 
-function purposeDisplay(v: string): string {
-  return v === "ALL" ? "All products" : v;
+function purposeDisplayWith(t: (key: string) => string) {
+  return (v: string): string => (v === "ALL" ? t("filters.allProducts") : v);
 }
 
-function dpdBandDisplay(v: DpdBand): string {
-  return v === "ALL" ? "All DPD" : DPD_BAND_LABEL[v];
+function dpdBandDisplayWith(t: (key: string) => string) {
+  return (v: DpdBand): string =>
+    v === "ALL" ? t("filters.allDpd") : t(`bands.${v}`);
+}
+
+/** Loan status is an identifier the server produces and the filters compare against, so only
+ *  its display is translated — never the value itself. */
+function loanStatusDisplayWith(t: (key: string) => string) {
+  return (v: string): string =>
+    v === "ALL" ? t("filters.allLoanStatuses") : t(`loanStatus.${v}`);
 }
 
 type SortKey =
@@ -106,19 +109,23 @@ function csvField(value: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function downloadCsv(rows: EligibleRow[], role: Role): void {
+function downloadCsv(
+  rows: EligibleRow[],
+  role: Role,
+  t: (key: string) => string
+): void {
   const headers = [
-    "Loan Account",
-    "Customer",
-    ...(role === "IMGC" ? ["Lender"] : []),
-    "Product",
-    "Loan Amount",
-    "Outstanding",
-    "DPD",
-    "NPA",
-    "Claim Status",
-    "Last Updated",
-    "TAT (days)",
+    t("columns.loanAccount"),
+    t("columns.customer"),
+    ...(role === "IMGC" ? [t("columns.lender")] : []),
+    t("columns.product"),
+    t("columns.loanAmount"),
+    t("columns.outstanding"),
+    t("columns.dpd"),
+    t("columns.npa"),
+    t("columns.claimStatus"),
+    t("columns.lastUpdated"),
+    t("columns.tatDays"),
   ];
   const lines = rows.map((a) =>
     [
@@ -189,7 +196,7 @@ const SortableTableHead = ({
   <TableHead
     onClick={() => onToggle(column)}
     title={title}
-    className="h-8 cursor-pointer select-none px-1.5 text-[10.5px] transition-colors hover:bg-neutral-50"
+    className="h-8 cursor-pointer select-none px-1.5 text-ui-caption transition-colors hover:bg-neutral-50"
   >
     <div className="flex items-center">
       {label}
@@ -219,6 +226,10 @@ export function DpdClient({
   accounts,
   role,
 }: Readonly<{ accounts: EligibleRow[]; role: Role }>) {
+  const t = useTranslations("dpd");
+  const purposeDisplay = purposeDisplayWith(t);
+  const dpdBandDisplay = dpdBandDisplayWith(t);
+  const loanStatusDisplay = loanStatusDisplayWith(t);
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(() => searchParams.get("query") ?? "");
   const [dpdBand, setDpdBand] = useState<DpdBand>("ALL");
@@ -447,7 +458,10 @@ export function DpdClient({
     setSortDirection(null);
     setPage(1);
   }, []);
-  const handleExport = useCallback(() => downloadCsv(rows, role), [rows, role]);
+  const handleExport = useCallback(
+    () => downloadCsv(rows, role, t),
+    [rows, role, t]
+  );
 
   return (
     <div className="space-y-4">
@@ -458,34 +472,40 @@ export function DpdClient({
             <input
               value={query}
               onChange={handleQueryChange}
-              placeholder="Loan account or customer name"
-              aria-label="Search DPD accounts"
-              className="h-7 w-[190px] rounded-full border border-neutral-200 bg-white pl-9 pr-3 text-[12px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              placeholder={t("searchPlaceholder")}
+              aria-label={t("searchLabel")}
+              className="h-7 w-[190px] rounded-full border border-neutral-200 bg-white pl-9 pr-3 text-ui-body outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
             />
           </div>
           <FilterSelect
-            label="DPD"
+            label={t("filters.dpd")}
             options={DPD_BANDS}
             value={dpdBand}
             onChange={handleDpdBandChange}
             display={dpdBandDisplay}
           />
           <FilterSelect
-            label="NPA"
+            label={t("filters.npa")}
             options={["ALL", "YES", "NO"] as const}
             value={npaFilter}
             onChange={handleNpaFilterChange}
-            display={(v) => (v === "ALL" ? "NPA" : v === "YES" ? "Yes" : "No")}
+            display={(v) =>
+              v === "ALL"
+                ? t("filters.npa")
+                : v === "YES"
+                  ? t("filters.yes")
+                  : t("filters.no")
+            }
           />
           <FilterSelect
-            label="Loan Status"
+            label={t("filters.loanStatus")}
             options={["ALL", ...LOAN_STATUSES] as const}
             value={loanStatusFilter}
             onChange={handleLoanStatusChange}
-            display={(v) => (v === "ALL" ? "All Loan Statuses" : v)}
+            display={loanStatusDisplay}
           />
           <FilterSelect
-            label="Product"
+            label={t("filters.product")}
             options={["ALL", ...products] as const}
             value={product}
             onChange={handleProductChange}
@@ -493,21 +513,23 @@ export function DpdClient({
           />
           {role === "IMGC" && (
             <FilterSelect
-              label="Lender"
+              label={t("filters.lender")}
               options={["ALL", ...lenders.map((l) => l.id)] as const}
               value={lender}
               onChange={handleLenderChange}
               display={(v) =>
-                v === "ALL" ? "All Lenders" : (lenderNameById.get(v) ?? v)
+                v === "ALL"
+                  ? t("filters.allLenders")
+                  : (lenderNameById.get(v) ?? v)
               }
             />
           )}
           <button
             type="button"
             onClick={handleReset}
-            className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-[11.5px] font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-ui-body-sm font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           >
-            <RotateCcwIcon className="size-3" /> Reset Filters
+            <RotateCcwIcon className="size-3" /> {t("resetFilters")}
           </button>
           {/* Export sits at the end of the filter row now that the panel has no header — same
               pill as the other Claims/Accounts grids, `ml-auto` pinning it to the right edge
@@ -515,9 +537,9 @@ export function DpdClient({
           <button
             type="button"
             onClick={handleExport}
-            className="ml-auto inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-[11.5px] font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            className="ml-auto inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-ui-body-sm font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           >
-            <DownloadIcon className="size-3" /> Export CSV
+            <DownloadIcon className="size-3" /> {t("exportCsv")}
           </button>
         </div>
 
@@ -527,14 +549,14 @@ export function DpdClient({
               <TableRow>
                 <SortableTableHead
                   column="loanNo"
-                  label="Loan Account"
+                  label={t("columns.loanAccount")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
                 />
                 <SortableTableHead
                   column="borrowerName"
-                  label="Customer"
+                  label={t("columns.customer")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
@@ -542,7 +564,7 @@ export function DpdClient({
                 {role === "IMGC" && (
                   <SortableTableHead
                     column="lender"
-                    label="Lender"
+                    label={t("columns.lender")}
                     sortKey={sortKey}
                     sortDirection={sortDirection}
                     onToggle={toggleSort}
@@ -550,54 +572,54 @@ export function DpdClient({
                 )}
                 <SortableTableHead
                   column="product"
-                  label="Product"
+                  label={t("columns.product")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
                 />
                 <SortableTableHead
                   column="loanAmount"
-                  label="Loan Amount"
+                  label={t("columns.loanAmount")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
                 />
                 <SortableTableHead
                   column="outstandingAmount"
-                  label="Outstanding"
+                  label={t("columns.outstanding")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
                 />
                 <SortableTableHead
                   column="dpd"
-                  label="DPD"
+                  label={t("columns.dpd")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
-                  title="DPD = Days Past Due"
+                  title={t("dpdHint")}
                 />
                 <SortableTableHead
                   column="loanStatus"
-                  label="Loan Status"
+                  label={t("columns.loanStatus")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
                 />
                 <SortableTableHead
                   column="lastUpdatedAt"
-                  label="Last Updated"
+                  label={t("columns.lastUpdated")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
                 />
                 <SortableTableHead
                   column="tat"
-                  label="TAT"
+                  label={t("columns.tat")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
-                  title="TAT = Turn Around Time (claim submitted → decision; running for claims still open)"
+                  title={t("tatHint")}
                 />
               </TableRow>
             </TableHeader>
@@ -609,50 +631,50 @@ export function DpdClient({
                     className="py-14 text-center"
                   >
                     <CalendarClockIcon className="mx-auto mb-2 size-6 text-neutral-300" />
-                    <p className="text-[13px] font-medium text-neutral-700">
+                    <p className="text-ui-subhead font-medium text-neutral-700">
                       No accounts found
                     </p>
-                    <p className="mt-0.5 text-[12.5px] text-neutral-500">
-                      No loans match the selected DPD criteria.
+                    <p className="mt-0.5 text-ui-body-lg text-neutral-500">
+                      {t("empty")}
                     </p>
                   </TableCell>
                 </TableRow>
               ) : (
                 currentRows.map((a) => (
                   <TableRow key={a.id}>
-                    <TableCell className="px-1.5 py-1.5 text-[12px] font-medium whitespace-nowrap text-neutral-950">
+                    <TableCell className="px-1.5 py-1.5 text-ui-body font-medium whitespace-nowrap text-neutral-950">
                       {a.loanNo}
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap">
+                    <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap">
                       {a.borrowerName}
                     </TableCell>
                     {role === "IMGC" && (
-                      <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap">
+                      <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap">
                         {a.lenderOrgName}
                       </TableCell>
                     )}
-                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-500">
+                    <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap text-neutral-500">
                       {a.product}
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-700">
+                    <TableCell className="px-1.5 py-1.5 text-ui-body tabular-nums whitespace-nowrap text-neutral-700">
                       {inr.format(a.loanAmount)}
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-700">
+                    <TableCell className="px-1.5 py-1.5 text-ui-body tabular-nums whitespace-nowrap text-neutral-700">
                       {inr.format(a.outstandingAmount)}
                     </TableCell>
                     <TableCell
                       title="DPD = Days Past Due"
-                      className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-700"
+                      className="px-1.5 py-1.5 text-ui-body tabular-nums whitespace-nowrap text-neutral-700"
                     >
                       {formatDpd(a.dpd)}
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px] whitespace-nowrap text-neutral-700">
+                    <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap text-neutral-700">
                       {a.loanStatus}
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-500">
+                    <TableCell className="px-1.5 py-1.5 text-ui-body tabular-nums whitespace-nowrap text-neutral-500">
                       {date(a.claim?.lastUpdatedAt)}
                     </TableCell>
-                    <TableCell className="px-1.5 py-1.5 text-[12px] tabular-nums whitespace-nowrap text-neutral-700">
+                    <TableCell className="px-1.5 py-1.5 text-ui-body tabular-nums whitespace-nowrap text-neutral-700">
                       {claimTatDays(a.claim) === null
                         ? "—"
                         : `${claimTatDays(a.claim)}d`}
@@ -665,39 +687,39 @@ export function DpdClient({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-2">
-          <div className="flex items-center gap-3 text-[12px] text-neutral-500">
+          <div className="flex items-center gap-3 text-ui-body text-neutral-500">
             <div className="flex items-center gap-2">
-              <span>Rows per page</span>
+              <span>{t("rowsPerPage")}</span>
               <Select
                 value={String(pageSize)}
                 onValueChange={handlePageSizeChange}
               >
                 <SelectTrigger
                   size="sm"
-                  className="h-8 w-[70px] bg-white text-[12px]"
+                  className="h-8 w-[70px] bg-white text-ui-body"
                 >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="10" className="text-[12px]">
+                  <SelectItem value="10" className="text-ui-body">
                     10
                   </SelectItem>
-                  <SelectItem value="20" className="text-[12px]">
+                  <SelectItem value="20" className="text-ui-body">
                     20
                   </SelectItem>
-                  <SelectItem value="50" className="text-[12px]">
+                  <SelectItem value="50" className="text-ui-body">
                     50
                   </SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <span className="hidden sm:inline">
-              Total {rows.length} account{rows.length === 1 ? "" : "s"}
+              {t("total", { count: rows.length })}
             </span>
           </div>
 
           <div className="flex items-center gap-4">
-            <span className="hidden text-[12px] text-neutral-500 sm:inline">
+            <span className="hidden text-ui-body text-neutral-500 sm:inline">
               Page {currentPage} of {pageCount}
             </span>
             <PaginationNumbers
@@ -731,7 +753,7 @@ function FilterSelect<T extends string>({
         aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
-        className="h-7 max-w-[130px] appearance-none overflow-hidden rounded-full border border-neutral-200 bg-white py-0 pl-3 pr-6 text-[11.5px] font-medium text-ellipsis whitespace-nowrap text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+        className="h-7 max-w-[130px] appearance-none overflow-hidden rounded-full border border-neutral-200 bg-white py-0 pl-3 pr-6 text-ui-body-sm font-medium text-ellipsis whitespace-nowrap text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
       >
         {options.map((option) => (
           <option key={option} value={option}>

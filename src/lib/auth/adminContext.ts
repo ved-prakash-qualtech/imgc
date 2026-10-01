@@ -36,6 +36,8 @@ function b64urlDecode(input: string): Uint8Array<ArrayBuffer> {
   const pad = input.length % 4 === 0 ? "" : "=".repeat(4 - (input.length % 4));
   const bin = atob(input.replace(/-/g, "+").replace(/_/g, "/") + pad);
   const out = new Uint8Array(new ArrayBuffer(bin.length));
+  // `i` is a loop counter into the Uint8Array allocated above — no attacker-controlled key.
+  // eslint-disable-next-line security/detect-object-injection
   for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
   return out;
 }
@@ -103,12 +105,12 @@ export async function clearAdminContext(): Promise<void> {
 /**
  * Returns the currently active Admin Context (the selected lenderOrgId) IF AND ONLY IF:
  * 1. The session is valid.
- * 2. The user is an IMGC Admin (`role === "IMGC" && isAdmin === true`).
+ * 2. The user is IMGC staff (`role === "IMGC"`) — "Claim by IMGC".
  * 3. The context cookie is present, valid, and successfully verified.
  */
 export async function getAdminContextOrNull(): Promise<AdminContext | null> {
   const session = await getSessionOrNull();
-  if (!session || session.role !== "IMGC" || !session.isAdmin) return null;
+  if (!session || session.role !== "IMGC") return null;
 
   const token = (await cookies()).get(ADMIN_CONTEXT_COOKIE)?.value;
   return verifyAdminContextToken(token);

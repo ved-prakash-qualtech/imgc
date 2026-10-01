@@ -4,8 +4,10 @@
    handler each render costs nothing; the alternative is threading every inline handler
    out to a useCallback purely to satisfy the rule. */
 
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
 import { useCallback, useRef, useState, useTransition } from "react";
 import { PaperclipIcon, PlusIcon, UploadIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { addLenderDocumentAction } from "@/app/[locale]/(portal)/initiate-claim/actions";
@@ -27,7 +29,7 @@ import { attachUpload } from "@/lib/uploads/attachUpload";
 
 const ACCEPTED: readonly string[] = ACCEPTED_UPLOAD_TYPES;
 const FIELD =
-  "h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-[13px] text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20";
+  "h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-ui-subhead text-neutral-900 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20";
 
 function bytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -45,7 +47,9 @@ export function AddLenderDocumentDialog({
   accountId,
   claimId,
 }: Readonly<{ accountId: string; claimId: string }>) {
+  const errorText = useServerErrorMessage();
   const [open, setOpen] = useState(false);
+  const t = useTranslations("claimDocuments");
   const [pending, startTransition] = useTransition();
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState("");
@@ -59,28 +63,31 @@ export function AddLenderDocumentDialog({
     if (inputRef.current) inputRef.current.value = "";
   }, []);
 
-  const onPick = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const picked = event.target.files?.[0] ?? null;
-    setError("");
-    if (!picked) return setFile(null);
-    if (!ACCEPTED.includes(picked.type)) {
-      setError("Only PDF, JPG, PNG or WEBP files are accepted.");
-      return setFile(null);
-    }
-    if (picked.size > MAX_UPLOAD_BYTES) {
-      setError(
-        `That file is ${bytes(picked.size)} — the limit is ${MAX_UPLOAD_LABEL}.`
-      );
-      return setFile(null);
-    }
-    setFile(picked);
-  }, []);
+  const onPick = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const picked = event.target.files?.[0] ?? null;
+      setError("");
+      if (!picked) return setFile(null);
+      if (!ACCEPTED.includes(picked.type)) {
+        setError(t("toast.fileTypeRejected"));
+        return setFile(null);
+      }
+      if (picked.size > MAX_UPLOAD_BYTES) {
+        setError(
+          `That file is ${bytes(picked.size)} — the limit is ${MAX_UPLOAD_LABEL}.`
+        );
+        return setFile(null);
+      }
+      setFile(picked);
+    },
+    [t]
+  );
 
   const submit = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       if (!file) {
-        setError("Choose a file to upload.");
+        setError(t("toast.chooseFile"));
         return;
       }
       const data = new FormData(event.currentTarget);
@@ -89,20 +96,20 @@ export function AddLenderDocumentDialog({
         try {
           await attachUpload(data, file, accountId);
         } catch {
-          toast.error("That upload failed. Please try again.");
+          toast.error(t("toast.uploadFailed"));
           return;
         }
         const result = await addLenderDocumentAction(accountId, data);
         if (!result.ok) {
-          toast.error(result.error ?? "That document could not be added.");
+          toast.error(errorText(result) ?? t("toast.documentAddFailed"));
           return;
         }
-        toast.success("Additional document added.");
+        toast.success(t("toast.documentAdded"));
         reset();
         setOpen(false);
       });
     },
-    [file, claimId, accountId, reset]
+    [file, claimId, accountId, reset, t, errorText]
   );
 
   return (
@@ -119,7 +126,7 @@ export function AddLenderDocumentDialog({
 
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>Add additional document</DialogTitle>
+          <DialogTitle>{t("additionalDialog.title")}</DialogTitle>
           <DialogDescription>
             Add one document at a time. It sits alongside the required list — it
             does not change it.
@@ -128,24 +135,24 @@ export function AddLenderDocumentDialog({
 
         <form ref={formRef} onSubmit={submit} className="space-y-3">
           <label className="block">
-            <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
+            <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
               Document Type *
             </span>
             <input
               name="name"
               required
-              placeholder="e.g. NOC"
+              placeholder={t("additionalDialog.namePlaceholder")}
               className={FIELD}
             />
           </label>
 
           <div>
-            <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
+            <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
               Upload Document *
             </span>
             <label
               className={cn(
-                "flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-3 text-[13px] transition",
+                "flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-3 text-ui-subhead transition",
                 error
                   ? "border-destructive bg-destructive/5 text-destructive"
                   : file
@@ -164,7 +171,7 @@ export function AddLenderDocumentDialog({
                 <>
                   <PaperclipIcon className="size-4 shrink-0" />
                   <span className="truncate font-medium">{file.name}</span>
-                  <span className="ml-auto shrink-0 text-[11.5px] text-neutral-500">
+                  <span className="ml-auto shrink-0 text-ui-body-sm text-neutral-500">
                     {bytes(file.size)}
                   </span>
                 </>
@@ -178,7 +185,7 @@ export function AddLenderDocumentDialog({
             {error && (
               <p
                 role="alert"
-                className="mt-1 text-[12px] font-medium text-destructive"
+                className="mt-1 text-ui-body font-medium text-destructive"
               >
                 {error}
               </p>
@@ -186,14 +193,14 @@ export function AddLenderDocumentDialog({
           </div>
 
           <label className="block">
-            <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
+            <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
               Remarks
             </span>
             <textarea
               name="remarks"
               rows={2}
-              placeholder="e.g. NOC received from builder."
-              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              placeholder={t("additionalDialog.remarkPlaceholder")}
+              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
             />
           </label>
 

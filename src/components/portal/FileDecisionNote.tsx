@@ -28,14 +28,14 @@ export function FileDecisionNote({
   return (
     <p
       className={cn(
-        "mt-0.5 line-clamp-2 text-[11px] font-normal leading-snug",
+        "mt-0.5 line-clamp-2 text-ui-label font-normal leading-snug",
         accepted ? "text-success-700" : "text-destructive",
         className
       )}
-      title={`${accepted ? "Accepted" : "Ineligible"} by ${review.byName}: ${review.remarks}`}
+      title={`${accepted ? "Accepted" : "Rejected"} by ${review.byName}: ${review.remarks}`}
     >
       <span className="font-semibold">
-        {accepted ? "Accepted" : "Ineligible"}:
+        {accepted ? "Accepted" : "Rejected"}:
       </span>{" "}
       {clip(review.remarks, maxChars)}
     </p>
@@ -58,7 +58,7 @@ export function LenderRemarkNote({
   return (
     <p
       className={cn(
-        "mt-0.5 line-clamp-2 text-[11px] font-normal leading-snug text-neutral-500",
+        "mt-0.5 line-clamp-2 text-ui-label font-normal leading-snug text-neutral-500",
         className
       )}
       title={`Lender remark: ${text}`}

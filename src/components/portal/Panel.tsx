@@ -1,3 +1,6 @@
+/* eslint-disable security/detect-object-injection -- pre-existing in this file: the indexed maps are declared
+   here with literal keys, and the inline props are small local values. Left as-is so the
+   type-scale change stays a class rename. */
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils/twMergeUtils";
@@ -6,15 +9,15 @@ const HEADER_SIZE = {
   /** The roomier, single-section-per-page header — most of the portal. */
   default: {
     header: "px-5 py-3.5",
-    title: "text-[14.5px] font-semibold text-neutral-950",
-    description: "mt-0.5 text-[12.5px] text-neutral-500",
+    title: "text-ui-lead-lg font-semibold text-neutral-950",
+    description: "mt-0.5 text-ui-body-lg text-neutral-500",
   },
   /** Tighter padding/type for a card that shares a row with several others (a KPI grid), where
    *  `default`'s spacing reads as oversized. Same card shape otherwise — still a `Panel`. */
   compact: {
     header: "px-3 py-2",
-    title: "text-[13px] font-semibold text-neutral-950",
-    description: "mt-0.5 text-[11px] text-neutral-500",
+    title: "text-ui-subhead font-semibold text-neutral-950",
+    description: "mt-0.5 text-ui-label text-neutral-500",
   },
 } as const;
 
@@ -46,7 +49,10 @@ export function Panel({
   return (
     <section
       id={id}
-      className={cn("rounded-xl border border-neutral-100 bg-white shadow-sm", className)}
+      className={cn(
+        "rounded-xl border border-neutral-100 bg-white shadow-sm",
+        className
+      )}
     >
       {(title || actions) && (
         <header

@@ -1,5 +1,6 @@
 "use client";
 
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
 import {
   useCallback,
   useMemo,
@@ -24,22 +25,13 @@ import { Panel } from "@/components/portal/Panel";
 import { useConfirmDelete } from "@/components/portal/useConfirmDelete";
 import { UploadDialog } from "@/components/portal/UploadDialog";
 import { Button } from "@/components/ui/button";
+import { useTranslations } from "next-intl";
+
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { RequirementRow } from "@/services/portal/requirements.server";
 import type { DocStatus } from "@/server/mock/types";
 
 /** The claim-initiation status vocabulary, mapped from the portal's internal doc statuses. */
-const STATUS_LABEL: Record<DocStatus, string> = {
-  NOT_REQUESTED: "Not requested",
-  PENDING_UPLOAD: "Pending",
-  UNDER_REVIEW: "Uploaded",
-  APPROVED: "Accepted",
-  REJECTED: "Ineligible",
-  REUPLOAD_REQUIRED: "Query Raised",
-  WAIVER_REQUESTED: "Waiver requested",
-  WAIVED: "Waived",
-};
-
 const STATUS_TONE: Record<DocStatus, string> = {
   NOT_REQUESTED: "bg-neutral-50 text-neutral-400",
   PENDING_UPLOAD: "bg-neutral-100 text-neutral-600",
@@ -52,17 +44,17 @@ const STATUS_TONE: Record<DocStatus, string> = {
 };
 
 function StatusChip({ status }: Readonly<{ status: DocStatus }>) {
+  const t = useTranslations("claimDocuments.status");
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold",
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-ui-body-sm font-semibold",
         // eslint-disable-next-line security/detect-object-injection
         STATUS_TONE[status]
       )}
     >
       <span className="size-1.5 rounded-full bg-current opacity-70" />
-      {/* eslint-disable-next-line security/detect-object-injection */}
-      {STATUS_LABEL[status]}
+      {t(status)}
     </span>
   );
 }
@@ -100,7 +92,9 @@ export function ClaimDocuments({
    *  screen) instead of the collapsible accordion — used by the Initiate Claim workspace. */
   variant?: "accordion" | "table";
 }>) {
+  const errorText = useServerErrorMessage();
   const isDraftStage = !claimStatus || claimStatus === "DRAFT";
+  const t = useTranslations("claimDocuments");
   const required = useMemo(
     () =>
       documents.filter(
@@ -147,13 +141,13 @@ export function ClaimDocuments({
           fileId
         );
         if (!result.ok) {
-          toast.error(result.error ?? "Could not delete that file.");
+          toast.error(errorText(result) ?? t("toast.deleteFailed"));
           return;
         }
-        toast.success("File removed.");
+        toast.success(t("toast.fileRemoved"));
       });
     },
-    []
+    [t, errorText]
   );
 
   // Every trash button on this screen goes through here, so the confirmation covers all of them.
@@ -166,13 +160,13 @@ export function ClaimDocuments({
     ) => {
       ask({
         description: fileName
-          ? `"${fileName}" will be permanently deleted. This cannot be undone.`
-          : "This file will be permanently deleted. This cannot be undone.",
-        confirmLabel: "Delete file",
+          ? t("delete.confirmNamed", { name: fileName })
+          : t("delete.confirm"),
+        confirmLabel: t("delete.title"),
         onConfirm: () => removeFile(accountId, documentId, fileId),
       });
     },
-    [ask, removeFile]
+    [ask, removeFile, t]
   );
 
   // The lender can add documents only while the claim is still open to them: a draft, or a query
@@ -200,7 +194,7 @@ export function ClaimDocuments({
     <>
       {/* ── Required documents ───────────────────────────────── */}
       <Panel
-        title="Required documents"
+        title={t("sections.required")}
         className={bare ? "border-neutral-200 shadow-none" : undefined}
       >
         {variant === "table" ? (
@@ -239,12 +233,12 @@ export function ClaimDocuments({
 
       {showAdditional && (
         <Panel
-          title="Additional documents"
+          title={t("sections.additional")}
           className={bare ? "mt-6 border-neutral-200 shadow-none" : "mt-1.5"}
           actions={additionalActions}
         >
           {additional.length === 0 ? (
-            <p className="px-5 py-4 text-center text-[13px] text-neutral-500">
+            <p className="px-5 py-4 text-center text-ui-subhead text-neutral-500">
               No additional documents added.
             </p>
           ) : variant === "table" ? (
@@ -333,6 +327,7 @@ function DocAccordionItem({
   deleting: boolean;
   claimStatus?: string;
 }>) {
+  const t = useTranslations("claimDocuments");
   const hasFiles = doc.files.length > 0;
   const conditionalNotRequired = doc.conditional && !doc.required;
   const bodyId = `docbody-${doc.id}`;
@@ -345,8 +340,16 @@ function DocAccordionItem({
   const action =
     !locked && doc.status !== "APPROVED"
       ? !hasFiles
-        ? { mode: "upload" as const, label: "Upload", icon: <UploadIcon /> }
-        : { mode: "add" as const, label: "Add File", icon: <PlusIcon /> }
+        ? {
+            mode: "upload" as const,
+            label: t("actions.upload"),
+            icon: <UploadIcon />,
+          }
+        : {
+            mode: "add" as const,
+            label: t("actions.addFile"),
+            icon: <PlusIcon />,
+          }
       : null;
 
   const canModifyDocuments =
@@ -377,31 +380,31 @@ function DocAccordionItem({
               open && "rotate-180"
             )}
           />
-          <span className="truncate text-[13.5px] font-semibold text-neutral-950">
+          <span className="truncate text-ui-subhead-lg font-semibold text-neutral-950">
             {index ? `${index}. ` : ""}
             {doc.name}
           </span>
           {doc.refNo && (
-            <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-semibold text-neutral-500">
+            <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-ui-caption font-semibold text-neutral-500">
               {doc.refNo}
             </span>
           )}
           {doc.required ? (
-            <span className="shrink-0 rounded bg-brand-light px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-brand-dark">
+            <span className="shrink-0 rounded bg-brand-light px-1.5 py-0.5 text-ui-caption font-semibold uppercase tracking-wide text-brand-dark">
               Required{doc.conditional ? " *" : ""}
             </span>
           ) : (
-            <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-500">
+            <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-ui-caption font-semibold uppercase tracking-wide text-neutral-500">
               {doc.addedBy === "LENDER" ? "Additional" : "Optional"}
             </span>
           )}
           {doc.multiple && (
-            <span className="hidden shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-medium text-neutral-500 sm:inline">
+            <span className="hidden shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-ui-caption font-medium text-neutral-500 sm:inline">
               Multiple
             </span>
           )}
           {hasFiles && !open && (
-            <span className="hidden shrink-0 text-[11.5px] text-neutral-400 sm:inline">
+            <span className="hidden shrink-0 text-ui-body-sm text-neutral-400 sm:inline">
               {doc.files.length} file{doc.files.length === 1 ? "" : "s"}
             </span>
           )}
@@ -427,12 +430,12 @@ function DocAccordionItem({
       {/* ── Body ───────────────────────────────────────────── */}
       <div id={bodyId} className={cn("px-4 pb-2.5 pl-10", !open && "hidden")}>
         {doc.description && (
-          <p className="truncate text-[12px] text-neutral-500">
+          <p className="truncate text-ui-body text-neutral-500">
             {doc.description}
           </p>
         )}
         {doc.conditional && doc.conditionReason && (
-          <p className="mt-0.5 text-[11.5px] italic text-neutral-500">
+          <p className="mt-0.5 text-ui-body-sm italic text-neutral-500">
             {doc.conditionReason}
             {conditionalNotRequired && " — not required for this claim."}
           </p>
@@ -481,18 +484,18 @@ function DocAccordionItem({
                     <div className="flex min-w-0 flex-1 items-center gap-2.5">
                       <FileIcon className={cn("size-4 shrink-0", textTheme)} />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[12.5px] font-medium text-neutral-900">
+                        <p className="truncate text-ui-body-lg font-medium text-neutral-900">
                           {f.originalName}
                           {isRejected && (
-                            <span className="ml-2 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-destructive">
-                              Ineligible
+                            <span className="ml-2 rounded bg-destructive/10 px-1.5 py-0.5 text-ui-tiny font-bold uppercase tracking-wide text-destructive">
+                              Rejected
                             </span>
                           )}
                         </p>
                         <FileDecisionNote review={f.review} />
                         <p
                           className={cn(
-                            "truncate text-[11px]",
+                            "truncate text-ui-label",
                             needsFix
                               ? isRejected
                                 ? "text-destructive/80"
@@ -518,7 +521,7 @@ function DocAccordionItem({
                             })
                           }
                           className={cn(
-                            "inline-flex h-7 items-center justify-center gap-1.5 rounded-md border bg-white px-3 text-[11.5px] font-medium transition-colors focus:outline-none focus:ring-2",
+                            "inline-flex h-7 items-center justify-center gap-1.5 rounded-md border bg-white px-3 text-ui-body-sm font-medium transition-colors focus:outline-none focus:ring-2",
                             isRejected
                               ? "border-destructive/30 text-destructive hover:bg-destructive/10 focus:ring-destructive/20"
                               : "border-warning/30 text-warning-700 hover:bg-warning/10 focus:ring-warning/20"
@@ -533,7 +536,7 @@ function DocAccordionItem({
                         target="_blank"
                         rel="noopener noreferrer"
                         className={cn(
-                          "shrink-0 inline-flex h-7 items-center justify-center rounded-md border px-3 text-[11.5px] font-medium transition-colors focus:outline-none focus:ring-2",
+                          "shrink-0 inline-flex h-7 items-center justify-center rounded-md border px-3 text-ui-body-sm font-medium transition-colors focus:outline-none focus:ring-2",
                           needsFix
                             ? isRejected
                               ? "border-destructive/30 bg-white text-destructive hover:bg-destructive/10 focus:ring-destructive/20"
@@ -562,7 +565,7 @@ function DocAccordionItem({
                                 f.originalName
                               )
                             }
-                            title="Delete this file"
+                            title={t("actions.delete")}
                             disabled={deleting}
                             className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-400 transition-colors hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive focus:outline-none focus:ring-2 focus:ring-destructive/20 disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:border-neutral-200 disabled:hover:text-neutral-400"
                           >
@@ -574,7 +577,7 @@ function DocAccordionItem({
                   {needsFix && doc.review?.remarks && (
                     <p
                       className={cn(
-                        "rounded-md border px-2.5 py-1.5 text-[12px] text-neutral-700",
+                        "rounded-md border px-2.5 py-1.5 text-ui-body text-neutral-700",
                         isRejected
                           ? "border-destructive/15 bg-white/60"
                           : "border-warning/15 bg-white/60"
@@ -591,8 +594,8 @@ function DocAccordionItem({
             })}
           </ul>
         ) : (
-          <p className="mt-1.5 flex items-center gap-1.5 text-[12.5px] text-neutral-400">
-            <FileIcon className="size-3.5" /> Nothing uploaded yet.
+          <p className="mt-1.5 flex items-center gap-1.5 text-ui-body-lg text-neutral-400">
+            <FileIcon className="size-3.5" /> {t("sections.nothingUploaded")}
           </p>
         )}
       </div>
@@ -749,18 +752,21 @@ function DocumentsTable({
     </th>
   );
 
+  const t = useTranslations("claimDocuments");
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[980px] text-left text-[11.5px]">
-        <thead className="bg-neutral-50 text-[10.5px] font-medium text-neutral-500">
+      <table className="w-full min-w-[980px] text-left text-ui-body-sm">
+        <thead className="bg-neutral-50 text-ui-caption font-medium text-neutral-500">
           <tr>
-            {sortable("name", "Document Type")}
-            {sortable("fileName", "File Name")}
-            <th className="px-3 py-2">Lender Remark</th>
-            {showImgcRemark && <th className="px-3 py-2">IMGC Remark</th>}
-            {sortable("uploadedBy", "Uploaded By")}
-            {sortable("dateTime", "Date/Time")}
-            <th className="px-3 py-2">Actions</th>
+            {sortable("name", t("table.documentType"))}
+            {sortable("fileName", t("table.fileName"))}
+            <th className="px-3 py-2">{t("table.lenderRemark")}</th>
+            {showImgcRemark && (
+              <th className="px-3 py-2">{t("table.imgcRemark")}</th>
+            )}
+            {sortable("uploadedBy", t("table.uploadedBy"))}
+            {sortable("dateTime", t("table.dateTime"))}
+            <th className="px-3 py-2">{t("table.actions")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">
@@ -815,6 +821,7 @@ function DocTableRows({
   claimStatus?: string;
   showImgcRemark: boolean;
 }>) {
+  const t = useTranslations("claimDocuments");
   const hasFiles = doc.files.length > 0;
   const canAddMore =
     !locked &&
@@ -846,7 +853,7 @@ function DocTableRows({
       </div>
       {doc.refNo && (
         <div className="mt-1">
-          <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10.5px] font-semibold text-neutral-500">
+          <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-ui-caption font-semibold text-neutral-500">
             {doc.refNo}
           </span>
         </div>
@@ -864,16 +871,16 @@ function DocTableRows({
             variant={hasFiles ? "outline" : "default"}
             // Adding another file is an icon, like Delete beside it; the first upload keeps its
             // label, since on an empty row it is the one thing to do.
-            className={hasFiles ? "size-7 p-0" : "h-7 px-2 text-[11px]"}
-            title={hasFiles ? "Add file" : undefined}
-            aria-label={hasFiles ? "Add file" : undefined}
+            className={hasFiles ? "size-7 p-0" : "h-7 px-2 text-ui-label"}
+            title={hasFiles ? t("actions.addFile") : undefined}
+            aria-label={hasFiles ? t("actions.addFile") : undefined}
             // eslint-disable-next-line react-perf/jsx-no-new-function-as-prop
             onClick={() =>
               onUpload({ row: doc, mode: hasFiles ? "add" : "upload" })
             }
           >
             {hasFiles ? <PlusIcon /> : <UploadIcon />}
-            {!hasFiles && "Upload"}
+            {!hasFiles && t("actions.upload")}
           </Button>
         )}
       </div>
@@ -891,15 +898,15 @@ function DocTableRows({
           {doc.waiver ? (
             <span className="text-neutral-600">
               {doc.waiver.status === "APPROVED"
-                ? "Waived by IMGC"
+                ? t("waiver.waived")
                 : doc.waiver.status === "DENIED"
-                  ? "Waiver declined — please upload"
-                  : "Waiver requested"}
+                  ? t("waiver.declined")
+                  : t("waiver.requested")}
               : {doc.waiver.reason}
               {doc.waiver.remarks ? ` — IMGC: ${doc.waiver.remarks}` : ""}
             </span>
           ) : (
-            "Nothing uploaded yet."
+            t("sections.nothingUploaded")
           )}
         </td>
         {actionsCell()}
@@ -938,13 +945,13 @@ function DocTableRows({
                 {clip(f.originalName, 20)}
               </a>
               {/* Size sits under the name, as on IMGC's Decision tab - no column of its own. */}
-              <span className="block text-[11px] text-neutral-400">
+              <span className="block text-ui-label text-neutral-400">
                 {bytes(f.size)}
               </span>
               {/* The requirement-level reason, only for files decided before decisions were per
                   file - a file with its own decision already shows its own remark above. */}
               {needsFix && !f.review && doc.review?.remarks && (
-                <p className="mt-0.5 max-w-[240px] truncate text-[11px] text-neutral-500">
+                <p className="mt-0.5 max-w-[240px] truncate text-ui-label text-neutral-500">
                   {isRejected ? "Reason: " : "Query: "}
                   {doc.review.remarks}
                 </p>
@@ -953,7 +960,7 @@ function DocTableRows({
             {/* What the lender wrote on upload, and what IMGC said on accepting or rejecting this
                 file - the same two columns IMGC reads on its Decision tab. */}
             <td
-              className="max-w-[200px] px-3 py-2 align-top text-[11px] text-neutral-600"
+              className="max-w-[200px] px-3 py-2 align-top text-ui-label text-neutral-600"
               title={f.uploadRemarks?.trim() || undefined}
             >
               {f.uploadRemarks?.trim() ? (
@@ -971,7 +978,7 @@ function DocTableRows({
                     maxChars={34}
                   />
                 ) : (
-                  <span className="text-[11px] text-neutral-300">—</span>
+                  <span className="text-ui-label text-neutral-300">—</span>
                 )}
               </td>
             )}

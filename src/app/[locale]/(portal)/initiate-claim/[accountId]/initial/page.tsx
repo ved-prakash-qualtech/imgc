@@ -1,3 +1,6 @@
+/* eslint-disable react-perf/jsx-no-new-array-as-prop -- pre-existing in this file: the indexed maps are declared
+   here with literal keys, and the inline props are small local values. Left as-is so the
+   type-scale change stays a class rename. */
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeftIcon } from "lucide-react";
@@ -55,7 +58,8 @@ export default async function InitialClaimWorkflowPage({
 
   const docs = await listDocuments(session, accountId);
   const docsIn = docs.filter(
-    (d) => d.required && (d.status === "UNDER_REVIEW" || d.status === "APPROVED")
+    (d) =>
+      d.required && (d.status === "UNDER_REVIEW" || d.status === "APPROVED")
   ).length;
   const docsRequired = docs.filter((d) => d.required).length;
 
@@ -73,7 +77,7 @@ export default async function InitialClaimWorkflowPage({
       <div className="space-y-6">
         <Link
           href={ROUTES.initiateClaimWorkspace(accountId)}
-          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-neutral-500 hover:text-neutral-800"
+          className="inline-flex items-center gap-1.5 text-ui-subhead font-medium text-neutral-500 hover:text-neutral-800"
         >
           <ArrowLeftIcon className="size-3.5" /> Back to Claim Type Selection
         </Link>

@@ -1,6 +1,7 @@
 /* eslint-disable react-perf/jsx-no-new-function-as-prop */
 "use client";
 
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
 import { useTransition } from "react";
 import { MessageSquarePlusIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +17,7 @@ export function QueriedButton({
   claimId: string;
   claimNo: string;
 }>) {
+  const errorText = useServerErrorMessage();
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -27,7 +29,7 @@ export function QueriedButton({
         requestedDocuments: [],
       });
       if (!result.ok) {
-        toast.error(result.error ?? "Failed to mark as Queried.");
+        toast.error(errorText(result) ?? "Failed to mark as Queried.");
         return;
       }
       toast.success(`Claim ${claimNo} marked as Queried.`);

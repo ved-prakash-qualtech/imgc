@@ -36,7 +36,6 @@ export default async function ClaimWorkspacePage({
   const adminCtx = await getAdminContextOrNull();
   const isAdminActingForLender =
     session.role === "IMGC" &&
-    session.isAdmin &&
     !!adminCtx &&
     adminCtx.lenderOrgId === account.lenderOrgId;
   const canActAsLender = session.role === "LENDER" || isAdminActingForLender;
@@ -47,11 +46,7 @@ export default async function ClaimWorkspacePage({
   // account, start an Initial claim now. `createClaim` returns the existing one when there is
   // already a claim, so this is safe to run on every render. The type can still be switched at
   // the top of the form while the claim is a draft.
-  if (
-    !claim &&
-    canActAsLender &&
-    (account.npa || account.writeOff)
-  ) {
+  if (!claim && canActAsLender && (account.npa || account.writeOff)) {
     // One transaction, so opening the workspace saves the new draft (and its audit entry) in a
     // single write rather than as a chain of them.
     const created = await withDbTransaction(() =>
@@ -68,7 +63,8 @@ export default async function ClaimWorkspacePage({
   // the lender left without Save Draft never flashes back on screen.
   if (claim?.status === "DRAFT") {
     const open = (await cookies()).get("imgc-draft-open")?.value;
-    if (open !== claim.id) await discardUnsavedUploads(session, accountId, claim.id);
+    if (open !== claim.id)
+      await discardUnsavedUploads(session, accountId, claim.id);
   }
   const documents = claim ? await listClaimDocuments(session, claim.id) : [];
   const config = claim ? claimConfig(claim.claimType) : null;
@@ -78,7 +74,7 @@ export default async function ClaimWorkspacePage({
       <div>
         {!claim || !config ? (
           <Panel title="No claim raised">
-            <p className="px-5 py-8 text-center text-[13px] text-neutral-500">
+            <p className="px-5 py-8 text-center text-ui-subhead text-neutral-500">
               {canActAsLender
                 ? "This account is not eligible for a claim yet."
                 : "The lender has not raised a claim on this account."}

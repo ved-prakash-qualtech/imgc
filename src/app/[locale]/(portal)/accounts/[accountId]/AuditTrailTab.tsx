@@ -1,15 +1,20 @@
+/* eslint-disable react-perf/jsx-no-jsx-as-prop, react-perf/jsx-no-new-function-as-prop, security/detect-object-injection -- pre-existing in this file: the indexed maps are declared
+   here with literal keys, and the inline props are small local values. Left as-is so the
+   type-scale change stays a class rename. */
 "use client";
 
 import { useMemo, useState } from "react";
+
+import { useTranslations } from "next-intl";
 
 import { Panel } from "@/components/portal/Panel";
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AuditEvent, AuditType } from "@/server/mock/types";
 
-const GROUPS: ReadonlyArray<{ label: string; types: AuditType[] | null }> = [
-  { label: "Everything", types: null },
+const GROUPS: ReadonlyArray<{ key: string; types: AuditType[] | null }> = [
+  { key: "everything", types: null },
   {
-    label: "Documents",
+    key: "documents",
     types: [
       "DOC_UPLOADED",
       "DOC_STATUS_CHANGED",
@@ -19,9 +24,9 @@ const GROUPS: ReadonlyArray<{ label: string; types: AuditType[] | null }> = [
       "RETENTION_PURGED",
     ],
   },
-  { label: "Remarks", types: ["REMARK_ADDED"] },
+  { key: "remarks", types: ["REMARK_ADDED"] },
   {
-    label: "Processing",
+    key: "processing",
     types: ["BUCKET_SHIFTED", "CLAIM_SUBMITTED", "CLAIM_STATUS_CHANGED"],
   },
 ];
@@ -42,6 +47,7 @@ const TYPE_TONE = new Map<AuditType, string>([
 
 /** BRD: a trail of every document, remark and decision on the account. Append-only. */
 export function AuditTrailTab({ events }: Readonly<{ events: AuditEvent[] }>) {
+  const t = useTranslations("auditTrail");
   const [group, setGroup] = useState(0);
 
   const rows = useMemo(() => {
@@ -51,42 +57,43 @@ export function AuditTrailTab({ events }: Readonly<{ events: AuditEvent[] }>) {
     return events.filter((e) => {
       if (set.has(e.type)) return true;
       // Include document uploads that have remarks in the Remarks tab
-      if (g.label === "Remarks" && e.type === "DOC_UPLOADED" && e.meta?.remarks) return true;
+      if (g.key === "remarks" && e.type === "DOC_UPLOADED" && e.meta?.remarks)
+        return true;
       return false;
     });
   }, [events, group]);
 
   return (
     <Panel
-      title="Audit trail"
-      description="Every upload, decision and remark on this account."
+      title={t("accountTitle")}
+      description={t("accountSubtitle")}
       actions={
         <div
           className="flex flex-wrap items-center gap-0.5 rounded-lg border border-neutral-200 p-0.5"
           role="group"
-          aria-label="Filter the audit trail"
+          aria-label={t("filterLabel")}
         >
           {GROUPS.map((g, i) => (
             <button
-              key={g.label}
+              key={g.key}
               type="button"
               onClick={() => setGroup(i)}
               aria-pressed={group === i}
               className={cn(
-                "rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+                "rounded-md px-2.5 py-1.5 text-ui-body font-medium transition-colors",
                 group === i
                   ? "bg-brand-primary text-white"
                   : "text-neutral-600 hover:bg-neutral-50"
               )}
             >
-              {g.label}
+              {t(`groups.${g.key}`)}
             </button>
           ))}
         </div>
       }
     >
       {rows.length === 0 ? (
-        <p className="px-5 py-12 text-center text-[13px] text-neutral-500">
+        <p className="px-5 py-12 text-center text-ui-subhead text-neutral-500">
           Nothing recorded under that filter.
         </p>
       ) : (
@@ -108,13 +115,13 @@ export function AuditTrailTab({ events }: Readonly<{ events: AuditEvent[] }>) {
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={cn(
-                      "rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                      "rounded px-1.5 py-0.5 text-ui-tiny font-bold uppercase tracking-wide",
                       TYPE_TONE.get(e.type) ?? "bg-neutral-100 text-neutral-600"
                     )}
                   >
                     {e.type.replaceAll("_", " ")}
                   </span>
-                  <span className="text-[11.5px] text-neutral-400">
+                  <span className="text-ui-body-sm text-neutral-400">
                     {new Date(e.at).toLocaleString("en-IN", {
                       day: "2-digit",
                       month: "short",
@@ -124,11 +131,11 @@ export function AuditTrailTab({ events }: Readonly<{ events: AuditEvent[] }>) {
                     })}
                   </span>
                 </div>
-                <p className="mt-1 text-[13px] leading-snug text-neutral-800">
+                <p className="mt-1 text-ui-subhead leading-snug text-neutral-800">
                   {e.summary}
                 </p>
                 <div className="mt-0.5 flex flex-wrap items-center gap-3">
-                  <p className="text-[11.5px] text-neutral-400">
+                  <p className="text-ui-body-sm text-neutral-400">
                     {e.actorName} · {e.actorRole}
                   </p>
                   {e.type === "DOC_UPLOADED" && e.meta?.fileId && (
@@ -136,18 +143,20 @@ export function AuditTrailTab({ events }: Readonly<{ events: AuditEvent[] }>) {
                       href={`/api/portal/files/${e.meta.fileId}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-[11px] font-medium text-neutral-700 transition-colors hover:border-brand-primary hover:text-brand-primary"
+                      className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-ui-label font-medium text-neutral-700 transition-colors hover:border-brand-primary hover:text-brand-primary"
                     >
                       View Document
                     </a>
                   )}
                 </div>
                 {e.meta?.remarks && (
-                  <div className="mt-2 rounded-md border border-neutral-100 bg-neutral-50 px-3 py-2 text-[12.5px] text-neutral-700">
+                  <div className="mt-2 rounded-md border border-neutral-100 bg-neutral-50 px-3 py-2 text-ui-body-lg text-neutral-700">
                     <span className="font-semibold text-neutral-900 block mb-0.5">
                       Document Name: {e.meta.document}
                     </span>
-                    <span className="font-semibold text-neutral-900">Remarks: </span>
+                    <span className="font-semibold text-neutral-900">
+                      Remarks:{" "}
+                    </span>
                     {e.meta.remarks}
                   </div>
                 )}

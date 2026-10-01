@@ -1,7 +1,11 @@
+/* eslint-disable react-perf/jsx-no-new-function-as-prop, react-perf/jsx-no-jsx-as-prop */
 "use client";
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
+
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
 import {
   ArrowRightIcon,
   BadgeCheckIcon,
@@ -21,21 +25,18 @@ import {
   startLoginAction,
   verifyOtpAction,
 } from "@/app/[locale]/login/actions";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Step =
   | { kind: "IDENTIFY" }
   | { kind: "PASSWORD"; employeeId: string; name: string }
   | { kind: "OTP"; email: string; devCode?: string };
-
-const FEATURE_PILLS = [
-  "Expands Product Offering",
-  "Improves Risk Management",
-  "Improves Cash Flow",
-  "Provides Capital Relief",
-  "Delivers Better Return on Equity",
-  "Facilitates Securitization Transactions",
-  "Co-lending",
-];
 
 /** The certifications and controls this workspace is run under — deliberately short labels, so
  *  the row stays one line on a laptop and wraps to two only on a narrow window. */
@@ -48,16 +49,18 @@ const SECURITY_BADGES = [
 
 function FieldLabel({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <label className="mb-2 block text-[13.5px] font-medium text-slate-700">
+    <label className="mb-2 block text-ui-subhead-lg font-medium text-slate-700">
       {children}
     </label>
   );
 }
 
 const INPUT_CLASS =
-  "h-11 w-full rounded-xl border border-neutral-200/80 bg-white/90 pl-10 pr-10 text-[14px] text-slate-900 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-[#f26e22] focus:bg-white focus:ring-4 focus:ring-[#f26e22]/10 hover:border-neutral-300 shadow-sm";
+  "h-11 w-full rounded-xl border border-neutral-200/80 bg-white/90 pl-10 pr-10 text-ui-lead text-slate-900 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10 hover:border-neutral-300 shadow-sm";
 
 export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
+  const t = useTranslations("login");
+  const errorText = useServerErrorMessage();
   const [step, setStep] = useState<Step>({ kind: "IDENTIFY" });
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -66,16 +69,21 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [demoModalOpen, setDemoModalOpen] = useState(false);
   const passwordInputRef = useRef<HTMLInputElement>(null);
   const codeInputRef = useRef<HTMLInputElement>(null);
 
   // Focus the field for whichever step just became active — same effect as autoFocus,
   // without the accessibility footgun jsx-a11y/no-autofocus flags (a screen reader user
   // gets yanked to the field before hearing the label/instructions around it).
+  /* eslint-disable react-you-might-not-need-an-effect/no-event-handler -- the step changes from
+     several places (submit, back, a failed code), so focusing here keeps that in one place
+     instead of repeating it in every handler. */
   useEffect(() => {
     if (step.kind === "PASSWORD") passwordInputRef.current?.focus();
     if (step.kind === "OTP") codeInputRef.current?.focus();
   }, [step.kind]);
+  /* eslint-enable react-you-might-not-need-an-effect/no-event-handler */
 
   const reset = useCallback(() => {
     setStep({ kind: "IDENTIFY" });
@@ -92,7 +100,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
       startTransition(async () => {
         const result = await startLoginAction(identifier);
         if (result.mode === "ERROR") {
-          setError(result.error);
+          setError(errorText(result));
           return;
         }
         if (result.mode === "PASSWORD") {
@@ -104,10 +112,10 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
           return;
         }
         setStep({ kind: "OTP", email: result.email, devCode: result.devCode });
-        setNotice(`A one-time code has been sent to ${result.email}.`);
+        setNotice(t("codeSentTo", { email: result.email }));
       });
     },
-    [identifier]
+    [identifier, errorText, t]
   );
 
   const onPassword = useCallback(
@@ -122,10 +130,10 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
           password,
           returnTo
         );
-        if (result?.error) setError(result.error);
+        setError(errorText(result));
       });
     },
-    [step, password, returnTo]
+    [step, password, returnTo, errorText]
   );
 
   const onVerify = useCallback(
@@ -136,10 +144,10 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
       const email = step.email;
       startTransition(async () => {
         const result = await verifyOtpAction(email, code, returnTo);
-        if (result?.error) setError(result.error);
+        setError(errorText(result));
       });
     },
-    [step, code, returnTo]
+    [step, code, returnTo, errorText]
   );
 
   const onResend = useCallback(() => {
@@ -148,25 +156,30 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
     setError(null);
     startTransition(async () => {
       const result = await resendOtpAction(email);
-      if (result.error) {
-        setError(result.error);
+      const message = errorText(result);
+      if (message) {
+        setError(message);
         return;
       }
       setStep({ kind: "OTP", email, devCode: result.devCode });
-      setNotice(`A new code has been sent to ${email}.`);
+      setNotice(t("newCodeSentTo", { email }));
     });
-  }, [step]);
+  }, [step, errorText, t]);
 
-  const onDemo = useCallback((role: "IMGC" | "LENDER" | "IMGC_ADMIN") => {
-    setError(null);
-    startTransition(async () => {
-      const result = await demoLoginAction(role);
-      if (result?.error) setError(result.error);
-    });
-  }, []);
+  const onDemo = useCallback(
+    (role: "IMGC" | "LENDER") => {
+      setDemoModalOpen(false);
+      setError(null);
+      startTransition(async () => {
+        const result = await demoLoginAction(role);
+        setError(errorText(result));
+      });
+    },
+    [errorText]
+  );
 
   return (
-    <div className="relative isolate h-dvh w-full overflow-hidden bg-[#fdf1e2] text-slate-800 subpixel-antialiased">
+    <div className="relative isolate h-dvh w-full overflow-hidden bg-[var(--surface-login)] text-slate-800 subpixel-antialiased">
       {/* ── Backdrop ────────────────────────────────────────────────────
           The same looping video as before, under a warmer, more orange-led
           wash — still the same cream-to-orange family, just leaning further
@@ -183,7 +196,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
       </video>
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(115deg,rgba(253,235,211,0.84)_0%,rgba(247,175,108,0.68)_32%,rgba(238,101,25,0.8)_100%)]"
+        className="pointer-events-none absolute inset-0 -z-10 bg-[image:var(--grad-login-wash)]"
       />
 
       <div className="relative z-10 mx-auto flex h-dvh w-full max-w-[1440px] flex-col overflow-hidden px-6 py-3 lg:px-10 lg:py-4">
@@ -193,17 +206,17 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
             <div className="grid size-16 shrink-0 place-items-center rounded-2xl bg-white p-2 shadow-sm">
               <Image
                 src="/assets/icons/logo.png"
-                alt="IMGC"
+                alt={t("logoAlt")}
                 width={64}
                 height={64}
                 className="h-auto w-auto max-h-full max-w-full object-contain"
               />
             </div>
             <span className="leading-tight">
-              <span className="block font-outfit text-[17px] font-bold tracking-tight text-slate-900">
-                IMGC Lender Portal
+              <span className="block font-outfit text-ui-heading font-bold tracking-tight text-slate-900">
+                {t("portalName")}
               </span>
-              {/* <span className="block text-[12px] text-slate-700">
+              {/* <span className="block text-ui-body text-slate-700">
                 Initial Claims Platform
               </span> */}
             </span>
@@ -215,31 +228,30 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
           {/* Left: the proposition */}
           <section className="imgc-rise flex min-w-0 flex-1 flex-col justify-between self-stretch py-2 lg:py-6">
             <div className="my-auto">
-              <h1 className="font-outfit max-w-[620px] text-[34px] font-bold leading-[1.12] tracking-tight text-slate-900 sm:text-[44px]">
-                One workspace{" "}
-                <span className="text-[#d85811] [text-shadow:_0_0_15px_rgb(255_255_255_/_100%),_0_1px_2px_rgb(255_255_255_/_80%)]">
-                  for every lender.
+              <h1 className="font-outfit max-w-[620px] text-ui-hero-sm font-bold leading-[1.12] tracking-tight text-slate-900 sm:text-ui-hero">
+                {t("heroLead")}{" "}
+                <span className="text-brand-dark [text-shadow:_0_0_15px_var(--glow-white),_0_1px_2px_var(--glow-white-soft)]">
+                  {t("heroAccent")}
                 </span>
               </h1>
-              <p className="font-outfit mt-4 max-w-[560px] text-[24px] font-semibold leading-snug tracking-tight text-slate-800">
-                Initiate, track and manage claims with complete visibility, all
-                in one place.
+              <p className="font-outfit mt-4 max-w-[560px] text-ui-display-lg font-semibold leading-snug tracking-tight text-slate-800">
+                {t("heroSub")}
               </p>
             </div>
 
             {/* Squarer chips with an icon tile, deliberately unlike the rounded-full benefit
                 pills above — these are assurances about the platform, not things it does. */}
             <div className="mt-6 lg:mt-auto pt-2 max-w-[560px]">
-              <p className="text-[12px] font-bold uppercase tracking-[0.15em] text-slate-800">
-                Security &amp; compliance
+              <p className="text-ui-body font-bold uppercase tracking-[0.15em] text-slate-800">
+                {t("securityHeading")}
               </p>
               <ul className="mt-2.5 flex flex-wrap gap-2.5">
                 {SECURITY_BADGES.map((badge) => (
                   <li
                     key={badge.label}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/60 bg-white/70 px-3 py-2 text-[13px] font-semibold text-slate-800 shadow-sm backdrop-blur-md"
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/60 bg-white/70 px-3 py-2 text-ui-subhead font-semibold text-slate-800 shadow-sm backdrop-blur-md"
                   >
-                    <span className="grid size-6 shrink-0 place-items-center rounded-md bg-white shadow-sm text-[#f26e22]">
+                    <span className="grid size-6 shrink-0 place-items-center rounded-md bg-white shadow-sm text-brand-primary">
                       {badge.icon}
                     </span>
                     {badge.label}
@@ -252,47 +264,45 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
           {/* Right: sign-in card */}
           <section className="imgc-rise w-full shrink-0 lg:w-[420px]">
             <div className="rounded-2xl border border-white/80 bg-white/90 backdrop-blur-2xl p-6 shadow-2xl shadow-black/5 sm:p-7">
-              <h2 className="font-outfit text-center text-[24px] font-bold tracking-tight text-slate-900">
-                Welcome Back
+              <h2 className="font-outfit text-center text-ui-display-lg font-bold tracking-tight text-slate-900">
+                {t("welcomeBack")}
               </h2>
-              <p className="mt-1 mb-4 text-center text-[13px] text-slate-500">
-                Sign in to your IMGC Lender Portal account
+              <p className="mt-1 mb-4 text-center text-ui-subhead text-slate-500">
+                {t("welcomeSub")}
               </p>
 
-              {error && (
-                <p
-                  role="alert"
-                  className="mb-4 rounded-xl border border-red-500/30 bg-red-50/80 px-4 py-3 text-[13px] font-medium text-red-800 shadow-sm"
-                >
-                  {error}
-                </p>
-              )}
-              {!error && notice && (
-                <p className="mb-4 rounded-xl border border-blue-500/30 bg-blue-50/80 px-4 py-3 text-[13px] font-medium text-blue-800 shadow-sm">
+              {notice && (
+                <p className="mb-3 text-ui-subhead font-medium text-blue-600">
                   {notice}
                 </p>
               )}
 
               {step.kind === "IDENTIFY" && (
                 <form onSubmit={onIdentify} noValidate>
-                  <FieldLabel>Employee ID or Email</FieldLabel>
+                  <FieldLabel>{t("identifierLabel")}</FieldLabel>
                   <div className="relative">
                     <UserIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                     <input
                       name="identifier"
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
-                      placeholder="EMP-0001  or  you@lender.com"
+                      placeholder={t("identifierPlaceholder")}
                       autoComplete="username"
                       className={INPUT_CLASS}
                     />
                   </div>
-                  <p className="mt-3 text-[12.5px] leading-relaxed text-slate-500">
-                    IMGC staff sign in with an Employee ID and password. Lender
-                    users sign in with their work email — we send a one-time
-                    code.
+                  {error && (
+                    <p
+                      role="alert"
+                      className="mt-2 text-ui-subhead font-medium text-red-600"
+                    >
+                      {error}
+                    </p>
+                  )}
+                  <p className="mt-3 text-ui-body-lg leading-relaxed text-slate-500">
+                    {t("identifierHelp")}
                   </p>
-                  <SubmitButton pending={pending} label="Continue" />
+                  <SubmitButton pending={pending} label={t("continue")} />
                 </form>
               )}
 
@@ -303,7 +313,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                     text={`${step.name} · ${step.employeeId}`}
                     onChange={reset}
                   />
-                  <FieldLabel>Password</FieldLabel>
+                  <FieldLabel>{t("passwordLabel")}</FieldLabel>
                   <div className="relative">
                     <LockIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                     <input
@@ -312,7 +322,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                       name="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter your password"
+                      placeholder={t("passwordPlaceholder")}
                       autoComplete="current-password"
                       className={INPUT_CLASS}
                     />
@@ -320,7 +330,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
                       aria-label={
-                        showPassword ? "Hide password" : "Show password"
+                        showPassword ? t("hidePassword") : t("showPassword")
                       }
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                     >
@@ -331,25 +341,33 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                       )}
                     </button>
                   </div>
+                  {error && (
+                    <p
+                      role="alert"
+                      className="mt-2 text-ui-subhead font-medium text-red-600"
+                    >
+                      {error}
+                    </p>
+                  )}
 
                   <div className="mt-4 flex items-center justify-between">
-                    <label className="flex cursor-pointer items-center gap-2.5 text-[13.5px] font-medium text-slate-700 hover:text-slate-900 transition-colors">
+                    <label className="flex cursor-pointer items-center gap-2.5 text-ui-subhead-lg font-medium text-slate-700 hover:text-slate-900 transition-colors">
                       <input
                         type="checkbox"
                         defaultChecked
-                        className="size-4 rounded border-slate-300 accent-[#f26e22] transition-all hover:accent-[#d85811]"
+                        className="size-4 rounded border-slate-300 accent-brand-primary transition-all hover:accent-brand-dark"
                       />
-                      Remember me
+                      {t("rememberMe")}
                     </label>
                     <button
                       type="button"
-                      className="text-[13.5px] font-semibold text-[#f26e22] hover:text-[#d85811] transition-colors"
+                      className="text-ui-subhead-lg font-semibold text-brand-primary hover:text-brand-dark transition-colors"
                     >
-                      Forgot password?
+                      {t("forgotPassword")}
                     </button>
                   </div>
 
-                  <SubmitButton pending={pending} label="Sign In" />
+                  <SubmitButton pending={pending} label={t("signIn")} />
                 </form>
               )}
 
@@ -360,7 +378,7 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                     text={step.email}
                     onChange={reset}
                   />
-                  <FieldLabel>One-time code</FieldLabel>
+                  <FieldLabel>{t("otpLabel")}</FieldLabel>
                   <input
                     ref={codeInputRef}
                     inputMode="numeric"
@@ -370,69 +388,55 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
                     onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                     placeholder="••••••"
                     autoComplete="one-time-code"
-                    className="h-12 w-full rounded-xl border border-neutral-200/80 bg-white/90 text-center font-mono text-[22px] tracking-[0.4em] text-slate-900 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-[#f26e22] focus:bg-white focus:ring-4 focus:ring-[#f26e22]/10 hover:border-neutral-300 shadow-sm"
+                    className="h-11 w-full rounded-xl border border-neutral-200/80 bg-white/90 text-center font-mono text-ui-display tracking-[0.4em] text-slate-900 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-brand-primary focus:bg-white focus:ring-4 focus:ring-brand-primary/10 hover:border-neutral-300 shadow-sm"
                   />
+                  {error && (
+                    <p
+                      role="alert"
+                      className="mt-1 text-ui-subhead font-medium text-red-600"
+                    >
+                      {error}
+                    </p>
+                  )}
                   {step.devCode && (
-                    <p className="mt-2 rounded-md border border-[#f26e22]/20 bg-orange-50 px-2.5 py-1.5 text-[11.5px] text-slate-700">
-                      Development only — no mail is sent. Your code is{" "}
-                      <span className="font-mono font-bold text-[#d85811]">
+                    <p className="mt-1.5 rounded-lg border border-brand-primary/20 bg-orange-50/80 px-2.5 py-1 text-ui-caption text-slate-700">
+                      {t("devCode")}{" "}
+                      <span className="font-mono font-bold text-brand-dark">
                         {step.devCode}
                       </span>
                       .
                     </p>
                   )}
-                  <div className="mt-4 text-right">
+                  <div className="mt-2 text-right">
                     <button
                       type="button"
                       onClick={onResend}
                       disabled={pending}
-                      className="text-[13px] font-semibold text-[#f26e22] transition-colors hover:text-[#d85811] disabled:opacity-50"
+                      className="text-ui-subhead font-semibold text-brand-primary transition-colors hover:text-brand-dark disabled:opacity-50"
                     >
-                      Send a new code
+                      {t("resend")}
                     </button>
                   </div>
-                  <SubmitButton pending={pending} label="Verify & Sign In" />
+                  <SubmitButton pending={pending} label={t("verify")} />
                 </form>
               )}
 
               <div className="mt-5 border-t border-slate-200 pt-4 text-center">
-                <p className="text-[13px] text-slate-500">
-                  Need demo access?{" "}
-                  <span className="font-semibold text-slate-800">
-                    Enter Demo Mode
-                  </span>
+                <p className="text-ui-subhead text-slate-500">
+                  {t("needDemo")}{" "}
+                  <button
+                    type="button"
+                    onClick={() => setDemoModalOpen(true)}
+                    className="cursor-pointer font-semibold text-brand-primary underline-offset-2 transition-colors hover:text-brand-dark hover:underline"
+                  >
+                    {t("enterDemo")}
+                  </button>
                 </p>
-                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() => onDemo("IMGC")}
-                    className="cursor-pointer rounded-xl border border-neutral-200/80 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-700 shadow-sm transition hover:border-[#f26e22]/40 hover:bg-[#f26e22]/5 hover:text-[#f26e22] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Demo as IMGC
-                  </button>
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() => onDemo("IMGC_ADMIN")}
-                    className="cursor-pointer rounded-xl border border-neutral-200/80 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-700 shadow-sm transition hover:border-[#f26e22]/40 hover:bg-[#f26e22]/5 hover:text-[#f26e22] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Demo as IMGC Admin
-                  </button>
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() => onDemo("LENDER")}
-                    className="cursor-pointer rounded-xl border border-neutral-200/80 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-700 shadow-sm transition hover:border-[#f26e22]/40 hover:bg-[#f26e22]/5 hover:text-[#f26e22] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Demo as Lender
-                  </button>
-                </div>
               </div>
             </div>
 
             <div className="mt-3 flex justify-center">
-              <p className="inline-flex items-center rounded-full border border-white/60 bg-white/60 px-4 py-1.5 text-center text-[12.5px] font-medium text-slate-700 shadow-sm backdrop-blur-md">
+              <p className="inline-flex items-center rounded-full border border-white/60 bg-white/60 px-4 py-1.5 text-center text-ui-body-lg font-medium text-slate-700 shadow-sm backdrop-blur-md">
                 <LockIcon className="mr-1.5 size-3.5 text-slate-500" />
                 Protected workspace · access is granted by IMGC
               </p>
@@ -440,6 +444,37 @@ export function LoginClient({ returnTo }: Readonly<{ returnTo?: string }>) {
           </section>
         </div>
       </div>
+
+      <Dialog open={demoModalOpen} onOpenChange={setDemoModalOpen}>
+        <DialogContent className="sm:max-w-md bg-white p-6">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-lg font-bold text-slate-900">
+              Select Demo Mode
+            </DialogTitle>
+            <DialogDescription className="text-ui-subhead text-slate-500">
+              Choose a role below to explore the portal in demo mode.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => onDemo("IMGC")}
+              className="cursor-pointer rounded-xl border border-neutral-200/80 bg-white px-4 py-3 text-center text-ui-subhead font-semibold text-slate-700 shadow-sm transition hover:border-brand-primary/40 hover:bg-brand-primary/5 hover:text-brand-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Demo as IMGC
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => onDemo("LENDER")}
+              className="cursor-pointer rounded-xl border border-neutral-200/80 bg-white px-4 py-3 text-center text-ui-subhead font-semibold text-slate-700 shadow-sm transition hover:border-brand-primary/40 hover:bg-brand-primary/5 hover:text-brand-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Demo as Lender
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -448,13 +483,14 @@ function SubmitButton({
   pending,
   label,
 }: Readonly<{ pending: boolean; label: string }>) {
+  const t = useTranslations("login");
   return (
     <button
       type="submit"
       disabled={pending}
-      className="mt-3.5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#f26e22] text-[14px] font-semibold text-white shadow-md shadow-[#f26e22]/20 transition hover:bg-[#d85811] hover:shadow-lg hover:shadow-[#f26e22]/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+      className="mt-3.5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-primary text-ui-lead font-semibold text-white shadow-md shadow-brand-primary/20 transition hover:bg-brand-dark hover:shadow-lg hover:shadow-brand-primary/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {pending ? "Please wait…" : label}
+      {pending ? t("pleaseWait") : label}
       {!pending && <ArrowRightIcon className="size-4" />}
     </button>
   );
@@ -466,8 +502,8 @@ function IdentityChip({
   onChange,
 }: Readonly<{ icon: React.ReactNode; text: string; onChange: () => void }>) {
   return (
-    <div className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-neutral-200/80 bg-white/60 px-4 py-3 shadow-sm backdrop-blur-sm">
-      <span className="flex min-w-0 items-center gap-2.5 text-[13px] font-medium text-slate-800">
+    <div className="mb-3.5 flex items-center justify-between gap-3 rounded-xl border border-neutral-200/80 bg-white/60 px-3.5 py-2 shadow-sm backdrop-blur-sm">
+      <span className="flex min-w-0 items-center gap-2.5 text-ui-subhead font-medium text-slate-800">
         <span className="grid size-6 shrink-0 place-items-center rounded-md bg-white text-slate-500 shadow-sm">
           {icon}
         </span>
@@ -476,7 +512,7 @@ function IdentityChip({
       <button
         type="button"
         onClick={onChange}
-        className="shrink-0 text-[12.5px] font-semibold text-[#f26e22] hover:text-[#d85811] transition-colors"
+        className="shrink-0 text-ui-body-lg font-semibold text-brand-primary hover:text-brand-dark transition-colors"
       >
         Change
       </button>

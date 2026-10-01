@@ -80,7 +80,7 @@ export function ClaimDetailSinglePage({
                     type="button"
                     onClick={() => setActiveSection(item.id)}
                     className={cn(
-                      "pb-2 text-[14px] font-medium transition-colors border-b-2",
+                      "pb-2 text-ui-lead font-medium transition-colors border-b-2",
                       activeSection === item.id
                         ? "border-brand-primary text-brand-primary"
                         : "border-transparent text-neutral-500 hover:text-neutral-700"
@@ -97,7 +97,7 @@ export function ClaimDetailSinglePage({
                   href={`#${item.id}`}
                   onClick={(e) => scrollTo(e, item.id)}
                   className={cn(
-                    "pb-2 text-[14px] font-medium transition-colors border-b-2",
+                    "pb-2 text-ui-lead font-medium transition-colors border-b-2",
                     activeSection === item.id
                       ? "border-brand-primary text-brand-primary"
                       : "border-transparent text-neutral-500 hover:text-neutral-700"

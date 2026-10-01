@@ -1,5 +1,11 @@
 import "server-only";
 
+import {
+  fail,
+  type ServerErrorCode,
+  type ServerErrorParams,
+} from "@/config/errorCodes";
+
 /* eslint-disable security/detect-non-literal-fs-filename -- every filesystem path here is built
    from `process.cwd()` plus fixed literal segments, or from ids this server generated itself
    (`newId(...)`), never from request input. */
@@ -486,7 +492,8 @@ export interface StoredUpload {
 }
 
 export type StoreUploadResult =
-  { ok: true; file: StoredUpload } | { ok: false; error: string };
+  | { ok: true; file: StoredUpload }
+  | { ok: false; code: ServerErrorCode; codeParams?: ServerErrorParams };
 
 /**
  * Store an incoming document and describe it for its `DocumentFile` row. File bytes are written
@@ -503,7 +510,8 @@ export async function storeIncomingUpload(
   if (incoming.size > MAX_UPLOAD_BYTES) {
     return {
       ok: false,
-      error: `That file is larger than ${MAX_UPLOAD_LABEL}.`,
+      code: "FILE_TOO_LARGE" as const,
+      codeParams: { limit: MAX_UPLOAD_LABEL },
     };
   }
   const mime = incoming.type || "application/octet-stream";
@@ -539,14 +547,14 @@ async function resolveDirectUpload(
   try {
     url = new URL(incoming.url);
   } catch {
-    return { ok: false, error: "That upload could not be found." };
+    return fail("UPLOAD_NOT_FOUND");
   }
   const inAccountFolder =
     url.protocol === "https:" &&
     url.hostname.endsWith(".public.blob.vercel-storage.com") &&
     url.pathname.startsWith(`/${UPLOAD_PREFIX}/${accountId}/`);
   if (!USING_BLOB || !inAccountFolder) {
-    return { ok: false, error: "That upload could not be verified." };
+    return fail("UPLOAD_UNVERIFIED");
   }
 
   const storedPath = `${url.origin}${url.pathname}`;
@@ -555,27 +563,26 @@ async function resolveDirectUpload(
     token: BLOB_TOKEN,
     abortSignal: AbortSignal.timeout(SNAPSHOT_TIMEOUT_MS),
   });
-  if (meta.size === 0) return { ok: false, error: "That file is empty." };
+  if (meta.size === 0) return fail("FILE_EMPTY");
   if (meta.size > MAX_UPLOAD_BYTES) {
     return {
       ok: false,
-      error: `That file is larger than ${MAX_UPLOAD_LABEL}.`,
+      code: "FILE_TOO_LARGE" as const,
+      codeParams: { limit: MAX_UPLOAD_LABEL },
     };
   }
   if (
     !(ACCEPTED_UPLOAD_TYPES as readonly string[]).includes(meta.contentType)
   ) {
-    return {
-      ok: false,
-      error: "Only PDF, JPG, PNG or WEBP files are accepted.",
-    };
+    return fail("FILE_TYPE_UNSUPPORTED");
   }
   const fallbackName = decodeURIComponent(url.pathname.split("/").pop() ?? "");
   return {
     ok: true,
     file: {
       storedPath,
-      originalName: incoming.name.trim().slice(0, 200) || fallbackName || "document",
+      originalName:
+        incoming.name.trim().slice(0, 200) || fallbackName || "document",
       size: meta.size,
       mime: meta.contentType,
     },
@@ -612,14 +619,23 @@ export async function readUpload(storedPath: string): Promise<Buffer | null> {
     // pre-seeded Initial Claim demo PDFs need in order to stay viewable on a deployment.
     const marker = storedPath.indexOf(PUBLIC_DIR_MARKER);
     if (marker === -1) return null;
-    const publicPath = storedPath.slice(marker + PUBLIC_DIR_MARKER.length).split(path.sep).join("/");
+    const publicPath = storedPath
+      .slice(marker + PUBLIC_DIR_MARKER.length)
+      .split(path.sep)
+      .join("/");
 
     // `storedPath` was built from the `process.cwd()` of whichever machine wrote the row, which on
     // a deployment is not the `process.cwd()` doing the reading. Try the same asset where this
     // runtime could actually be keeping it before giving up on the filesystem.
     const candidates = [
       path.join(process.cwd(), "public", ...publicPath.split("/")),
-      path.join(process.cwd(), ".next", "standalone", "public", ...publicPath.split("/")),
+      path.join(
+        process.cwd(),
+        ".next",
+        "standalone",
+        "public",
+        ...publicPath.split("/")
+      ),
       path.join("/var/task", "public", ...publicPath.split("/")),
     ];
     for (const candidate of candidates) {
@@ -629,7 +645,9 @@ export async function readUpload(storedPath: string): Promise<Buffer | null> {
         /* try the next one */
       }
     }
-    const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+    const base = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:3000";
     try {
       const res = await fetch(`${base}/${publicPath}`, {
         cache: "no-store",

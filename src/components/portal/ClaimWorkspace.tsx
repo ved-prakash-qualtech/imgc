@@ -1,6 +1,7 @@
 /* eslint-disable react-perf/jsx-no-new-function-as-prop */
 "use client";
 
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
 import {
   useCallback,
   useEffect,
@@ -18,6 +19,7 @@ import {
   SendIcon,
   XIcon,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import {
@@ -90,6 +92,8 @@ export function ClaimWorkspace({
   openQuery: ClaimQuery | null;
   backHref: string;
 }>) {
+  const errorText = useServerErrorMessage();
+  const t = useTranslations("claimWorkspace");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [values, setValues] = useState<Record<string, string>>(fields);
@@ -165,8 +169,7 @@ export function ClaimWorkspace({
   const footerMessage = canSubmit ? (
     <p className="flex items-center gap-1.5 font-medium text-success-700">
       <CheckCircle2Icon className="size-4" />
-      Every mandatory document is in — you can{" "}
-      {resubmitting ? "resubmit" : "submit"} this claim.
+      {t(resubmitting ? "footer.readyToResubmit" : "footer.readyToSubmit")}
     </p>
   ) : null;
 
@@ -174,24 +177,24 @@ export function ClaimWorkspace({
     startTransition(async () => {
       const result = await saveDraftAction(accountId, claimId, values);
       if (!result.ok) {
-        toast.error(result.error ?? "That could not be saved.");
+        toast.error(errorText(result) ?? t("toast.saveFailed"));
         return;
       }
-      toast.success("Claim saved.");
+      toast.success(t("toast.saved"));
     });
-  }, [accountId, claimId, values]);
+  }, [accountId, claimId, values, t, errorText]);
 
   const onSubmit = useCallback(() => {
     startTransition(async () => {
       const result = await submitClaimAction(accountId, claimId, values);
       if (!result.ok) {
-        toast.error(result.error ?? "That claim could not be submitted.");
+        toast.error(errorText(result) ?? t("toast.submitFailed"));
         return;
       }
       toast.success(
-        resubmitting
-          ? `${result.claimNo || claimNo} resubmitted — back with IMGC for review.`
-          : `Claim ${result.claimNo || claimNo} generated successfully and submitted to IMGC.`
+        t(resubmitting ? "toast.resubmitted" : "toast.submitted", {
+          claimNo: result.claimNo || claimNo,
+        })
       );
       // Away from the workspace, not a refresh-in-place: the claim is now with IMGC, so there is
       // nothing left to do here until a query brings it back. Re-opening it (Continue/Track) picks
@@ -204,7 +207,17 @@ export function ClaimWorkspace({
         : `${backHref}?sort=lastUpdatedAt_desc`;
       router.push(backWithSort);
     });
-  }, [accountId, backHref, claimId, claimNo, resubmitting, router, values]);
+  }, [
+    accountId,
+    backHref,
+    claimId,
+    claimNo,
+    resubmitting,
+    router,
+    values,
+    t,
+    errorText,
+  ]);
 
   const onCancel = useCallback(() => {
     router.push(backHref);
@@ -218,7 +231,7 @@ export function ClaimWorkspace({
       <div className="flex items-center gap-3 border-b border-neutral-200">
         <Link
           href={rememberedBackHref}
-          className="-mb-px inline-flex shrink-0 items-center gap-1 border-b-2 border-transparent py-2.5 text-[12.5px] font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
+          className="-mb-px inline-flex shrink-0 items-center gap-1 border-b-2 border-transparent py-2.5 text-ui-body-lg font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
         >
           <ArrowLeftIcon className="size-3" /> Back
         </Link>
@@ -241,13 +254,17 @@ export function ClaimWorkspace({
                 setActiveTab(id);
               }}
               className={cn(
-                "-mb-px border-b-2 px-3.5 py-2.5 text-[13.5px] font-medium transition-colors",
+                "-mb-px border-b-2 px-3.5 py-2.5 text-ui-subhead-lg font-medium transition-colors",
                 activeTab === id
                   ? "border-brand-primary text-brand-primary"
                   : "border-transparent text-neutral-500 hover:text-neutral-800"
               )}
             >
-              {id === "loan-details" ? "Loan Details" : "Initiate Claim"}
+              {t(
+                id === "loan-details"
+                  ? "tabs.loanDetails"
+                  : "tabs.initiateClaim"
+              )}
             </button>
           ))}
         </div>
@@ -271,7 +288,7 @@ export function ClaimWorkspace({
               claimStatus={status}
             />
 
-            <Panel title="Remarks" className="mt-3">
+            <Panel title={t("remarks.title")} className="mt-3">
               <div className="px-4 py-3">
                 <textarea
                   value={values.__initiationRemark ?? ""}
@@ -281,12 +298,14 @@ export function ClaimWorkspace({
                     onFieldChange("__initiationRemark", event.target.value)
                   }
                   rows={2}
-                  placeholder="Add a remark about this claim..."
-                  className="w-full resize-y rounded-lg border border-neutral-200 px-3 py-2 text-[13px] outline-none transition-colors focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 disabled:bg-neutral-50 disabled:text-neutral-400"
+                  placeholder={t("remarks.placeholder")}
+                  className="w-full resize-y rounded-lg border border-neutral-200 px-3 py-2 text-ui-subhead outline-none transition-colors focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 disabled:bg-neutral-50 disabled:text-neutral-400"
                 />
-                <p className="mt-1 text-right text-[11px] text-neutral-400">
-                  {(values.__initiationRemark ?? "").length}/
-                  {INITIATION_REMARK_MAX}
+                <p className="mt-1 text-right text-ui-label text-neutral-400">
+                  {t("remarks.counter", {
+                    used: (values.__initiationRemark ?? "").length,
+                    max: INITIATION_REMARK_MAX,
+                  })}
                 </p>
               </div>
             </Panel>
@@ -301,7 +320,7 @@ export function ClaimWorkspace({
                 onClick={onCancel}
                 disabled={pending}
               >
-                <XIcon /> Cancel
+                <XIcon /> {t("actions.cancel")}
               </Button>
               <Button
                 variant="outline"
@@ -309,13 +328,13 @@ export function ClaimWorkspace({
                 onClick={onSave}
                 disabled={pending}
               >
-                <SaveIcon /> Save Draft
+                <SaveIcon /> {t("actions.saveDraft")}
               </Button>
               {/* Offered only once every mandatory document is in — hidden, not greyed out. */}
               {canSubmit && (
                 <Button size="sm" onClick={onSubmit} disabled={pending}>
                   <SendIcon />{" "}
-                  {resubmitting ? "Save & Resubmit" : "Save & Submit"}
+                  {t(resubmitting ? "actions.resubmit" : "actions.submit")}
                 </Button>
               )}
             </ActionFooter>
@@ -328,32 +347,37 @@ export function ClaimWorkspace({
 
 /** What IMGC asked for, and what the lender has to do about it. */
 function QueryBanner({ query }: Readonly<{ query: ClaimQuery }>) {
+  const t = useTranslations("claimWorkspace.query");
   return (
     <section className="rounded-xl border border-warning/40 bg-warning/8 px-5 py-4">
       <header className="mb-2 flex flex-wrap items-center gap-2">
         <MessageSquareWarningIcon className="size-4 text-warning" />
-        <h2 className="text-[14px] font-semibold text-neutral-950">
-          Query raised
+        <h2 className="text-ui-lead font-semibold text-neutral-950">
+          {t("title")}
         </h2>
-        <span className="text-[12px] text-neutral-600">
-          by {query.raisedByName} ·{" "}
-          {new Date(query.raisedAt).toLocaleDateString("en-IN", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
+        <span className="text-ui-body text-neutral-600">
+          {t("raisedBy", {
+            name: query.raisedByName,
+            date: new Date(query.raisedAt).toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            }),
           })}
         </span>
       </header>
 
-      <dl className="space-y-1.5 text-[13px]">
+      <dl className="space-y-1.5 text-ui-subhead">
         <div className="flex gap-2">
-          <dt className="shrink-0 font-semibold text-neutral-700">Reason:</dt>
+          <dt className="shrink-0 font-semibold text-neutral-700">
+            {t("reason")}
+          </dt>
           <dd className="text-neutral-800">{query.reason}</dd>
         </div>
         {query.remarks && (
           <div className="flex gap-2">
             <dt className="shrink-0 font-semibold text-neutral-700">
-              Remarks:
+              {t("remarks")}
             </dt>
             <dd className="text-neutral-700">{query.remarks}</dd>
           </div>
@@ -361,15 +385,15 @@ function QueryBanner({ query }: Readonly<{ query: ClaimQuery }>) {
         {query.requestedDocuments.length > 0 && (
           <div className="flex flex-wrap gap-2">
             <dt className="shrink-0 font-semibold text-neutral-700">
-              Required action:
+              {t("requiredAction")}
             </dt>
             <dd className="flex flex-wrap gap-1.5">
               {query.requestedDocuments.map((name) => (
                 <span
                   key={name}
-                  className="rounded-full bg-white px-2.5 py-0.5 text-[11.5px] font-medium text-neutral-800 ring-1 ring-warning/40"
+                  className="rounded-full bg-white px-2.5 py-0.5 text-ui-body-sm font-medium text-neutral-800 ring-1 ring-warning/40"
                 >
-                  Upload {name}
+                  {t("uploadDocument", { name })}
                 </span>
               ))}
             </dd>

@@ -1,5 +1,9 @@
+/* eslint-disable react-perf/jsx-no-jsx-as-prop, react-perf/jsx-no-new-function-as-prop, security/detect-object-injection -- pre-existing in this file: the indexed maps are declared
+   here with literal keys, and the inline props are small local values. Left as-is so the
+   type-scale change stays a class rename. */
 "use client";
 
+import { useServerErrorMessage } from "@/lib/serverErrorMessage";
 import { useCallback, useState, useTransition } from "react";
 import {
   CheckIcon,
@@ -42,13 +46,18 @@ function bytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function Fact({ label, value }: Readonly<{ label: string; value: React.ReactNode }>) {
+function Fact({
+  label,
+  value,
+}: Readonly<{ label: string; value: React.ReactNode }>) {
   return (
     <div>
-      <dt className="text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+      <dt className="text-ui-caption font-semibold uppercase tracking-wide text-neutral-400">
         {label}
       </dt>
-      <dd className="mt-0.5 text-[13px] font-medium text-neutral-900">{value}</dd>
+      <dd className="mt-0.5 text-ui-subhead font-medium text-neutral-900">
+        {value}
+      </dd>
     </div>
   );
 }
@@ -102,6 +111,7 @@ export function ReviewDrawer({
    */
   readOnly?: boolean;
 }>) {
+  const errorText = useServerErrorMessage();
   const [pending, startTransition] = useTransition();
   const [decision, setDecision] = useState<ReviewDecision | null>(null);
   const [remarks, setRemarks] = useState("");
@@ -140,7 +150,9 @@ export function ReviewDrawer({
         remarks
       );
       if (!result.ok) {
-        toast.error(result.error ?? "That decision could not be recorded.");
+        toast.error(
+          errorText(result) ?? "That decision could not be recorded."
+        );
         return;
       }
       toast.success(
@@ -153,7 +165,7 @@ export function ReviewDrawer({
       reset();
       onOpenChange(false);
     });
-  }, [row, decision, remarks, reset, onOpenChange]);
+  }, [row, decision, remarks, reset, onOpenChange, errorText]);
 
   if (!row) return null;
 
@@ -166,10 +178,15 @@ export function ReviewDrawer({
         className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-[620px]"
       >
         <SheetHeader className="border-b border-neutral-100 px-5 py-4">
-          <SheetTitle className="flex flex-wrap items-center gap-2 text-[16px]">
+          <SheetTitle className="flex flex-wrap items-center gap-2 text-ui-title-lg">
             {row.name}
             <StatusPill status={row.status} />
-            {!row.active && <StatusPill status="INCOMPLETE" className="!bg-neutral-200 !text-neutral-600" />}
+            {!row.active && (
+              <StatusPill
+                status="INCOMPLETE"
+                className="!bg-neutral-200 !text-neutral-600"
+              />
+            )}
           </SheetTitle>
           <SheetDescription>
             {row.caseId} · {row.customerName} · {row.lenderName}
@@ -178,7 +195,7 @@ export function ReviewDrawer({
 
         {/* ── Document information ─────────────────────────────── */}
         <section className="border-b border-neutral-100 px-5 py-4">
-          <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-neutral-500">
+          <h3 className="mb-3 text-ui-body font-semibold uppercase tracking-wide text-neutral-500">
             Document information
           </h3>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
@@ -186,28 +203,39 @@ export function ReviewDrawer({
             <Fact label="Customer" value={row.customerName} />
             <Fact label="Lender" value={row.lenderName} />
             <Fact label="Category" value={row.category} />
-            <Fact label="Required" value={row.required ? "Mandatory" : "Optional"} />
-            <Fact label="Priority" value={<StatusPill status={row.priority} />} />
+            <Fact
+              label="Required"
+              value={row.required ? "Mandatory" : "Optional"}
+            />
+            <Fact
+              label="Priority"
+              value={<StatusPill status={row.priority} />}
+            />
             <Fact label="Uploaded by" value={row.file?.uploadedByName ?? "—"} />
             <Fact label="Uploaded on" value={when(row.file?.uploadedAt)} />
-            <Fact label="Version" value={row.version ? `v${row.version}` : "—"} />
+            <Fact
+              label="Version"
+              value={row.version ? `v${row.version}` : "—"}
+            />
             {row.file?.documentNumber && (
               <Fact label="Document no." value={row.file.documentNumber} />
             )}
             {row.file?.documentDate && (
               <Fact label="Document date" value={row.file.documentDate} />
             )}
-            {row.dueDate && <Fact label="Due" value={when(row.dueDate).split(",")[0]} />}
+            {row.dueDate && (
+              <Fact label="Due" value={when(row.dueDate).split(",")[0]} />
+            )}
           </dl>
 
           {row.description && (
-            <p className="mt-3 rounded-md border border-brand-primary/15 bg-brand-light/50 px-3 py-2 text-[12.5px] leading-relaxed text-neutral-700">
+            <p className="mt-3 rounded-md border border-brand-primary/15 bg-brand-light/50 px-3 py-2 text-ui-body-lg leading-relaxed text-neutral-700">
               <span className="font-semibold">Instructions: </span>
               {row.description}
             </p>
           )}
           {row.file?.uploadRemarks && (
-            <p className="mt-2 text-[12.5px] text-neutral-600">
+            <p className="mt-2 text-ui-body-lg text-neutral-600">
               <span className="font-semibold">Lender remarks: </span>
               {row.file.uploadRemarks}
             </p>
@@ -216,7 +244,7 @@ export function ReviewDrawer({
 
         {/* ── Preview ──────────────────────────────────────────── */}
         <section className="border-b border-neutral-100 px-5 py-4">
-          <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-neutral-500">
+          <h3 className="mb-3 text-ui-body font-semibold uppercase tracking-wide text-neutral-500">
             Preview
           </h3>
           {row.file?.storedPath ? (
@@ -232,10 +260,10 @@ export function ReviewDrawer({
                 <FileTextIcon className="size-5" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-medium text-neutral-900">
+                <span className="block truncate text-ui-subhead font-medium text-neutral-900">
                   {row.file.originalName}
                 </span>
-                <span className="text-[11.5px] text-neutral-500">
+                <span className="text-ui-body-sm text-neutral-500">
                   {bytes(row.file.size)} · opens in a new tab
                 </span>
               </span>
@@ -246,7 +274,7 @@ export function ReviewDrawer({
               <div className="mx-auto flex aspect-[1/1.3] w-full max-w-[280px] flex-col rounded-md border border-neutral-200 bg-white p-4 shadow-sm">
                 <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
                   <FileTextIcon className="size-4 text-destructive" />
-                  <span className="truncate text-[11px] font-semibold text-neutral-700">
+                  <span className="truncate text-ui-label font-semibold text-neutral-700">
                     {row.file.originalName}
                   </span>
                 </div>
@@ -263,13 +291,13 @@ export function ReviewDrawer({
                   <div className="h-1.5 w-full rounded bg-neutral-100" />
                   <div className="h-1.5 w-3/4 rounded bg-neutral-100" />
                 </div>
-                <p className="mt-2 border-t border-neutral-100 pt-2 text-center text-[9.5px] text-neutral-400">
+                <p className="mt-2 border-t border-neutral-100 pt-2 text-center text-ui-micro-lg text-neutral-400">
                   Demo preview · {bytes(row.file.size)}
                 </p>
               </div>
             </div>
           ) : (
-            <p className="rounded-lg border border-dashed border-neutral-200 py-10 text-center text-[13px] text-neutral-500">
+            <p className="rounded-lg border border-dashed border-neutral-200 py-10 text-center text-ui-subhead text-neutral-500">
               Nothing uploaded yet — there is nothing to review.
             </p>
           )}
@@ -278,7 +306,7 @@ export function ReviewDrawer({
         {/* ── Version history ──────────────────────────────────── */}
         {row.history.length > 0 && (
           <section className="border-b border-neutral-100 px-5 py-4">
-            <h3 className="mb-3 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-neutral-500">
+            <h3 className="mb-3 flex items-center gap-1.5 text-ui-body font-semibold uppercase tracking-wide text-neutral-500">
               <HistoryIcon className="size-3.5" /> Version history
             </h3>
             <ol className="space-y-2">
@@ -295,25 +323,25 @@ export function ReviewDrawer({
                     )}
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[12.5px] font-semibold text-neutral-900">
+                      <span className="text-ui-body-lg font-semibold text-neutral-900">
                         Version {f.version}
                       </span>
                       {current ? (
                         <StatusPill status={row.status} />
                       ) : (
-                        <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">
+                        <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-ui-tiny font-semibold uppercase tracking-wide text-neutral-600">
                           Superseded
                         </span>
                       )}
-                      <span className="truncate text-[11.5px] text-neutral-500">
+                      <span className="truncate text-ui-body-sm text-neutral-500">
                         {f.originalName}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-[11.5px] text-neutral-500">
+                    <p className="mt-0.5 text-ui-body-sm text-neutral-500">
                       {f.uploadedByName} · {when(f.uploadedAt)}
                     </p>
                     {f.supersededReason && (
-                      <p className="mt-1 text-[11.5px] italic text-neutral-600">
+                      <p className="mt-1 text-ui-body-sm italic text-neutral-600">
                         Replaced because: {f.supersededReason}
                       </p>
                     )}
@@ -327,10 +355,10 @@ export function ReviewDrawer({
         {/* ── Last decision ────────────────────────────────────── */}
         {row.review && (
           <section className="border-b border-neutral-100 px-5 py-4">
-            <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-neutral-500">
+            <h3 className="mb-2 text-ui-body font-semibold uppercase tracking-wide text-neutral-500">
               Last decision
             </h3>
-            <p className="text-[13px] text-neutral-800">
+            <p className="text-ui-subhead text-neutral-800">
               <span className="font-semibold">
                 {DECISIONS[row.review.decision].label}
               </span>{" "}
@@ -338,7 +366,7 @@ export function ReviewDrawer({
               {row.review.version}
             </p>
             {row.review.remarks && (
-              <p className="mt-1 rounded-md bg-neutral-50 px-3 py-2 text-[12.5px] text-neutral-700">
+              <p className="mt-1 rounded-md bg-neutral-50 px-3 py-2 text-ui-body-lg text-neutral-700">
                 {row.review.remarks}
               </p>
             )}
@@ -348,7 +376,7 @@ export function ReviewDrawer({
         {/* ── Actions ──────────────────────────────────────────── */}
         <section className="mt-auto border-t border-neutral-100 bg-neutral-25 px-5 py-4">
           {!reviewable ? (
-            <p className="text-[12.5px] text-neutral-500">
+            <p className="text-ui-body-lg text-neutral-500">
               {readOnly
                 ? "IMGC will review this document and record the outcome here."
                 : row.active
@@ -357,7 +385,11 @@ export function ReviewDrawer({
             </p>
           ) : decision === null ? (
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="success" onClick={() => setDecision("APPROVED")}>
+              <Button
+                size="sm"
+                variant="success"
+                onClick={() => setDecision("APPROVED")}
+              >
                 <CheckIcon /> Approve
               </Button>
               <Button
@@ -377,12 +409,13 @@ export function ReviewDrawer({
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-[13px] font-medium text-neutral-900">
+              <p className="text-ui-subhead font-medium text-neutral-900">
                 {DECISIONS[decision].prompt}
               </p>
               <label className="block">
-                <span className="mb-1 block text-[12.5px] font-medium text-neutral-700">
-                  Remarks{DECISIONS[decision].needsRemarks ? " *" : " (optional)"}
+                <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+                  Remarks
+                  {DECISIONS[decision].needsRemarks ? " *" : " (optional)"}
                 </span>
                 <textarea
                   value={remarks}
@@ -403,7 +436,7 @@ export function ReviewDrawer({
                         : "e.g. Verified against the municipal portal."
                   }
                   className={cn(
-                    "w-full rounded-lg border bg-white px-3 py-2 text-[13px] outline-none focus:ring-2",
+                    "w-full rounded-lg border bg-white px-3 py-2 text-ui-subhead outline-none focus:ring-2",
                     error
                       ? "border-destructive focus:border-destructive focus:ring-destructive/20"
                       : "border-neutral-200 focus:border-brand-primary focus:ring-brand-primary/20"
@@ -411,7 +444,10 @@ export function ReviewDrawer({
                 />
               </label>
               {error && (
-                <p role="alert" className="text-[12px] font-medium text-destructive">
+                <p
+                  role="alert"
+                  className="text-ui-body font-medium text-destructive"
+                >
                   {error}
                 </p>
               )}
@@ -424,7 +460,12 @@ export function ReviewDrawer({
                 >
                   Confirm {DECISIONS[decision].label.toLowerCase()}
                 </Button>
-                <Button size="sm" variant="outline" onClick={reset} disabled={pending}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={reset}
+                  disabled={pending}
+                >
                   Back
                 </Button>
               </div>

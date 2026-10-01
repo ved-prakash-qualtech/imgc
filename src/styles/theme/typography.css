@@ -7,6 +7,13 @@
  */
 
 :root {
+  /*
+   * UI density. The dense screens (grids, tiles, document tables) are sized from the scale
+   * below, and every step is a multiple of this one number — so "make the whole app a notch
+   * larger" is a configuration change, not an edit to several hundred literals.
+   */
+  --ui-scale: 1;
+
   /* miFIN web type scale — size / line-height / letter-spacing per level */
   --type-h1-size: 3rem; /* 48px */
   --type-h1-leading: 3.75rem; /* 60px */

@@ -2,13 +2,12 @@ import { EligibleCasesClient } from "@/app/[locale]/(portal)/initiate-claim/Elig
 import { PortalShell } from "@/components/portal/PortalShell";
 import { requireSession } from "@/lib/auth/appSession";
 import { listAccounts } from "@/services/portal/accounts.server";
-import {
-  getClaimAction,
-  listClaims,
-} from "@/services/portal/claimFlow.server";
+import { getClaimAction, listClaims } from "@/services/portal/claimFlow.server";
 import type { EligibleRow } from "@/types/portal/eligibleClaim";
 
 import { getAdminContextOrNull } from "@/lib/auth/adminContext";
+import { LenderContextBar } from "@/components/portal/LenderContextBar";
+import { listLenderOrgs } from "@/services/portal/users.server";
 
 // The Claims Overview band moved to the Claim Dashboard (/claim-dashboard); this page is the
 // grid alone now.
@@ -16,15 +15,14 @@ export const dynamic = "force-dynamic";
 
 export default async function InitiateClaimPage() {
   const session = await requireSession();
-  const ctx =
-    session.role === "IMGC" && session.isAdmin
-      ? await getAdminContextOrNull()
-      : null;
-  const adminWithoutContext = session.role === "IMGC" && session.isAdmin && !ctx;
+  const ctx = session.role === "IMGC" ? await getAdminContextOrNull() : null;
+  // IMGC on this page without a lender chosen: send them to pick one first.
+  const adminWithoutContext = session.role === "IMGC" && !ctx;
 
-  const [accounts, claims] = await Promise.all([
+  const [accounts, claims, orgs] = await Promise.all([
     listAccounts(session),
     listClaims(session),
+    session.role === "IMGC" ? listLenderOrgs() : Promise.resolve([]),
   ]);
 
   const byAccount = new Map(claims.map((c) => [c.accountId, c]));
@@ -50,11 +48,28 @@ export default async function InitiateClaimPage() {
         };
       }
 
-      return { ...a, claim, claimAction: state.action, claimReason: state.reason };
-    });
+      return {
+        ...a,
+        claim,
+        claimAction: state.action,
+        claimReason: state.reason,
+      };
+    })
+    // Claim by IMGC is IMGC's own workspace: accounts still to be initiated, and the claims IMGC
+    // started for this lender. A claim the lender raised themselves is theirs to work — IMGC
+    // reviews it from the Claims tab, not from here.
+    .filter(
+      (row) =>
+        session.role !== "IMGC" ||
+        !row.claim ||
+        row.claim.fields.__initiatedByImgc === "true"
+    );
 
   return (
     <PortalShell activeKey="initiate-claim" title="">
+      {session.role === "IMGC" && (
+        <LenderContextBar orgs={orgs} currentOrgId={ctx?.lenderOrgId} />
+      )}
       <EligibleCasesClient accounts={rows} trackView="single" />
     </PortalShell>
   );

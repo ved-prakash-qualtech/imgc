@@ -51,6 +51,8 @@ import {
   ACCOUNTS_FILTER_KEY,
 } from "@/lib/hooks/useRememberedFilters";
 import { claimAmountFor } from "@/config/claimConfig";
+import { useTranslations } from "next-intl";
+
 import { cn } from "@/lib/utils/twMergeUtils";
 import type { AccountRow } from "@/services/portal/accounts.server";
 import type { ClaimStatus, Role } from "@/server/mock/types";
@@ -137,20 +139,24 @@ function csvField(value: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function downloadCsv(rows: AccountRow[], role: Role): void {
+function downloadCsv(
+  rows: AccountRow[],
+  role: Role,
+  t: (key: string) => string
+): void {
   const headers = [
-    "Loan No",
-    "Claim No",
-    "Borrower",
-    ...(role === "IMGC" ? ["Lender"] : []),
-    "Loan Type",
-    "Loan Amount",
-    "O/S Amount",
-    "Claim Amount",
-    "Claim Initiation Date",
+    t("columns.loanNo"),
+    t("columns.claimNo"),
+    t("columns.borrower"),
+    ...(role === "IMGC" ? [t("columns.lender")] : []),
+    t("columns.loanType"),
+    t("columns.loanAmount"),
+    t("columns.outstandingAmount"),
+    t("columns.claimAmount"),
+    t("columns.claimInitiationDate"),
     "DPD",
-    "Owner",
-    "Claim Status",
+    t("columns.owner"),
+    t("columns.claimStatus"),
   ];
   const lines = rows.map((a) =>
     [
@@ -229,11 +235,12 @@ function StatusMultiSelect({
   value: StatusFilter[];
   onChange: (next: StatusFilter[]) => void;
 }>) {
+  const t = useTranslations("grids");
   const [open, setOpen] = useState(false);
   const selected = new Set(value);
   const label =
     value.length === 0
-      ? "All Claim Status"
+      ? t("filters.allClaimStatus")
       : value.length === 1
         ? value[0] === "ACTIVE_NPA"
           ? "Active NPA"
@@ -257,8 +264,8 @@ function StatusMultiSelect({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        aria-label="All Claim Status"
-        className="inline-flex h-7 max-w-[170px] items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-[11.5px] font-medium text-neutral-700 outline-none transition-colors hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+        aria-label={t("filters.allClaimStatus")}
+        className="inline-flex h-7 max-w-[170px] items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-ui-body-sm font-medium text-neutral-700 outline-none transition-colors hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
       >
         <span className="truncate">{label}</span>
         <ChevronDownIcon className="size-3.5 shrink-0 text-neutral-400" />
@@ -292,17 +299,23 @@ function StatusMultiSelect({
   );
 }
 
-function purposeDisplay(v: string): string {
-  return v === "ALL" ? "All Loan Types" : v;
+function purposeDisplayWith(t: (key: string) => string) {
+  return (v: string): string => (v === "ALL" ? t("filters.allLoanTypes") : v);
 }
 
-function bucketDisplay(v: (typeof BUCKETS)[number]): string {
-  if (v === "ALL") return "All Owners";
-  return v === "IMGC" ? "IMGC" : "Lender";
+function bucketDisplayWith(
+  t: (key: string) => string,
+  tStatus: (key: string) => string
+) {
+  return (v: (typeof BUCKETS)[number]): string =>
+    v === "ALL"
+      ? t("filters.allOwners")
+      : tStatus(v === "IMGC" ? "IMGC" : "LENDER");
 }
 
-function dpdBandDisplay(v: DpdBand): string {
-  return v === "ALL" ? "All DPD" : DPD_BAND_LABEL[v];
+function dpdBandDisplayWith(t: (key: string) => string) {
+  return (v: DpdBand): string =>
+    v === "ALL" ? t("filters.allDpd") : DPD_BAND_LABEL[v];
 }
 
 const SortIcon = ({
@@ -347,7 +360,7 @@ const SortableTableHead = ({
     onClick={() => onToggle(column)}
     title={title}
     className={cn(
-      "h-7 cursor-pointer select-none px-0.5 text-[10px] transition-colors hover:bg-neutral-50",
+      "h-7 cursor-pointer select-none px-0.5 text-ui-tiny transition-colors hover:bg-neutral-50",
       className
     )}
   >
@@ -366,9 +379,11 @@ export function AccountsClient({
   accounts,
   role,
 }: Readonly<{ accounts: AccountRow[]; role: Role }>) {
+  const t = useTranslations("grids");
+  const tStatus = useTranslations("status");
   const router = useRouter();
   const searchParams = useSearchParams();
-  // Recorded here, re-applied by the case page's "All accounts" link.
+  // Recorded here, re-applied by the case page's t("misc.allAccounts") link.
   useRememberFilters(ACCOUNTS_FILTER_KEY);
   const [query, setQuery] = useState("");
   const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>(
@@ -438,8 +453,9 @@ export function AccountsClient({
     [lenderNames]
   );
   const lenderDisplay = useCallback(
-    (v: string) => (v === "ALL" ? "All Lenders" : (lenderNames.get(v) ?? v)),
-    [lenderNames]
+    (v: string) =>
+      v === "ALL" ? t("filters.allLenders") : (lenderNames.get(v) ?? v),
+    [lenderNames, t]
   );
 
   // See EligibleCasesClient.tsx's `toggleSort` for why this reads `sortKey`/`sortDirection` from
@@ -609,8 +625,8 @@ export function AccountsClient({
     setPage(1);
   }, []);
   const handleExport = useCallback(
-    () => downloadCsv(filtered, role),
-    [filtered, role]
+    () => downloadCsv(filtered, role, t),
+    [filtered, role, t]
   );
   const handleQueryChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -661,15 +677,15 @@ export function AccountsClient({
           <input
             value={query}
             onChange={handleQueryChange}
-            placeholder="Search borrower or loan ID"
-            aria-label="Search accounts"
-            className="h-7 w-[180px] rounded-full border border-neutral-200 bg-white pl-8 pr-2.5 text-[11.5px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            placeholder={t("search.accountsPlaceholder")}
+            aria-label={t("search.accountsLabel")}
+            className="h-7 w-[180px] rounded-full border border-neutral-200 bg-white pl-8 pr-2.5 text-ui-body-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           />
         </div>
         <StatusMultiSelect value={status} onChange={handleStatusChange} />
         {role === "IMGC" && (
           <FilterSelect
-            label="Lender"
+            label={t("columns.lender")}
             options={lenderOptions}
             display={lenderDisplay}
             value={lender}
@@ -677,23 +693,23 @@ export function AccountsClient({
           />
         )}
         <FilterSelect
-          label="Loan Type"
+          label={t("columns.loanType")}
           options={["ALL", ...products] as const}
-          display={purposeDisplay}
+          display={purposeDisplayWith(t)}
           value={product}
           onChange={handleProductChange}
         />
         <FilterSelect
-          label="Owner"
+          label={t("columns.owner")}
           options={BUCKETS}
-          display={bucketDisplay}
+          display={bucketDisplayWith(t, tStatus)}
           value={bucket}
           onChange={handleBucketChange}
         />
         <FilterSelect
-          label="DPD"
+          label={t("columns.dpd")}
           options={DPD_BANDS}
-          display={dpdBandDisplay}
+          display={dpdBandDisplayWith(t)}
           value={dpdBand}
           onChange={handleDpdBandChange}
         />
@@ -703,7 +719,7 @@ export function AccountsClient({
         <button
           type="button"
           onClick={handleExport}
-          className="ml-auto inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-[11.5px] font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+          className="ml-auto inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-ui-body-sm font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
         >
           <DownloadIcon className="size-3" /> Export CSV
         </button>
@@ -715,21 +731,21 @@ export function AccountsClient({
             <TableRow>
               <SortableTableHead
                 column="loanNo"
-                label="Loan no."
+                label={t("columns.loanNo")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="claimNo"
-                label="Claim no."
+                label={t("columns.claimNoDotted")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="borrowerName"
-                label="Borrower"
+                label={t("columns.borrower")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
@@ -737,7 +753,7 @@ export function AccountsClient({
               {role === "IMGC" && (
                 <SortableTableHead
                   column="lender"
-                  label="Lender"
+                  label={t("columns.lender")}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   onToggle={toggleSort}
@@ -745,45 +761,45 @@ export function AccountsClient({
               )}
               <SortableTableHead
                 column="purpose"
-                label="Loan Type"
+                label={t("columns.loanType")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="loanAmount"
-                label="Loan Amount"
+                label={t("columns.loanAmount")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="outstandingAmount"
-                label="O/S Amount"
+                label={t("columns.outstandingAmount")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="claimAmount"
-                label="Claim Amount"
+                label={t("columns.claimAmount")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="submittedAt"
-                label="Initiation Date"
+                label={t("columns.initiationDate")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
-              <TableHead className="h-7 px-0.5 text-[10px] font-semibold text-neutral-500">
-                Ageing
+              <TableHead className="h-7 px-0.5 text-ui-tiny font-semibold text-neutral-500">
+                {t("columns.ageing")}
               </TableHead>
               <SortableTableHead
                 column="dpd"
-                label="DPD"
+                label={t("columns.dpd")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
@@ -791,14 +807,14 @@ export function AccountsClient({
               />
               <SortableTableHead
                 column="bucket"
-                label="Owner"
+                label={t("columns.owner")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
               />
               <SortableTableHead
                 column="status"
-                label="Claim Status"
+                label={t("columns.claimStatus")}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 onToggle={toggleSort}
@@ -810,7 +826,7 @@ export function AccountsClient({
               <TableRow>
                 <TableCell
                   colSpan={role === "IMGC" ? 13 : 12}
-                  className="py-12 text-center text-[13px] text-neutral-500"
+                  className="py-12 text-center text-ui-subhead text-neutral-500"
                 >
                   No accounts match those filters.
                 </TableCell>
@@ -838,48 +854,48 @@ export function AccountsClient({
                         : "cursor-pointer hover:bg-neutral-50"
                     )}
                   >
-                    <TableCell className="px-0.5 py-1 text-[11.5px] font-medium whitespace-nowrap text-neutral-950">
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm font-medium whitespace-nowrap text-neutral-950">
                       {a.loanNo}
                     </TableCell>
-                    <TableCell className="px-0.5 py-1 text-[11.5px] whitespace-nowrap text-neutral-600">
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm whitespace-nowrap text-neutral-600">
                       {a.claimNo || "—"}
                     </TableCell>
-                    <TableCell className="px-0.5 py-1 text-[11.5px] whitespace-nowrap">
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm whitespace-nowrap">
                       {a.borrowerName}
                     </TableCell>
                     {role === "IMGC" && (
                       <TableCell
-                        className="px-0.5 py-1 text-[11.5px] whitespace-nowrap"
+                        className="px-0.5 py-1 text-ui-body-sm whitespace-nowrap"
                         title={a.lenderOrgName}
                       >
                         {shortName(a.lenderOrgName)}
                       </TableCell>
                     )}
-                    <TableCell className="px-0.5 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm whitespace-nowrap text-neutral-500">
                       {a.product}
                     </TableCell>
-                    <TableCell className="px-0.5 py-1 text-[11.5px]">
-                      <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-success-700">
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm">
+                      <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-ui-tiny font-semibold whitespace-nowrap tabular-nums text-success-700">
                         {inr.format(a.loanAmount)}
                       </span>
                     </TableCell>
-                    <TableCell className="px-0.5 py-1 text-[11.5px]">
-                      <span className="inline-flex items-center rounded-full bg-warning/10 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-warning">
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm">
+                      <span className="inline-flex items-center rounded-full bg-warning/10 px-1 py-0.5 text-ui-tiny font-semibold whitespace-nowrap tabular-nums text-warning">
                         {inr.format(a.outstandingAmount)}
                       </span>
                     </TableCell>
-                    <TableCell className="px-0.5 py-1 text-[11.5px]">
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm">
                       <span
-                        className="inline-flex items-center rounded-full bg-brand-primary/10 px-1 py-0.5 text-[10px] font-semibold whitespace-nowrap tabular-nums text-brand-primary"
+                        className="inline-flex items-center rounded-full bg-brand-primary/10 px-1 py-0.5 text-ui-tiny font-semibold whitespace-nowrap tabular-nums text-brand-primary"
                         title="20% of the loan amount"
                       >
                         {inr.format(claimAmountFor(a.loanAmount))}
                       </span>
                     </TableCell>
-                    <TableCell className="px-0.5 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-500">
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm tabular-nums whitespace-nowrap text-neutral-500">
                       {a.submittedAt ? date(a.submittedAt) : "—"}
                     </TableCell>
-                    <TableCell className="px-0.5 py-1 text-[11.5px] whitespace-nowrap text-neutral-500">
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm whitespace-nowrap text-neutral-500">
                       <LiveClaimAgeing
                         statusHistory={a.claimStatusHistory}
                         hideStatusText
@@ -887,7 +903,7 @@ export function AccountsClient({
                     </TableCell>
                     <TableCell
                       title="DPD = Days Past Due"
-                      className="px-0.5 py-1 text-[11.5px] tabular-nums whitespace-nowrap text-neutral-700"
+                      className="px-0.5 py-1 text-ui-body-sm tabular-nums whitespace-nowrap text-neutral-700"
                     >
                       {formatDpd(a.dpd)}
                     </TableCell>
@@ -895,14 +911,14 @@ export function AccountsClient({
                       <StatusPill
                         status={ownerOf(a)}
                         flat
-                        className="text-[10px]"
+                        className="text-ui-tiny"
                       />
                     </TableCell>
                     <TableCell className="px-0.5 py-1">
                       <StatusPill
                         status={claimStatusDisplay(a)}
                         flat
-                        className="text-[10px]"
+                        className="text-ui-tiny"
                         maxChars={10}
                       />
                     </TableCell>
@@ -915,27 +931,27 @@ export function AccountsClient({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-3 py-1.5">
-        <div className="flex items-center gap-2 text-[12px] text-neutral-500">
+        <div className="flex items-center gap-2 text-ui-body text-neutral-500">
           <div className="flex items-center gap-2">
-            <span>Rows per page</span>
+            <span>{t("misc.rowsPerPage")}</span>
             <Select
               value={String(pageSize)}
               onValueChange={handlePageSizeChange}
             >
               <SelectTrigger
                 size="sm"
-                className="h-7 w-[62px] bg-white text-[12px]"
+                className="h-7 w-[62px] bg-white text-ui-body"
               >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="10" className="text-[12px]">
+                <SelectItem value="10" className="text-ui-body">
                   10
                 </SelectItem>
-                <SelectItem value="20" className="text-[12px]">
+                <SelectItem value="20" className="text-ui-body">
                   20
                 </SelectItem>
-                <SelectItem value="50" className="text-[12px]">
+                <SelectItem value="50" className="text-ui-body">
                   50
                 </SelectItem>
               </SelectContent>
@@ -947,7 +963,7 @@ export function AccountsClient({
         </div>
 
         <div className="flex items-center gap-4">
-          <span className="hidden text-[12px] text-neutral-500 sm:inline">
+          <span className="hidden text-ui-body text-neutral-500 sm:inline">
             Page {currentPage} of {pageCount}
           </span>
           <PaginationNumbers
@@ -983,7 +999,7 @@ function FilterSelect<T extends string>({
         className={cn(
           // Tightened so search + five filters + Export fit on one line — the row wraps
           // otherwise, which pushed Export onto a second line of its own.
-          "h-7 appearance-none rounded-full border border-neutral-200 bg-white pl-2.5 pr-6 text-center text-[11.5px] font-medium capitalize text-neutral-700 outline-none",
+          "h-7 appearance-none rounded-full border border-neutral-200 bg-white pl-2.5 pr-6 text-center text-ui-body-sm font-medium capitalize text-neutral-700 outline-none",
           "focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
         )}
       >

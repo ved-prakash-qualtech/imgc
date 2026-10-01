@@ -6,7 +6,8 @@ import { ClaimDashboardView } from "@/app/[locale]/(portal)/claim-dashboard/Clai
 import { ClaimOverviewBand } from "@/components/portal/ClaimOverviewBand";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { ROUTES } from "@/constants/route";
-import { getAdminContextOrNull } from "@/lib/auth/adminContext";
+import { getTranslations } from "next-intl/server";
+
 import { requireSession } from "@/lib/auth/appSession";
 import { listAccounts } from "@/services/portal/accounts.server";
 import { getClaimDashboard } from "@/services/portal/claimDashboard.server";
@@ -77,24 +78,20 @@ export default async function ClaimDashboardPage({
   searchParams: Promise<{ lender?: string; status?: string; months?: string }>;
 }) {
   const session = await requireSession();
+  const t = await getTranslations("dashboard");
   const sp = await searchParams;
 
-  const adminCtx =
-    session.role === "IMGC" && session.isAdmin
-      ? await getAdminContextOrNull()
-      : null;
-  const isAdminWithContext = adminCtx != null;
+  // The dashboard is IMGC's own view of every lender, whichever lender they happen to be
+  // initiating a claim for on the Claim by IMGC screen. Its own picker is what narrows it.
 
   const status = parseStatus(sp.status);
   const months = parseMonths(sp.months);
 
   const [accounts, claims, data] = await Promise.all([
-    listAccounts(session),
-    listClaims(session),
+    listAccounts(session, { ignoreLenderContext: true }),
+    listClaims(session, { ignoreLenderContext: true }),
     getClaimDashboard(session, {
-      lenderOrgId: isAdminWithContext
-        ? adminCtx.lenderOrgId
-        : (sp.lender ?? null),
+      lenderOrgId: sp.lender ?? null,
       status,
       months,
     }),
@@ -102,9 +99,8 @@ export default async function ClaimDashboardPage({
 
   // A stale ?lender= (an org since removed, or a lender who arrived here by hand-editing the URL)
   // falls back to "all lenders" rather than a chart filtered to nothing.
-  const lenderOrgId = isAdminWithContext
-    ? adminCtx.lenderOrgId
-    : session.role === "IMGC" && data.lenders.some((l) => l.id === sp.lender)
+  const lenderOrgId =
+    session.role === "IMGC" && data.lenders.some((l) => l.id === sp.lender)
       ? (sp.lender ?? null)
       : null;
 
@@ -161,11 +157,9 @@ export default async function ClaimDashboardPage({
   });
   const counts = summariseClaimOverview(eligible);
 
-  const gridBase = session.isAdmin
-    ? ROUTES.initiateClaim
-    : session.role === "IMGC"
-      ? ROUTES.accounts
-      : ROUTES.initiateClaim;
+  // IMGC's tiles drill into their own claims grid; the lender's into theirs.
+  const gridBase =
+    session.role === "IMGC" ? ROUTES.accounts : ROUTES.initiateClaim;
 
   const selectedLenderName =
     data.lenders.find((l) => l.id === lenderOrgId)?.name ?? null;
@@ -179,22 +173,20 @@ export default async function ClaimDashboardPage({
           showDraftQueryKpis
           title={
             data.canFilterByLender
-              ? (selectedLenderName ?? "Every Lender")
-              : "Overview"
+              ? (selectedLenderName ?? t("everyLender"))
+              : t("overview")
           }
           // Left, beside "Overview": the total claim amount, and the approved and rejected shares
           // of it - the latter two from the same buckets the Approved and Rejected tiles count.
           titleAside={
             <OverviewTotals
-              totals={{
-                total: totals.claim,
-                approved: counts.claimAmount.approved,
-                rejected: counts.claimAmount.rejected,
-              }}
+              total={totals.claim}
+              approved={counts.claimAmount.approved}
+              rejected={counts.claimAmount.rejected}
             />
           }
           action={
-            data.canFilterByLender && !isAdminWithContext ? (
+            data.canFilterByLender ? (
               <ClaimDashboardLenderPicker
                 lenders={data.lenders}
                 value={lenderOrgId}

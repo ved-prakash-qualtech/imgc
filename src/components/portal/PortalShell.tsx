@@ -8,7 +8,6 @@ import {
   getLenderOrgById,
 } from "@/services/portal/users.server";
 import { unreadCount } from "@/services/portal/notifications.server";
-import { getAdminContextOrNull } from "@/lib/auth/adminContext";
 
 /**
  * The signed-in frame for every portal page.
@@ -32,24 +31,23 @@ export async function PortalShell({
   children: ReactNode;
 }>) {
   const session = await requireSession();
-  const ctx = await getAdminContextOrNull();
-  const [org, unread, assignedOfficer, adminOrg] = await Promise.all([
+  const [org, unread, assignedOfficer] = await Promise.all([
     session.role === "LENDER" ? getLenderOrgById(session.lenderOrgId) : null,
     unreadCount(session),
     getAssignedOfficer(session),
-    ctx ? getLenderOrgById(ctx.lenderOrgId) : null,
   ]);
+
+  const badges = unread > 0 ? { notifications: unread } : undefined;
 
   return (
     <DashboardShell
-      items={navFor(session.role, session.isAdmin, !!ctx)}
-      badges={unread > 0 ? { notifications: unread } : undefined}
+      items={navFor(session.role)}
+      badges={badges}
       activeKey={activeKey}
       navbarTitle={title}
       navbarTitleAside={titleAside}
       claimAgeing={claimAgeing}
       workspace={session.role === "IMGC" ? "IMGC" : (org?.name ?? "Lender")}
-      adminContextName={adminOrg?.name}
       user={toSessionUser(session)}
       unreadCount={unread}
       assignedOfficer={assignedOfficer}

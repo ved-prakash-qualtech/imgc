@@ -131,12 +131,15 @@ function ToastCard({ item }: Readonly<{ item: ToastItem }>) {
         />
         <div className="min-w-0 flex-1">
           <p
-            className={cn("text-[13px] font-semibold", TOAST_COLOR[item.type])}
+            className={cn(
+              "text-ui-subhead font-semibold",
+              TOAST_COLOR[item.type]
+            )}
           >
             {item.title}
           </p>
           {item.description && (
-            <p className="mt-0.5 text-[12.5px] font-normal text-neutral-700">
+            <p className="mt-0.5 text-ui-body-lg font-normal text-neutral-700">
               {item.description}
             </p>
           )}
@@ -144,13 +147,13 @@ function ToastCard({ item }: Readonly<{ item: ToastItem }>) {
             <button
               type="button"
               onClick={handleToggleFields}
-              className="mt-1 text-[12.5px] font-medium text-warning-700 underline underline-offset-2"
+              className="mt-1 text-ui-body-lg font-medium text-warning-700 underline underline-offset-2"
             >
               {item.action.label}
             </button>
           )}
           {expanded && item.fields && item.fields.length > 0 && (
-            <ul className="mt-1.5 list-disc pl-4 text-[12.5px] text-neutral-700">
+            <ul className="mt-1.5 list-disc pl-4 text-ui-body-lg text-neutral-700">
               {item.fields.map((field) => (
                 <li key={field}>{field}</li>
               ))}

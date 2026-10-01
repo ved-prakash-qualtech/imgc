@@ -1,5 +1,11 @@
 import "server-only";
 
+import {
+  fail,
+  type ServerErrorCode,
+  type ServerErrorParams,
+} from "@/config/errorCodes";
+
 import { readDb, writeDb } from "@/server/mock/db";
 import {
   storeIncomingUpload,
@@ -37,7 +43,9 @@ export interface DocumentRow extends ClaimDocument {
   history: DocumentFile[];
 }
 
-type Outcome = { ok: true } | { ok: false; error: string };
+type Outcome =
+  | { ok: true }
+  | { ok: false; code: ServerErrorCode; codeParams?: ServerErrorParams };
 
 import { getAdminContextOrNull } from "@/lib/auth/adminContext";
 
@@ -45,20 +53,23 @@ import { getAdminContextOrNull } from "@/lib/auth/adminContext";
 async function assertAccess(
   session: AppSession,
   accountId: string
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true }
+  | { ok: false; code: ServerErrorCode; codeParams?: ServerErrorParams }
+> {
   const db = await readDb();
   const account = db.accounts.find((a) => a.id === accountId);
-  if (!account) return { ok: false, error: "Account not found." };
+  if (!account) return fail("ACCOUNT_NOT_FOUND");
   if (
     session.role === "LENDER" &&
     account.lenderOrgId !== session.lenderOrgId
   ) {
-    return { ok: false, error: "This account belongs to another lender." };
+    return fail("ACCOUNT_OTHER_LENDER");
   }
   if (session.role === "IMGC" && session.isAdmin) {
     const ctx = await getAdminContextOrNull();
     if (ctx?.lenderOrgId && account.lenderOrgId !== ctx.lenderOrgId) {
-      return { ok: false, error: "This account belongs to another lender." };
+      return fail("ACCOUNT_OTHER_LENDER");
     }
   }
   return { ok: true };
@@ -155,11 +166,11 @@ export async function addRequirement(
   accountId: string,
   input: RequirementInput
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
   const trimmed = input.name.trim();
-  if (!trimmed) return { ok: false, error: "Give the document a name." };
+  if (!trimmed) return fail("DOCUMENT_NAME_REQUIRED");
   if (input.dueDate && Number.isNaN(Date.parse(input.dueDate))) {
-    return { ok: false, error: "That due date is not a valid date." };
+    return fail("DUE_DATE_INVALID");
   }
 
   const created = await writeDb((db) => {
@@ -191,8 +202,7 @@ export async function addRequirement(
     return true;
   });
 
-  if (!created)
-    return { ok: false, error: "That document is already on the list." };
+  if (!created) return fail("DOCUMENT_ALREADY_LISTED");
 
   await recordEvent({
     accountId,
@@ -235,18 +245,15 @@ export async function setRequirementActive(
   documentId: string,
   active: boolean
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
 
   const outcome = await writeDb((db) => {
     const doc = db.claimDocuments.find(
       (d) => d.id === documentId && d.accountId === accountId
     );
-    if (!doc) return { ok: false as const, error: "Requirement not found." };
+    if (!doc) return fail("REQUIREMENT_NOT_FOUND");
     if (doc.addedBy !== "IMGC") {
-      return {
-        ok: false as const,
-        error: "Only an added requirement can be withdrawn.",
-      };
+      return fail("ONLY_ADDED_REQUIREMENT_WITHDRAWABLE");
     }
     doc.active = active;
     return { ok: true as const, name: doc.name };
@@ -285,15 +292,10 @@ export async function uploadDocument(
   let onBehalfOfLenderOrgId: string | undefined = undefined;
 
   if (session.role === "IMGC") {
-    if (!session.isAdmin)
-      return { ok: false, error: "Only a lender can upload documents." };
     const ctx = await getAdminContextOrNull();
     const docAccount = db.accounts.find((a) => a.id === accountId);
     if (!ctx?.lenderOrgId || ctx.lenderOrgId !== docAccount?.lenderOrgId) {
-      return {
-        ok: false,
-        error: "Admin context required to upload on behalf of a lender.",
-      };
+      return fail("LENDER_CONTEXT_REQUIRED");
     }
     onBehalfOfLenderOrgId = ctx.lenderOrgId;
   }
@@ -301,12 +303,12 @@ export async function uploadDocument(
   const doc = db.claimDocuments.find(
     (d) => d.id === documentId && d.accountId === accountId
   );
-  if (!doc) return { ok: false, error: "Document not found." };
+  if (!doc) return fail("DOCUMENT_NOT_FOUND");
   if (doc.status === "APPROVED") {
-    return { ok: false, error: "That document has already been approved." };
+    return fail("DOCUMENT_ALREADY_APPROVED");
   }
   if (doc.active === false) {
-    return { ok: false, error: "That requirement has been withdrawn." };
+    return fail("REQUIREMENT_WITHDRAWN");
   }
 
   const fileId = newId("file");
@@ -447,22 +449,19 @@ export async function deleteDocumentFile(
 
   if (session.role === "IMGC") {
     if (!session.isAdmin) {
-      return { ok: false, error: "Only the lender may delete uploaded files." };
+      return fail("FILE_DELETE_LENDER_ONLY");
     }
     const ctx = await getAdminContextOrNull();
     const docAccount = db.accounts.find((a) => a.id === accountId);
     if (!ctx?.lenderOrgId || ctx.lenderOrgId !== docAccount?.lenderOrgId) {
-      return {
-        ok: false,
-        error: "Admin context required to act on behalf of a lender.",
-      };
+      return fail("ADMIN_CONTEXT_REQUIRED");
     }
   } else if (session.role !== "LENDER") {
-    return { ok: false, error: "Only the lender may delete uploaded files." };
+    return fail("FILE_DELETE_LENDER_ONLY");
   }
 
   const doc = db.claimDocuments.find((d) => d.id === documentId);
-  if (!doc) return { ok: false, error: "Document not found." };
+  if (!doc) return fail("DOCUMENT_NOT_FOUND");
 
   // Draft-only, and checked here rather than trusted from the screen that hides the button: once
   // the claim is submitted the file is part of what IMGC is reviewing, and removing it would take
@@ -471,20 +470,15 @@ export async function deleteDocumentFile(
   if (doc.claimId) {
     const claim = db.claims.find((c) => c.id === doc.claimId);
     if (claim && claim.status !== "DRAFT") {
-      return {
-        ok: false,
-        error:
-          "This claim has been submitted — upload a new version instead of deleting the file.",
-      };
+      return fail("FILE_DELETE_AFTER_SUBMIT");
     }
   }
 
   const fileRow = db.documentFiles.find(
     (f) => f.id === fileId && f.documentId === documentId
   );
-  if (!fileRow) return { ok: false, error: "File not found." };
-  if (fileRow.supersededAt)
-    return { ok: false, error: "File already removed." };
+  if (!fileRow) return fail("FILE_NOT_FOUND");
+  if (fileRow.supersededAt) return fail("FILE_ALREADY_REMOVED");
 
   const fileName = fileRow.originalName;
   const docName = doc.name;
@@ -549,31 +543,25 @@ export async function decideDocument(
   decision: ReviewDecision,
   remarks: string
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
   const note = remarks.trim();
   if (decision === "REJECTED" && !note) {
-    return { ok: false, error: "A rejection needs a reason." };
+    return fail("REJECTION_REASON_REQUIRED");
   }
   if (decision === "REUPLOAD_REQUESTED" && !note) {
-    return { ok: false, error: "Say what the lender needs to correct." };
+    return fail("CORRECTION_NOTE_REQUIRED");
   }
 
   const outcome = await writeDb((db) => {
     const row = db.claimDocuments.find(
       (d) => d.id === documentId && d.accountId === accountId
     );
-    if (!row) return { ok: false as const, error: "Document not found." };
+    if (!row) return fail("DOCUMENT_NOT_FOUND");
     if (row.active === false) {
-      return {
-        ok: false as const,
-        error: "That requirement has been withdrawn.",
-      };
+      return fail("REQUIREMENT_WITHDRAWN");
     }
     if (!row.currentFileId) {
-      return {
-        ok: false as const,
-        error: "Nothing has been uploaded to review yet.",
-      };
+      return fail("NOTHING_TO_REVIEW");
     }
 
     // A whole-requirement decision is the same decision on each of its live files, so the
@@ -621,7 +609,7 @@ export async function decideDocument(
   } as const;
   const VERBS = {
     APPROVED: "Approved",
-    REJECTED: "Ineligible",
+    REJECTED: "Rejected",
     REUPLOAD_REQUESTED: "Re-upload requested",
   } as const;
 
@@ -757,31 +745,25 @@ export async function decideFile(
   decision: "APPROVED" | "REJECTED",
   remarks: string
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
   const note = remarks.trim();
   if (!note && decision === "REJECTED") {
-    return {
-      ok: false,
-      error: "Add a reason before rejecting the file.",
-    };
+    return fail("FILE_REJECTION_REASON_REQUIRED");
   }
 
   const outcome = await writeDb((db) => {
     const row = db.claimDocuments.find(
       (d) => d.id === documentId && d.accountId === accountId
     );
-    if (!row) return { ok: false as const, error: "Document not found." };
+    if (!row) return fail("DOCUMENT_NOT_FOUND");
     if (row.active === false) {
-      return {
-        ok: false as const,
-        error: "That requirement has been withdrawn.",
-      };
+      return fail("REQUIREMENT_WITHDRAWN");
     }
     const file = db.documentFiles.find(
       (f) => f.id === fileId && f.documentId === documentId
     );
     if (!file || file.supersededAt) {
-      return { ok: false as const, error: "That file is no longer current." };
+      return fail("FILE_STALE");
     }
 
     const review = {
@@ -808,7 +790,7 @@ export async function decideFile(
     accountId,
     actor: session,
     type: decision === "APPROVED" ? "DOC_APPROVED" : "DOC_REJECTED",
-    summary: `${decision === "APPROVED" ? "Accepted" : "Ineligible"} file "${outcome.fileName}" on "${outcome.name}" — ${note}`,
+    summary: `${decision === "APPROVED" ? "Accepted" : "Rejected"} file "${outcome.fileName}" on "${outcome.name}" — ${note}`,
     meta: {
       document: outcome.name,
       file: outcome.fileName,
@@ -846,24 +828,21 @@ export async function undoFileDecision(
   documentId: string,
   fileId: string
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
 
   const outcome = await writeDb((db) => {
     const row = db.claimDocuments.find(
       (d) => d.id === documentId && d.accountId === accountId
     );
-    if (!row) return { ok: false as const, error: "Document not found." };
+    if (!row) return fail("DOCUMENT_NOT_FOUND");
     const file = db.documentFiles.find(
       (f) => f.id === fileId && f.documentId === documentId
     );
     if (!file || file.supersededAt) {
-      return { ok: false as const, error: "That file is no longer current." };
+      return fail("FILE_STALE");
     }
     if (!file.review) {
-      return {
-        ok: false as const,
-        error: "That file has no decision to undo.",
-      };
+      return fail("FILE_NO_DECISION_TO_UNDO");
     }
     const undone = file.review.decision;
     file.review = undefined;
@@ -896,21 +875,18 @@ export async function undoAcceptedDocument(
   accountId: string,
   documentId: string
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
 
   const outcome = await writeDb((db) => {
     const row = db.claimDocuments.find(
       (d) => d.id === documentId && d.accountId === accountId
     );
-    if (!row) return { ok: false as const, error: "Document not found." };
+    if (!row) return fail("DOCUMENT_NOT_FOUND");
     if (row.active === false) {
-      return {
-        ok: false as const,
-        error: "That requirement has been withdrawn.",
-      };
+      return fail("REQUIREMENT_WITHDRAWN");
     }
     if (row.status !== "APPROVED") {
-      return { ok: false as const, error: "Document is not accepted." };
+      return fail("DOCUMENT_NOT_ACCEPTED");
     }
 
     row.status = "UNDER_REVIEW";
@@ -940,15 +916,15 @@ export async function reactivateDocument(
   accountId: string,
   documentId: string
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
 
   const outcome = await writeDb((db) => {
     const row = db.claimDocuments.find(
       (d) => d.id === documentId && d.accountId === accountId
     );
-    if (!row) return { ok: false as const, error: "Document not found." };
+    if (!row) return fail("DOCUMENT_NOT_FOUND");
     if (row.status !== "REJECTED") {
-      return { ok: false as const, error: "That document isn't rejected." };
+      return fail("DOCUMENT_NOT_REJECTED");
     }
     row.status = row.currentFileId ? "UNDER_REVIEW" : "PENDING_UPLOAD";
     row.rejection = undefined;
@@ -977,15 +953,15 @@ export async function raiseQueryForRejectedDocument(
   accountId: string,
   documentId: string
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
 
   const db = await readDb();
   const row = db.claimDocuments.find(
     (d) => d.id === documentId && d.accountId === accountId
   );
-  if (!row) return { ok: false, error: "Document not found." };
+  if (!row) return fail("DOCUMENT_NOT_FOUND");
   if (row.status !== "REJECTED" || !row.rejection) {
-    return { ok: false, error: "That document isn't rejected." };
+    return fail("DOCUMENT_NOT_REJECTED");
   }
 
   await syncQueryForDocumentDecision(
@@ -1037,10 +1013,7 @@ export async function submitClaim(
 
   const docs = await listDocuments(session, accountId);
   if (!canSubmit(docs)) {
-    return {
-      ok: false,
-      error: "Every mandatory document must be uploaded first.",
-    };
+    return fail("MANDATORY_DOCUMENTS_MISSING");
   }
 
   let bucketChangedFrom: Bucket | null = null;
@@ -1099,7 +1072,7 @@ export async function requestReinstate(
   note: string
 ): Promise<Outcome> {
   if (session.role !== "LENDER") {
-    return { ok: false, error: "Only a lender can request reinstatement." };
+    return fail("REINSTATE_LENDER_ONLY");
   }
 
   const access = await assertAccess(session, accountId);
@@ -1107,13 +1080,9 @@ export async function requestReinstate(
 
   const outcome = await writeDb((db) => {
     const row = db.claimDocuments.find((d) => d.id === documentId);
-    if (!row?.rejection)
-      return { ok: false as const, error: "That document is not rejected." };
+    if (!row?.rejection) return fail("DOCUMENT_NOT_REJECTED");
     if (row.rejection.reinstate?.status === "REQUESTED") {
-      return {
-        ok: false as const,
-        error: "A reinstatement is already pending.",
-      };
+      return fail("REINSTATEMENT_ALREADY_PENDING");
     }
     row.rejection.reinstate = {
       status: "REQUESTED",
@@ -1148,13 +1117,13 @@ export async function decideReinstate(
   approve: boolean,
   note: string
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
 
   const outcome = await writeDb((db) => {
     const row = db.claimDocuments.find((d) => d.id === documentId);
     const reinstate = row?.rejection?.reinstate;
     if (!row || !reinstate) {
-      return { ok: false as const, error: "No reinstatement was requested." };
+      return fail("NO_REINSTATEMENT_REQUESTED");
     }
     reinstate.status = approve ? "APPROVED" : "DENIED";
     reinstate.decidedBy = session.name;
@@ -1249,23 +1218,20 @@ export async function updateRequirement(
   documentId: string,
   input: RequirementInput
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
   const trimmed = input.name.trim();
-  if (!trimmed) return { ok: false, error: "Give the document a name." };
+  if (!trimmed) return fail("DOCUMENT_NAME_REQUIRED");
   if (input.dueDate && Number.isNaN(Date.parse(input.dueDate))) {
-    return { ok: false, error: "That due date is not a valid date." };
+    return fail("DUE_DATE_INVALID");
   }
 
   const outcome = await writeDb((db) => {
     const row = db.claimDocuments.find(
       (d) => d.id === documentId && d.accountId === accountId
     );
-    if (!row) return { ok: false as const, error: "Requirement not found." };
+    if (!row) return fail("REQUIREMENT_NOT_FOUND");
     if (row.addedBy !== "IMGC") {
-      return {
-        ok: false as const,
-        error: "The standard checklist cannot be edited.",
-      };
+      return fail("STANDARD_CHECKLIST_LOCKED");
     }
     const clash = db.claimDocuments.some(
       (d) =>
@@ -1273,11 +1239,7 @@ export async function updateRequirement(
         d.id !== documentId &&
         d.name.toLowerCase() === trimmed.toLowerCase()
     );
-    if (clash)
-      return {
-        ok: false as const,
-        error: "Another requirement already has that name.",
-      };
+    if (clash) return fail("REQUIREMENT_NAME_DUPLICATE");
 
     row.name = trimmed;
     row.required = input.required;
@@ -1339,20 +1301,16 @@ export async function archiveRejectedDocument(
   documentId: string,
   fileId?: string
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
   const outcome = await writeDb((db) => {
     if (fileId) {
       const file = db.documentFiles.find(
         (f) => f.id === fileId && f.accountId === accountId
       );
       if (!file || file.review?.decision !== "REJECTED") {
-        return {
-          ok: false as const,
-          error: "Only a rejected file can be archived.",
-        };
+        return fail("FILE_ARCHIVE_NEEDS_REJECTED");
       }
-      if (file.review.archived)
-        return { ok: false as const, error: "Already archived." };
+      if (file.review.archived) return fail("ALREADY_ARCHIVED");
       file.review.archived = { at: nowIso(), by: session.name };
       return { ok: true as const, name: file.originalName };
     }
@@ -1361,13 +1319,9 @@ export async function archiveRejectedDocument(
       (d) => d.id === documentId && d.accountId === accountId
     );
     if (!doc || doc.status !== "REJECTED" || !doc.rejection) {
-      return {
-        ok: false as const,
-        error: "Only a rejected document can be archived.",
-      };
+      return fail("DOCUMENT_ARCHIVE_NEEDS_REJECTED");
     }
-    if (doc.rejection.archived)
-      return { ok: false as const, error: "Already archived." };
+    if (doc.rejection.archived) return fail("ALREADY_ARCHIVED");
     doc.rejection.archived = { at: nowIso(), by: session.name };
     return { ok: true as const, name: doc.name };
   });
@@ -1376,7 +1330,7 @@ export async function archiveRejectedDocument(
     accountId,
     actor: session,
     type: "DOC_ARCHIVED",
-    summary: `Ineligible document "${outcome.name}" archived — kept on record`,
+    summary: `Rejected document "${outcome.name}" archived — kept on record`,
     meta: fileId ? { documentId, fileId } : { documentId },
   });
   return { ok: true };
@@ -1399,27 +1353,22 @@ export async function requestDocumentWaiver(
 ): Promise<Outcome> {
   const access = await assertAccess(session, accountId);
   if (!access.ok) return access;
-  if (session.role !== "LENDER") return { ok: false, error: "Lender only." };
+  if (session.role !== "LENDER") return fail("LENDER_ONLY");
   const note = reason.trim();
-  if (!note)
-    return { ok: false, error: "Say why the document cannot be provided." };
+  if (!note) return fail("WAIVER_REASON_REQUIRED");
 
   const outcome = await writeDb((db) => {
     const row = db.claimDocuments.find(
       (d) => d.id === documentId && d.accountId === accountId
     );
-    if (!row) return { ok: false as const, error: "Document not found." };
+    if (!row) return fail("DOCUMENT_NOT_FOUND");
     const hasFiles = db.documentFiles.some(
       (f) => f.documentId === row.id && !f.supersededAt
     );
     if (hasFiles) {
-      return {
-        ok: false as const,
-        error: "This document already has a file uploaded.",
-      };
+      return fail("DOCUMENT_ALREADY_UPLOADED");
     }
-    if (row.status === "WAIVED")
-      return { ok: false as const, error: "Already waived." };
+    if (row.status === "WAIVED") return fail("ALREADY_WAIVED");
     row.status = "WAIVER_REQUESTED";
     row.waiver = {
       reason: note,
@@ -1454,10 +1403,10 @@ export async function decideDocumentWaiver(
   approve: boolean,
   remarks: string
 ): Promise<Outcome> {
-  if (session.role !== "IMGC") return { ok: false, error: "IMGC only." };
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
   const note = remarks.trim();
   if (!approve && !note) {
-    return { ok: false, error: "Say why the waiver is declined." };
+    return fail("WAIVER_DECLINE_REASON_REQUIRED");
   }
 
   const outcome = await writeDb((db) => {
@@ -1465,7 +1414,7 @@ export async function decideDocumentWaiver(
       (d) => d.id === documentId && d.accountId === accountId
     );
     if (!row || row.status !== "WAIVER_REQUESTED" || !row.waiver) {
-      return { ok: false as const, error: "No waiver is awaiting a decision." };
+      return fail("NO_WAIVER_PENDING");
     }
     row.waiver = {
       ...row.waiver,

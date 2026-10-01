@@ -1,5 +1,6 @@
 "use server";
 
+import type { ServerErrorCode, ServerErrorParams } from "@/config/errorCodes";
 import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 
@@ -38,7 +39,7 @@ function safeReturnTo(returnTo: string | undefined): string {
 export type StartLoginResult =
   | { mode: "PASSWORD"; employeeId: string; name: string }
   | { mode: "OTP"; email: string; devCode?: string }
-  | { mode: "ERROR"; error: string };
+  | { mode: "ERROR"; code: ServerErrorCode; codeParams?: ServerErrorParams };
 
 /** Decide which of the two flows the identifier belongs to, and begin it. */
 export async function startLoginAction(
@@ -46,7 +47,7 @@ export async function startLoginAction(
 ): Promise<StartLoginResult> {
   const identifier = identifierRaw.trim();
   if (!identifier) {
-    return { mode: "ERROR", error: "Enter your Employee ID or email address." };
+    return { mode: "ERROR", code: "IDENTIFIER_REQUIRED" };
   }
 
   if (identifier.includes("@")) {
@@ -54,8 +55,7 @@ export async function startLoginAction(
     if (!user || user.role !== "LENDER") {
       return {
         mode: "ERROR",
-        error:
-          "No lender access for that address. Ask your IMGC contact to grant access first.",
+        code: "NO_LENDER_ACCESS",
       };
     }
     const { devCode } = await issueOtp(user.email);
@@ -68,7 +68,7 @@ export async function startLoginAction(
 
   const staff = await findByEmployeeId(identifier);
   if (!staff || staff.role !== "IMGC") {
-    return { mode: "ERROR", error: "That Employee ID is not recognised." };
+    return { mode: "ERROR", code: "EMPLOYEE_ID_UNKNOWN" };
   }
   return {
     mode: "PASSWORD",
@@ -81,9 +81,9 @@ export async function passwordLoginAction(
   employeeId: string,
   password: string,
   returnTo?: string
-): Promise<{ error: string } | never> {
+): Promise<{ code: ServerErrorCode; codeParams?: ServerErrorParams } | never> {
   const user = await authenticateImgc(employeeId, password);
-  if (!user) return { error: "That password is not right." };
+  if (!user) return { code: "PASSWORD_WRONG" };
 
   await createSession({
     userId: user.id,
@@ -100,21 +100,21 @@ export async function verifyOtpAction(
   email: string,
   code: string,
   returnTo?: string
-): Promise<{ error: string } | never> {
+): Promise<{ code: ServerErrorCode; codeParams?: ServerErrorParams } | never> {
   const result = await verifyOtp(email, code);
   if (!result.ok) {
-    const message: Record<string, string> = {
-      NO_CODE: "Ask for a new code.",
-      EXPIRED: "That code has expired — ask for a new one.",
-      LOCKED: "Too many attempts. Ask for a new code.",
-      MISMATCH: "That code is not right.",
+    const byReason: Record<string, ServerErrorCode> = {
+      NO_CODE: "OTP_NO_CODE",
+      EXPIRED: "OTP_EXPIRED",
+      LOCKED: "OTP_LOCKED",
+      MISMATCH: "OTP_MISMATCH",
     };
-    return { error: message[result.reason] ?? "That code is not right." };
+    return { code: byReason[result.reason] ?? "OTP_MISMATCH" };
   }
 
   const user = await findByEmail(email);
   if (!user || user.role !== "LENDER") {
-    return { error: "That account no longer has access." };
+    return { code: "ACCOUNT_ACCESS_REVOKED" };
   }
   const org = await getLenderOrgById(user.lenderOrgId);
 
@@ -130,36 +130,24 @@ export async function verifyOtpAction(
   return redirect({ href: safeReturnTo(returnTo), locale }) as never;
 }
 
-export async function resendOtpAction(
-  email: string
-): Promise<{ devCode?: string; error?: string }> {
+export async function resendOtpAction(email: string): Promise<{
+  devCode?: string;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}> {
   const user = await findByEmail(email);
-  if (!user || user.role !== "LENDER") return { error: "Unknown address." };
+  if (!user || user.role !== "LENDER") return { code: "ADDRESS_UNKNOWN" };
   const { devCode } = await issueOtp(user.email);
   return { devCode: isDev ? devCode : undefined };
 }
 
 /** Seeded demo sign-in — the screenshot's "Enter Demo Mode". */
 export async function demoLoginAction(
-  role: Role | "IMGC_ADMIN"
-): Promise<{ error: string } | never> {
-  if (role === "IMGC_ADMIN") {
-    const admin = await findByEmployeeId("EMP-ADMIN");
-    if (!admin) return { error: "Demo data is not seeded." };
-    await createSession({
-      userId: admin.id,
-      role: "IMGC",
-      isAdmin: admin.isAdmin,
-      name: admin.name,
-      email: admin.email,
-    });
-    const locale = await getLocale();
-    return redirect({ href: ROUTES.claimDashboard, locale }) as never;
-  }
-
+  role: Role
+): Promise<{ code: ServerErrorCode; codeParams?: ServerErrorParams } | never> {
   if (role === "IMGC") {
     const staff = await findByEmployeeId("EMP-0001");
-    if (!staff) return { error: "Demo data is not seeded." };
+    if (!staff) return { code: "DEMO_DATA_MISSING" };
     await createSession({
       userId: staff.id,
       role: "IMGC",
@@ -171,7 +159,7 @@ export async function demoLoginAction(
   }
 
   const lender = await findByEmail("arjun@hdfcbank.com");
-  if (!lender) return { error: "Demo data is not seeded." };
+  if (!lender) return { code: "DEMO_DATA_MISSING" };
   const org = await getLenderOrgById(lender.lenderOrgId);
   await createSession({
     userId: lender.id,

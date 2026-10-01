@@ -5,6 +5,7 @@
    a bounded page of rows, never the full dataset. */
 
 import { useCallback, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import {
   ArrowDownIcon,
@@ -78,7 +79,7 @@ const SortableTableHead = ({
 }) => (
   <TableHead
     onClick={() => onToggle(column)}
-    className={`h-8 cursor-pointer select-none px-1.5 text-[10.5px] transition-colors hover:bg-neutral-50 ${className || ""}`}
+    className={`h-8 cursor-pointer select-none px-1.5 text-ui-caption transition-colors hover:bg-neutral-50 ${className || ""}`}
   >
     <div className="flex items-center">
       {label}
@@ -98,6 +99,7 @@ export function AuditTrailClient({
   events: AuditEvent[];
   accountMap: Record<string, AccountSummary>;
 }>) {
+  const t = useTranslations("auditTrail");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -188,7 +190,7 @@ export function AuditTrailClient({
   }, []);
 
   return (
-    <Panel title="Activity history">
+    <Panel title={t("pageTitle")}>
       {/* Search bar row — sits below the panel title, above the table */}
       <div className="border-b border-neutral-100 px-5 py-3">
         <div className="relative w-[260px]">
@@ -196,9 +198,9 @@ export function AuditTrailClient({
           <input
             value={query}
             onChange={handleQueryChange}
-            placeholder="Search activity..."
-            aria-label="Search activity"
-            className="h-9 w-full rounded-lg border border-neutral-200 pl-8 pr-3 text-[13px] outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            placeholder={t("searchPlaceholder")}
+            aria-label={t("searchLabel")}
+            className="h-9 w-full rounded-lg border border-neutral-200 pl-8 pr-3 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
           />
         </div>
       </div>
@@ -209,7 +211,7 @@ export function AuditTrailClient({
           <TableRow>
             <SortableTableHead
               column="timestamp"
-              label="Timestamp"
+              label={t("columns.timestamp")}
               sortKey={sortKey}
               sortDirection={sortDirection}
               onToggle={toggleSort}
@@ -217,7 +219,7 @@ export function AuditTrailClient({
             />
             <SortableTableHead
               column="account"
-              label="Account"
+              label={t("columns.account")}
               sortKey={sortKey}
               sortDirection={sortDirection}
               onToggle={toggleSort}
@@ -225,7 +227,7 @@ export function AuditTrailClient({
             />
             <SortableTableHead
               column="activity"
-              label="Activity"
+              label={t("columns.activity")}
               sortKey={sortKey}
               sortDirection={sortDirection}
               onToggle={toggleSort}
@@ -238,7 +240,7 @@ export function AuditTrailClient({
               onToggle={toggleSort}
               className="w-[150px]"
             />
-            <TableHead className="w-[100px]">Action</TableHead>
+            <TableHead className="w-[100px]">{t("columns.action")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -246,7 +248,7 @@ export function AuditTrailClient({
             <TableRow>
               <TableCell
                 colSpan={5}
-                className="py-12 text-center text-[13px] text-neutral-500"
+                className="py-12 text-center text-ui-subhead text-neutral-500"
               >
                 No audit activity found for your accessible cases.
               </TableCell>
@@ -256,7 +258,7 @@ export function AuditTrailClient({
               const account = accountMap[e.accountId];
               return (
                 <TableRow key={e.id}>
-                  <TableCell className="w-[160px] whitespace-nowrap text-[12.5px] text-neutral-500">
+                  <TableCell className="w-[160px] whitespace-nowrap text-ui-body-lg text-neutral-500">
                     {new Date(e.at).toLocaleString("en-IN", {
                       day: "2-digit",
                       month: "short",
@@ -271,12 +273,12 @@ export function AuditTrailClient({
                         <span className="font-medium text-neutral-900">
                           {account.loanNo}
                         </span>
-                        <span className="text-[12px] text-neutral-500">
+                        <span className="text-ui-body text-neutral-500">
                           {account.borrowerName}
                         </span>
                       </div>
                     ) : (
-                      <span className="text-neutral-500">Unknown</span>
+                      <span className="text-neutral-500">{t("unknown")}</span>
                     )}
                   </TableCell>
                   <TableCell className="min-w-0">
@@ -286,7 +288,7 @@ export function AuditTrailClient({
                       </span>
                       {/* Truncate long summary; full text shown on hover via native title tooltip */}
                       <span
-                        className="max-w-xs truncate text-[12.5px] text-neutral-600 lg:max-w-sm xl:max-w-md"
+                        className="max-w-xs truncate text-ui-body-lg text-neutral-600 lg:max-w-sm xl:max-w-md"
                         title={e.summary}
                       >
                         {e.summary}
@@ -298,7 +300,7 @@ export function AuditTrailClient({
                       <span className="font-medium text-neutral-900">
                         {e.actorName}
                       </span>
-                      <span className="text-[12px] text-neutral-500">
+                      <span className="text-ui-body text-neutral-500">
                         {e.actorRole}
                       </span>
                     </div>
@@ -306,7 +308,7 @@ export function AuditTrailClient({
                   <TableCell className="w-[100px]">
                     <Link
                       href={ROUTES.initiateClaimWorkspace(e.accountId)}
-                      className="inline-flex h-8 items-center justify-center rounded-md border border-neutral-200 bg-white px-3 text-[12px] font-medium text-neutral-900 transition-colors hover:border-neutral-400 hover:bg-neutral-50"
+                      className="inline-flex h-8 items-center justify-center rounded-md border border-neutral-200 bg-white px-3 text-ui-body font-medium text-neutral-900 transition-colors hover:border-neutral-400 hover:bg-neutral-50"
                     >
                       View Case
                     </Link>
@@ -319,30 +321,30 @@ export function AuditTrailClient({
       </Table>
 
       <div className="flex items-center justify-between border-t border-neutral-100 bg-neutral-25 px-5 py-3">
-        <div className="flex items-center gap-3 text-[12px] text-neutral-500">
+        <div className="flex items-center gap-3 text-ui-body text-neutral-500">
           <div className="flex items-center gap-2">
-            <span>Rows per page</span>
+            <span>{t("rowsPerPage")}</span>
             <Select
               value={String(pageSize)}
               onValueChange={handlePageSizeChange}
             >
               <SelectTrigger
                 size="sm"
-                className="h-8 w-[70px] bg-white text-[12px]"
+                className="h-8 w-[70px] bg-white text-ui-body"
               >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="5" className="text-[12px]">
+                <SelectItem value="5" className="text-ui-body">
                   5
                 </SelectItem>
-                <SelectItem value="10" className="text-[12px]">
+                <SelectItem value="10" className="text-ui-body">
                   10
                 </SelectItem>
-                <SelectItem value="20" className="text-[12px]">
+                <SelectItem value="20" className="text-ui-body">
                   20
                 </SelectItem>
-                <SelectItem value="50" className="text-[12px]">
+                <SelectItem value="50" className="text-ui-body">
                   50
                 </SelectItem>
               </SelectContent>
@@ -355,7 +357,7 @@ export function AuditTrailClient({
         </div>
 
         <div className="flex items-center gap-4">
-          <span className="hidden text-[12px] text-neutral-500 sm:inline">
+          <span className="hidden text-ui-body text-neutral-500 sm:inline">
             Page {page} of {pageCount}
           </span>
           <PaginationNumbers
