@@ -1,0 +1,17 @@
+{
+  "name": "@imgc/types",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Plain type declarations shared by every layer: domain, env, roles, forms, identity-control.",
+  "type": "module",
+  "exports": {
+    "./identity-control": "./identity-control/index.ts",
+    "./*": "./*.ts"
+  },
+  "peerDependencies": {
+    "axios": "*",
+    "react": "*",
+    "react-hook-form": "*",
+    "zod": "*"
+  }
+}

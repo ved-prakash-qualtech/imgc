@@ -26,10 +26,10 @@ terminal once, to install the local root CA).
 
 ### Signing in
 
-| Role       | How                                                                              |
-| ---------- | -------------------------------------------------------------------------------- |
+| Role       | How                                                                                |
+| ---------- | ---------------------------------------------------------------------------------- |
 | **IMGC**   | Employee ID + password — seeded as `EMP-0001` / `imgc@123` (also `-0002`, `-0003`) |
-| **Lender** | Work email + a one-time code, e.g. `arjun@acme-bank.com`                          |
+| **Lender** | Work email + a one-time code, e.g. `arjun@acme-bank.com`                           |
 
 No mail is delivered, so the lender's code is printed to the server console and recorded on the
 **Notifications** page. The sign-in card also has **Demo as IMGC** / **Demo as Lender** buttons.
@@ -41,22 +41,22 @@ No mail is delivered, so the lender's code is printed to the server console and 
 **Scope is decided at sign-in from the identity itself, never from anything the browser sends.**
 IMGC staff see the complete pool. A lender sees exactly the accounts whose lender matches the
 **domain of their verified email address** — one rule, applied in
-`src/services/portal/accounts.server.ts`, and the reason a lender asking for another lender's
+`packages/data/services/portal/accounts.server.ts`, and the reason a lender asking for another lender's
 account gets a 404 rather than a 403.
 
-| Capability                     | IMGC | Lender |
-| ------------------------------ | :--: | :----: |
-| See the whole account pool     |  ✅  |   —    |
-| Upload claim documents         |  —   |   ✅   |
-| Save / Save & Submit a claim   |  —   |   ✅   |
-| Accept or reject a document    |  ✅  |   —    |
-| Add a document requirement     |  ✅  |   —    |
-| Move an account between buckets|  ✅  |   —    |
-| Record approved / queried      |  ✅  |   —    |
-| Approve a reinstatement        |  ✅  |   —    |
-| Grant lender access            |  ✅  |   —    |
-| Pull from / update PAS         |  ✅  |   ✅   |
-| Remarks and audit trail        |  ✅  |   ✅   |
+| Capability                      | IMGC | Lender |
+| ------------------------------- | :--: | :----: |
+| See the whole account pool      |  ✅  |   —    |
+| Upload claim documents          |  —   |   ✅   |
+| Save / Save & Submit a claim    |  —   |   ✅   |
+| Accept or reject a document     |  ✅  |   —    |
+| Add a document requirement      |  ✅  |   —    |
+| Move an account between buckets |  ✅  |   —    |
+| Record approved / queried       |  ✅  |   —    |
+| Approve a reinstatement         |  ✅  |   —    |
+| Grant lender access             |  ✅  |   —    |
+| Pull from / update PAS          |  ✅  |   ✅   |
+| Remarks and audit trail         |  ✅  |   ✅   |
 
 Route access is enforced by the shell, not by hiding links: `PortalShell` hands `DashboardShell`
 the nav the role was granted, and an `activeKey` the nav does not contain calls `forbidden()`.
@@ -90,36 +90,57 @@ the nav the role was granted, and an `activeKey` the nav does not contain calls 
 
 ## Layout
 
+One repository, four Next.js apps (**zones**) served together under one domain, on shared packages.
+See `docs/Micro-Frontend-Migration-Plan.md` and the "Monorepo layout" section of `AGENTS.md`.
+
 ```
-src/
-  app/[locale]/
-    login/                     sign-in (identifier-driven: Employee ID → password, email → OTP)
-    (portal)/
-      dashboard/  accounts/  buckets/  notifications/  admin/{users,retention}/
-  components/portal/           CommandBand, Panel, StatusPill, Donut, PortalShell
-  lib/auth/                    appSession (signed cookie), otp, password
-  server/mock/                 db · seed · pas · mailer · retention   ← the stand-ins
-  services/portal/             accounts · claims · pas · remarks · audit · notifications ·
-                               users · retention · dashboard
-  proxy.ts                     next-intl locale routing + the session guard
+apps/
+  shell/    sign-in (identifier-driven: Employee ID -> password, email -> OTP), `/`, `/api/*`,
+            and the rewrites that send every other path to the zone that serves it    :3000
+  claims/   accounts, initiate-claim (Claim by IMGC), claims, track-claim, claim-dashboard   :3001
+  loans/    dashboard, dpd, buckets                                                          :3002
+  admin/    admin/{users,retention,document-config}, additional-documents, audit-trail,
+            notifications                                                                    :3003
+packages/
+  types  i18n  constants  config  utils  store  lib  hooks  ui  data  actions  features
+  data/server/mock/     db . seed . pas . mailer . retention   <- the stand-ins
+  data/services/portal/ accounts . claims . pas . remarks . audit . notifications . users .
+                        retention . dashboard
+  lib/auth/             appSession (signed cookie), otp, password
+  lib/proxy.ts          next-intl locale routing + the session guard (mounted by every app)
+  features/portal/      CommandBand, Panel, StatusPill, Donut, PortalShell
+tooling/                createNextConfig.ts - the one Next config every app calls
 ```
 
-Pages are server components that load through `services/portal/*.server.ts` and mutate through a
-co-located `actions.ts`. Every mutation writes an audit event.
+Pages are server components that load through `data/services/portal/*.server.ts` and mutate through
+a co-located `actions.ts` or `packages/actions`. Every mutation writes an audit event.
+
+### Running it
+
+```bash
+pnpm install
+pnpm dev                          # all four zones; open the shell on :3000
+pnpm dev --zones=claims           # the shell plus only the zones you name (lighter on a laptop)
+pnpm build                        # builds every app
+pnpm --filter @imgc/app-claims build   # or just one
+```
+
+The environment (`.env*`) and the local `.data/` live once, at the repository root, and every zone
+reads them.
 
 ---
 
 ## Replacing the stand-ins
 
-`src/server/mock/*` is the only seam that touches storage:
+`packages/data/server/mock/*` is the only seam that touches storage:
 
-| Stand-in      | Replace with                                                     |
-| ------------- | ---------------------------------------------------------------- |
-| `db.ts`       | the QCP backend / a real database                                 |
-| `pas.ts`      | the PAS API (`getPasValues` / `updatePasValue` keep their shapes) |
-| `mailer.ts`   | SMTP or the notification service                                  |
-| `retention.ts`| a scheduled job instead of the lazy sweep on page load            |
-| `lib/auth/*`  | the identity portal (the template's Keycloak flow still ships)    |
+| Stand-in       | Replace with                                                      |
+| -------------- | ----------------------------------------------------------------- |
+| `db.ts`        | the QCP backend / a real database                                 |
+| `pas.ts`       | the PAS API (`getPasValues` / `updatePasValue` keep their shapes) |
+| `mailer.ts`    | SMTP or the notification service                                  |
+| `retention.ts` | a scheduled job instead of the lazy sweep on page load            |
+| `lib/auth/*`   | the identity portal (the template's Keycloak flow still ships)    |
 
 Nothing above that layer changes.
 

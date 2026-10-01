@@ -1,0 +1,17 @@
+{
+  "name": "@imgc/constants",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Routes, navigation, cookie names, upload limits, document vocabulary and the validated env schema.",
+  "type": "module",
+  "exports": {
+    "./env": "./env/index.ts",
+    "./*": "./*.ts"
+  },
+  "peerDependencies": {
+    "zod": "*"
+  },
+  "dependencies": {
+    "@imgc/types": "workspace:*"
+  }
+}

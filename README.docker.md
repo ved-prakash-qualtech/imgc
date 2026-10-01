@@ -44,7 +44,7 @@ The dev stack mounts the repository into `/app` and uses a named volume for `/ap
 
 ## Production build and run
 
-The production Dockerfile installs dependencies, optionally copies `.env.${APP_ENV}` to `.env.production`, runs `pnpm build`, then copies the **standalone** server bundle and `.next/static` into a small final stage. The process listens on port **3000** inside the container.
+The production Dockerfile installs dependencies, optionally copies `.env.${APP_ENV}` to `.env.production`, builds **one app** (`--build-arg APP=shell|claims|loans|admin`, default `shell`), then copies that app's **standalone** server bundle and `.next/static` into a small final stage. The process listens on `PORT` (3000 by default; the zones use 3001-3003 in `docker-compose.prod.yml`, which runs all four behind the shell).
 
 1. Ensure `.env.prod` exists if you rely on build-time or documented runtime variables.
 2. From the **repository root**:

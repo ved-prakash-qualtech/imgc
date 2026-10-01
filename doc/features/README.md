@@ -15,10 +15,10 @@ src/features/<name>/
 ## Adding a feature
 
 1. Create `src/features/<name>/` with subfolders above.
-2. Add routes to `src/constants/routes.ts`.
+2. Add routes to `packages/constants/routes.ts`.
 3. Create `src/app/<path>/page.tsx` rendering `*RouteView`.
-4. Add API endpoints to `src/constants/api.ts` if needed.
-5. Add types to `src/types/` and tests under `test/`.
+4. Add API endpoints to `packages/constants/api.ts` if needed.
+5. Add types to `packages/types/` and tests under `test/`.
 
 ## Multitenancy in features
 

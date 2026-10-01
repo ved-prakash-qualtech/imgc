@@ -1,7 +1,7 @@
 /** @type {import("lint-staged").Configuration} */
 const config = {
-  // Project-wide type check (tsc needs the whole graph, so ignore the file list).
-  "*.{ts,tsx}": () => "pnpm exec tsc --noEmit",
+  // Project-wide type check — the packages and every app (tsc needs the whole graph, so ignore the file list).
+  "*.{ts,tsx}": () => "pnpm type-check",
   "*.{js,jsx,ts,tsx,mjs,cjs}":
     "node scripts/lintStaged/runInBatches.mjs eslint",
   "*.css": "node scripts/lintStaged/runInBatches.mjs stylelint",

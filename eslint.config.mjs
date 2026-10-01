@@ -11,16 +11,30 @@ import eslintPluginReactPerf from "eslint-plugin-react-perf";
 import reactYouMightNotNeedAnEffect from "eslint-plugin-react-you-might-not-need-an-effect";
 import eslintPluginSecurity from "eslint-plugin-security";
 
-const srcTsx = ["src/**/*.{js,jsx,ts,tsx}"];
+/** An app's own code: routes and per-app wiring. */
+const appFiles = [
+  "apps/*/src/**/*.{js,jsx,ts,tsx}",
+  "src/**/*.{js,jsx,ts,tsx}",
+];
+/**
+ * Everything the portal is made of — the apps and the shared packages. The packages inherited the
+ * rules when their code moved out of `src/`, so none of them are weaker than they were.
+ */
+const srcTsx = [
+  ...appFiles,
+  "packages/**/*.{js,jsx,ts,tsx}",
+  "storybook/**/*.{js,jsx,ts,tsx}",
+];
 
 const eslintConfig = defineConfig([
   globalIgnores([
     "**/node_modules/**",
     ".pnpm/**",
-    ".next/**",
+    "**/.next/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "**/next-env.d.ts",
     "test/playwright-report/**",
     "test/test-results/**",
     "test/blob-report/**",
@@ -32,6 +46,11 @@ const eslintConfig = defineConfig([
     files: srcTsx,
     rules: {
       ...eslintPluginJsxA11y.flatConfigs.recommended.rules,
+    },
+  },
+  {
+    files: appFiles,
+    rules: {
       "no-restricted-imports": [
         "error",
         {
@@ -39,12 +58,12 @@ const eslintConfig = defineConfig([
             {
               group: ["../*", "../../*", "../../../*"],
               message:
-                "Use the @/ path alias (paths under src/) instead of parent-relative imports.",
+                "Use the @/ path alias (paths under the app's src/) or an @imgc/* package import instead of parent-relative imports.",
             },
             {
               group: ["./*", "./**"],
               message:
-                "Use the @/ path alias (paths under src/) instead of same-folder ./ imports.",
+                "Use the @/ path alias (paths under the app's src/) or an @imgc/* package import instead of same-folder ./ imports.",
             },
           ],
         },
@@ -78,7 +97,7 @@ const eslintConfig = defineConfig([
       "use-client/browser-api": [
         "warn",
         {
-          ignorePath: ["src/lib/storage/**"],
+          ignorePath: ["packages/lib/storage/**"],
         },
       ],
     },
@@ -86,9 +105,9 @@ const eslintConfig = defineConfig([
   {
     // next.config.ts loads env.ts without @/ alias resolution — relative imports required.
     files: [
-      "src/lib/utils/env/env.ts",
-      "src/lib/resolver/envSchema.ts",
-      "src/constants/envDefaults.ts",
+      "packages/constants/env/env.ts",
+      "packages/constants/env/envSchema.ts",
+      "packages/constants/envDefaults.ts",
     ],
     rules: {
       "no-restricted-imports": "off",
@@ -97,7 +116,7 @@ const eslintConfig = defineConfig([
   {
     // Vendored shadcn/ui components use radix-ui render-prop patterns and
     // imperative DOM APIs that legitimately require inline JSX props and effects.
-    files: ["src/components/ui/**/*.{ts,tsx}"],
+    files: ["packages/ui/ui/**/*.{ts,tsx}"],
     rules: {
       "react-perf/jsx-no-jsx-as-prop": "off",
       "react-perf/jsx-no-new-object-as-prop": "off",
@@ -113,8 +132,8 @@ const eslintConfig = defineConfig([
     // DataTableVirtualizedBody uses inline row style that includes runtime values
     // (virtualRow.size, virtualRow.start) and cannot be hoisted to a constant.
     files: [
-      "src/lib/storybook/**/*.{ts,tsx}",
-      "src/components/dataTable/DataTableVirtualizedBody.tsx",
+      "storybook/stories/support/**/*.{ts,tsx}",
+      "packages/ui/dataTable/DataTableVirtualizedBody.tsx",
     ],
     rules: {
       "react-you-might-not-need-an-effect/no-event-handler": "off",
@@ -131,10 +150,10 @@ const eslintConfig = defineConfig([
     // Fix these upstream in the portal and re-copy. Everything else stays on: this turns off the
     // rules the copies actually trip, not the plugins.
     files: [
-      "src/components/identity-control/**/*.{ts,tsx}",
-      "src/lib/identity-control/**/*.{ts,tsx}",
-      "src/types/identity-control/**/*.{ts,tsx}",
-      "src/services/identity-control/**/*.{ts,tsx}",
+      "packages/features/identity-control/**/*.{ts,tsx}",
+      "packages/lib/identity-control/**/*.{ts,tsx}",
+      "packages/types/identity-control/**/*.{ts,tsx}",
+      "packages/data/services/identity-control/**/*.{ts,tsx}",
     ],
     rules: {
       "react-hooks/set-state-in-effect": "off",
@@ -160,18 +179,18 @@ const eslintConfig = defineConfig([
   {
     // The UI is token-driven: a component names a token, never a colour. A raw hex here is a
     // colour that no tenant theme, dark mode or rebrand can ever reach — the whole point of the
-    // token layer. Add the value to src/styles/theme/colors.css and use the token instead.
-    files: ["src/**/*.{ts,tsx}"],
+    // token layer. Add the value to packages/ui/styles/theme/colors.css and use the token instead.
+    files: [...appFiles, "packages/**/*.{ts,tsx}"],
     ignores: [
-      "src/styles/**",
       // The one place a colour is a value rather than a style: the tenant's own brand, and the
       // fallback used when a tenant has none.
-      "src/lib/tenantTheme.ts",
-      "src/server/standInRegistry.ts",
-      "src/components/identity-control/**",
-      "src/lib/identity-control/**",
-      "src/stories/**",
-      "src/server/mock/**",
+      "packages/data/server/tenantTheme.ts",
+      "packages/data/server/standInRegistry.ts",
+      "packages/features/identity-control/**",
+      "packages/lib/identity-control/**",
+      "storybook/**",
+      "test/support/**",
+      "packages/data/server/mock/**",
     ],
     rules: {
       "no-restricted-syntax": [
@@ -179,12 +198,12 @@ const eslintConfig = defineConfig([
         {
           selector: "Literal[value=/#[0-9a-fA-F]{3,8}/]",
           message:
-            "Hard-coded colour. Use a design token (e.g. text-brand-primary, var(--chart-2)) — add the value to src/styles/theme/colors.css if it does not exist yet.",
+            "Hard-coded colour. Use a design token (e.g. text-brand-primary, var(--chart-2)) — add the value to packages/ui/styles/theme/colors.css if it does not exist yet.",
         },
         {
           selector: "TemplateElement[value.raw=/#[0-9a-fA-F]{3,8}/]",
           message:
-            "Hard-coded colour. Use a design token — add the value to src/styles/theme/colors.css if it does not exist yet.",
+            "Hard-coded colour. Use a design token — add the value to packages/ui/styles/theme/colors.css if it does not exist yet.",
         },
       ],
     },

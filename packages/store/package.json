@@ -1,0 +1,25 @@
+{
+  "name": "@imgc/store",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Client UI state stores (zustand).",
+  "type": "module",
+  "imgc": {
+    "generatedExports": true
+  },
+  "exports": {
+    ".": "./index.ts",
+    "./auth.store": "./auth.store.ts",
+    "./authTokens.store": "./authTokens.store.ts",
+    "./index": "./index.ts",
+    "./useUiStore": "./useUiStore.ts"
+  },
+  "peerDependencies": {
+    "cookies-next": "*",
+    "zustand": "*"
+  },
+  "dependencies": {
+    "@imgc/constants": "workspace:*",
+    "@imgc/types": "workspace:*"
+  }
+}

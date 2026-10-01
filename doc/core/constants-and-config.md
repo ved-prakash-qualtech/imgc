@@ -1,6 +1,6 @@
 # Constants and configuration
 
-Reference for `src/constants/`.
+Reference for `packages/constants/`.
 
 ## `routes.ts`
 

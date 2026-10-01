@@ -1,8 +1,8 @@
-# Dependencies (installed in image)
-node_modules
+# Dependencies (installed in image) - at any depth: every app and package has its own
+**/node_modules
 
 # Next.js
-.next
+**/.next
 out
 
 # Git and tooling

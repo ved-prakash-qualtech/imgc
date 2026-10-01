@@ -14,20 +14,60 @@ This is the **QCP multitenant Next.js application template** — `node-nextjs-te
 - Multitenant variant of `node-nextjs-template` (frontend counterpart of `java-springboot-multitenant-template`)
 - Stack: **Next.js 16 (App Router) · React 19 · TypeScript 5 strict · Tailwind CSS 4 · pnpm 11 (Node ≥24.17)**
 
+## Monorepo layout (read this before moving or adding a file)
+
+One repository, four Next.js apps served together as **zones**, built on shared packages. Full plan
+and status: [`docs/Micro-Frontend-Migration-Plan.md`](docs/Micro-Frontend-Migration-Plan.md).
+
+```
+apps/
+  shell/    sign-in, `/`, `/api/*`, and the rewrites that send every other path to its zone   :3000
+  claims/   accounts, initiate-claim (Claim by IMGC), claims, track-claim, claim-dashboard    :3001
+  loans/    dashboard, dpd, buckets                                                          :3002
+  admin/    admin/*, additional-documents, audit-trail, notifications                         :3003
+packages/   @imgc/types  i18n  constants  config  utils  store  lib  hooks  ui  data  actions  features
+tooling/    createNextConfig.ts — the one Next config every app calls
+```
+
+Rules that keep it working:
+
+- **Packages depend only downward** (types/i18n → constants/config → utils/store → lib → hooks → ui →
+  data → actions → features) and must declare every `@imgc/*` they import. A package never imports
+  an app's `@/` alias. `pnpm check:layers` enforces both; it runs in CI.
+- **A path belongs to exactly one zone** — `ZONE_PATHS` in `packages/i18n/zones.ts`. Adding a route
+  means adding it there _and_ to the shell proxy matcher in `apps/shell/src/proxy.ts`
+  (`test/unit/zones/zones.test.ts` fails if they drift).
+- **Cross-zone links are full page loads.** `ZoneNavigationGuard` (mounted in the shared root layout)
+  turns a click that would leave the zone into one; programmatic `router.push` across zones must use
+  `window.location.assign`.
+- **`packages/ui` has a generated `exports` map** — run `pnpm sync:exports` after adding or moving a
+  file there (`pnpm check:exports` runs in CI).
+- **Every app runs from its own folder but shares one `.env*` (repo root) and one `.data/`.**
+- **Redirects that may leave the zone use `redirectTo()`** (`@imgc/lib/zoneRedirect`), never `redirect()`
+  directly — a soft navigation into another zone never completes. Route handlers redirect with a
+  _relative_ `Location` (`request.nextUrl.origin` is the server's own address, not the browser's).
+- **Dev runs behind `scripts/devFrontDoor.mjs`** (a reverse proxy on :3000 that forwards WebSocket
+  upgrades; the shell itself listens on :3004). Next's dev server cannot proxy the hot-reload socket
+  through a rewrite, and a page without it renders but never becomes interactive (dead dropdowns).
+  Browse :3000 only; `DEV_BUNDLER=webpack` is not supported behind it.
+- After adding a workspace package: `pnpm install` **and restart `pnpm dev`**.
+- Do not run `pnpm dev` while another dev server for this checkout is up; if a zone answers 404 for
+  every route after a crash, delete that app's `.next/` and restart.
+
 ## Base hard rules (unchanged — see the base template / docs/standards)
 
 SSR pattern (page → Client → actions → `*.server.ts` → ssrApi) · secrets via `getServerEnv()` only · locked `APIResponse<T>` envelope · miFIN™ tokens only · RHF+Zod · Zustand for UI state · naming conventions · security headers · **next-intl** locales · optional **@sentry/nextjs**.
 
 ## Multitenancy hard rules (this template — see docs/standards/nextjs-multitenant-template.md + multi-tenancy.md)
 
-1. **Tenant identity comes ONLY from the Host subdomain** `{tenant}-{product}-{env}.domain`, resolved in `src/proxy.ts` (composed with next-intl) — never from a body, query param or client-supplied header (proxy strips inbound `x-tenant`). `admin-*` = superadmin/system scope.
+1. **Tenant identity comes ONLY from the Host subdomain** `{tenant}-{product}-{env}.domain`, resolved in `packages/lib/proxy.ts` (composed with next-intl; each app mounts it from its own `src/proxy.ts`) — never from a body, query param or client-supplied header (proxy strips inbound `x-tenant`). `admin-*` = superadmin/system scope.
 2. **Deny by default**: no resolvable tenant on a tenant-scoped route → `403 QT-TEN-403` (the locked envelope). System-scope routes (`/`, `/admin`, registry endpoints, `/monitoring`) are explicitly excluded. Locale prefixes (`/hi/...`) are stripped before the tenant path check.
-3. **Tenant context**: server code reads `currentTenant()` / `getTenantOrNull()` (`src/lib/tenant.ts`, from the proxy-set `x-tenant` header); client components use `useTenant()` from `<TenantProvider>` — never re-derive from `window.location`.
-4. **Registry resolution** (`src/services/api/tenantResolver.ts`, kyc-web-app pattern): super-admin API client token (`X-Client-Id`/`X-Client-Secret`) → `GET /api/v1/tenants/active` → match by `shortCode` → tenant backend URL built by swapping the `admin-` subdomain prefix. Module-level cache, 5-minute TTL. The backend registry is the authority — proxy Host regex is shape-only.
+3. **Tenant context**: server code reads `currentTenant()` / `getTenantOrNull()` (`packages/lib/tenant.ts`, from the proxy-set `x-tenant` header); client components use `useTenant()` from `<TenantProvider>` — never re-derive from `window.location`.
+4. **Registry resolution** (`packages/data/services/api/tenantResolver.ts`, kyc-web-app pattern): super-admin API client token (`X-Client-Id`/`X-Client-Secret`) → `GET /api/v1/tenants/active` → match by `shortCode` → tenant backend URL built by swapping the `admin-` subdomain prefix. Module-level cache, 5-minute TTL. The backend registry is the authority — proxy Host regex is shape-only.
 5. **`ssrApi` forwards the original Host (`X-Forwarded-Host`) and `x-tenant`** so the backend resolves the same tenant — the subdomain is the single source of truth end to end.
-6. **Per-tenant theming = BRAND-token overrides only** (`src/lib/tenantTheme.ts` applied in the `[locale]` layout as CSS custom properties): components keep using miFIN™ token names and NEVER branch on tenant. Neutrals, semantic colors, spacing, radius and component styles are not tenant-overridable.
+6. **Per-tenant theming = BRAND-token overrides only** (`packages/data/server/tenantTheme.ts` applied in the `[locale]` layout as CSS custom properties): components keep using miFIN™ token names and NEVER branch on tenant. Neutrals, semantic colors, spacing, radius and component styles are not tenant-overridable.
 7. **Caching is tenant-keyed**: tenant-scoped pages are `force-dynamic`; any cache entry (including `resolveTenantDataSSR`'s) is keyed by tenant; never put tenant data in module-level state that isn't tenant-keyed.
-8. **Stand-ins**: `src/server/standInRegistry.ts` + the `/api/v1/tenants/active`, `/api/v1/api-clients/auth/token` and tenant-scoped `/api/v1/examples` route handlers exist only so the template runs standalone. In a real product delete them, set `SUPER_ADMIN_URL`/`BACKEND_BASE_URL` (or Vault) and the same code talks to the real QCP backends.
+8. **Stand-ins**: `packages/data/server/standInRegistry.ts` + the `/api/v1/tenants/active`, `/api/v1/api-clients/auth/token` and tenant-scoped `/api/v1/examples` route handlers exist only so the template runs standalone. In a real product delete them, set `SUPER_ADMIN_URL`/`BACKEND_BASE_URL` (or Vault) and the same code talks to the real QCP backends.
 
 ## The signed-in shell
 
@@ -37,7 +77,7 @@ SSR pattern (page → Client → actions → `*.server.ts` → ssrApi) · secret
    through `getSessionScope()`. Never re-derive it, and never treat it as an authorization
    decision — the backend decides that against the same token, where the signature is checked.
 10. **The sidebar comes from the service.** `fetchSidebarMenus()` reads `GET /api/v1/menus`, which
-    answers from the database the request belongs to. `src/constants/nav.ts` is the fallback for
+    answers from the database the request belongs to. `packages/constants/nav.ts` is the fallback for
     when the service cannot be reached — _not_ for when it answers with nothing. A service that
     returns no menus is granting nothing, and that answer is respected.
 11. **Logout has to leave the app.** `/api/auth/logout` clears the cookies and then hands the
@@ -49,7 +89,7 @@ SSR pattern (page → Client → actions → `*.server.ts` → ssrApi) · secret
     scope resolves, which `next.config.ts` also needs for `allowedDevOrigins` (without it Next
     blocks its own dev bundle and the page renders but never responds to a click).
 13. **Toasts are ours.** `sonner` is not a dependency; `tsconfig` maps that specifier onto
-    `src/lib/sonner.tsx`. Remove the alias and every `import { toast } from "sonner"` stops
+    `packages/lib/sonner.tsx`. Remove the alias and every `import { toast } from "sonner"` stops
     resolving.
 
 ## Local testing

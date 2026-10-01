@@ -16,18 +16,18 @@ Watch mode for Vitest: `pnpm test`
 Config: `vitest.config.ts`
 
 - **Projects:** (1) jsdom unit (2) storybook browser (Chromium)
-- **Setup:** `src/lib/test/setup/vitest.setup.tsx`
+- **Setup:** `packages/lib/test/setup/vitest.setup.tsx`
 - **Includes:** `test/unit/**/*.{test,spec}.{ts,tsx}`
 - **Alias:** `@/` → `src/`
 - **Pool:** forks
 
 ### Test utilities
 
-`src/lib/test/utils/renderWithProviders.tsx` wraps components with next-intl + React Query.
+`packages/lib/test/utils/renderWithProviders.tsx` wraps components with next-intl + React Query.
 
 ## Unit tests
 
-Mirror `src/components/` and `src/lib/` under `test/unit/`:
+Mirror `src/components/` and `packages/lib/` under `test/unit/`:
 
 ```
 test/unit/

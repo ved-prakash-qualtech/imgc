@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { Table } from "@tanstack/react-table";
 import { describe, expect, it, vi } from "vitest";
 
-import { DataTablePagination } from "@/components/dataTable/DataTablePagination";
+import { DataTablePagination } from "@imgc/ui/dataTable/DataTablePagination";
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,

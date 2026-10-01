@@ -1,11 +1,11 @@
 # Lib modules
 
-Infrastructure in `src/lib/`.
+Infrastructure in `packages/lib/`.
 
 ## Directory map
 
 ```
-src/lib/
+packages/lib/
 ├── aes.ts                 # AES-256-CBC encrypt/decrypt primitives
 ├── error/                 # ErrorBoundary, apiError, handle
 ├── logging/               # Logging utilities (no Sentry)
@@ -37,7 +37,7 @@ src/lib/
 process.env → buildEnvRawFromProcessEnv() → envRawSchema → envSchema → export const env
 ```
 
-Schema: `src/lib/resolver/envSchema.ts`  
+Schema: `packages/lib/resolver/envSchema.ts`  
 Invalid values throw at startup.
 
 → Variable reference: [../deployment/environments.md](../deployment/environments.md)
@@ -52,7 +52,7 @@ const env = await getServerEnv();
 ```
 
 Reads from Vault (5-minute cache) or `process.env`, then validates the
-merged result with Zod (`src/lib/resolver/serverEnvSchema.ts`). Never
+merged result with Zod (`packages/lib/resolver/serverEnvSchema.ts`). Never
 exposed to the client.
 
 ## Tenant context (`tenant.ts`)
@@ -87,7 +87,7 @@ Key derivation: HMAC-SHA256(masterKey, `tenant:{shortCode}`).
 
 ## Logging
 
-Logging utilities in `src/lib/logging/`. No Sentry dependency — configure remote sinks as needed.
+Logging utilities in `packages/lib/logging/`. No Sentry dependency — configure remote sinks as needed.
 
 ## Import conventions
 

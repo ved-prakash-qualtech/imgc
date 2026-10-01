@@ -19,7 +19,7 @@ How the **miFIN™ Design System** tokens are wired into this template.
 
 Per-tenant theming = **BRAND-token overrides only**:
 
-- Implementation: `src/lib/tenantTheme.ts`
+- Implementation: `packages/lib/tenantTheme.ts`
 - Applied in root layout as CSS custom properties on `<html>`
 - Components use miFIN™ token names — **NEVER** branch on tenant identity
 

@@ -1,0 +1,27 @@
+{
+  "name": "@imgc/app-admin",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3003",
+    "build": "next build",
+    "start": "next start -p 3003",
+    "type-check": "node -e \"require('node:fs').rmSync('.next/dev/types',{recursive:true,force:true})\" && tsc --noEmit"
+  },
+  "dependencies": {
+    "@imgc/actions": "workspace:*",
+    "@imgc/config": "workspace:*",
+    "@imgc/constants": "workspace:*",
+    "@imgc/data": "workspace:*",
+    "@imgc/features": "workspace:*",
+    "@imgc/i18n": "workspace:*",
+    "@imgc/lib": "workspace:*",
+    "@imgc/types": "workspace:*",
+    "@imgc/ui": "workspace:*",
+    "lucide-react": "^1.17.0",
+    "next": "16.2.11",
+    "next-intl": "^4.13.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  }
+}

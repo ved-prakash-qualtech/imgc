@@ -1,0 +1,448 @@
+/* eslint-disable react-perf/jsx-no-new-function-as-prop */
+"use client";
+
+import { useServerErrorMessage } from "@imgc/lib/serverErrorMessage";
+import { useCallback, useRef, useState, useTransition } from "react";
+import { FileXIcon, PaperclipIcon, UploadIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
+
+import { uploadRequirementAction } from "@imgc/actions/additionalDocuments";
+import { Button } from "@imgc/ui/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@imgc/ui/ui/dialog";
+import { cn } from "@imgc/lib/utils/twMergeUtils";
+import type { RequirementRow } from "@imgc/data/services/portal/requirements.server";
+import {
+  ACCEPTED_UPLOAD_TYPES as ACCEPTED,
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_LABEL,
+} from "@imgc/constants/uploads";
+import { attachUpload } from "@imgc/lib/uploads/attachUpload";
+
+function bytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * The lender's upload, first time or re-upload.
+ *
+ * File type and size are checked here as well as on the server. The client check exists so the
+ * lender is told immediately rather than after a pointless upload; the server check is the one
+ * that actually decides, because nothing arriving from a browser can be trusted.
+ */
+export function UploadDialog({
+  row,
+  open,
+  onOpenChange,
+  mode,
+  replaceFileId,
+}: Readonly<{
+  row: RequirementRow | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** "add" = a new file on a multi-file category (no supersede). Otherwise derived from state. */
+  mode?: "upload" | "add" | "replace";
+  replaceFileId?: string;
+}>) {
+  const errorText = useServerErrorMessage();
+  const t = useTranslations("claimDocuments");
+  const [pending, startTransition] = useTransition();
+  const [files, setFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [error, setError] = useState("");
+  // "Not available": the same dialog, asking IMGC to waive the document instead of uploading it.
+  const [waiverMode, setWaiverMode] = useState(false);
+  const [waiverReason, setWaiverReason] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const reset = useCallback(() => {
+    setFiles([]);
+    setIsDragging(false);
+    setError("");
+    setWaiverMode(false);
+    setWaiverReason("");
+    if (inputRef.current) inputRef.current.value = "";
+  }, []);
+
+  const effectiveMode: "upload" | "add" | "replace" =
+    mode ?? ((row?.version ?? 0) > 0 ? "replace" : "upload");
+  const isReupload = effectiveMode === "replace";
+
+  const processFiles = useCallback(
+    (pickedFiles: File[]) => {
+      setError("");
+      if (pickedFiles.length === 0) {
+        setFiles([]);
+        return;
+      }
+      const maxFiles = row?.multiple && !isReupload ? pickedFiles.length : 1;
+      const filesToProcess = pickedFiles.slice(0, maxFiles);
+
+      const validFiles: File[] = [];
+      for (const f of filesToProcess) {
+        if (!(ACCEPTED as readonly string[]).includes(f.type)) {
+          setError(t("toast.fileTypeRejected"));
+          setFiles([]);
+          return;
+        }
+        if (f.size > MAX_UPLOAD_BYTES) {
+          setError(
+            filesToProcess.length > 1
+              ? `One or more files exceed the limit of ${MAX_UPLOAD_LABEL}.`
+              : `That file is ${bytes(f.size)} — the limit is ${MAX_UPLOAD_LABEL}.`
+          );
+          setFiles([]);
+          return;
+        }
+        validFiles.push(f);
+      }
+      setFiles(validFiles);
+    },
+    [row?.multiple, isReupload, t]
+  );
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      if (e.dataTransfer.files) {
+        processFiles(Array.from(e.dataTransfer.files));
+      }
+    },
+    [processFiles]
+  );
+
+  const onDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const onDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const onPick = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      processFiles(Array.from(event.target.files ?? []));
+    },
+    [processFiles]
+  );
+
+  const submit = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!row) return;
+      if (waiverMode) {
+        if (!waiverReason.trim()) {
+          setError(t("toast.waiverReasonRequired"));
+          return;
+        }
+        startTransition(async () => {
+          const { requestWaiverAction } =
+            await import("@imgc/actions/additionalDocuments");
+          const result = await requestWaiverAction(
+            row.accountId,
+            row.id,
+            waiverReason
+          );
+          if (!result.ok) {
+            toast.error(errorText(result) ?? t("toast.waiverFailed"));
+            return;
+          }
+          reset();
+          onOpenChange(false);
+          toast.success(t("toast.waiverRequested"));
+        });
+        return;
+      }
+      if (files.length === 0) {
+        setError(t("toast.chooseFile"));
+        return;
+      }
+      const baseData = new FormData(event.currentTarget);
+      baseData.set("accountId", row.accountId);
+      baseData.set("documentId", row.id);
+      if (replaceFileId) {
+        baseData.set("replaceFileId", replaceFileId);
+      }
+
+      startTransition(async () => {
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const f of files) {
+          const data = new FormData();
+          for (const [key, val] of baseData.entries()) {
+            data.set(key, val);
+          }
+          try {
+            await attachUpload(data, f, row.accountId);
+            const result = await uploadRequirementAction(data);
+            if (result.ok) successCount++;
+            else failCount++;
+          } catch {
+            failCount++;
+          }
+        }
+
+        if (successCount > 0) {
+          if (files.length === 1) {
+            toast.success(
+              effectiveMode === "add"
+                ? `File added to "${row.name}".`
+                : `${row.name} ${effectiveMode === "replace" ? "replaced" : "uploaded"} — now with IMGC for review.`
+            );
+          } else {
+            toast.success(`${successCount} files uploaded successfully.`);
+          }
+
+          if (failCount === 0) {
+            reset();
+            onOpenChange(false);
+          }
+        }
+
+        if (failCount > 0) {
+          toast.error(
+            files.length === 1
+              ? t("toast.uploadFailed")
+              : t("toast.uploadFailedMany", { count: failCount })
+          );
+        }
+      });
+    },
+    [
+      row,
+      files,
+      reset,
+      onOpenChange,
+      effectiveMode,
+      t,
+      replaceFileId,
+      waiverMode,
+      waiverReason,
+      errorText,
+    ]
+  );
+
+  if (!row) return null;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) reset();
+        onOpenChange(next);
+      }}
+    >
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>
+            {t(
+              effectiveMode === "add"
+                ? "upload.titleAdd"
+                : waiverMode
+                  ? "upload.titleWaiver"
+                  : effectiveMode === "replace"
+                    ? "upload.titleReplace"
+                    : "upload.titleUpload"
+            )}{" "}
+            · {row.name}
+          </DialogTitle>
+          <DialogDescription>
+            {row.caseId} · {row.customerName}
+            {isReupload && ` · this will be version ${(row.version ?? 0) + 1}`}
+          </DialogDescription>
+        </DialogHeader>
+
+        {row.review?.remarks && isReupload && (
+          <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-ui-body-lg text-neutral-800">
+            <span className="font-semibold">IMGC asked for: </span>
+            {row.review.remarks}
+          </p>
+        )}
+        {row.description && (
+          <p className="rounded-md border border-brand-primary/15 bg-brand-light/50 px-3 py-2 text-ui-body-lg text-neutral-700">
+            {row.description}
+          </p>
+        )}
+
+        <form onSubmit={submit} className="space-y-3">
+          {waiverMode ? (
+            <div>
+              <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+                {t("waiver.reasonLabel")}
+              </span>
+              <textarea
+                value={waiverReason}
+                onChange={(e) => {
+                  setWaiverReason(e.target.value);
+                  if (error) setError("");
+                }}
+                rows={3}
+                placeholder={t("waiver.reasonPlaceholder")}
+                className={cn(
+                  "w-full rounded-lg border bg-white px-3 py-2 text-ui-subhead outline-none focus:ring-2",
+                  error
+                    ? "border-destructive focus:ring-destructive/20"
+                    : "border-neutral-200 focus:border-brand-primary focus:ring-brand-primary/20"
+                )}
+              />
+              <p className="mt-1 text-ui-body-sm text-neutral-500">
+                {t("waiver.note")}
+              </p>
+              {error && (
+                <p className="mt-1 text-ui-body-sm text-destructive">{error}</p>
+              )}
+            </div>
+          ) : (
+            <>
+              <div>
+                <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+                  {t("upload.fileLabel")}
+                </span>
+                <label
+                  onDragOver={onDragOver}
+                  onDragLeave={onDragLeave}
+                  onDrop={onDrop}
+                  className={cn(
+                    "flex flex-col cursor-pointer justify-center gap-2 rounded-lg border border-dashed px-3 py-3 text-ui-subhead transition",
+                    error
+                      ? "border-destructive bg-destructive/5 text-destructive"
+                      : isDragging
+                        ? "border-brand-primary bg-brand-light/50 text-brand-primary"
+                        : files.length > 0
+                          ? "border-success-500 bg-success-500/5 text-neutral-800"
+                          : "border-neutral-300 bg-neutral-25 text-neutral-600 hover:border-brand-primary",
+                    files.length === 0 ? "items-center flex-row" : ""
+                  )}
+                >
+                  <input
+                    ref={inputRef}
+                    type="file"
+                    multiple={Boolean(row.multiple && !isReupload)}
+                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    onChange={onPick}
+                    className="sr-only"
+                  />
+                  {files.length > 0 ? (
+                    <div className="flex flex-col gap-1.5 w-full">
+                      {files.map((f, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <PaperclipIcon className="size-4 shrink-0 text-success-600" />
+                          <span className="truncate font-medium">{f.name}</span>
+                          <span className="ml-auto shrink-0 text-ui-body-sm text-neutral-500">
+                            {bytes(f.size)}
+                          </span>
+                        </div>
+                      ))}
+                      {row.multiple && !isReupload && (
+                        <div className="mt-1 flex items-center justify-center text-ui-body-sm text-neutral-500 hover:text-neutral-700">
+                          {t("upload.addMoreHint")}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <UploadIcon className="size-4 shrink-0" />
+                      <span>
+                        Choose a file or drag it here — PDF, JPG, PNG or WEBP,
+                        up to {MAX_UPLOAD_LABEL}
+                      </span>
+                    </>
+                  )}
+                </label>
+                {error && (
+                  <p
+                    role="alert"
+                    className="mt-1 text-ui-body font-medium text-destructive"
+                  >
+                    {error}
+                  </p>
+                )}
+              </div>
+
+              <label className="block">
+                <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+                  {t("upload.remarksLabel")}
+                </span>
+                <textarea
+                  name="remarks"
+                  rows={2}
+                  placeholder={t("upload.remarksPlaceholder")}
+                  className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                />
+              </label>
+            </>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            {/* A mandatory document that cannot be supplied at all — asked for once, then settled. */}
+            {!waiverMode &&
+              effectiveMode === "upload" &&
+              row.required &&
+              row.files.length === 0 &&
+              !row.waiver && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="mr-auto"
+                  onClick={() => {
+                    setWaiverMode(true);
+                    setError("");
+                  }}
+                >
+                  <FileXIcon /> {t("actions.requestWaiver")}
+                </Button>
+              )}
+            {waiverMode && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mr-auto"
+                onClick={() => {
+                  setWaiverMode(false);
+                  setError("");
+                }}
+              >
+                {t("actions.backToUpload")}
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={pending}
+            >
+              {t("actions.cancel")}
+            </Button>
+            <Button type="submit" size="sm" disabled={pending}>
+              {waiverMode ? (
+                <>
+                  <FileXIcon /> Request waiver
+                </>
+              ) : (
+                <>
+                  <UploadIcon />{" "}
+                  {t(isReupload ? "actions.reupload" : "actions.upload")}
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

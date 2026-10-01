@@ -17,19 +17,19 @@ in **Windsurf**, **Cursor**, and **Claude Code**. There are two distinct things:
 
 Rules are small `.mdc` files with frontmatter (`description`, `alwaysApply`).
 
-| Rule                            | Purpose                                                              |
-| ------------------------------- | -------------------------------------------------------------------- |
-| `core-engineering-rules.mdc`    | **Start here** — the tight, always-on must-follow set                |
-| `security-guardrails.mdc`       | Env/secrets handling and safe terminal use                           |
-| `rule-improvement.mdc`          | When and how to evolve other rules for this repo                     |
-| `docs-sync.mdc`                 | Keep `doc/` and rules updated when APIs or wiring change             |
-| `naming-conventions.mdc`        | camelCase folders, PascalCase component files                        |
-| `path-alias-imports.mdc`        | `@/` imports only (no `./` or `../`)                                 |
-| `types-and-validators.mdc`      | Types in `src/types`, Zod in feature `validator/`                    |
-| `component-size-modularity.mdc` | Keep components small and focused                                    |
-| `semantic-html.mdc`             | Native HTML over divs with ARIA roles                                |
-| `app-default-constants.mdc`     | Use validated env/config constants                                   |
-| `custom-hooks.mdc`              | Hook placement under `src/hooks/` and feature `hooks/` (glob-scoped) |
+| Rule                            | Purpose                                                                   |
+| ------------------------------- | ------------------------------------------------------------------------- |
+| `core-engineering-rules.mdc`    | **Start here** — the tight, always-on must-follow set                     |
+| `security-guardrails.mdc`       | Env/secrets handling and safe terminal use                                |
+| `rule-improvement.mdc`          | When and how to evolve other rules for this repo                          |
+| `docs-sync.mdc`                 | Keep `doc/` and rules updated when APIs or wiring change                  |
+| `naming-conventions.mdc`        | camelCase folders, PascalCase component files                             |
+| `path-alias-imports.mdc`        | `@/` imports only (no `./` or `../`)                                      |
+| `types-and-validators.mdc`      | Types in `src/types`, Zod in feature `validator/`                         |
+| `component-size-modularity.mdc` | Keep components small and focused                                         |
+| `semantic-html.mdc`             | Native HTML over divs with ARIA roles                                     |
+| `app-default-constants.mdc`     | Use validated env/config constants                                        |
+| `custom-hooks.mdc`              | Hook placement under `packages/hooks/` and feature `hooks/` (glob-scoped) |
 
 `alwaysApply: true` rules are injected into every agent turn automatically.
 

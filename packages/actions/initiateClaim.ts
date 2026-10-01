@@ -1,0 +1,192 @@
+"use server";
+
+import { fail } from "@imgc/config/errorCodes";
+import { revalidatePath } from "next/cache";
+
+import { ROUTES } from "@imgc/constants/route";
+import { incomingUploadFrom } from "@imgc/data/server/actions/incomingUpload";
+import { runAction } from "@imgc/data/server/actions/runAction";
+import { requireSession } from "@imgc/lib/auth/appSession";
+import {
+  addLenderDocument,
+  createClaim,
+  markRefundReceived,
+  raiseQuery,
+  saveClaimDraft,
+  submitClaim,
+  switchClaimType,
+  updateClaimStatus,
+  upsertDocumentRemark,
+  type Outcome,
+} from "@imgc/data/services/portal/claimFlow.server";
+import type { ClaimStatus, ClaimTypeKey } from "@imgc/types/domain";
+
+/**
+ * Every claim mutation invalidates the same set of routes.
+ *
+ * The grid, the workspace, Track Claim, the dashboard tiles and the notification badge all read
+ * the same claim rows, so a status change has to reach all of them or one screen keeps showing
+ * the previous state.
+ */
+function refreshAll(accountId?: string, claimId?: string): void {
+  revalidatePath(ROUTES.initiateClaim);
+  revalidatePath(ROUTES.trackQueryResponse);
+  revalidatePath(ROUTES.auditTrail);
+  revalidatePath(ROUTES.accounts);
+  revalidatePath(ROUTES.dashboard);
+  revalidatePath(ROUTES.notifications);
+  revalidatePath(ROUTES.additionalDocuments);
+  if (accountId) {
+    revalidatePath(ROUTES.account(accountId));
+    revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
+  }
+  if (claimId) revalidatePath(ROUTES.claimDetails(claimId));
+}
+
+export async function createClaimAction(
+  accountId: string,
+  claimType: ClaimTypeKey
+): Promise<Outcome> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await createClaim(session, accountId, claimType);
+    if (result.ok) refreshAll(accountId, result.claimId);
+    return result;
+  });
+}
+
+/** Lender only — change a draft claim's type, rebuilding its checklist from the new config. */
+export async function switchClaimTypeAction(
+  accountId: string,
+  claimId: string,
+  newType: ClaimTypeKey
+): Promise<Outcome> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await switchClaimType(session, claimId, newType);
+    if (result.ok) refreshAll(accountId, claimId);
+    return result;
+  });
+}
+
+/** Lender only — add an additional document (name + description + file + remarks). */
+export async function addLenderDocumentAction(
+  accountId: string,
+  formData: FormData
+): Promise<Outcome> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const claimId = String(formData.get("claimId") ?? "");
+    const incoming = incomingUploadFrom(formData);
+    if (!incoming) return fail("FILE_REQUIRED");
+    const result = await addLenderDocument(session, claimId, {
+      name: String(formData.get("name") ?? ""),
+      description: String(formData.get("description") ?? ""),
+      remarks: String(formData.get("remarks") ?? ""),
+      file: incoming,
+    });
+    if (result.ok) refreshAll(accountId, claimId);
+    return result;
+  });
+}
+
+/** Lender only — save the remark on one claim document category. */
+export async function saveDocumentRemarkAction(
+  accountId: string,
+  claimId: string,
+  documentId: string,
+  body: string
+): Promise<Outcome> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await upsertDocumentRemark(
+      session,
+      claimId,
+      documentId,
+      body
+    );
+    if (result.ok) refreshAll(accountId, claimId);
+    return result;
+  });
+}
+
+export async function saveDraftAction(
+  accountId: string,
+  claimId: string,
+  fields: Record<string, string>
+): Promise<Outcome> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await saveClaimDraft(session, claimId, fields, true);
+    if (result.ok) refreshAll(accountId, claimId);
+    return result;
+  });
+}
+
+export async function submitClaimAction(
+  accountId: string,
+  claimId: string,
+  fields: Record<string, string>
+): Promise<Outcome> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await submitClaim(session, claimId, fields);
+    if (result.ok) refreshAll(accountId, claimId);
+    return result;
+  });
+}
+
+/** IMGC only — the service refuses a lender regardless of what the UI offers. */
+export async function raiseQueryAction(
+  claimId: string,
+  input: { reason: string; remarks: string; requestedDocuments: string[] }
+): Promise<Outcome> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await raiseQuery(session, claimId, input);
+    if (result.ok) refreshAll(result.accountId, claimId);
+    return result;
+  });
+}
+
+/** IMGC only — move a claim along its flow, or decide it. */
+export async function updateClaimStatusAction(
+  claimId: string,
+  status: ClaimStatus,
+  remarks: string
+): Promise<Outcome> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await updateClaimStatus(session, claimId, status, remarks);
+    if (result.ok) refreshAll(result.accountId, claimId);
+    return result;
+  });
+}
+
+/**
+ * IMGC only — confirm the refund for an already-approved claim has been received, with a UTR /
+ * reference number and an optional one-file proof of payment. Recording and displaying that
+ * confirmation is all this does; see `markRefundReceived`.
+ */
+export async function markRefundReceivedAction(
+  claimId: string,
+  formData: FormData
+): Promise<Outcome> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const utr = String(formData.get("utr") ?? "");
+    const amount = Number(formData.get("amount") ?? "");
+    const paymentDate = String(formData.get("paymentDate") ?? "");
+    const incoming = incomingUploadFrom(formData) ?? undefined;
+    const result = await markRefundReceived(
+      session,
+      claimId,
+      utr,
+      amount,
+      paymentDate,
+      incoming
+    );
+    if (result.ok) refreshAll(result.accountId, claimId);
+    return result;
+  });
+}

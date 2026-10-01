@@ -73,7 +73,7 @@ Implementation: `src/services/api/tenantResolver.ts`
 
 Per-tenant theming = **BRAND-token overrides only**:
 
-- Implementation: `src/lib/tenantTheme.ts`
+- Implementation: `packages/lib/tenantTheme.ts`
 - Applied in the root layout as CSS custom properties
 - Components keep using miFIN™ token names and **NEVER branch on tenant**
 - Neutrals, semantic colors, spacing, radius and component styles are not tenant-overridable
@@ -87,7 +87,7 @@ Server-only encryption APIs:
 - `encryptForUser(plaintext, userId)` — encrypt with user-specific key
 - `decryptForUser(ciphertext, userId)` — decrypt with user-specific key
 
-Implementation: `src/lib/tenantEncryption.ts`
+Implementation: `packages/lib/tenantEncryption.ts`
 
 Key derivation:
 

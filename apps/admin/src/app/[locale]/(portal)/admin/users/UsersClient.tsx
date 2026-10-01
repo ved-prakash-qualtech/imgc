@@ -1,0 +1,1353 @@
+"use client";
+/* eslint-disable react-perf/jsx-no-new-function-as-prop, react-perf/jsx-no-jsx-as-prop --
+   Handlers here close over the row they act on, so hoisting them out of the map
+   would mean threading the row back through a prop for no gain; this table renders
+   a bounded page of rows, never the full dataset. */
+
+import { useServerErrorMessage } from "@imgc/lib/serverErrorMessage";
+import { useCallback, useMemo, useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
+import { useSearchParams } from "next/navigation";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ArrowUpDownIcon,
+  Building2Icon,
+  ChevronDownIcon,
+  DownloadIcon,
+  LockIcon,
+  PencilIcon,
+  PlusIcon,
+  SearchIcon,
+  UserPlusIcon,
+  UsersIcon,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import {
+  createLenderOrgAction,
+  grantLenderAccessAction,
+  updateLenderOrgAction,
+} from "@/app/[locale]/(portal)/admin/users/actions";
+import { Panel } from "@imgc/features/portal/Panel";
+import { Button } from "@imgc/ui/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@imgc/ui/ui/select";
+import { PaginationNumbers } from "@imgc/ui/ui/pagination";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@imgc/ui/ui/table";
+import { cn } from "@imgc/lib/utils/twMergeUtils";
+import type { LenderOrg } from "@imgc/types/domain";
+import type { UserRow } from "@imgc/data/services/portal/users.server";
+
+type SortKey = "name" | "email" | "role" | "organization" | "status";
+/** The organisations table's own sortable columns — t("columns.actions") is not one. */
+type OrgSortKey = "name" | "emailDomain" | "users";
+type SortDirection = "asc" | "desc" | null;
+
+// Generic over the key type so the users table and the organisations table sort through the same
+// two components rather than a second, drifting copy of them.
+function SortIcon<K extends string>({
+  column,
+  sortKey,
+  sortDirection,
+}: {
+  column: K;
+  sortKey: K | null;
+  sortDirection: SortDirection;
+}) {
+  if (sortKey !== column)
+    return (
+      <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />
+    );
+  return sortDirection === "asc" ? (
+    <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+  ) : (
+    <ArrowDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+  );
+}
+
+function SortableTableHead<K extends string>({
+  column,
+  label,
+  sortKey,
+  sortDirection,
+  onToggle,
+  className,
+}: {
+  column: K;
+  label: string;
+  sortKey: K | null;
+  sortDirection: SortDirection;
+  onToggle: (k: K) => void;
+  className?: string;
+}) {
+  return (
+    <TableHead
+      onClick={() => onToggle(column)}
+      className={`h-8 cursor-pointer select-none px-1.5 text-ui-caption transition-colors hover:bg-neutral-50 ${className || ""}`}
+    >
+      <div className="flex items-center">
+        {label}
+        <SortIcon
+          column={column}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+        />
+      </div>
+    </TableHead>
+  );
+}
+
+/** The two peer datasets this screen manages. Tabs rather than two stacked panels: they are
+ *  alternatives you work in one at a time, so only one needs to be on screen — which is what
+ *  keeps the page inside a viewport instead of scrolling past two full tables. */
+type Tab = "users" | "organisations";
+
+function tabFromParam(value: string | null): Tab {
+  return value === "organisations" ? "organisations" : "users";
+}
+
+/** Which `?role=` values the band's tiles may deep-link with — anything else falls back to
+ *  "ALL" rather than silently filtering the table down to nothing. */
+function roleFromParam(value: string | null): "ALL" | "LENDER" | "IMGC" {
+  return value === "LENDER" || value === "IMGC" ? value : "ALL";
+}
+
+/** Likewise for `?orgs=` — see `orgFilter`. */
+function orgFilterFromParam(
+  value: string | null
+): "ALL" | "AWAITING" | "ACTIVE" {
+  return value === "AWAITING" || value === "ACTIVE" ? value : "ALL";
+}
+
+/** Escapes a value for one CSV field. */
+function csvField(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+function downloadUsersCsv(
+  users: UserRow[],
+  t: (key: string, values?: Record<string, string | number>) => string
+): void {
+  const headers = [
+    t("columnsMore.name"),
+    t("columns.email"),
+    t("columnsMore.role"),
+    t("columns.organisation"),
+    t("columns.signIn"),
+  ];
+  const lines = users.map((u) =>
+    [
+      u.name,
+      u.email,
+      u.role,
+      u.lenderOrgName ?? "IMGC",
+      u.role === "IMGC"
+        ? t("employeeId", { id: u.employeeId ?? "" })
+        : t("signInMethod"),
+    ]
+      .map(csvField)
+      .join(",")
+  );
+  const csv = [headers.join(","), ...lines].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `users-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function downloadOrgsCsv(orgs: LenderOrg[], t: (key: string) => string): void {
+  const headers = [
+    t("columns.organisation"),
+    t("columns.emailDomain"),
+    t("columns.stakeholderMailboxes"),
+  ];
+  const lines = orgs.map((o) =>
+    [o.name, o.emailDomain, o.contactEmails.join("; ")].map(csvField).join(",")
+  );
+  const csv = [headers.join(","), ...lines].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `lender-organisations-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/** Two initials for the organisation avatar — "Metro Housing Finance" becomes "MH". */
+function initialsOf(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");
+}
+
+/**
+ * One organisation row. Split out so the Edit button gets a stable, row-scoped handler instead
+ * of a closure rebuilt for every row on every render of the table.
+ */
+function OrgRow({
+  org,
+  userCount,
+  onEdit,
+}: Readonly<{
+  org: LenderOrg;
+  userCount: number;
+  onEdit: (next: { mode: "edit"; org: LenderOrg }) => void;
+}>) {
+  const t = useTranslations("admin.lenderAccess");
+  const handleEdit = useCallback(
+    () => onEdit({ mode: "edit", org }),
+    [onEdit, org]
+  );
+  return (
+    <TableRow>
+      <TableCell className="px-1.5 py-0.5">
+        <div className="flex items-center gap-2">
+          <span className="grid size-5 shrink-0 place-items-center rounded-md bg-brand-light text-ui-tiny font-bold text-brand-dark">
+            {initialsOf(org.name)}
+          </span>
+          <span className="text-ui-body font-medium whitespace-nowrap text-neutral-950">
+            {org.name}
+          </span>
+        </div>
+      </TableCell>
+      <TableCell className="px-1.5 py-0.5">
+        <code className="rounded bg-neutral-100 px-1.5 py-0.5 text-ui-label whitespace-nowrap">
+          @{org.emailDomain}
+        </code>
+      </TableCell>
+      <TableCell className="px-1.5 py-0.5">
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-ui-caption font-semibold whitespace-nowrap",
+            userCount === 0
+              ? "bg-neutral-100 text-neutral-500"
+              : "bg-info/12 text-info"
+          )}
+          title={
+            userCount === 0
+              ? t("noneCanSignIn")
+              : t("userCountTitle", { count: userCount })
+          }
+        >
+          <UsersIcon className="size-3" />
+          {userCount}
+        </span>
+      </TableCell>
+      <TableCell className="px-1.5 py-0.5">
+        <Button variant="outline" size="xs" onClick={handleEdit}>
+          <PencilIcon /> {t("edit")}
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/**
+ * Add or correct an organisation — one form, two modes.
+ *
+ * The domain is editable only while creating. Once an organisation exists it is the key every
+ * account, claim and user is scoped through, so changing it would silently re-point a whole book
+ * of business at a different lender; the field is shown, locked, and says why (the server
+ * enforces this too — `updateLenderOrg` never reads a domain).
+ */
+function OrgForm({
+  mode,
+  org,
+  pending,
+  onSubmit,
+  onCancel,
+}: Readonly<{
+  mode: "create" | "edit";
+  org?: LenderOrg;
+  pending: boolean;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onCancel: () => void;
+}>) {
+  const t = useTranslations("admin.lenderAccess");
+  const editing = mode === "edit";
+  return (
+    <form
+      // Remounts when the target changes, so `defaultValue` re-seeds from the row being edited
+      // instead of keeping whatever the previously-open row put there.
+      key={org?.id ?? "create"}
+      onSubmit={onSubmit}
+      className="border-b border-neutral-100 bg-neutral-25 px-5 py-2"
+    >
+      <p className="mb-2 flex items-center gap-1.5 text-ui-body-lg font-semibold text-neutral-800">
+        <Building2Icon className="size-3.5 text-brand-primary" />
+        {editing
+          ? t("form.editOrg", { name: org?.name ?? "" })
+          : t("addOrganisation")}
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="min-w-[200px] flex-1">
+          <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+            {t("form.organisationName")}
+          </span>
+          <input
+            name="orgName"
+            required
+            defaultValue={org?.name ?? ""}
+            // The form opens on the user's own button press, so focus follows their action.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus
+            placeholder={t("placeholders.organisation")}
+            className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+          />
+        </label>
+        <label className="min-w-[200px] flex-1">
+          <span className="mb-1 flex items-center gap-1 text-ui-body-lg font-medium text-neutral-700">
+            {t("form.emailDomain")}
+            {editing && <LockIcon className="size-3 text-neutral-400" />}
+          </span>
+          <input
+            name="emailDomain"
+            required={!editing}
+            disabled={editing}
+            defaultValue={org?.emailDomain ?? ""}
+            placeholder={t("placeholders.domain")}
+            className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500"
+          />
+        </label>
+        <label className="min-w-[240px] flex-[2]">
+          <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+            {t("form.stakeholderMailboxes")}{" "}
+            <span className="font-normal text-neutral-400">
+              {t("form.mailboxesHint")}
+            </span>
+          </span>
+          <input
+            name="contactEmails"
+            defaultValue={org?.contactEmails.join(", ") ?? ""}
+            placeholder={t("placeholders.mailboxes")}
+            className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+          />
+        </label>
+        <Button type="submit" size="sm" disabled={pending}>
+          {editing ? t("saveChanges") : t("addOrganisation")}
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={onCancel}>
+          {t("cancel")}
+        </Button>
+      </div>
+      <p className="mt-2 text-ui-body-sm text-neutral-500">
+        {editing ? t("form.domainLockedHelp") : t("form.addOrgHelp")}
+      </p>
+    </form>
+  );
+}
+
+export function UsersClient({
+  users,
+  orgs,
+}: Readonly<{ users: UserRow[]; orgs: LenderOrg[] }>) {
+  const errorText = useServerErrorMessage();
+  const t = useTranslations("admin.lenderAccess");
+  const searchParams = useSearchParams();
+  const [pending, startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+
+  /**
+   * This table lists everyone who can sign in — lender users *and* IMGC staff — while the band
+   * above counts the two separately. Read together, "Lender Users 22" over "Total 25 users" looks
+   * like a contradiction when it is really 22 + 3 IMGC staff. Neither number was wrong, so the
+   * fix is to say which is which rather than to change one: this filter lets the 22 be isolated,
+   * and the footer names the split.
+   */
+  const [roleFilter, setRoleFilter] = useState<"ALL" | "LENDER" | "IMGC">(() =>
+    roleFromParam(searchParams.get("role"))
+  );
+  const lenderUserCount = users.filter((u) => u.role === "LENDER").length;
+  const imgcUserCount = users.filter((u) => u.role === "IMGC").length;
+
+  function handleRoleFilterChange(v: string | null) {
+    setRoleFilter((v as "ALL" | "LENDER" | "IMGC" | null) ?? "ALL");
+    setPage(1);
+  }
+
+  // A KPI tile in the band navigates client-side to this same route with new params, so this
+  // component never remounts and the lazy `useState` initialisers above only ever ran once. Both
+  // filters are therefore re-synced during render when their param changes — React's own
+  // "adjust state when a prop changes" pattern, the same one EligibleCasesClient uses for the
+  // Claims Overview tiles. Without it, the URL updates and the tables keep the old filter.
+  /** Which table is on screen. Held in the URL so a KPI tile can land on the right one, and so a
+   *  refresh or the back button keeps you where you were. */
+  const [tab, setTab] = useState<Tab>(() =>
+    tabFromParam(searchParams.get("tab"))
+  );
+  const tabParam = searchParams.get("tab");
+  const [prevTabParam, setPrevTabParam] = useState(tabParam);
+  if (tabParam !== prevTabParam) {
+    setPrevTabParam(tabParam);
+    setTab(tabFromParam(tabParam));
+  }
+  function showUsers() {
+    setTab("users");
+  }
+  function showOrganisations() {
+    setTab("organisations");
+  }
+
+  const roleParam = searchParams.get("role");
+  const [prevRoleParam, setPrevRoleParam] = useState(roleParam);
+  if (roleParam !== prevRoleParam) {
+    setPrevRoleParam(roleParam);
+    setRoleFilter(roleFromParam(roleParam));
+    setPage(1);
+  }
+  // The matching `?orgs=` re-sync lives further down, immediately after the organisation state
+  // it writes to — running it here would touch those setters before their `useState` has been
+  // reached in this render pass.
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+
+  const toggleSort = useCallback(
+    (key: SortKey) => {
+      if (sortKey !== key) {
+        setSortKey(key);
+        setSortDirection("asc");
+        return;
+      }
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+        return;
+      }
+      setSortKey(null);
+      setSortDirection(null);
+    },
+    [sortKey, sortDirection]
+  );
+
+  const handleQueryChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setQuery(e.target.value);
+      setPage(1);
+    },
+    []
+  );
+  const handlePageSizeChange = useCallback((val: string | null) => {
+    setPageSize(Number(val ?? "5"));
+    setPage(1);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let result = users;
+    if (roleFilter !== "ALL") {
+      result = result.filter((u) => u.role === roleFilter);
+    }
+    if (q) {
+      result = result.filter((u) =>
+        `${u.name} ${u.email} ${u.role} ${u.lenderOrgName ?? ""}`
+          .toLowerCase()
+          .includes(q)
+      );
+    }
+
+    if (sortKey && sortDirection) {
+      result = [...result].sort((a, b) => {
+        let valA: string | number;
+        let valB: string | number;
+        switch (sortKey) {
+          case "name":
+            valA = a.name;
+            valB = b.name;
+            break;
+          case "email":
+            valA = a.email;
+            valB = b.email;
+            break;
+          case "role":
+            valA = a.role;
+            valB = b.role;
+            break;
+          case "organization":
+            valA = a.lenderOrgName ?? "";
+            valB = b.lenderOrgName ?? "";
+            break;
+          case "status":
+            valA = a.role === "IMGC" ? 0 : 1;
+            valB = b.role === "IMGC" ? 0 : 1;
+            break;
+        }
+        if (typeof valA === "string" && typeof valB === "string") {
+          valA = valA.toLowerCase();
+          valB = valB.toLowerCase();
+        }
+        if (valA < valB) return sortDirection === "asc" ? -1 : 1;
+        if (valA > valB) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return result;
+  }, [users, query, roleFilter, sortKey, sortDirection]);
+
+  const pageCount = Math.ceil(filtered.length / pageSize) || 1;
+  const currentPage = Math.min(page, pageCount);
+  const currentUsers = filtered.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  const handleExportUsers = useCallback(
+    () => downloadUsersCsv(filtered, t),
+    [filtered, t]
+  );
+
+  /* ── granting access ─────────────────────────────────────────────── */
+
+  /**
+   * Which lender the new user belongs to: "" until chosen, then the lender's email domain — the
+   * key the server scopes on. Holding the *domain* rather than an id is deliberate: it is exactly
+   * what the address has to end in, so the two cannot drift apart. A lender that does not exist
+   * yet is onboarded on the t("organisations") tab first, not from inside this form.
+   */
+  const [grantOrg, setGrantOrg] = useState("");
+  /** Mailbox name only — the domain comes from the selected lender. */
+  const [grantLocal, setGrantLocal] = useState("");
+
+  const selectedGrantOrg = grantOrg
+    ? (orgs.find((o) => o.emailDomain === grantOrg) ?? null)
+    : null;
+
+  /** Set when a whole address was entered whose domain belongs to no lender on record. */
+  const [grantMailboxError, setGrantMailboxError] = useState("");
+
+  /** What actually gets submitted — assembled from the lender chosen plus the mailbox typed, so
+   *  the address can never disagree with the lender. Empty while the mailbox still holds an
+   *  unresolved "@…", which keeps a half-typed address from being composed into
+   *  `sanjay@bad.com@icicibank.com`. */
+  const grantComposedEmail =
+    selectedGrantOrg && grantLocal.trim() && !grantLocal.includes("@")
+      ? `${grantLocal.trim().toLowerCase()}@${selectedGrantOrg.emailDomain}`
+      : "";
+
+  function handleGrantOrgChange(v: string) {
+    setGrantOrg(v);
+    // Switching lender must not leave the previous lender's address behind.
+    setGrantLocal("");
+    setGrantMailboxError("");
+  }
+
+  /**
+   * Accepts a whole address as readily as a mailbox name, because an administrator onboarding a
+   * user usually has the address in their clipboard, not its two halves.
+   *
+   * Pasting `sanjay@icicibank.com` drops the domain and keeps `sanjay`; pasting an address that
+   * belongs to a *different* lender on record switches the dropdown to that lender rather than
+   * quietly filing the user under the wrong one. A domain nobody owns is left in the field to
+   * carry on typing — `onBlur` is what decides it is wrong, so the error cannot fire halfway
+   * through someone typing "icicibank.com" one character at a time.
+   */
+  function handleGrantLocalChange(raw: string) {
+    const at = raw.indexOf("@");
+    if (at === -1) {
+      setGrantLocal(raw);
+      setGrantMailboxError("");
+      return;
+    }
+    const local = raw.slice(0, at);
+    const domain = raw
+      .slice(at + 1)
+      .trim()
+      .toLowerCase();
+    const match = orgs.find((o) => o.emailDomain === domain);
+    if (match) {
+      setGrantOrg(match.emailDomain);
+      setGrantLocal(local);
+      setGrantMailboxError("");
+      return;
+    }
+    setGrantLocal(raw);
+  }
+
+  function handleGrantLocalBlur() {
+    const at = grantLocal.indexOf("@");
+    if (at === -1) return;
+    const domain = grantLocal
+      .slice(at + 1)
+      .trim()
+      .toLowerCase();
+    if (!domain) {
+      // A trailing "@" and nothing after it — just drop it rather than complain.
+      setGrantLocal(grantLocal.slice(0, at));
+      return;
+    }
+    setGrantMailboxError(
+      `No lender on record uses @${domain}. Pick that lender above, or add it first on the Lender organisations tab.`
+    );
+  }
+  function resetGrantForm() {
+    setGrantOrg("");
+    setGrantLocal("");
+    setGrantMailboxError("");
+  }
+  function closeGrantForm() {
+    setOpen(false);
+    resetGrantForm();
+  }
+
+  /* ── lender organisations ────────────────────────────────────────── */
+
+  /** `null` = the form is closed. Otherwise it is open in one of its two modes; `org` carries the
+   *  row being corrected, so one form serves both without a second copy of the markup. */
+  const [orgForm, setOrgForm] = useState<
+    { mode: "create" } | { mode: "edit"; org: LenderOrg } | null
+  >(null);
+  const [orgQuery, setOrgQuery] = useState("");
+
+  /** How many users each organisation currently has — the answer to "is this org actually in
+   *  use, or did a typo create it?", which the table could not previously show. */
+  const usersByOrg = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const u of users) {
+      if (!u.lenderOrgId) continue;
+      counts.set(u.lenderOrgId, (counts.get(u.lenderOrgId) ?? 0) + 1);
+    }
+    return counts;
+  }, [users]);
+
+  /** t("awaitingFirstUser") is the state Option B made reachable — an organisation onboarded
+   *  before anyone from it has a login — so it is worth being able to filter down to it. */
+  const [orgFilter, setOrgFilter] = useState<"ALL" | "AWAITING" | "ACTIVE">(
+    () => orgFilterFromParam(searchParams.get("orgs"))
+  );
+  const [orgSortKey, setOrgSortKey] = useState<OrgSortKey | null>(null);
+  const [orgSortDirection, setOrgSortDirection] = useState<SortDirection>(null);
+
+  function toggleOrgSort(key: OrgSortKey) {
+    if (orgSortKey !== key) {
+      setOrgSortKey(key);
+      setOrgSortDirection("asc");
+      return;
+    }
+    if (orgSortDirection === "asc") {
+      setOrgSortDirection("desc");
+      return;
+    }
+    setOrgSortKey(null);
+    setOrgSortDirection(null);
+  }
+
+  function handleOrgFilterChange(v: string) {
+    setOrgFilter((v as "ALL" | "AWAITING" | "ACTIVE") ?? "ALL");
+    setOrgPage(1);
+  }
+
+  /** Organisations onboarded but with nobody able to sign in yet — surfaced on the tab so the
+   *  state is visible without switching to the table that holds it. */
+  const awaitingFirstUser = orgs.filter(
+    (o) => (usersByOrg.get(o.id) ?? 0) === 0
+  ).length;
+
+  const visibleOrgs = useMemo(() => {
+    const q = orgQuery.trim().toLowerCase();
+    let result = orgs;
+
+    if (orgFilter !== "ALL") {
+      const awaiting = orgFilter === "AWAITING";
+      result = result.filter(
+        (o) => ((usersByOrg.get(o.id) ?? 0) === 0) === awaiting
+      );
+    }
+    if (q) {
+      result = result.filter(
+        (o) =>
+          o.name.toLowerCase().includes(q) ||
+          o.emailDomain.toLowerCase().includes(q) ||
+          o.contactEmails.some((e) => e.toLowerCase().includes(q))
+      );
+    }
+
+    if (orgSortKey && orgSortDirection) {
+      result = [...result].sort((a, b) => {
+        let valA: string | number;
+        let valB: string | number;
+        switch (orgSortKey) {
+          case "name":
+            valA = a.name.toLowerCase();
+            valB = b.name.toLowerCase();
+            break;
+          case "emailDomain":
+            valA = a.emailDomain.toLowerCase();
+            valB = b.emailDomain.toLowerCase();
+            break;
+          case "users":
+            valA = usersByOrg.get(a.id) ?? 0;
+            valB = usersByOrg.get(b.id) ?? 0;
+            break;
+        }
+        if (valA < valB) return orgSortDirection === "asc" ? -1 : 1;
+        if (valA > valB) return orgSortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return result;
+  }, [orgs, orgQuery, orgFilter, orgSortKey, orgSortDirection, usersByOrg]);
+
+  // Paged the same way the users table above is, rather than scrolled — one pagination idiom
+  // across the page (and the app), so neither table asks the reader to learn a second one.
+  const [orgPage, setOrgPage] = useState(1);
+  const [orgPageSize, setOrgPageSize] = useState(5);
+  const orgPageCount = Math.ceil(visibleOrgs.length / orgPageSize) || 1;
+  const currentOrgPage = Math.min(orgPage, orgPageCount);
+  const currentOrgs = visibleOrgs.slice(
+    (currentOrgPage - 1) * orgPageSize,
+    currentOrgPage * orgPageSize
+  );
+
+  function handleOrgPageSizeChange(val: string | null) {
+    setOrgPageSize(Number(val ?? "5"));
+    setOrgPage(1);
+  }
+
+  /** The `?orgs=` half of the band's deep-linking — see the `?role=` re-sync above. */
+  const orgsParam = searchParams.get("orgs");
+  const [prevOrgsParam, setPrevOrgsParam] = useState(orgsParam);
+  if (orgsParam !== prevOrgsParam) {
+    setPrevOrgsParam(orgsParam);
+    setOrgFilter(orgFilterFromParam(orgsParam));
+    setOrgPage(1);
+  }
+
+  const handleExportOrgs = useCallback(
+    () => downloadOrgsCsv(visibleOrgs, t),
+    [visibleOrgs, t]
+  );
+
+  // Plain functions, not `useCallback`: this project builds with the React Compiler
+  // (`reactCompiler: true` in next.config.ts), which memoizes these automatically and reports a
+  // hard error when a hand-written `useCallback` around them cannot be preserved.
+  function openCreateOrg() {
+    setOrgForm((v) => (v?.mode === "create" ? null : { mode: "create" }));
+  }
+  function closeOrgForm() {
+    setOrgForm(null);
+  }
+  function handleOrgQueryChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setOrgQuery(e.target.value);
+    setOrgPage(1);
+  }
+
+  function onSubmitOrg(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!orgForm) return;
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const name = String(data.get("orgName") ?? "");
+    const mailboxes = String(data.get("contactEmails") ?? "");
+    const creating = orgForm.mode === "create";
+    const orgId = orgForm.mode === "edit" ? orgForm.org.id : "";
+    startTransition(async () => {
+      const result = creating
+        ? await createLenderOrgAction(
+            name,
+            String(data.get("emailDomain") ?? ""),
+            mailboxes
+          )
+        : await updateLenderOrgAction(orgId, name, mailboxes);
+      if (!result.ok) {
+        toast.error(errorText(result) ?? t("toast.saveFailed"));
+        return;
+      }
+      toast.success(
+        creating
+          ? t("form.orgAdded", { name: name.trim() })
+          : t("toast.organisationUpdated")
+      );
+      form.reset();
+      setOrgForm(null);
+    });
+  }
+
+  function onGrant(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    // The address is assembled from the lender chosen plus the mailbox typed, not read back out
+    // of a field — that is what keeps the two from disagreeing.
+    const email = grantComposedEmail;
+    if (!email) {
+      toast.error(
+        !selectedGrantOrg
+          ? t("toast.chooseLender")
+          : grantLocal.includes("@")
+            ? t("form.domainMismatch")
+            : t("toast.enterMailbox")
+      );
+      return;
+    }
+    startTransition(async () => {
+      // No org name: the lender always exists already (it was picked from the dropdown), so the
+      // server resolves it from the address's domain. New lenders are onboarded on the other tab.
+      const result = await grantLenderAccessAction(
+        String(data.get("name") ?? ""),
+        email,
+        ""
+      );
+      if (!result.ok) {
+        toast.error(errorText(result) ?? t("toast.accessFailed"));
+        return;
+      }
+      toast.success(t("form.accessGranted"));
+      form.reset();
+      // `form.reset()` does not clear controlled inputs, so the lender and address have to be
+      // cleared explicitly, or the next open starts pre-filled with the last grant.
+      resetGrantForm();
+      setOpen(false);
+    });
+  }
+
+  return (
+    <div className="space-y-2">
+      {/* Same tab treatment the account workspace uses (Overview / Initial Claims / Audit
+          Trail), so this screen doesn't introduce a second idiom for the same job. Counts sit on
+          the tabs because they are the one thing you'd otherwise switch tabs to find out. */}
+      <div
+        className="flex flex-wrap gap-1 border-b border-neutral-200"
+        role="tablist"
+        aria-label={t("sectionsLabel")}
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "users"}
+          onClick={showUsers}
+          className={cn(
+            "-mb-px border-b-2 px-3.5 py-1.5 text-ui-subhead font-medium transition-colors",
+            tab === "users"
+              ? "border-brand-primary text-brand-primary"
+              : "border-transparent text-neutral-500 hover:text-neutral-800"
+          )}
+        >
+          {t("tabs.users")}
+          <span className="ml-1.5 rounded-full bg-neutral-100 px-1.5 py-0.5 text-ui-caption font-bold text-neutral-600">
+            {users.length}
+          </span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "organisations"}
+          onClick={showOrganisations}
+          className={cn(
+            "-mb-px border-b-2 px-3.5 py-1.5 text-ui-subhead font-medium transition-colors",
+            tab === "organisations"
+              ? "border-brand-primary text-brand-primary"
+              : "border-transparent text-neutral-500 hover:text-neutral-800"
+          )}
+        >
+          {t("tabs.organisations")}
+          <span
+            className={cn(
+              "ml-1.5 rounded-full px-1.5 py-0.5 text-ui-caption font-bold",
+              awaitingFirstUser > 0
+                ? "bg-warning/15 text-warning"
+                : "bg-neutral-100 text-neutral-600"
+            )}
+            title={
+              awaitingFirstUser > 0
+                ? t("awaitingOrgsTitle", { count: awaitingFirstUser })
+                : undefined
+            }
+          >
+            {orgs.length}
+          </span>
+        </button>
+      </div>
+
+      {tab === "users" && (
+        <Panel size="compact" id="users">
+          {/* Fields on their own grid, actions on their own row. Previously every field *and* both
+            buttons shared one wrapping flex row, so the columns misaligned as soon as one cell
+            was taller than its neighbours, and the buttons drifted into the fields when a fourth
+            one appeared. A grid keeps the labels on one baseline whatever each cell contains, and
+            the actions can no longer collide with anything. */}
+          {open && (
+            <form
+              onSubmit={onGrant}
+              className="border-b border-neutral-100 bg-neutral-25 px-5 py-2"
+            >
+              <div className="grid gap-x-3 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+                <label className="block">
+                  <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+                    {t("form.fullName")}
+                  </span>
+                  <input
+                    name="name"
+                    required
+                    // The form opens on the user's own t("grantAccess") press, so focus follows
+                    // the action they took.
+                    // eslint-disable-next-line jsx-a11y/no-autofocus
+                    autoFocus
+                    placeholder={t("placeholders.person")}
+                    className="h-9 w-full rounded-lg border border-neutral-200 px-3 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                  />
+                </label>
+                {/* The lender is picked first, because it is the decision the rest of the form
+                follows from: choosing one *fixes* the domain, so only the mailbox name is typed
+                and a mismatch between the lender picked and the address entered is not
+                expressible. A lender that does not exist yet is added on the "Lender
+                organisations" tab, not from here. */}
+                <label className="block">
+                  <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+                    {t("form.lenderOrganisation")}
+                  </span>
+                  <div className="relative">
+                    <select
+                      value={grantOrg}
+                      onChange={(e) => handleGrantOrgChange(e.target.value)}
+                      className="h-9 w-full appearance-none truncate rounded-lg border border-neutral-200 bg-white pl-3 pr-8 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                    >
+                      <option value="">{t("form.selectLender")}</option>
+                      {orgs.map((o) => (
+                        <option key={o.id} value={o.emailDomain}>
+                          {o.name}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+                  </div>
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-ui-body-lg font-medium text-neutral-700">
+                    {t("form.workEmail")}
+                  </span>
+                  {selectedGrantOrg ? (
+                    // Mailbox name, with the lender's domain fixed alongside it — but a whole address
+                    // pasted in here is understood too, see `handleGrantLocalChange`.
+                    <>
+                      <div
+                        className={cn(
+                          "flex h-9 items-stretch overflow-hidden rounded-lg border bg-white focus-within:ring-2",
+                          grantMailboxError
+                            ? "border-destructive focus-within:border-destructive focus-within:ring-destructive/20"
+                            : "border-neutral-200 focus-within:border-brand-primary focus-within:ring-brand-primary/20"
+                        )}
+                      >
+                        <input
+                          value={grantLocal}
+                          onChange={(e) =>
+                            handleGrantLocalChange(e.target.value)
+                          }
+                          onBlur={handleGrantLocalBlur}
+                          required
+                          placeholder={t("form.mailboxPlaceholder")}
+                          aria-label={t("form.mailboxName")}
+                          aria-invalid={Boolean(grantMailboxError)}
+                          className="min-w-0 flex-1 px-3 text-ui-subhead outline-none"
+                        />
+                        <span className="flex items-center whitespace-nowrap border-l border-neutral-200 bg-neutral-50 px-2.5 text-ui-body-lg text-neutral-500">
+                          @{selectedGrantOrg.emailDomain}
+                        </span>
+                      </div>
+                      {grantMailboxError && (
+                        <p className="mt-1 text-ui-body-sm text-destructive">
+                          {grantMailboxError}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex h-9 items-center rounded-lg border border-dashed border-neutral-200 px-3 text-ui-body-lg text-neutral-400">
+                      {t("form.selectLenderFirst")}
+                    </div>
+                  )}
+                </label>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-ui-body-sm text-neutral-500">
+                  {selectedGrantOrg
+                    ? t("form.scopedTo", { org: selectedGrantOrg.name })
+                    : t("form.pickLenderFirst")}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button type="submit" size="sm" disabled={pending}>
+                    {t("grantAccess")}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={closeGrantForm}
+                  >
+                    {t("cancel")}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          )}
+
+          {/* The panel has no header of its own, so Export and Grant access live at the end of
+            this row — `ml-auto` holds them at the right edge regardless of how wide the search
+            and filter are. */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-4 py-2">
+            <div className="relative w-fit">
+              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+              <input
+                value={query}
+                onChange={handleQueryChange}
+                placeholder={t("filters.searchUsersPlaceholder")}
+                aria-label={t("filters.searchUsers")}
+                className="h-8 w-[260px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              />
+            </div>
+            <div className="relative">
+              <select
+                aria-label={t("filters.roleLabel")}
+                value={roleFilter}
+                onChange={(e) => handleRoleFilterChange(e.target.value)}
+                className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-ui-body-lg font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              >
+                <option value="ALL">{t("filters.allRoles")}</option>
+                <option value="LENDER">{t("filters.lenderUsers")}</option>
+                <option value="IMGC">{t("filters.imgcStaff")}</option>
+              </select>
+              <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleExportUsers}>
+                <DownloadIcon /> {t("exportCsv")}
+              </Button>
+              <Button size="sm" onClick={() => setOpen((v) => !v)}>
+                <UserPlusIcon /> {t("grantAccess")}
+              </Button>
+            </div>
+          </div>
+
+          <div className="max-h-[60vh] overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <SortableTableHead
+                    column="name"
+                    label={t("columnsMore.name")}
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                  />
+                  <SortableTableHead
+                    column="email"
+                    label={t("columns.email")}
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                  />
+                  <SortableTableHead
+                    column="role"
+                    label={t("columnsMore.role")}
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                  />
+                  <SortableTableHead
+                    column="organization"
+                    label={t("columns.organisation")}
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                  />
+                  <SortableTableHead
+                    column="status"
+                    label={t("columns.signIn")}
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                  />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {currentUsers.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="py-12 text-center text-ui-subhead text-neutral-500"
+                    >
+                      {t("noUsersMatch")}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  currentUsers.map((u) => (
+                    <TableRow key={u.id}>
+                      <TableCell className="px-1.5 py-1.5 text-ui-body font-medium whitespace-nowrap text-neutral-950">
+                        {u.name}
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap text-neutral-600">
+                        {u.email}
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5">
+                        <span
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-ui-caption font-semibold whitespace-nowrap",
+                            u.role === "IMGC"
+                              ? "bg-brand-muted text-brand-dark"
+                              : "bg-warning/15 text-warning"
+                          )}
+                        >
+                          {u.role}
+                        </span>
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap text-neutral-600">
+                        {u.lenderOrgName ?? "IMGC"}
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5 text-ui-body-sm whitespace-nowrap text-neutral-500">
+                        {u.role === "IMGC"
+                          ? t("employeeId", { id: u.employeeId ?? "" })
+                          : t("signInMethod")}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-1.5">
+            <div className="flex items-center gap-3 text-ui-body text-neutral-500">
+              <div className="flex items-center gap-2">
+                <span>{t("rowsPerPage")}</span>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={handlePageSizeChange}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className="h-8 w-[70px] bg-white text-ui-body"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5" className="text-ui-body">
+                      5
+                    </SelectItem>
+                    <SelectItem value="10" className="text-ui-body">
+                      10
+                    </SelectItem>
+                    <SelectItem value="20" className="text-ui-body">
+                      20
+                    </SelectItem>
+                    <SelectItem value="50" className="text-ui-body">
+                      50
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Spells out the split, so this total can never look like it disagrees with the
+                "Lender Users" tile in the band above — it counts lenders only, this counts
+                everyone who can sign in. */}
+              <span className="hidden sm:inline">
+                {t("totalUsers", { count: filtered.length })}
+                {roleFilter === "ALL" && !query.trim() && (
+                  <span className="text-neutral-400">
+                    {t("userSplit", {
+                      lender: lenderUserCount,
+                      staff: imgcUserCount,
+                    })}
+                  </span>
+                )}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span className="hidden text-ui-body text-neutral-500 sm:inline">
+                {t("pageOf", { page: currentPage, pageCount })}
+              </span>
+              <PaginationNumbers
+                page={currentPage}
+                pageCount={pageCount}
+                onPageChange={setPage}
+              />
+            </div>
+          </div>
+        </Panel>
+      )}
+
+      {tab === "organisations" && (
+        <Panel
+          size="compact"
+          id="organisations"
+          title={t("organisations")}
+          description={t("orgsDescription")}
+          actions={
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleExportOrgs}>
+                <DownloadIcon /> {t("exportCsv")}
+              </Button>
+              <Button size="sm" onClick={openCreateOrg}>
+                <PlusIcon /> {t("addOrganisation")}
+              </Button>
+            </div>
+          }
+        >
+          {orgForm && (
+            <OrgForm
+              mode={orgForm.mode}
+              org={orgForm.mode === "edit" ? orgForm.org : undefined}
+              pending={pending}
+              onSubmit={onSubmitOrg}
+              onCancel={closeOrgForm}
+            />
+          )}
+
+          {/* Same shape as the users table's own search row above — one search affordance on the
+            page, not two that look different. The row count it used to carry now lives in the
+            footer, where the users table already puts it. */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-4 py-2">
+            <div className="relative w-fit">
+              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+              <input
+                value={orgQuery}
+                onChange={handleOrgQueryChange}
+                placeholder={t("filters.searchOrgsPlaceholder")}
+                aria-label={t("filters.searchOrgs")}
+                className="h-8 w-[260px] rounded-full border border-neutral-200 bg-white pl-8 pr-3 text-ui-subhead outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              />
+            </div>
+            <div className="relative">
+              <select
+                aria-label={t("filters.accessState")}
+                value={orgFilter}
+                onChange={(e) => handleOrgFilterChange(e.target.value)}
+                className="h-8 appearance-none rounded-full border border-neutral-200 bg-white pl-3.5 pr-8 text-center text-ui-body-lg font-medium text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+              >
+                <option value="ALL">{t("filters.allOrganisations")}</option>
+                <option value="ACTIVE">{t("filters.hasUsers")}</option>
+                <option value="AWAITING">{t("awaitingFirstUser")}</option>
+              </select>
+              <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <SortableTableHead
+                    column="name"
+                    label={t("columns.organisation")}
+                    sortKey={orgSortKey}
+                    sortDirection={orgSortDirection}
+                    onToggle={toggleOrgSort}
+                  />
+                  <SortableTableHead
+                    column="emailDomain"
+                    label={t("columnsMore.emailDomain")}
+                    sortKey={orgSortKey}
+                    sortDirection={orgSortDirection}
+                    onToggle={toggleOrgSort}
+                  />
+                  <SortableTableHead
+                    column="users"
+                    label={t("columnsMore.users")}
+                    sortKey={orgSortKey}
+                    sortDirection={orgSortDirection}
+                    onToggle={toggleOrgSort}
+                  />
+                  <TableHead className="h-8 px-1.5 text-left text-ui-caption">
+                    {t("columns.actions")}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibleOrgs.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="py-10 text-center text-ui-subhead text-neutral-500"
+                    >
+                      {orgs.length === 0 ? t("noOrgsYet") : t("noOrgMatch")}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  currentOrgs.map((o) => (
+                    <OrgRow
+                      key={o.id}
+                      org={o}
+                      userCount={usersByOrg.get(o.id) ?? 0}
+                      onEdit={setOrgForm}
+                    />
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-1.5">
+            <div className="flex items-center gap-3 text-ui-body text-neutral-500">
+              <div className="flex items-center gap-2">
+                <span>{t("rowsPerPage")}</span>
+                <Select
+                  value={String(orgPageSize)}
+                  onValueChange={handleOrgPageSizeChange}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className="h-8 w-[70px] bg-white text-ui-body"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5" className="text-ui-body">
+                      5
+                    </SelectItem>
+                    <SelectItem value="10" className="text-ui-body">
+                      10
+                    </SelectItem>
+                    <SelectItem value="20" className="text-ui-body">
+                      20
+                    </SelectItem>
+                    <SelectItem value="50" className="text-ui-body">
+                      50
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="hidden sm:inline">
+                {t("totalOrganisations", { count: visibleOrgs.length })}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span className="hidden text-ui-body text-neutral-500 sm:inline">
+                {t("pageOf", { page: currentOrgPage, pageCount: orgPageCount })}
+              </span>
+              <PaginationNumbers
+                page={currentOrgPage}
+                pageCount={orgPageCount}
+                onPageChange={setOrgPage}
+              />
+            </div>
+          </div>
+        </Panel>
+      )}
+    </div>
+  );
+}

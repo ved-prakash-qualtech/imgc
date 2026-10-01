@@ -3,6 +3,11 @@
 # build file under docker/ cannot be deployed at all. The dev image stays in docker/, where only
 # docker-compose.dev.yml looks for it.
 # Production: multi-stage build with Next.js standalone output.
+#
+# One image per app: the portal is a monorepo of four Next.js apps (shell, claims, loans, admin)
+# served together under one domain. Pick the app with --build-arg APP=<name>; the default is the
+# shell. The shell routes every other path to the zone that serves it (CLAIMS_ZONE_URL,
+# LOANS_ZONE_URL, ADMIN_ZONE_URL), and each zone image runs on its own PORT.
 FROM node:24.17.0-bookworm-slim AS base
 
 WORKDIR /app
@@ -15,10 +20,18 @@ ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable && corepack prepare pnpm@11.8.0 --activate
 
 FROM base AS deps
+# Every workspace manifest has to be present for a frozen-lockfile install to resolve.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages ./packages
+COPY apps/shell/package.json ./apps/shell/package.json
+COPY apps/claims/package.json ./apps/claims/package.json
+COPY apps/loans/package.json ./apps/loans/package.json
+COPY apps/admin/package.json ./apps/admin/package.json
 RUN pnpm install --frozen-lockfile
 
 FROM base AS builder
+# shell | claims | loans | admin
+ARG APP=shell
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
@@ -50,9 +63,11 @@ ARG BASE_PATH
 ENV BASE_PATH=${BASE_PATH}
 
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm build
+RUN pnpm --filter "@imgc/app-${APP}" build
 
 FROM base AS runner
+ARG APP=shell
+ENV APP=${APP}
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -60,10 +75,12 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+# Standalone output keeps the workspace layout: the server is at apps/<app>/server.js, with the
+# workspace packages traced in beside it.
+COPY --from=builder /app/apps/${APP}/.next/standalone ./
+COPY --from=builder /app/apps/${APP}/.next/static ./apps/${APP}/.next/static
+COPY --from=builder /app/apps/${APP}/public ./apps/${APP}/public
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["sh", "-c", "node apps/${APP}/server.js"]

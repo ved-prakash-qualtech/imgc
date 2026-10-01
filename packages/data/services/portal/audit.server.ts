@@ -1,0 +1,188 @@
+import "server-only";
+
+import {
+  appendAudit,
+  readAuditLog,
+  readDb,
+  writeDb,
+} from "@imgc/data/server/mock/db";
+import { newId, nowIso } from "@imgc/data/server/mock/ids";
+import type { AppSession } from "@imgc/lib/auth/appSession";
+import type {
+  AuditEvent,
+  AuditType,
+  DocStatus,
+  ReinstateStatus,
+  Role,
+} from "@imgc/types/domain";
+
+export async function recordEvent(input: {
+  accountId: string;
+  actor: AppSession | { userId: string; name: string; role: "SYSTEM" };
+  type: AuditType;
+  summary: string;
+  meta?: Record<string, string>;
+}): Promise<void> {
+  const at = nowIso();
+  // The account keeps its own last-activity time, so pages that only need that skip the log.
+  await writeDb((db) => {
+    const account = db.accounts.find((a) => a.id === input.accountId);
+    if (account) account.lastActivityAt = at;
+  });
+  await appendAudit({
+    id: newId("aud"),
+    accountId: input.accountId,
+    at,
+    actorId: input.actor.userId,
+    actorName: input.actor.name,
+    actorRole: input.actor.role,
+    type: input.type,
+    summary: input.summary,
+    meta: input.meta,
+  });
+}
+
+export async function listAuditForAccount(
+  accountId: string
+): Promise<AuditEvent[]> {
+  const log = await readAuditLog();
+  const events = log.filter((e) => e.accountId === accountId);
+
+  // Backfill remarks for existing DOC_UPLOADED events that don't have them
+  const db = await readDb();
+  const files = db.documentFiles.filter(
+    (f) => f.accountId === accountId && f.uploadRemarks
+  );
+
+  if (files.length > 0) {
+    const fileRemarks = new Map(files.map((f) => [f.id, f.uploadRemarks]));
+    return events.map((e) => {
+      if (e.type === "DOC_UPLOADED" && e.meta?.fileId && !e.meta.remarks) {
+        const remark = fileRemarks.get(e.meta.fileId);
+        if (remark) {
+          return {
+            ...e,
+            meta: { ...e.meta, remarks: remark },
+          };
+        }
+      }
+      return e;
+    });
+  }
+
+  return events;
+}
+
+export async function listRecentAudit(
+  accountIds: string[],
+  limit = 200
+): Promise<AuditEvent[]> {
+  const allowed = new Set(accountIds);
+  const log = await readAuditLog();
+  return log.filter((e) => allowed.has(e.accountId)).slice(0, limit);
+}
+
+export interface DocumentTrailItem {
+  id: string;
+  documentId: string;
+  accountId: string;
+  accountLoanNo: string;
+  borrowerName: string;
+  lenderOrgName: string;
+  documentName: string;
+  category?: string;
+  fileName: string;
+  version: number;
+  uploadedByName: string;
+  uploadedAt: string;
+  status: DocStatus;
+  rejectionReason?: string;
+  rejectionDate?: string;
+  reinstateStatus?: ReinstateStatus;
+  supersededAt?: string;
+  supersededReason?: string;
+}
+
+export interface AuditRemarkItem {
+  id: string;
+  accountId: string;
+  accountLoanNo: string;
+  borrowerName: string;
+  documentId?: string;
+  documentName?: string;
+  authorName: string;
+  authorRole: Role;
+  body: string;
+  createdAt: string;
+}
+
+export async function listAuditDocumentTrail(
+  session: AppSession
+): Promise<DocumentTrailItem[]> {
+  const db = await readDb();
+  const accounts = db.accounts.filter(
+    (a) => session.role === "IMGC" || a.lenderOrgId === session.lenderOrgId
+  );
+  const accountMap = new Map(accounts.map((a) => [a.id, a]));
+  const docMap = new Map(db.claimDocuments.map((d) => [d.id, d]));
+  const orgMap = new Map(db.lenderOrgs.map((o) => [o.id, o.name]));
+
+  return db.documentFiles
+    .filter((f) => accountMap.has(f.accountId))
+    .map((f) => {
+      const account = accountMap.get(f.accountId)!;
+      const doc = docMap.get(f.documentId);
+      return {
+        id: f.id,
+        documentId: f.documentId,
+        accountId: f.accountId,
+        accountLoanNo: account.loanNo,
+        borrowerName: account.borrowerName,
+        lenderOrgName: orgMap.get(account.lenderOrgId) ?? "—",
+        documentName: doc?.name ?? "Document",
+        category: doc?.category,
+        fileName: f.originalName,
+        version: f.version,
+        uploadedByName: f.uploadedByName,
+        uploadedAt: f.uploadedAt,
+        status: doc?.status ?? "UNDER_REVIEW",
+        rejectionReason: doc?.rejection?.reason,
+        rejectionDate: doc?.rejection?.at,
+        reinstateStatus: doc?.rejection?.reinstate?.status,
+        supersededAt: f.supersededAt,
+        supersededReason: f.supersededReason,
+      };
+    })
+    .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+}
+
+export async function listAuditRemarksTrail(
+  session: AppSession
+): Promise<AuditRemarkItem[]> {
+  const db = await readDb();
+  const accounts = db.accounts.filter(
+    (a) => session.role === "IMGC" || a.lenderOrgId === session.lenderOrgId
+  );
+  const accountMap = new Map(accounts.map((a) => [a.id, a]));
+  const docMap = new Map(db.claimDocuments.map((d) => [d.id, d]));
+
+  return db.remarks
+    .filter((r) => accountMap.has(r.accountId))
+    .map((r) => {
+      const account = accountMap.get(r.accountId)!;
+      const doc = r.documentId ? docMap.get(r.documentId) : undefined;
+      return {
+        id: r.id,
+        accountId: r.accountId,
+        accountLoanNo: account.loanNo,
+        borrowerName: account.borrowerName,
+        documentId: r.documentId,
+        documentName: doc?.name,
+        authorName: r.authorName,
+        authorRole: r.authorRole,
+        body: r.body,
+        createdAt: r.createdAt,
+      };
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}

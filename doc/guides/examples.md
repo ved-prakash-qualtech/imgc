@@ -4,7 +4,7 @@ Common patterns for the **Next.js Multitenant Template**.
 
 ## New tenant-scoped route
 
-1. Add `ROUTES.myRoute` in `src/constants/routes.ts`
+1. Add `ROUTES.myRoute` in `packages/constants/routes.ts`
 2. Create `src/features/myFeature/components/MyRouteView.tsx`
 3. Create `src/app/my-route/page.tsx`:
 

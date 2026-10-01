@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("axios", () => ({ default: {} }));
-vi.mock("@/lib/serverEnv", () => ({
+vi.mock("@imgc/lib/serverEnv", () => ({
   getServerEnv: vi.fn(),
 }));
 
-import { resolveTenantFromHost } from "@/lib/tenantHost";
-import { getHostnamePrefixFromHost } from "@/services/api/tenantResolver";
+import { resolveTenantFromHost } from "@imgc/lib/tenantHost";
+import { getHostnamePrefixFromHost } from "@imgc/data/services/api/tenantResolver";
 
 describe("getHostnamePrefixFromHost", () => {
   it("matches resolveTenantFromHost for host strings", () => {

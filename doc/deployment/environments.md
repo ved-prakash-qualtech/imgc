@@ -6,8 +6,8 @@ Environment variable reference for the **Next.js Multitenant Template**. All val
 
 ```
 process.env
-    → buildEnvRawFromProcessEnv()     (src/lib/utils/env/env.ts)
-    → envRawSchema                    (src/lib/resolver/envSchema.ts)
+    → buildEnvRawFromProcessEnv()     (packages/lib/utils/env/env.ts)
+    → envRawSchema                    (packages/lib/resolver/envSchema.ts)
     → envSchema (coerce + transform)
     → export const env                (typed, fail-fast)
 ```
@@ -104,11 +104,11 @@ Do not read `process.env` directly in application code — use `env` or constant
 
 ## Adding a new variable
 
-1. Extend `envRawSchema` and `envSchema` in `src/lib/resolver/envSchema.ts`.
-2. Update `Env` in `src/types/env.ts`.
+1. Extend `envRawSchema` and `envSchema` in `packages/lib/resolver/envSchema.ts`.
+2. Update `Env` in `packages/types/env.ts`.
 3. Read in `buildEnvRawFromProcessEnv()`.
-4. Add fallback in `src/constants/envDefaults.ts` if needed.
-5. Update `src/lib/serverEnv.ts` for server-only variables.
+4. Add fallback in `packages/constants/envDefaults.ts` if needed.
+5. Update `packages/lib/serverEnv.ts` for server-only variables.
 6. Document here and in `.env.example`.
 
 ## Related

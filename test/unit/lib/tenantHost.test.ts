@@ -7,7 +7,7 @@ import {
   resolveHostScope,
   resolveTenantFromHost,
   stripLocalePrefix,
-} from "@/lib/tenantHost";
+} from "@imgc/lib/tenantHost";
 
 describe("tenantHost", () => {
   describe("resolveTenantFromHost", () => {

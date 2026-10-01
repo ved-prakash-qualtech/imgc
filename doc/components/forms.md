@@ -43,7 +43,7 @@ export function MyForm() {
 
 ## Prop types
 
-Form field prop types live in `src/types/forms.ts`.
+Form field prop types live in `packages/types/forms.ts`.
 
 ## Related
 

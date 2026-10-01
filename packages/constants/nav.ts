@@ -1,0 +1,96 @@
+import { ROUTES } from "@imgc/constants/route";
+import type { Role } from "@imgc/types/domain";
+
+/**
+ * What the sidebar offers, per role.
+ *
+ * Plain data on purpose — no icon components. These items are built on the server and handed to
+ * a client component, and a React component reference cannot cross that boundary. The sidebar
+ * maps `key` to an icon on its own side (see `AppSidebar`).
+ */
+export type NavKey =
+  | "dashboard"
+  | "claim-dashboard"
+  | "accounts"
+  | "dpd"
+  | "additional-documents"
+  | "notifications"
+  | "initiate-claim"
+  | "track-claim"
+  | "claims"
+  | "audit-trail"
+  | "administration"
+  | "admin-users"
+  | "admin-retention"
+  | "admin-doc-config"
+  // Retained from the base template so its demo pages still type-check.
+  | "tenants"
+  | "menus"
+  | "application-management"
+  | "roles"
+  | "users"
+  | "api-clients";
+
+export type NavItem = Readonly<{
+  key: NavKey;
+  label: string;
+  /** A group that only holds children has none: clicking it expands rather than navigating. */
+  href?: string;
+  children?: readonly NavItem[];
+}>;
+
+const CLAIM_DASHBOARD: NavItem = {
+  key: "claim-dashboard",
+  label: "Dashboard",
+  href: ROUTES.claimDashboard,
+};
+
+const ACCOUNTS: NavItem = {
+  key: "accounts",
+  label: "Claims",
+  href: ROUTES.accounts,
+};
+
+/** Initiating a claim and tracking one used to be two tabs; one grid now does both, so there is
+ *  only one nav entry for it. */
+const CLAIM: NavItem = {
+  key: "initiate-claim",
+  label: "Claims",
+  href: ROUTES.initiateClaim,
+};
+
+/** IMGC only — who may sign in, and what happens to rejected documents. */
+const ADMINISTRATION: NavItem = {
+  key: "administration",
+  label: "Administration",
+  children: [
+    { key: "admin-users", label: "Lender Access", href: ROUTES.adminUsers },
+    {
+      key: "admin-retention",
+      label: "Document Retention",
+      href: ROUTES.adminRetention,
+    },
+    {
+      key: "admin-doc-config",
+      label: "Document Configuration",
+      href: ROUTES.adminDocumentConfig,
+    },
+  ],
+};
+
+export function navFor(role: Role): NavItem[] {
+  if (role === "LENDER") return [CLAIM_DASHBOARD, CLAIM];
+
+  const imgcItems = [CLAIM_DASHBOARD, ACCOUNTS];
+
+  // Claim by IMGC: initiating and tracking a claim on a lender's behalf. Without a lender chosen
+  // it opens the picker; with one chosen it is the lender's own Initiate Claim screen.
+  imgcItems.push({
+    key: "initiate-claim",
+    label: "Claim by IMGC",
+    href: ROUTES.initiateClaim,
+  } as NavItem);
+
+  imgcItems.push(ADMINISTRATION);
+  return imgcItems;
+}

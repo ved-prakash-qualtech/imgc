@@ -1,0 +1,13 @@
+{
+  "name": "@imgc/config",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Claim configuration, claim ownership, API endpoints and the server error-code table.",
+  "type": "module",
+  "exports": {
+    "./*": "./*.ts"
+  },
+  "dependencies": {
+    "@imgc/types": "workspace:*"
+  }
+}

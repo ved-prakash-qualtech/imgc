@@ -1,0 +1,120 @@
+/* eslint-disable react-perf/jsx-no-jsx-as-prop, react-perf/jsx-no-new-array-as-prop */
+import { getTranslations } from "next-intl/server";
+import { claimAmountFor } from "@imgc/config/claimConfig";
+import { notFound } from "next/navigation";
+
+import {
+  AccountWorkspace,
+  type OpenQuery,
+} from "@/app/[locale]/(portal)/accounts/[accountId]/AccountWorkspace";
+import type { ClaimQuery } from "@imgc/types/domain";
+import { GridBackLink } from "@imgc/features/portal/GridBackLink";
+import { PortalShell } from "@imgc/features/portal/PortalShell";
+import { LiveClaimAgeing } from "@imgc/features/portal/LiveClaimAgeing";
+import { ROUTES } from "@imgc/constants/route";
+import { requireSession } from "@imgc/lib/auth/appSession";
+import { ACCOUNTS_FILTER_KEY } from "@imgc/lib/hooks/useRememberedFilters";
+import { RETENTION_DAYS } from "@imgc/data/server/mock/retention";
+import { getAccount } from "@imgc/data/services/portal/accounts.server";
+import { listAuditForAccount } from "@imgc/data/services/portal/audit.server";
+import {
+  getClaimForAccount,
+  listQueries,
+} from "@imgc/data/services/portal/claimFlow.server";
+import {
+  canSubmit,
+  listDocuments,
+} from "@imgc/data/services/portal/claims.server";
+import { listRemarks } from "@imgc/data/services/portal/remarks.server";
+
+export const dynamic = "force-dynamic";
+
+/** Unanswered queries, each marked overdue or not against the time of this request. */
+function openQueriesWithDue(queries: ClaimQuery[]): OpenQuery[] {
+  const now = Date.now();
+  return queries
+    .filter((q) => !q.respondedAt)
+    .map((q) => ({
+      ...q,
+      overdue: q.dueDate ? Date.parse(q.dueDate) < now : false,
+    }));
+}
+
+export default async function AccountPage({
+  params,
+}: {
+  params: Promise<{ accountId: string }>;
+}) {
+  const { accountId } = await params;
+  const session = await requireSession();
+
+  // A lender asking for another lender's account gets a 404, not a 403: the account is not part
+  // of their workspace at all, and confirming it exists would leak the pool.
+  const account = await getAccount(session, accountId);
+  if (!account) notFound();
+
+  const [docs, events, claim, remarks] = await Promise.all([
+    listDocuments(session, accountId),
+    listAuditForAccount(accountId),
+    getClaimForAccount(session, accountId),
+    listRemarks(accountId),
+  ]);
+
+  const [queries] = await Promise.all([
+    claim ? listQueries(claim.id) : Promise.resolve([]),
+  ]);
+
+  // Which rejected documents already have an open query naming them — so a fresh rejection
+  // (already synced automatically) doesn't get a redundant "Raise Query" button, and only a
+  // document rejected before that sync existed does.
+  const queriedDocNames = new Set<string>();
+  for (const q of queries) {
+    if (q.respondedAt) continue;
+    for (const name of q.requestedDocuments) queriedDocNames.add(name);
+  }
+
+  const tGrids = await getTranslations("grids");
+  return (
+    <PortalShell
+      activeKey="accounts"
+      title={
+        session.role === "IMGC" && account.claimNo
+          ? `Claim No. ${account.claimNo}`
+          : account.loanNo
+      }
+      titleAside={
+        session.role === "IMGC" && account.claimNo
+          ? `₹${claimAmountFor(account.loanAmount).toLocaleString("en-IN")}`
+          : undefined
+      }
+      claimAgeing={
+        claim ? (
+          <LiveClaimAgeing statusHistory={claim.statusHistory} hideStatusText />
+        ) : undefined
+      }
+    >
+      <div className="space-y-3">
+        <AccountWorkspace
+          backLink={
+            <GridBackLink
+              href={ROUTES.accounts}
+              storageKey={ACCOUNTS_FILTER_KEY}
+              label={tGrids("misc.allAccounts")}
+              className="-mt-1 inline-flex items-center gap-1.5 text-ui-subhead font-medium text-neutral-500 hover:text-neutral-800"
+            />
+          }
+          account={account}
+          claim={claim}
+          role={session.role}
+          docs={docs}
+          events={events}
+          remarks={remarks}
+          canSubmit={canSubmit(docs)}
+          retentionDays={RETENTION_DAYS}
+          queriedDocNames={[...queriedDocNames]}
+          openQueries={openQueriesWithDue(queries)}
+        />
+      </div>
+    </PortalShell>
+  );
+}

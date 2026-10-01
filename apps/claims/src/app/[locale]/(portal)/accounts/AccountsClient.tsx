@@ -1,0 +1,1007 @@
+/* eslint-disable security/detect-object-injection, react-perf/jsx-no-new-function-as-prop */
+"use client";
+
+import { ownerForStatus } from "@imgc/config/claimOwner";
+import { useCallback, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ArrowUpDownIcon,
+  ChevronDownIcon,
+  DownloadIcon,
+  SearchIcon,
+} from "lucide-react";
+
+import { Panel } from "@imgc/features/portal/Panel";
+import { StatusPill } from "@imgc/features/portal/StatusPill";
+import { LiveClaimAgeing } from "@imgc/features/portal/LiveClaimAgeing";
+import { Checkbox } from "@imgc/ui/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@imgc/ui/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@imgc/ui/ui/select";
+import { PaginationNumbers } from "@imgc/ui/ui/pagination";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@imgc/ui/ui/table";
+import { ROUTES } from "@imgc/constants/route";
+import {
+  DPD_BANDS,
+  DPD_BAND_LABEL,
+  dpdInBand,
+  formatDpd,
+  type DpdBand,
+} from "@imgc/lib/dpd";
+import {
+  useRememberFilters,
+  ACCOUNTS_FILTER_KEY,
+} from "@imgc/lib/hooks/useRememberedFilters";
+import { claimAmountFor } from "@imgc/config/claimConfig";
+import { useTranslations } from "next-intl";
+
+import { cn } from "@imgc/lib/utils/twMergeUtils";
+import type { AccountRow } from "@imgc/data/services/portal/accounts.server";
+import type { ClaimStatus, Role } from "@imgc/types/domain";
+
+const BUCKETS = ["ALL", "IMGC", "LENDER"] as const;
+// "UNDER_PROGRESS" and "ACTIVE_NPA" are composites (not real `claimStatus` values): both use
+// the same groupings the Claims Overview band's tiles count, so a click on a tile and this filter
+// always agree. "APPROVED" also matches a "CLOSED" account below, for the same reason
+// "UNDER_PROGRESS" exists.
+const STATUSES = [
+  "NOT_STARTED",
+  "DRAFT",
+  "INITIATED",
+  "QUERY_INITIATED",
+  "UNDER_REVIEW",
+  "QUERY_UNDER_REVIEW",
+  "APPROVED",
+  "REJECTED",
+] as const;
+type StatusOption = (typeof STATUSES)[number];
+type StatusFilter = StatusOption | "UNDER_PROGRESS" | "ACTIVE_NPA";
+const URL_STATUS_VALUES = new Set<string>([
+  ...STATUSES,
+  "QUERY_RAISED", // keep so old bookmarked URLs still parse safely
+  "UNDER_PROGRESS",
+  "ACTIVE_NPA",
+]);
+/** Same four in-flight statuses `summariseClaimOverview`'s own "Under Progress" bucket counts. */
+const UNDER_PROGRESS_STATUSES = new Set<string>([
+  "UNDER_REVIEW",
+  "QUERIED",
+  "DOCUMENTS_RESUBMITTED",
+]);
+
+/** A coarse credit classification derived from the flags we actually carry — not a fourth
+ *  status field, so it can never drift from what `npa`/`writeOff` already say. */
+type AssetClass = "STANDARD" | "NPA" | "WRITE_OFF";
+/** `?assetClass=` still filters (the Portfolio Command Center links `/accounts?assetClass=NPA`),
+ *  though the dropdown for it was removed. */
+type AssetClassFilter = "ALL" | AssetClass;
+
+function assetClassOf(a: AccountRow): AssetClass {
+  if (a.writeOff) return "WRITE_OFF";
+  if (a.npa) return "NPA";
+  return "STANDARD";
+}
+
+type SortKey =
+  | "loanNo"
+  | "claimNo"
+  | "borrowerName"
+  | "lender"
+  | "purpose"
+  | "loanAmount"
+  | "outstandingAmount"
+  | "claimAmount"
+  | "submittedAt"
+  | "dpd"
+  | "bucket"
+  | "status";
+type SortDirection = "asc" | "desc" | null;
+
+/** 4500000 becomes 45,00,000 — Indian grouping, no currency symbol, same as the lender's grid. */
+const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
+
+/** Lender names run long ("ABC Housing Finance"); the column shows the first 10 characters and
+ *  the full name sits in the cell's tooltip. */
+function shortName(name: string, max = 10): string {
+  return name.length > max ? `${name.slice(0, max).trimEnd()}...` : name;
+}
+
+function date(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/** Escapes a value for one CSV field — wraps in quotes whenever it could otherwise break the
+ *  row (a comma, a quote, or a newline in a borrower/product name). */
+function csvField(value: string | number): string {
+  const s = String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCsv(
+  rows: AccountRow[],
+  role: Role,
+  t: (key: string) => string
+): void {
+  const headers = [
+    t("columns.loanNo"),
+    t("columns.claimNo"),
+    t("columns.borrower"),
+    ...(role === "IMGC" ? [t("columns.lender")] : []),
+    t("columns.loanType"),
+    t("columns.loanAmount"),
+    t("columns.outstandingAmount"),
+    t("columns.claimAmount"),
+    t("columns.claimInitiationDate"),
+    "DPD",
+    t("columns.owner"),
+    t("columns.claimStatus"),
+  ];
+  const lines = rows.map((a) =>
+    [
+      a.loanNo,
+      a.claimNo,
+      a.borrowerName,
+      ...(role === "IMGC" ? [a.lenderOrgName] : []),
+      a.product,
+      a.loanAmount,
+      a.outstandingAmount,
+      claimAmountFor(a.loanAmount),
+      a.submittedAt ? a.submittedAt.slice(0, 10) : "",
+      a.dpd ?? "",
+      ownerOf(a),
+      a.claimStatus,
+    ]
+      .map(csvField)
+      .join(",")
+  );
+  const csv = [headers.join(","), ...lines].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `accounts-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/** Which `?status=` values are real filter options — the Claims Overview band links here with
+ *  one of these; anything else (or none) falls back to "ALL" rather than silently filtering
+ *  wrong. */
+function statusFromParam(value: string | null): StatusFilter[] {
+  if (!value) return [];
+  return [
+    ...new Set(value.split(",").filter((item) => URL_STATUS_VALUES.has(item))),
+  ] as StatusFilter[];
+}
+
+/**
+ * What the Claim Status column shows for an account's stored `claimStatus`.
+ *
+ * `claimStatus` reads `DRAFT` both for an account with no claim yet and for one whose lender has
+ * saved a draft; `claimHasProgress` tells them apart, exactly as the lender's grid does. The first
+ * is "Not started", the second a real "Draft" — and the status filter below uses the same split,
+ * so the label a row shows and the filter option that selects it always agree. Only the label
+ * moves: nothing here writes `claimStatus`, and the stored value stays `DRAFT`.
+ */
+/** Who holds the claim — one status→owner rule shared with the lender's grid. */
+function ownerOf(a: AccountRow): AccountRow["bucket"] {
+  return ownerForStatus(claimStatusDisplay(a));
+}
+
+function claimStatusDisplay(a: AccountRow): ClaimStatus | "NOT_STARTED" {
+  return a.claimStatus === "DRAFT" && !a.claimHasProgress
+    ? "NOT_STARTED"
+    : (a.realClaimStatus ?? a.claimStatus);
+}
+
+function StatusMultiSelect({
+  value,
+  onChange,
+}: Readonly<{
+  value: StatusFilter[];
+  onChange: (next: StatusFilter[]) => void;
+}>) {
+  const t = useTranslations("grids");
+  const tStatus = useTranslations("status");
+  const [open, setOpen] = useState(false);
+  const selected = new Set(value);
+  const label =
+    value.length === 0
+      ? t("filters.allClaimStatus")
+      : value.length === 1
+        ? value[0] === "ACTIVE_NPA"
+          ? tStatus("ACTIVE_NPA")
+          : value[0] === "UNDER_PROGRESS"
+            ? tStatus("UNDER_PROGRESS")
+            : tStatus(value[0] as StatusOption)
+        : t("filters.statusesSelected", { count: value.length });
+
+  const toggle = (option: StatusOption) => {
+    const next = new Set(
+      value.filter(
+        (item): item is StatusOption =>
+          item !== "ACTIVE_NPA" && item !== "UNDER_PROGRESS"
+      )
+    );
+    if (next.has(option)) next.delete(option);
+    else next.add(option);
+    onChange(STATUSES.filter((item) => next.has(item)));
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        aria-label={t("filters.allClaimStatus")}
+        className="inline-flex h-7 max-w-[170px] items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-ui-body-sm font-medium text-neutral-700 outline-none transition-colors hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDownIcon className="size-3.5 shrink-0 text-neutral-400" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56 gap-1 p-2">
+        {STATUSES.map((option) => (
+          <label
+            key={option}
+            htmlFor={`account-status-${option}`}
+            className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-neutral-900 hover:bg-neutral-50"
+          >
+            <Checkbox
+              id={`account-status-${option}`}
+              checked={selected.has(option)}
+              onCheckedChange={() => toggle(option)}
+            />
+            {tStatus(option)}
+          </label>
+        ))}
+        {value.length > 0 && (
+          <button
+            type="button"
+            className="mt-1 border-t border-neutral-100 px-2 pt-2 text-left text-xs font-medium text-neutral-500 hover:text-neutral-900"
+            onClick={() => onChange([])}
+          >
+            {t("filters.clearStatus")}
+          </button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function purposeDisplayWith(t: (key: string) => string) {
+  return (v: string): string => (v === "ALL" ? t("filters.allLoanTypes") : v);
+}
+
+function bucketDisplayWith(
+  t: (key: string) => string,
+  tStatus: (key: string) => string
+) {
+  return (v: (typeof BUCKETS)[number]): string =>
+    v === "ALL"
+      ? t("filters.allOwners")
+      : tStatus(v === "IMGC" ? "IMGC" : "LENDER");
+}
+
+function dpdBandDisplayWith(t: (key: string) => string) {
+  return (v: DpdBand): string =>
+    v === "ALL" ? t("filters.allDpd") : DPD_BAND_LABEL[v];
+}
+
+const SortIcon = ({
+  column,
+  sortKey,
+  sortDirection,
+}: {
+  column: SortKey;
+  sortKey: SortKey | null;
+  sortDirection: SortDirection;
+}) => {
+  if (sortKey !== column)
+    return (
+      <ArrowUpDownIcon className="ml-px size-2.5 shrink-0 text-neutral-400" />
+    );
+  return sortDirection === "asc" ? (
+    <ArrowUpIcon className="ml-px size-2.5 shrink-0 text-neutral-800" />
+  ) : (
+    <ArrowDownIcon className="ml-px size-2.5 shrink-0 text-neutral-800" />
+  );
+};
+
+const SortableTableHead = ({
+  column,
+  label,
+  sortKey,
+  sortDirection,
+  onToggle,
+  className,
+  title,
+}: {
+  column: SortKey;
+  label: string;
+  sortKey: SortKey | null;
+  sortDirection: SortDirection;
+  onToggle: (k: SortKey) => void;
+  className?: string;
+  /** Native tooltip on the header — e.g. spelling out an abbreviation like "DPD". */
+  title?: string;
+}) => (
+  <TableHead
+    onClick={() => onToggle(column)}
+    title={title}
+    className={cn(
+      "h-7 cursor-pointer select-none px-0.5 text-ui-tiny transition-colors hover:bg-neutral-50",
+      className
+    )}
+  >
+    <div className="flex items-center">
+      {label}
+      <SortIcon
+        column={column}
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+      />
+    </div>
+  </TableHead>
+);
+
+export function AccountsClient({
+  accounts,
+  role,
+}: Readonly<{ accounts: AccountRow[]; role: Role }>) {
+  const t = useTranslations("grids");
+  const tStatus = useTranslations("status");
+  const tDpd = useTranslations("dpd");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // Recorded here, re-applied by the case page's t("misc.allAccounts") link.
+  useRememberFilters(ACCOUNTS_FILTER_KEY);
+  const [query, setQuery] = useState("");
+  const [bucket, setBucket] = useState<(typeof BUCKETS)[number]>(
+    (searchParams.get("bucket") as (typeof BUCKETS)[number] | null) ?? "ALL"
+  );
+  const [status, setStatus] = useState<StatusFilter[]>(() =>
+    statusFromParam(searchParams.get("status"))
+  );
+  const [assetClass] = useState<AssetClassFilter>(
+    (searchParams.get("assetClass") as AssetClassFilter | null) ?? "ALL"
+  );
+  // `?lender=` comes from a Claim Dashboard tile clicked with a lender picked in its hero banner,
+  // so the grid shows the same lender the tile counted.
+  const [lender, setLender] = useState<string>(
+    () => searchParams.get("lender") ?? "ALL"
+  );
+  const [product, setProduct] = useState<string>("ALL");
+  const [dpdBand, setDpdBand] = useState<DpdBand>("ALL");
+  const [sortKey, setSortKey] = useState<SortKey | null>("submittedAt");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // A Claims Overview tile navigates here client-side (same route, new `?status=`) — this
+  // component doesn't remount for that, so the lazy useState initializer above only ran once on
+  // first load. Re-sync during render when the param actually changes (React's own pattern for
+  // "adjust state when a prop changes"), or a click updates the URL and the grid silently keeps
+  // showing the old filter — see EligibleCasesClient.tsx's identical fix for the Lender's own
+  // Claim page, which had the same bug.
+  const [prevStatusParam, setPrevStatusParam] = useState(
+    searchParams.get("status")
+  );
+  const statusParam = searchParams.get("status");
+  if (statusParam !== prevStatusParam) {
+    setPrevStatusParam(statusParam);
+    setStatus(statusFromParam(statusParam));
+    setPage(1);
+  }
+  // Same re-sync for `?lender=`.
+  const [prevLenderParam, setPrevLenderParam] = useState(
+    searchParams.get("lender")
+  );
+  const lenderParam = searchParams.get("lender");
+  if (lenderParam !== prevLenderParam) {
+    setPrevLenderParam(lenderParam);
+    setLender(lenderParam ?? "ALL");
+    setPage(1);
+  }
+
+  const products = useMemo(
+    () => Array.from(new Set(accounts.map((a) => a.product))).sort(),
+    [accounts]
+  );
+  const lenderNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const a of accounts) names.set(a.lenderOrgId, a.lenderOrgName);
+    return names;
+  }, [accounts]);
+  const lenderOptions = useMemo(
+    () =>
+      [
+        "ALL",
+        ...[...lenderNames.keys()].sort((x, y) =>
+          (lenderNames.get(x) ?? "").localeCompare(lenderNames.get(y) ?? "")
+        ),
+      ] as const,
+    [lenderNames]
+  );
+  const lenderDisplay = useCallback(
+    (v: string) =>
+      v === "ALL" ? t("filters.allLenders") : (lenderNames.get(v) ?? v),
+    [lenderNames, t]
+  );
+
+  // See EligibleCasesClient.tsx's `toggleSort` for why this reads `sortKey`/`sortDirection` from
+  // the render closure instead of nesting one setState call inside the other's updater — that
+  // pattern skipped "descending" entirely under React 18's double-invocation of updaters.
+  const toggleSort = useCallback(
+    (key: SortKey) => {
+      if (sortKey !== key) {
+        setSortKey(key);
+        setSortDirection("asc");
+        return;
+      }
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+        return;
+      }
+      setSortKey(null);
+      setSortDirection(null);
+    },
+    [sortKey, sortDirection]
+  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let result = accounts.filter((a) => {
+      if (bucket !== "ALL" && ownerOf(a) !== bucket) return false;
+      if (lender !== "ALL" && a.lenderOrgId !== lender) return false;
+      if (status.length > 0) {
+        if (status.includes("ACTIVE_NPA")) {
+          if (
+            a.claimStatus !== "DRAFT" &&
+            !UNDER_PROGRESS_STATUSES.has(a.claimStatus)
+          )
+            return false;
+        } else if (status.includes("UNDER_PROGRESS")) {
+          if (!UNDER_PROGRESS_STATUSES.has(a.claimStatus)) return false;
+        } else {
+          // `DRAFT` splits on `claimHasProgress`, same as the Claim Status column
+          // (`claimStatusDisplay`): an untouched account is "Not started", a saved one "Draft".
+          const matchesNotStarted =
+            status.includes("NOT_STARTED") &&
+            a.claimStatus === "DRAFT" &&
+            !a.claimHasProgress;
+          const matchesDraft =
+            status.includes("DRAFT") &&
+            a.claimStatus === "DRAFT" &&
+            a.claimHasProgress;
+          const matchesApproved =
+            status.includes("APPROVED") &&
+            (a.claimStatus === "APPROVED" ||
+              a.claimStatus === "CLOSED" ||
+              a.claimStatus === "REFUND_RECEIVED_BY_IMGC");
+          // Use `realClaimStatus` so QUERY_INITIATED / QUERY_UNDER_REVIEW (stored as QUERIED on the
+          // account side) match their specific filter options instead of always being invisible.
+          const matchesClaimStatus =
+            a.claimStatus !== "DRAFT" &&
+            (status as string[]).includes(a.realClaimStatus || a.claimStatus);
+          if (
+            !matchesNotStarted &&
+            !matchesDraft &&
+            !matchesApproved &&
+            !matchesClaimStatus
+          )
+            return false;
+        }
+      }
+      if (assetClass !== "ALL" && assetClassOf(a) !== assetClass) return false;
+      if (product !== "ALL" && a.product !== product) return false;
+      if (!dpdInBand(a.dpd, dpdBand)) return false;
+      if (!q) return true;
+      return (
+        a.claimNo.toLowerCase().includes(q) ||
+        a.loanNo.toLowerCase().includes(q) ||
+        a.borrowerName.toLowerCase().includes(q) ||
+        a.lenderOrgName.toLowerCase().includes(q)
+      );
+    });
+
+    if (sortKey && sortDirection) {
+      result = [...result].sort((a, b) => {
+        let valA: string | number;
+        let valB: string | number;
+        switch (sortKey) {
+          case "loanNo":
+            valA = a.loanNo;
+            valB = b.loanNo;
+            break;
+          case "claimNo":
+            valA = a.claimNo;
+            valB = b.claimNo;
+            break;
+          case "borrowerName":
+            valA = a.borrowerName;
+            valB = b.borrowerName;
+            break;
+          case "loanAmount":
+            valA = a.loanAmount;
+            valB = b.loanAmount;
+            break;
+          case "outstandingAmount":
+            valA = a.outstandingAmount;
+            valB = b.outstandingAmount;
+            break;
+          case "claimAmount":
+            valA = claimAmountFor(a.loanAmount);
+            valB = claimAmountFor(b.loanAmount);
+            break;
+          case "submittedAt":
+            valA = a.submittedAt ?? "";
+            valB = b.submittedAt ?? "";
+            break;
+          case "dpd":
+            // Numeric, never string — a missing DPD sorts as the lowest value rather than
+            // breaking the comparison with `undefined`.
+            valA = a.dpd ?? -1;
+            valB = b.dpd ?? -1;
+            break;
+          case "lender":
+            valA = a.lenderOrgName;
+            valB = b.lenderOrgName;
+            break;
+          case "purpose":
+            valA = a.product;
+            valB = b.product;
+            break;
+          case "bucket":
+            valA = ownerOf(a);
+            valB = ownerOf(b);
+            break;
+          case "status":
+            valA = a.claimStatus;
+            valB = b.claimStatus;
+            break;
+        }
+        if (typeof valA === "string" && typeof valB === "string") {
+          valA = valA.toLowerCase();
+          valB = valB.toLowerCase();
+        }
+        if (valA < valB) return sortDirection === "asc" ? -1 : 1;
+        if (valA > valB) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return result;
+  }, [
+    accounts,
+    query,
+    bucket,
+    lender,
+    status,
+    assetClass,
+    product,
+    dpdBand,
+    sortKey,
+    sortDirection,
+  ]);
+
+  const pageCount = Math.ceil(filtered.length / pageSize) || 1;
+  const currentPage = Math.min(page, pageCount);
+  const currentRows = filtered.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  const handlePageSizeChange = useCallback((val: string | null) => {
+    setPageSize(Number(val ?? "10"));
+    setPage(1);
+  }, []);
+  const handleExport = useCallback(
+    () => downloadCsv(filtered, role, t),
+    [filtered, role, t]
+  );
+  const handleQueryChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setQuery(e.target.value);
+      setPage(1);
+    },
+    []
+  );
+  const handleStatusChange = useCallback(
+    (v: StatusFilter[]) => {
+      setStatus(v);
+      const nextParams = new URLSearchParams(searchParams.toString());
+      if (v.length === 0) nextParams.delete("status");
+      else nextParams.set("status", v.join(","));
+      router.replace(`?${nextParams.toString()}`, { scroll: false });
+      setPage(1);
+    },
+    [router, searchParams]
+  );
+  const handleProductChange = useCallback((v: string) => {
+    setProduct(v);
+    setPage(1);
+  }, []);
+  const handleLenderChange = useCallback(
+    (v: string) => {
+      setLender(v);
+      const nextParams = new URLSearchParams(searchParams.toString());
+      if (v === "ALL") nextParams.delete("lender");
+      else nextParams.set("lender", v);
+      router.replace(`?${nextParams.toString()}`, { scroll: false });
+      setPage(1);
+    },
+    [router, searchParams]
+  );
+  const handleBucketChange = useCallback((v: (typeof BUCKETS)[number]) => {
+    setBucket(v);
+    setPage(1);
+  }, []);
+  const handleDpdBandChange = useCallback((v: DpdBand) => {
+    setDpdBand(v);
+    setPage(1);
+  }, []);
+  return (
+    <Panel>
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-neutral-100 px-3 py-1.5">
+        <div className="relative">
+          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+          <input
+            value={query}
+            onChange={handleQueryChange}
+            placeholder={t("search.accountsPlaceholder")}
+            aria-label={t("search.accountsLabel")}
+            className="h-7 w-[180px] rounded-full border border-neutral-200 bg-white pl-8 pr-2.5 text-ui-body-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+          />
+        </div>
+        <StatusMultiSelect value={status} onChange={handleStatusChange} />
+        {role === "IMGC" && (
+          <FilterSelect
+            label={t("columns.lender")}
+            options={lenderOptions}
+            display={lenderDisplay}
+            value={lender}
+            onChange={handleLenderChange}
+          />
+        )}
+        <FilterSelect
+          label={t("columns.loanType")}
+          options={["ALL", ...products] as const}
+          display={purposeDisplayWith(t)}
+          value={product}
+          onChange={handleProductChange}
+        />
+        <FilterSelect
+          label={t("columns.owner")}
+          options={BUCKETS}
+          display={bucketDisplayWith(t, tStatus)}
+          value={bucket}
+          onChange={handleBucketChange}
+        />
+        <FilterSelect
+          label={t("columns.dpd")}
+          options={DPD_BANDS}
+          display={dpdBandDisplayWith(t)}
+          value={dpdBand}
+          onChange={handleDpdBandChange}
+        />
+        {/* Sits at the end of the filter row rather than in a panel header, wearing the same pill
+            as the selects beside it. `ml-auto` keeps it at the right edge however many filters
+            end up in front of it. */}
+        <button
+          type="button"
+          onClick={handleExport}
+          className="ml-auto inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-ui-body-sm font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+        >
+          <DownloadIcon className="size-3" /> {t("misc.exportCsv")}
+        </button>
+      </div>
+
+      <div className="max-h-[60vh] overflow-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <SortableTableHead
+                column="loanNo"
+                label={t("columns.loanNo")}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="claimNo"
+                label={t("columns.claimNoDotted")}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="borrowerName"
+                label={t("columns.borrower")}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              {role === "IMGC" && (
+                <SortableTableHead
+                  column="lender"
+                  label={t("columns.lender")}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+              )}
+              <SortableTableHead
+                column="purpose"
+                label={t("columns.loanType")}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="loanAmount"
+                label={t("columns.loanAmount")}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="outstandingAmount"
+                label={t("columns.outstandingAmount")}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="claimAmount"
+                label={t("columns.claimAmount")}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="submittedAt"
+                label={t("columns.initiationDate")}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <TableHead className="h-7 px-0.5 text-ui-tiny font-semibold text-neutral-500">
+                {t("columns.ageing")}
+              </TableHead>
+              <SortableTableHead
+                column="dpd"
+                label={t("columns.dpd")}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+                title={tDpd("dpdHint")}
+              />
+              <SortableTableHead
+                column="bucket"
+                label={t("columns.owner")}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+              <SortableTableHead
+                column="status"
+                label={t("columns.claimStatus")}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onToggle={toggleSort}
+              />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {currentRows.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={role === "IMGC" ? 13 : 12}
+                  className="py-12 text-center text-ui-subhead text-neutral-500"
+                >
+                  {t("misc.noAccountsMatch")}
+                </TableCell>
+              </TableRow>
+            ) : (
+              currentRows.map((a) => {
+                // IMGC has nothing to review on a claim the lender hasn't even started — the
+                // account page would just open to an empty claim workspace. The lender still
+                // opens it (that's where they start one), so this only gates IMGC's own view.
+                const disabled =
+                  role === "IMGC" && claimStatusDisplay(a) === "NOT_STARTED";
+                return (
+                  <TableRow
+                    key={a.id}
+                    onClick={
+                      disabled
+                        ? undefined
+                        : () => router.push(ROUTES.account(a.id))
+                    }
+                    aria-disabled={disabled || undefined}
+                    className={cn(
+                      "transition-colors",
+                      disabled
+                        ? "cursor-default"
+                        : "cursor-pointer hover:bg-neutral-50"
+                    )}
+                  >
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm font-medium whitespace-nowrap text-neutral-950">
+                      {a.loanNo}
+                    </TableCell>
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm whitespace-nowrap text-neutral-600">
+                      {a.claimNo || "—"}
+                    </TableCell>
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm whitespace-nowrap">
+                      {a.borrowerName}
+                    </TableCell>
+                    {role === "IMGC" && (
+                      <TableCell
+                        className="px-0.5 py-1 text-ui-body-sm whitespace-nowrap"
+                        title={a.lenderOrgName}
+                      >
+                        {shortName(a.lenderOrgName)}
+                      </TableCell>
+                    )}
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm whitespace-nowrap text-neutral-500">
+                      {a.product}
+                    </TableCell>
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm">
+                      <span className="inline-flex items-center rounded-full bg-success-50 px-1 py-0.5 text-ui-tiny font-semibold whitespace-nowrap tabular-nums text-success-700">
+                        {inr.format(a.loanAmount)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm">
+                      <span className="inline-flex items-center rounded-full bg-warning/10 px-1 py-0.5 text-ui-tiny font-semibold whitespace-nowrap tabular-nums text-warning">
+                        {inr.format(a.outstandingAmount)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm">
+                      <span
+                        className="inline-flex items-center rounded-full bg-brand-primary/10 px-1 py-0.5 text-ui-tiny font-semibold whitespace-nowrap tabular-nums text-brand-primary"
+                        title="20% of the loan amount"
+                      >
+                        {inr.format(claimAmountFor(a.loanAmount))}
+                      </span>
+                    </TableCell>
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm tabular-nums whitespace-nowrap text-neutral-500">
+                      {a.submittedAt ? date(a.submittedAt) : "—"}
+                    </TableCell>
+                    <TableCell className="px-0.5 py-1 text-ui-body-sm whitespace-nowrap text-neutral-500">
+                      <LiveClaimAgeing
+                        statusHistory={a.claimStatusHistory}
+                        hideStatusText
+                      />
+                    </TableCell>
+                    <TableCell
+                      title={tDpd("dpdHint")}
+                      className="px-0.5 py-1 text-ui-body-sm tabular-nums whitespace-nowrap text-neutral-700"
+                    >
+                      {formatDpd(a.dpd)}
+                    </TableCell>
+                    <TableCell className="px-0.5 py-1">
+                      <StatusPill
+                        status={ownerOf(a)}
+                        flat
+                        className="text-ui-tiny"
+                      />
+                    </TableCell>
+                    <TableCell className="px-0.5 py-1">
+                      <StatusPill
+                        status={claimStatusDisplay(a)}
+                        flat
+                        className="text-ui-tiny"
+                        maxChars={10}
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-3 py-1.5">
+        <div className="flex items-center gap-2 text-ui-body text-neutral-500">
+          <div className="flex items-center gap-2">
+            <span>{t("misc.rowsPerPage")}</span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={handlePageSizeChange}
+            >
+              <SelectTrigger
+                size="sm"
+                className="h-7 w-[62px] bg-white text-ui-body"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10" className="text-ui-body">
+                  10
+                </SelectItem>
+                <SelectItem value="20" className="text-ui-body">
+                  20
+                </SelectItem>
+                <SelectItem value="50" className="text-ui-body">
+                  50
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <span className="hidden sm:inline">
+            Total {filtered.length} account{filtered.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <span className="hidden text-ui-body text-neutral-500 sm:inline">
+            Page {currentPage} of {pageCount}
+          </span>
+          <PaginationNumbers
+            page={currentPage}
+            pageCount={pageCount}
+            onPageChange={setPage}
+          />
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function FilterSelect<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+  display,
+}: Readonly<{
+  label: string;
+  options: readonly T[];
+  value: T;
+  onChange: (next: T) => void;
+  display?: (value: T) => string;
+}>) {
+  return (
+    <div className="relative">
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value as T)}
+        className={cn(
+          // Tightened so search + five filters + Export fit on one line — the row wraps
+          // otherwise, which pushed Export onto a second line of its own.
+          "h-7 appearance-none rounded-full border border-neutral-200 bg-white pl-2.5 pr-6 text-center text-ui-body-sm font-medium capitalize text-neutral-700 outline-none",
+          "focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+        )}
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {display
+              ? display(option)
+              : option === "ALL"
+                ? `All ${label.toLowerCase()}s`
+                : option.toLowerCase()}
+          </option>
+        ))}
+      </select>
+      <ChevronDownIcon className="pointer-events-none absolute right-1.5 top-1/2 size-3 -translate-y-1/2 text-neutral-400" />
+    </div>
+  );
+}

@@ -1,0 +1,170 @@
+/* eslint-disable react-perf/jsx-no-jsx-as-prop, react-perf/jsx-no-new-function-as-prop, security/detect-object-injection -- pre-existing in this file: the indexed maps are declared
+   here with literal keys, and the inline props are small local values. Left as-is so the
+   type-scale change stays a class rename. */
+"use client";
+
+import { useMemo, useState } from "react";
+
+import { useTranslations } from "next-intl";
+
+import { Panel } from "@imgc/features/portal/Panel";
+import { cn } from "@imgc/lib/utils/twMergeUtils";
+import type { AuditEvent, AuditType } from "@imgc/types/domain";
+
+const GROUPS: ReadonlyArray<{ key: string; types: AuditType[] | null }> = [
+  { key: "everything", types: null },
+  {
+    key: "documents",
+    types: [
+      "DOC_UPLOADED",
+      "DOC_STATUS_CHANGED",
+      "DOC_REQUIREMENT_ADDED",
+      "REINSTATE_REQUESTED",
+      "REINSTATE_DECIDED",
+      "RETENTION_PURGED",
+    ],
+  },
+  { key: "remarks", types: ["REMARK_ADDED"] },
+  {
+    key: "processing",
+    types: ["BUCKET_SHIFTED", "CLAIM_SUBMITTED", "CLAIM_STATUS_CHANGED"],
+  },
+];
+
+const TYPE_TONE = new Map<AuditType, string>([
+  ["DOC_UPLOADED", "bg-info/12 text-info"],
+  ["DOC_STATUS_CHANGED", "bg-brand-muted text-brand-dark"],
+  ["DOC_REQUIREMENT_ADDED", "bg-brand-muted text-brand-dark"],
+  ["REMARK_ADDED", "bg-neutral-100 text-neutral-600"],
+  ["PAS_VALUE_UPDATED", "bg-success/15 text-success-700"],
+  ["BUCKET_SHIFTED", "bg-warning/15 text-warning"],
+  ["CLAIM_SUBMITTED", "bg-info/12 text-info"],
+  ["CLAIM_STATUS_CHANGED", "bg-warning/15 text-warning"],
+  ["REINSTATE_REQUESTED", "bg-warning/15 text-warning"],
+  ["REINSTATE_DECIDED", "bg-success/15 text-success-700"],
+  ["RETENTION_PURGED", "bg-destructive/12 text-destructive"],
+]);
+
+/** BRD: a trail of every document, remark and decision on the account. Append-only. */
+export function AuditTrailTab({ events }: Readonly<{ events: AuditEvent[] }>) {
+  const t = useTranslations("auditTrail");
+  const [group, setGroup] = useState(0);
+
+  const rows = useMemo(() => {
+    const g = GROUPS[group];
+    if (!g?.types) return events;
+    const set = new Set(g.types);
+    return events.filter((e) => {
+      if (set.has(e.type)) return true;
+      // Include document uploads that have remarks in the Remarks tab
+      if (g.key === "remarks" && e.type === "DOC_UPLOADED" && e.meta?.remarks)
+        return true;
+      return false;
+    });
+  }, [events, group]);
+
+  return (
+    <Panel
+      title={t("accountTitle")}
+      description={t("accountSubtitle")}
+      actions={
+        <div
+          className="flex flex-wrap items-center gap-0.5 rounded-lg border border-neutral-200 p-0.5"
+          role="group"
+          aria-label={t("filterLabel")}
+        >
+          {GROUPS.map((g, i) => (
+            <button
+              key={g.key}
+              type="button"
+              onClick={() => setGroup(i)}
+              aria-pressed={group === i}
+              className={cn(
+                "rounded-md px-2.5 py-1.5 text-ui-body font-medium transition-colors",
+                group === i
+                  ? "bg-brand-primary text-white"
+                  : "text-neutral-600 hover:bg-neutral-50"
+              )}
+            >
+              {t(`groups.${g.key}`)}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      {rows.length === 0 ? (
+        <p className="px-5 py-12 text-center text-ui-subhead text-neutral-500">
+          {t("emptyFilter")}
+        </p>
+      ) : (
+        <ol className="relative px-5 py-4">
+          {rows.map((e, i) => (
+            <li key={e.id} className="relative flex gap-3 pb-4 last:pb-0">
+              {/* connector */}
+              {i < rows.length - 1 && (
+                <span
+                  aria-hidden
+                  className="absolute left-[5px] top-4 h-full w-px bg-neutral-200"
+                />
+              )}
+              <span
+                aria-hidden
+                className="relative mt-1.5 size-2.5 shrink-0 rounded-full border-2 border-white bg-brand-primary ring-1 ring-neutral-200"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={cn(
+                      "rounded px-1.5 py-0.5 text-ui-tiny font-bold uppercase tracking-wide",
+                      TYPE_TONE.get(e.type) ?? "bg-neutral-100 text-neutral-600"
+                    )}
+                  >
+                    {e.type.replaceAll("_", " ")}
+                  </span>
+                  <span className="text-ui-body-sm text-neutral-400">
+                    {new Date(e.at).toLocaleString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+                <p className="mt-1 text-ui-subhead leading-snug text-neutral-800">
+                  {e.summary}
+                </p>
+                <div className="mt-0.5 flex flex-wrap items-center gap-3">
+                  <p className="text-ui-body-sm text-neutral-400">
+                    {e.actorName} · {e.actorRole}
+                  </p>
+                  {e.type === "DOC_UPLOADED" && e.meta?.fileId && (
+                    <a
+                      href={`/api/portal/files/${e.meta.fileId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-ui-label font-medium text-neutral-700 transition-colors hover:border-brand-primary hover:text-brand-primary"
+                    >
+                      {t("viewDocument")}
+                    </a>
+                  )}
+                </div>
+                {e.meta?.remarks && (
+                  <div className="mt-2 rounded-md border border-neutral-100 bg-neutral-50 px-3 py-2 text-ui-body-lg text-neutral-700">
+                    <span className="font-semibold text-neutral-900 block mb-0.5">
+                      Document Name: {e.meta.document}
+                    </span>
+                    <span className="font-semibold text-neutral-900">
+                      Remarks:{" "}
+                    </span>
+                    {e.meta.remarks}
+                  </div>
+                )}
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </Panel>
+  );
+}

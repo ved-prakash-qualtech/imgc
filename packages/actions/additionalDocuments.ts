@@ -1,0 +1,210 @@
+"use server";
+
+import {
+  fail,
+  type ServerErrorCode,
+  type ServerErrorParams,
+} from "@imgc/config/errorCodes";
+import { revalidatePath } from "next/cache";
+
+import { ROUTES } from "@imgc/constants/route";
+import { incomingUploadFrom } from "@imgc/data/server/actions/incomingUpload";
+import { runAction } from "@imgc/data/server/actions/runAction";
+import { requireSession } from "@imgc/lib/auth/appSession";
+import {
+  addRequirement,
+  decideDocument,
+  deleteDocumentFile,
+  requestDocumentWaiver,
+  discardUnsavedUploads,
+  setRequirementActive,
+  updateRequirement,
+  uploadDocument,
+  type RequirementInput,
+  type ReviewDecision,
+  type UploadMeta,
+} from "@imgc/data/services/portal/claims.server";
+
+export type Result = Readonly<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}>;
+
+/**
+ * Every mutation on the additional-documents workflow refreshes the same set of routes.
+ *
+ * The requirement table, the lender's list, the case workspace, the dashboard tiles and the
+ * notification badge all read the same rows, so a decision taken in the review drawer has to
+ * invalidate all of them or one screen will keep showing the previous status.
+ */
+function refreshAll(accountId?: string): void {
+  revalidatePath(ROUTES.additionalDocuments);
+  revalidatePath(ROUTES.accounts);
+  revalidatePath(ROUTES.dashboard);
+  revalidatePath(ROUTES.notifications);
+  if (accountId) revalidatePath(ROUTES.account(accountId));
+}
+
+export async function addRequirementAction(
+  accountId: string,
+  input: RequirementInput
+): Promise<Result> {
+  return runAction(async () => {
+    const session = await requireSession();
+    if (!accountId) return fail("CASE_REQUIRED");
+    const result = await addRequirement(session, accountId, input);
+    if (result.ok) refreshAll(accountId);
+    return result;
+  });
+}
+
+export async function updateRequirementAction(
+  accountId: string,
+  documentId: string,
+  input: RequirementInput
+): Promise<Result> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await updateRequirement(
+      session,
+      accountId,
+      documentId,
+      input
+    );
+    if (result.ok) refreshAll(accountId);
+    return result;
+  });
+}
+
+export async function setActiveAction(
+  accountId: string,
+  documentId: string,
+  active: boolean
+): Promise<Result> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await setRequirementActive(
+      session,
+      accountId,
+      documentId,
+      active
+    );
+    if (result.ok) refreshAll(accountId);
+    return result;
+  });
+}
+
+/** Approve · Reject · Request re-upload — the review drawer's three outcomes. */
+export async function reviewDocumentAction(
+  accountId: string,
+  documentId: string,
+  decision: ReviewDecision,
+  remarks: string
+): Promise<Result> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await decideDocument(
+      session,
+      accountId,
+      documentId,
+      decision,
+      remarks
+    );
+    if (result.ok) {
+      refreshAll(accountId);
+      // Reject / re-upload now syncs into the Claim entity as a query
+      // (`syncQueryForDocumentDecision`), so the lender's workspace and Track Claim need the same
+      // revalidation a Claim-side change gets elsewhere.
+      if (decision === "REJECTED" || decision === "REUPLOAD_REQUESTED") {
+        revalidatePath(ROUTES.initiateClaim);
+        revalidatePath(ROUTES.initiateClaimWorkspace(accountId));
+        revalidatePath(ROUTES.trackQueryResponse);
+      }
+    }
+    return result;
+  });
+}
+
+/** Lender upload / re-upload, with the metadata the upload form collects. */
+export async function uploadRequirementAction(
+  formData: FormData
+): Promise<Result> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const accountId = String(formData.get("accountId") ?? "");
+    const documentId = String(formData.get("documentId") ?? "");
+    const incoming = incomingUploadFrom(formData);
+    if (!incoming) return fail("FILE_REQUIRED");
+
+    const meta: UploadMeta = {
+      documentNumber: String(formData.get("documentNumber") ?? ""),
+      documentDate: String(formData.get("documentDate") ?? ""),
+      remarks: String(formData.get("remarks") ?? ""),
+      replaceFileId: formData.get("replaceFileId")
+        ? String(formData.get("replaceFileId"))
+        : undefined,
+    };
+
+    const result = await uploadDocument(
+      session,
+      accountId,
+      documentId,
+      incoming,
+      meta
+    );
+    if (result.ok) refreshAll(accountId);
+    return result;
+  });
+}
+
+/** Lender only — soft-delete a single uploaded file from a document category. */
+export async function deleteDocumentFileAction(
+  accountId: string,
+  documentId: string,
+  fileId: string
+): Promise<Result> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await deleteDocumentFile(
+      session,
+      accountId,
+      documentId,
+      fileId
+    );
+    if (result.ok) refreshAll(accountId);
+    return result;
+  });
+}
+
+/** Lender only — drops a Draft claim's uploads that Save Draft never kept. */
+export async function discardUnsavedUploadsAction(
+  accountId: string,
+  claimId: string
+): Promise<Result> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await discardUnsavedUploads(session, accountId, claimId);
+    if (result.ok) refreshAll(accountId);
+    return result;
+  });
+}
+
+/** Lender — ask IMGC to waive a required document that cannot be supplied. */
+export async function requestWaiverAction(
+  accountId: string,
+  documentId: string,
+  reason: string
+): Promise<Result> {
+  return runAction(async () => {
+    const session = await requireSession();
+    const result = await requestDocumentWaiver(
+      session,
+      accountId,
+      documentId,
+      reason
+    );
+    if (result.ok) refreshAll(accountId);
+    return result;
+  });
+}

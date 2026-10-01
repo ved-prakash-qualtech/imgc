@@ -4,7 +4,7 @@ Tenant context and client-side state.
 
 ## Tenant context (server-side)
 
-**File:** `src/lib/tenant.ts`
+**File:** `packages/lib/tenant.ts`
 
 ```typescript
 import { currentTenant, getTenantOrNull } from "@/lib/tenant";
@@ -29,7 +29,7 @@ const tenant = useTenant();
 
 ## Cookie keys
 
-**File:** `src/constants/authCookies.ts`
+**File:** `packages/constants/authCookies.ts`
 
 Names used when persisting tokens to cookies. Must stay consistent across login, refresh, and sign-out flows.
 

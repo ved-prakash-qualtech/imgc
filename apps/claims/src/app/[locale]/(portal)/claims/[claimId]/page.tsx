@@ -1,0 +1,624 @@
+/* eslint-disable react-perf/jsx-no-jsx-as-prop */
+import { getAdminContextOrNull } from "@imgc/lib/auth/adminContext";
+import { claimAmountFor } from "@imgc/config/claimConfig";
+import { EyeIcon } from "lucide-react";
+import { notFound } from "next/navigation";
+
+import { ClaimDetailSinglePage } from "@imgc/features/portal/ClaimDetailSinglePage";
+import { ClaimDetailTabs } from "@imgc/features/portal/ClaimDetailTabs";
+import { ClaimDocumentsTable } from "@imgc/features/portal/ClaimDocumentsTable";
+import { ClaimHistory } from "@imgc/features/portal/ClaimHistory";
+import { ClaimStatusHistoryGraph } from "@imgc/features/portal/ClaimStatusHistoryGraph";
+import { LenderClaimStatusPanel } from "@imgc/features/portal/LenderClaimStatusPanel";
+import { LoanDetailsCard } from "@imgc/features/portal/LoanDetailsCard";
+import { Panel } from "@imgc/features/portal/Panel";
+import { ActionFooter } from "@imgc/features/portal/ActionFooter";
+import {
+  buildClaimRemarkItems,
+  ClaimRemarksPanel,
+} from "@imgc/features/portal/ClaimRemarksPanel";
+import { GridBackLink } from "@imgc/features/portal/GridBackLink";
+import { PortalShell } from "@imgc/features/portal/PortalShell";
+import { LiveClaimAgeing } from "@imgc/features/portal/LiveClaimAgeing";
+import { QueriedButton } from "@imgc/features/portal/QueriedButton";
+import { ResubmitClaimButton } from "@imgc/features/portal/ResubmitClaimButton";
+import { StatusPill } from "@imgc/features/portal/StatusPill";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@imgc/ui/ui/table";
+import { ROUTES } from "@imgc/constants/route";
+import { getTranslations } from "next-intl/server";
+
+import { requireSession } from "@imgc/lib/auth/appSession";
+import { CLAIMS_FILTER_KEY } from "@imgc/lib/hooks/useRememberedFilters";
+import { getAccount } from "@imgc/data/services/portal/accounts.server";
+import {
+  getClaim,
+  listQueries,
+} from "@imgc/data/services/portal/claimFlow.server";
+import { listClaimDocuments } from "@imgc/data/services/portal/requirements.server";
+import { listRemarks } from "@imgc/data/services/portal/remarks.server";
+
+export const dynamic = "force-dynamic";
+
+function when(iso: string): string {
+  return new Date(iso).toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** A plain date, no time — for `refundReceipt.paymentDate` (a date IMGC entered, e.g. from a
+ *  bulk upload), as opposed to `when()`'s timestamp for when something happened in the portal. */
+function whenDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/** Track Claim / Claim Details — the same page for both roles, scoped by the service. */
+export default async function ClaimDetailsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ claimId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const { claimId } = await params;
+  const { view, as } = await searchParams;
+  const isSingleView = view === "single";
+  const t = await getTranslations("claim.claimDetail");
+  const tHistory = await getTranslations("claim.claimHistory");
+  const session = await requireSession();
+
+  const claim = await getClaim(session, claimId);
+  if (!claim) notFound();
+
+  const [documents, queries, account, remarks] = await Promise.all([
+    listClaimDocuments(session, claim.id),
+    listQueries(claim.id),
+    getAccount(session, claim.accountId),
+    listRemarks(claim.accountId),
+  ]);
+  const claimRemarks = buildClaimRemarkItems(claim, remarks);
+  const isLender = session.role === "LENDER";
+  const adminCtx = await getAdminContextOrNull();
+  // IMGC working for a lender ("Claim by IMGC") sees the lender's own layout, so the claim reads
+  // to them exactly as it reads to the lender they are acting for.
+  // `?as=lender` is set by the Claim by IMGC grid, so a claim opened from there reads as the lender
+  // sees it even before a lender has been picked; the Claims tab keeps IMGC's review layout.
+  const showLenderLayout =
+    isLender || (session.role === "IMGC" && (!!adminCtx || as === "lender"));
+  const canActAsLender =
+    isLender ||
+    (session.role === "IMGC" && adminCtx?.lenderOrgId === account?.lenderOrgId);
+
+  // Answering a formal query is one way back to IMGC. The other is a rejection the lender has
+  // already fixed: IMGC can reject a file without raising a query (the claim stays where it is),
+  // and the replacement then sits there with no way to hand it back. A document counts as fixed
+  // once its rejected file has been superseded and the replacement is awaiting a decision.
+  //
+  // Every submission and resubmission pushes a status entry, so a replacement uploaded after the
+  // latest one has not been handed across yet — which is what stops the button from staying on
+  // screen, invitingly clickable, once the lender has already sent the fix.
+  const lastHandBackAt = claim.statusHistory.reduce(
+    (latest, h) => (h.at > latest ? h.at : latest),
+    ""
+  );
+  const fixedRejection = documents.some(
+    (d) =>
+      d.status === "UNDER_REVIEW" &&
+      d.history.some(
+        (f) => f.supersededAt && f.review?.decision === "REJECTED"
+      ) &&
+      d.files.some((f) => !f.review && f.uploadedAt > lastHandBackAt)
+  );
+  // A document still standing rejected has to be corrected first — `checkSubmittable` refuses the
+  // submission while one is outstanding, so the button stays away rather than erroring on click.
+  const rejectionOutstanding = documents.some(
+    (d) => d.required && d.active && d.status === "REJECTED"
+  );
+  const inQuery =
+    claim.status === "QUERY_INITIATED" || claim.status === "QUERY_UNDER_REVIEW";
+  const canResubmit = inQuery || (fixedRejection && !rejectionOutstanding);
+  // Deleting an uploaded file is a draft-only act: after the lender submits, the file is part of
+  // what IMGC is reviewing. A wrong file is corrected by re-uploading over it, which keeps the
+  // superseded copy in the audit trail, rather than by making it disappear.
+  const canDeleteFiles = claim.status === "DRAFT";
+  const terminal =
+    claim.status === "APPROVED" ||
+    claim.status === "REJECTED" ||
+    claim.status === "CLOSED" ||
+    claim.status === "REFUND_RECEIVED_BY_IMGC";
+  // The confirmation IMGC recorded via "Refund Received" — read straight off the claim's own
+  // history rather than a second field, so there is exactly one place this can ever disagree
+  // with itself. Both roles land on this page (see the file doc comment), so this is how the
+  // lender sees it too.
+  const refundReceivedEntry =
+    claim.status === "REFUND_RECEIVED_BY_IMGC"
+      ? [...claim.statusHistory]
+          .reverse()
+          .find((h) => h.status === "REFUND_RECEIVED_BY_IMGC")
+      : undefined;
+
+  const layoutContent = isSingleView ? (
+    <ClaimDetailSinglePage
+      isLender={showLenderLayout}
+      showSectionNav={showLenderLayout}
+      loanDetails={account ? <LoanDetailsCard account={account} /> : null}
+      backLink={
+        <div className="flex items-center gap-3">
+          {showLenderLayout && (
+            // Back to the claims grid as the lender left it - a tile's filter (e.g. Initiated)
+            // survives the round trip into a claim and out again.
+            <GridBackLink
+              href={ROUTES.initiateClaim}
+              storageKey={CLAIMS_FILTER_KEY}
+              label={t("back")}
+              className="inline-flex shrink-0 items-center gap-1 text-ui-body-lg font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
+            />
+          )}
+          {!terminal && !showLenderLayout && (
+            <QueriedButton claimId={claim.id} claimNo={claim.claimNo} />
+          )}
+        </div>
+      }
+      statusAndQuery={
+        <>
+          {showLenderLayout ? (
+            <LenderClaimStatusPanel
+              key="claim-status"
+              initiatedByImgc={claim.fields.__initiatedByImgc === "true"}
+              history={claim.statusHistory}
+              currentStatus={claim.status}
+            />
+          ) : (
+            <Panel
+              key="claim-status"
+              title={t("claimStatus")}
+              className="shrink-0"
+            >
+              <div className="px-5 py-4">
+                <ClaimStatusHistoryGraph
+                  history={claim.statusHistory}
+                  currentStatus={claim.status}
+                />
+              </div>
+            </Panel>
+          )}
+
+          {claim.decision && (
+            <Panel
+              key="decision"
+              title={t("decisionRemarks")}
+              className="shrink-0"
+            >
+              <div className="px-4 py-3">
+                {claim.decision.remarks && (
+                  <p className="rounded-md bg-neutral-50 p-2 text-ui-subhead text-neutral-700">
+                    {claim.decision.remarks}
+                  </p>
+                )}
+                {refundReceivedEntry && (
+                  <div className="mt-2 border-t border-neutral-100 pt-2">
+                    <p className="flex flex-wrap items-center gap-2 text-ui-subhead-lg">
+                      <StatusPill status="REFUND_RECEIVED_BY_IMGC" />
+                      <span className="text-neutral-700">
+                        by {refundReceivedEntry.byName} ·{" "}
+                        {when(refundReceivedEntry.at)}
+                      </span>
+                    </p>
+                    {claim.refundReceipt && (
+                      <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-ui-body-lg text-neutral-600">
+                        <span>
+                          Date:{" "}
+                          <span className="font-semibold text-neutral-900">
+                            {whenDate(claim.refundReceipt.paymentDate)}
+                          </span>
+                        </span>
+                        <span>
+                          UTR No.:{" "}
+                          <span className="font-semibold text-neutral-900">
+                            {claim.refundReceipt.utr}
+                          </span>
+                        </span>
+                        <span>
+                          Amount:{" "}
+                          <span className="font-semibold text-neutral-900">
+                            ₹
+                            {claim.refundReceipt.amount.toLocaleString("en-IN")}
+                          </span>
+                        </span>
+                        {claim.refundReceipt.fileId && (
+                          <a
+                            href={`/api/portal/files/${claim.refundReceipt.fileId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 font-medium text-brand-primary hover:underline"
+                          >
+                            <EyeIcon className="size-3.5" /> View proof
+                          </a>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Panel>
+          )}
+        </>
+      }
+      documents={
+        showLenderLayout ? (
+          <div className="flex flex-col gap-3">
+            <ClaimDocumentsTable
+              accountId={claim.accountId}
+              claimId={claim.id}
+              documents={documents}
+              locked={terminal || !canActAsLender}
+              allowDelete={canActAsLender && canDeleteFiles}
+              claimStatus={claim.status}
+            />
+            {isLender && (
+              <ClaimRemarksPanel
+                lender={claimRemarks.lender}
+                imgc={claimRemarks.imgc}
+                decision={claimRemarks.decision}
+                initiatedByImgc={claimRemarks.initiatedByImgc}
+              />
+            )}
+            {canActAsLender && canResubmit && (
+              <ActionFooter key="query-response" className="mt-4">
+                <ResubmitClaimButton
+                  accountId={claim.accountId}
+                  claimId={claim.id}
+                />
+              </ActionFooter>
+            )}
+          </div>
+        ) : (
+          <Panel title={t("documents")}>
+            {/* 7 rows visible (32px header + 7 × ~46.5px row) before it scrolls. */}
+            <div className="custom-scrollbar max-h-[358px] overflow-y-auto overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
+                      {t("columns.document")}
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
+                      {t("required")}
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
+                      {t("columns.version")}
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
+                      {t("columns.status")}
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
+                      {t("columns.actions")}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {documents.map((d) => (
+                    <TableRow key={d.id}>
+                      <TableCell className="px-1.5 py-1.5">
+                        <span className="text-ui-body font-medium whitespace-nowrap text-neutral-900">
+                          {d.name}
+                        </span>
+                        <span className="block text-ui-caption whitespace-nowrap text-neutral-500">
+                          {d.category}
+                        </span>
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5 text-ui-body-sm whitespace-nowrap text-neutral-600">
+                        {d.required ? t("required") : t("optional")}
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5 text-ui-body-sm whitespace-nowrap text-neutral-600">
+                        {d.version > 0 ? `v${d.version}` : "—"}
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5">
+                        <StatusPill
+                          status={d.status}
+                          flat
+                          className="text-ui-caption"
+                        />
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5">
+                        {d.file || d.files?.[0] ? (
+                          <a
+                            href={`/api/portal/files/${(d.file || (d.files && d.files[0]))?.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-ui-label font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                          >
+                            <EyeIcon className="size-3" /> View
+                          </a>
+                        ) : (
+                          <span className="text-ui-label text-neutral-400">
+                            —
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Panel>
+        )
+      }
+      history={
+        showLenderLayout ? null : (
+          <Panel
+            title={tHistory("title")}
+            description={tHistory("description")}
+          >
+            <ClaimHistory
+              statusHistory={claim.statusHistory}
+              queries={queries}
+            />
+          </Panel>
+        )
+      }
+    />
+  ) : (
+    <ClaimDetailTabs
+      loanDetails={account ? <LoanDetailsCard account={account} /> : null}
+      backLink={
+        <div className="flex items-center gap-3">
+          {showLenderLayout && (
+            // Back to the claims grid as the lender left it - a tile's filter (e.g. Initiated)
+            // survives the round trip into a claim and out again.
+            <GridBackLink
+              href={ROUTES.initiateClaim}
+              storageKey={CLAIMS_FILTER_KEY}
+              label={t("back")}
+              className="inline-flex shrink-0 items-center gap-1 text-ui-body-lg font-medium text-neutral-400 hover:text-neutral-700 transition-colors"
+            />
+          )}
+          {!terminal && !showLenderLayout && (
+            <QueriedButton claimId={claim.id} claimNo={claim.claimNo} />
+          )}
+        </div>
+      }
+      statusAndQuery={
+        <>
+          {showLenderLayout ? (
+            <LenderClaimStatusPanel
+              key="claim-status"
+              initiatedByImgc={claim.fields.__initiatedByImgc === "true"}
+              history={claim.statusHistory}
+              currentStatus={claim.status}
+            />
+          ) : (
+            <Panel
+              key="claim-status"
+              title={t("claimStatus")}
+              className="shrink-0"
+            >
+              <div className="px-5 py-4">
+                <ClaimStatusHistoryGraph
+                  history={claim.statusHistory}
+                  currentStatus={claim.status}
+                />
+              </div>
+            </Panel>
+          )}
+
+          {claim.decision && (
+            <Panel
+              key="decision"
+              title={t("decisionRemarks")}
+              className="shrink-0"
+            >
+              <div className="px-4 py-3">
+                {claim.decision.remarks && (
+                  <p className="rounded-md bg-neutral-50 p-2 text-ui-subhead text-neutral-700">
+                    {claim.decision.remarks}
+                  </p>
+                )}
+                {refundReceivedEntry && (
+                  <div className="mt-2 border-t border-neutral-100 pt-2">
+                    <p className="flex flex-wrap items-center gap-2 text-ui-subhead-lg">
+                      <StatusPill status="REFUND_RECEIVED_BY_IMGC" />
+                      <span className="text-neutral-700">
+                        by {refundReceivedEntry.byName} ·{" "}
+                        {when(refundReceivedEntry.at)}
+                      </span>
+                    </p>
+                    {claim.refundReceipt && (
+                      <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-ui-body-lg text-neutral-600">
+                        <span>
+                          Date:{" "}
+                          <span className="font-semibold text-neutral-900">
+                            {whenDate(claim.refundReceipt.paymentDate)}
+                          </span>
+                        </span>
+                        <span>
+                          UTR No.:{" "}
+                          <span className="font-semibold text-neutral-900">
+                            {claim.refundReceipt.utr}
+                          </span>
+                        </span>
+                        <span>
+                          Amount:{" "}
+                          <span className="font-semibold text-neutral-900">
+                            ₹
+                            {claim.refundReceipt.amount.toLocaleString("en-IN")}
+                          </span>
+                        </span>
+                        {claim.refundReceipt.fileId && (
+                          <a
+                            href={`/api/portal/files/${claim.refundReceipt.fileId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 font-medium text-brand-primary hover:underline"
+                          >
+                            <EyeIcon className="size-3.5" /> View proof
+                          </a>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Panel>
+          )}
+
+          {/* Resubmission is the lender's move — this slot renders for both roles, so IMGC must
+              not be offered it here (the single-page layout's own copy sits inside a lender-only
+              branch already). */}
+          {canActAsLender && canResubmit && (
+            <ActionFooter key="query-response" className="mt-4">
+              <ResubmitClaimButton
+                accountId={claim.accountId}
+                claimId={claim.id}
+              />
+            </ActionFooter>
+          )}
+        </>
+      }
+      documents={
+        showLenderLayout ? (
+          <div className="flex flex-col gap-6">
+            <ClaimDocumentsTable
+              accountId={claim.accountId}
+              claimId={claim.id}
+              documents={documents}
+              locked={terminal || !canActAsLender}
+              allowDelete={canActAsLender && canDeleteFiles}
+              claimStatus={claim.status}
+            />
+            {isLender && (
+              <ClaimRemarksPanel
+                lender={claimRemarks.lender}
+                imgc={claimRemarks.imgc}
+                decision={claimRemarks.decision}
+                initiatedByImgc={claimRemarks.initiatedByImgc}
+              />
+            )}
+          </div>
+        ) : (
+          <Panel title={t("documents")}>
+            {/* 7 rows visible (32px header + 7 × ~46.5px row) before it scrolls. */}
+            <div className="custom-scrollbar max-h-[358px] overflow-y-auto overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
+                      {t("columns.document")}
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
+                      {t("required")}
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
+                      {t("columns.version")}
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
+                      {t("columns.status")}
+                    </TableHead>
+                    <TableHead className="h-8 px-1.5 text-ui-caption sticky top-0 bg-white shadow-sm z-10">
+                      {t("columns.actions")}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {documents.map((d) => (
+                    <TableRow key={d.id}>
+                      <TableCell className="px-1.5 py-1.5">
+                        <span className="text-ui-body font-medium whitespace-nowrap text-neutral-900">
+                          {d.name}
+                        </span>
+                        <span className="block text-ui-caption whitespace-nowrap text-neutral-500">
+                          {d.category}
+                        </span>
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5 text-ui-body-sm whitespace-nowrap text-neutral-600">
+                        {d.required ? t("required") : t("optional")}
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5 text-ui-body-sm whitespace-nowrap text-neutral-600">
+                        {d.version > 0 ? `v${d.version}` : "—"}
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5">
+                        <StatusPill
+                          status={d.status}
+                          flat
+                          className="text-ui-caption"
+                        />
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5">
+                        {d.file || d.files?.[0] ? (
+                          <a
+                            href={`/api/portal/files/${(d.file || (d.files && d.files[0]))?.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-ui-label font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                          >
+                            <EyeIcon className="size-3" /> View
+                          </a>
+                        ) : (
+                          <span className="text-ui-label text-neutral-400">
+                            —
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Panel>
+        )
+      }
+      history={
+        showLenderLayout ? null : (
+          <Panel
+            title={tHistory("title")}
+            description={tHistory("description")}
+          >
+            <ClaimHistory
+              statusHistory={claim.statusHistory}
+              queries={queries}
+            />
+          </Panel>
+        )
+      }
+    />
+  );
+
+  return (
+    <PortalShell
+      activeKey="initiate-claim"
+      title={
+        isLender ? `Claim No. ${claim.claimNo}` : `Claim No. ${claim.claimNo}`
+      }
+      titleAside={
+        account
+          ? `₹${claimAmountFor(account.loanAmount).toLocaleString("en-IN")}`
+          : undefined
+      }
+      claimAgeing={
+        <LiveClaimAgeing statusHistory={claim.statusHistory} hideStatusText />
+      }
+    >
+      <div
+        className={
+          isSingleView ? "flex flex-col" : "flex flex-col overflow-hidden"
+        }
+      >
+        {layoutContent}
+      </div>
+    </PortalShell>
+  );
+}

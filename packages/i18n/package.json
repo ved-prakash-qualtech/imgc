@@ -1,0 +1,18 @@
+{
+  "name": "@imgc/i18n",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Locales, routing, translation catalogues and stored-record wording shared by every zone.",
+  "type": "module",
+  "exports": {
+    "./routing": "./routing.ts",
+    "./navigation": "./navigation.ts",
+    "./request": "./request.ts",
+    "./recordMessages": "./recordMessages.ts",
+    "./translations/*": "./translations/*",
+    "./zones": "./zones.ts"
+  },
+  "peerDependencies": {
+    "next-intl": "*"
+  }
+}

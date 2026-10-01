@@ -1,0 +1,19 @@
+{
+  "name": "@imgc/hooks",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Client hooks shared by components: URL-synced table state, input sanitising, local/session storage.",
+  "type": "module",
+  "exports": {
+    "./*": "./*.ts"
+  },
+  "peerDependencies": {
+    "@tanstack/react-table": "*",
+    "next": "*",
+    "react": "*"
+  },
+  "dependencies": {
+    "@imgc/lib": "workspace:*",
+    "@imgc/types": "workspace:*"
+  }
+}

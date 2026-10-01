@@ -11,14 +11,14 @@ Rules and patterns for contributing to the **Next.js Multitenant Template**.
 
 ## File organization
 
-| Rule           | Detail                                                  |
-| -------------- | ------------------------------------------------------- |
-| Thin routes    | `src/app/**/page.tsx` only metadata + `*RouteView`      |
-| Feature-first  | Domain code in `src/features/<name>/`                   |
-| Shared UI      | Reusable components in `src/components/`                |
-| Env access     | Use `env` from `@/lib/utils/env`, not raw `process.env` |
-| Feature hooks  | `src/features/<name>/hooks/` for domain-specific hooks  |
-| Test mirroring | `test/unit/` mirrors `src/features/` and `src/lib/`     |
+| Rule           | Detail                                                   |
+| -------------- | -------------------------------------------------------- |
+| Thin routes    | `src/app/**/page.tsx` only metadata + `*RouteView`       |
+| Feature-first  | Domain code in `src/features/<name>/`                    |
+| Shared UI      | Reusable components in `src/components/`                 |
+| Env access     | Use `env` from `@/lib/utils/env`, not raw `process.env`  |
+| Feature hooks  | `src/features/<name>/hooks/` for domain-specific hooks   |
+| Test mirroring | `test/unit/` mirrors `src/features/` and `packages/lib/` |
 
 ## Component size
 

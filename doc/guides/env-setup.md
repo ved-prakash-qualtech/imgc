@@ -1,7 +1,7 @@
 # Environment Variables Setup
 
 All environment variables are validated at boot time via **Zod** in
-`src/lib/resolver/envSchema.ts`. The app will refuse to start if a required
+`packages/lib/resolver/envSchema.ts`. The app will refuse to start if a required
 variable is missing or malformed.
 
 > **Never** read `process.env` directly in app code — always import the
@@ -139,11 +139,11 @@ BACKEND_BASE_URL
 
 ## Validation internals
 
-| Layer               | File                                             |
-| ------------------- | ------------------------------------------------ |
-| Raw shape           | `src/lib/resolver/envSchema.ts` — `envRawSchema` |
-| Coerced & typed     | `src/lib/resolver/envSchema.ts` — `envSchema`    |
-| Singleton           | `src/lib/utils/env/env.ts` — `env`               |
-| Server-only secrets | `src/lib/serverEnv.ts` — `getServerEnv()`        |
-| ServerEnv Zod       | `src/lib/resolver/serverEnvSchema.ts`            |
-| Type definition     | `src/types/env.ts` — `Env`                       |
+| Layer               | File                                                  |
+| ------------------- | ----------------------------------------------------- |
+| Raw shape           | `packages/lib/resolver/envSchema.ts` — `envRawSchema` |
+| Coerced & typed     | `packages/lib/resolver/envSchema.ts` — `envSchema`    |
+| Singleton           | `packages/lib/utils/env/env.ts` — `env`               |
+| Server-only secrets | `packages/lib/serverEnv.ts` — `getServerEnv()`        |
+| ServerEnv Zod       | `packages/lib/resolver/serverEnvSchema.ts`            |
+| Type definition     | `packages/types/env.ts` — `Env`                       |

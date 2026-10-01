@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { Image } from "@/components/shared/Image";
+import { Image } from "@imgc/ui/shared/Image";
 
 describe("Image", () => {
   it("renders with required alt", () => {

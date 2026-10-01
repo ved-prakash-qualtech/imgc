@@ -65,7 +65,7 @@ src/components/
 └── ui/                     # shadcn/ui primitives (button, input, dialog, …)
 ```
 
-### `src/constants/` — Static configuration
+### `packages/constants/` — Static configuration
 
 | File             | Purpose                              |
 | ---------------- | ------------------------------------ |
@@ -87,7 +87,7 @@ src/features/
     └── validator/          # Zod schemas
 ```
 
-### `src/hooks/` — Shared React hooks
+### `packages/hooks/` — Shared React hooks
 
 | Hook                | Purpose                                    |
 | ------------------- | ------------------------------------------ |
@@ -96,10 +96,10 @@ src/features/
 | `useSessionStorage` | Typed sessionStorage access                |
 | `useFormInputRegex` | Input validation helpers                   |
 
-### `src/lib/` — Infrastructure and utilities
+### `packages/lib/` — Infrastructure and utilities
 
 ```
-src/lib/
+packages/lib/
 ├── aes.ts                 # AES-256-CBC encryption utilities
 ├── error/                 # Error boundary components and handlers
 ├── logging/               # Logging utilities (no Sentry)
@@ -136,7 +136,7 @@ src/styles/
 └── globals.css             # Tailwind imports, base styles
 ```
 
-### `src/types/` — Shared TypeScript types
+### `packages/types/` — Shared TypeScript types
 
 | File             | Purpose                       |
 | ---------------- | ----------------------------- |
@@ -191,8 +191,8 @@ SVG icons and other files served at the site root.
 | Feature-specific logic     | `src/features/<feature>/`                                                       |
 | Reusable UI                | `src/components/` (ui, providers, etc.)                                         |
 | API client or fetch helper | `src/services/api/` or `src/features/<feature>/api/`                            |
-| Shared hook                | `src/hooks/`                                                                    |
-| Global constant            | `src/constants/`                                                                |
-| Shared type                | `src/types/`                                                                    |
+| Shared hook                | `packages/hooks/`                                                               |
+| Global constant            | `packages/constants/`                                                           |
+| Shared type                | `packages/types/`                                                               |
 | Unit test                  | `test/unit/` (mirror source path)                                               |
 | Storybook smoke            | `src/stories/` + `pnpm test:storybook`                                          |

@@ -14,11 +14,17 @@ services:
     volumes:
       - .:/app
       - multitenant_node_modules:/app/node_modules
-      # Keep Turbopack/.next cache on container storage (avoids MODULE_UNPARSABLE on Windows bind mounts).
-      - multitenant_next_cache:/app/.next
+      # Keep Turbopack/.next caches on container storage (avoids MODULE_UNPARSABLE on Windows bind mounts).
+      - multitenant_next_cache_shell:/app/apps/shell/.next
+      - multitenant_next_cache_claims:/app/apps/claims/.next
+      - multitenant_next_cache_loans:/app/apps/loans/.next
+      - multitenant_next_cache_admin:/app/apps/admin/.next
     stdin_open: true
     tty: true
 
 volumes:
   multitenant_node_modules:
-  multitenant_next_cache:
+  multitenant_next_cache_shell:
+  multitenant_next_cache_claims:
+  multitenant_next_cache_loans:
+  multitenant_next_cache_admin:

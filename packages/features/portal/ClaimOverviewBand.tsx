@@ -1,0 +1,286 @@
+import Link from "next/link";
+import {
+  CheckCircle2Icon,
+  ClipboardListIcon,
+  FilePlus2Icon,
+  XCircleIcon,
+} from "lucide-react";
+
+import { useTranslations } from "next-intl";
+
+import { CommandBand } from "@imgc/features/portal/CommandBand";
+import { cn } from "@imgc/lib/utils/twMergeUtils";
+import type {
+  ClaimOverviewCounts,
+  OverviewTileKey,
+} from "@imgc/data/services/portal/claimFlow.server";
+
+/**
+ * Rupees in the Indian short scale a claims desk reads in: 4,62,00,000 is "₹4.62 Cr",
+ * 7,35,000 is "₹7.35 L". Exact figures sit in the tile's tooltip.
+ */
+function crore(amount: number): string {
+  if (amount >= 1_00_00_000) return `₹${(amount / 1_00_00_000).toFixed(2)} Cr`;
+  if (amount >= 1_00_000) return `₹${(amount / 1_00_000).toFixed(2)} L`;
+  return `₹${amount.toLocaleString("en-IN")}`;
+}
+
+const exactInr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
+
+/**
+ * A claim-status KPI band — used on both the Claim page and the Dashboard, so the two never show
+ * different numbers for "how many claims are approved" (`summariseClaimOverview` is the one place
+ * that classifies a claim into these buckets; this component only ever renders what it's given).
+ */
+
+type Tone = "blue" | "amber" | "violet" | "green" | "rose" | "gold";
+type PendingWith = "LENDER" | "IMGC" | "None" | "Split";
+
+const TONE: Record<Tone, { bg: string; icon: string }> = {
+  blue: { bg: "border-info/30", icon: "bg-info/10 text-info" },
+  amber: { bg: "border-warning/30", icon: "bg-warning/10 text-warning" },
+  violet: {
+    bg: "border-brand-primary/30",
+    icon: "bg-brand-primary/10 text-brand-primary",
+  },
+  green: { bg: "border-success/30", icon: "bg-success/10 text-success-600" },
+  rose: {
+    bg: "border-destructive/30",
+    icon: "bg-destructive/10 text-destructive",
+  },
+  gold: {
+    bg: "border-brand-on-dark/50",
+    icon: "bg-brand-on-dark/20 text-brand-on-dark-strong",
+  },
+};
+
+const TILES: ReadonlyArray<{
+  key: OverviewTileKey;
+  labelKey: string;
+  icon: React.ReactNode;
+  tone: Tone;
+  pendingWith: PendingWith;
+}> = [
+  {
+    key: "initiation",
+    labelKey: "toBeInitiated",
+    icon: <FilePlus2Icon className="size-4" />,
+    tone: "rose",
+    pendingWith: "LENDER",
+  },
+  {
+    key: "underReview",
+    labelKey: "underReview",
+    icon: <ClipboardListIcon className="size-4" />,
+    tone: "amber",
+    pendingWith: "IMGC",
+  },
+  {
+    key: "approved",
+    labelKey: "approved",
+    icon: <CheckCircle2Icon className="size-4" />,
+    tone: "violet",
+    pendingWith: "None",
+  },
+  {
+    key: "rejected",
+    labelKey: "ineligible",
+    icon: <XCircleIcon className="size-4" />,
+    tone: "gold",
+    pendingWith: "None",
+  },
+];
+
+const EMPTY_STATS: never[] = [];
+
+export function ClaimOverviewBand({
+  counts,
+  hrefs,
+  showDraftQueryKpis,
+  title,
+  subtitle,
+  action,
+  titleAside,
+  role,
+}: Readonly<{
+  counts: ClaimOverviewCounts;
+  /** The viewer's side — only the "pending with" text for that side is accented, the rest stays neutral. */
+  role: "IMGC" | "LENDER";
+  /** Where each tile drills into — the grid below reads the same `?status=` value back out
+   *  (see EligibleCasesClient's `statusFromParam`), so the click and the count always agree. */
+  hrefs?: Partial<Record<keyof ClaimOverviewCounts, string>>;
+  showDraftQueryKpis?: boolean;
+  title?: string;
+  subtitle?: string;
+  /** Top-right of the band, on the gradient — the Claim Dashboard's lender lens goes here, same
+   *  slot the main Dashboard's lender filter uses. Unused by the Claims-grid callers. */
+  action?: React.ReactNode;
+  /** Beside the band's title, on the left. */
+  titleAside?: React.ReactNode;
+}>) {
+  const t = useTranslations("dashboard");
+  const tStatus = useTranslations("status");
+  const activeTiles = showDraftQueryKpis
+    ? ([
+        TILES[0]!,
+        {
+          key: "draft",
+          labelKey: "draft",
+          icon: <FilePlus2Icon className="size-4" />,
+          tone: "blue",
+          pendingWith: "LENDER",
+        }, // started, not yet submitted
+        {
+          key: "initiated",
+          labelKey: "initiated",
+          icon: <CheckCircle2Icon className="size-4" />, // Or another suitable icon
+          tone: "blue",
+          pendingWith: "IMGC",
+        },
+        {
+          key: "queried",
+          labelKey: "queried",
+          icon: <ClipboardListIcon className="size-4" />,
+          tone: "amber",
+          pendingWith: "Split",
+        },
+        TILES[1]!, // Under Review — with IMGC, after the query it may have come back from
+        TILES[2]!,
+        TILES[3]!,
+      ] as const)
+    : TILES;
+
+  return (
+    <CommandBand
+      title={title ?? t("claimsOverview")}
+      subtitle={subtitle}
+      stats={EMPTY_STATS}
+      action={action}
+      titleAside={titleAside}
+    >
+      <div
+        className={cn(
+          "grid grid-cols-2 gap-2 sm:grid-cols-3",
+          activeTiles.length >= 7
+            ? "xl:grid-cols-7"
+            : activeTiles.length >= 6
+              ? "xl:grid-cols-6"
+              : "xl:grid-cols-4"
+        )}
+      >
+        {activeTiles.map((tile) => {
+          const tone = TONE[tile.tone];
+          const href = hrefs?.[tile.key];
+          const className = cn(
+            "flex flex-col rounded-xl border bg-white shadow-sm transition-all duration-300",
+            activeTiles.length >= 6 ? "px-2.5 py-1" : "px-3.5 py-1.5",
+            tone.bg,
+            href &&
+              "hover:-translate-y-1 hover:shadow-md hover:bg-neutral-50 cursor-pointer"
+          );
+          const isQueried = tile.key === "queried";
+
+          const content = (
+            <>
+              <div className="flex items-center justify-between gap-1.5">
+                <span
+                  className={cn(
+                    "font-outfit font-bold leading-none text-neutral-900",
+                    activeTiles.length >= 6
+                      ? "text-ui-heading-lg"
+                      : "text-ui-display-sm"
+                  )}
+                >
+                  {String(counts[tile.key]).padStart(2, "0")}
+                </span>
+                <span
+                  className={cn(
+                    "grid shrink-0 place-items-center rounded-lg",
+                    activeTiles.length >= 6 ? "size-6" : "size-7",
+                    tone.icon
+                  )}
+                >
+                  {tile.icon}
+                </span>
+              </div>
+              <div className="mt-auto pt-0.5">
+                <div className="flex items-center gap-1.5 truncate">
+                  <p
+                    className={cn(
+                      "truncate font-medium text-neutral-500",
+                      activeTiles.length >= 6 ? "text-xs" : "text-sm"
+                    )}
+                  >
+                    {t(`tiles.${tile.labelKey}`)}
+                  </p>
+                  {(tile.key === "approved" || tile.key === "rejected") && (
+                    <span className="shrink-0 rounded bg-brand-primary/10 px-1 py-[1px] text-ui-pico font-bold uppercase tracking-wider text-brand-primary border border-brand-primary/20">
+                      CFY
+                    </span>
+                  )}
+                </div>
+                {/* One line, not two: the tallest tile sets the whole band's height. */}
+                {tile.pendingWith !== "None" &&
+                  tile.pendingWith !== "Split" && (
+                    <p
+                      className={cn(
+                        "mt-0.5 truncate text-ui-caption font-bold",
+                        tile.pendingWith === role
+                          ? "text-brand-primary"
+                          : "text-neutral-900"
+                      )}
+                    >
+                      {t("pendingWith")} &middot; {tStatus(tile.pendingWith)}
+                    </p>
+                  )}
+                {tile.pendingWith === "Split" && isQueried && (
+                  <p className="mt-0.5 truncate text-ui-caption font-bold text-neutral-900">
+                    <span
+                      className={cn(role === "LENDER" && "text-brand-primary")}
+                    >
+                      {tStatus("LENDER")} {counts.queryInitiated ?? 0}
+                    </span>{" "}
+                    &middot;{" "}
+                    <span
+                      className={cn(role === "IMGC" && "text-brand-primary")}
+                    >
+                      {tStatus("IMGC")} {counts.queryUnderReview ?? 0}
+                    </span>
+                  </p>
+                )}
+                {/* Claim amount across exactly the claims this tile counts. */}
+                <p
+                  className="mt-0.5 text-ui-label font-semibold leading-tight tabular-nums text-neutral-700"
+                  title={`Claim amount: ₹${exactInr.format(counts.claimAmount[tile.key])}`}
+                >
+                  <span className="block text-ui-micro-lg font-medium leading-tight text-neutral-400">
+                    {t("claimAmount")}
+                  </span>
+                  {crore(counts.claimAmount[tile.key])}
+                </p>
+              </div>
+            </>
+          );
+          return href ? (
+            <Link
+              key={tile.key}
+              href={href}
+              className={className}
+              title={t(`tiles.${tile.labelKey}`)}
+            >
+              {content}
+            </Link>
+          ) : (
+            <div
+              key={tile.key}
+              className={className}
+              title={t(`tiles.${tile.labelKey}`)}
+            >
+              {content}
+            </div>
+          );
+        })}
+      </div>
+    </CommandBand>
+  );
+}

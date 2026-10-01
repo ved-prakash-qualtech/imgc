@@ -53,15 +53,15 @@ flowchart TB
 
 ## Layers
 
-| Layer                     | Path                                         | Responsibility                        |
-| ------------------------- | -------------------------------------------- | ------------------------------------- |
-| Middleware                | `src/middleware.ts`                          | Tenant resolution from Host subdomain |
-| Routes                    | `src/app/`                                   | URLs, metadata, composition           |
-| Features                  | `src/features/`                              | Domain UI, validators, API            |
-| Components                | `src/components/`                            | Shared UI, providers                  |
-| Services                  | `src/services/api/`                          | ssrApi, tenantResolver                |
-| Lib                       | `src/lib/`                                   | Encryption, env, errors, utilities    |
-| Constants / Types / Hooks | `src/constants/`, `src/types/`, `src/hooks/` | Config and shared logic               |
+| Layer                     | Path                                                        | Responsibility                        |
+| ------------------------- | ----------------------------------------------------------- | ------------------------------------- |
+| Middleware                | `src/middleware.ts`                                         | Tenant resolution from Host subdomain |
+| Routes                    | `src/app/`                                                  | URLs, metadata, composition           |
+| Features                  | `src/features/`                                             | Domain UI, validators, API            |
+| Components                | `src/components/`                                           | Shared UI, providers                  |
+| Services                  | `src/services/api/`                                         | ssrApi, tenantResolver                |
+| Lib                       | `packages/lib/`                                             | Encryption, env, errors, utilities    |
+| Constants / Types / Hooks | `packages/constants/`, `packages/types/`, `packages/hooks/` | Config and shared logic               |
 
 ## Tenant resolution flow
 
@@ -69,7 +69,7 @@ flowchart TB
 2. Middleware extracts tenant short code from Host subdomain (`{tenant}-{product}-{env}.domain`).
 3. Middleware sets `x-tenant` header; calls `tenantResolver` to validate against registry.
 4. No valid tenant on a tenant-scoped route → 403 QT-TEN-403.
-5. Server components read tenant via `currentTenant()` from `src/lib/tenant.ts`.
+5. Server components read tenant via `currentTenant()` from `packages/lib/tenant.ts`.
 6. Client components read tenant via `useTenant()` from `TenantProvider`.
 
 ## Routing
@@ -80,7 +80,7 @@ flowchart TB
 | `/`         | System scope (excluded)     | No tenant required     |
 | `/admin`    | System scope (excluded)     | No tenant required     |
 
-Route constants: `src/constants/routes.ts`.
+Route constants: `packages/constants/routes.ts`.
 
 ## App Router (`src/app/`)
 

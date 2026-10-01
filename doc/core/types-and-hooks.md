@@ -2,7 +2,7 @@
 
 Shared TypeScript types and React hooks.
 
-## Types (`src/types/`)
+## Types (`packages/types/`)
 
 ### API (`api.ts`)
 
@@ -38,7 +38,7 @@ Route access level types (`public` / `auth` / `tenant-scoped`).
 
 Logging sink and level types.
 
-## Hooks (`src/hooks/`)
+## Hooks (`packages/hooks/`)
 
 ### `useErrorHandler`
 
@@ -69,7 +69,7 @@ Typed wrappers with JSON serialization. Use for non-auth, non-sensitive persiste
 
 ## Adding types
 
-1. Add to the appropriate file in `src/types/`.
+1. Add to the appropriate file in `packages/types/`.
 2. Export from feature validators using `z.infer<typeof schema>` where possible.
 3. Document new public types here if shared across features.
 

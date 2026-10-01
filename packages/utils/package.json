@@ -1,0 +1,17 @@
+{
+  "name": "@imgc/utils",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Small shared helpers: the class-name merger and server-action result helpers.",
+  "type": "module",
+  "exports": {
+    "./*": "./*.ts"
+  },
+  "peerDependencies": {
+    "clsx": "*",
+    "tailwind-merge": "*"
+  },
+  "dependencies": {
+    "@imgc/types": "workspace:*"
+  }
+}

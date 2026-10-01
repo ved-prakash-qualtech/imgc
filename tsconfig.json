@@ -1,39 +1,23 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "react-jsx",
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.root.tsbuildinfo",
     "paths": {
-      "@/*": ["./src/*"],
-      /* Toasts are ours, not the npm package: `sonner` is not a dependency, and this alias is
-         what lets components write `import { toast } from "sonner"` against src/lib/sonner.tsx.
-         Remove the alias and every such import stops resolving. */
-      "sonner": ["./src/lib/sonner.tsx"]
+      "sonner": ["./packages/lib/sonner.tsx"],
+      "@/*": ["./storybook/*"]
     }
   },
   "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "tooling/next-env.d.ts",
+    "tooling/**/*.ts",
+    "packages/**/*.ts",
+    "packages/**/*.tsx",
+    "test/**/*.ts",
+    "test/**/*.tsx",
+    "storybook/**/*.ts",
+    "storybook/**/*.tsx",
+    "vitest*.ts",
+    "vitest*.d.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "**/node_modules"]
 }

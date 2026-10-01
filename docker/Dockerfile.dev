@@ -10,9 +10,16 @@ RUN apt-get update \
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable && corepack prepare pnpm@11.8.0 --activate
 
+# Every workspace manifest has to be present for a frozen-lockfile install to resolve.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages ./packages
+COPY apps/shell/package.json ./apps/shell/package.json
+COPY apps/claims/package.json ./apps/claims/package.json
+COPY apps/loans/package.json ./apps/loans/package.json
+COPY apps/admin/package.json ./apps/admin/package.json
 RUN pnpm install --frozen-lockfile
 
+# 3000 is the shell (the only port the browser needs); 3001-3003 are the zones behind it.
 EXPOSE 3000
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000

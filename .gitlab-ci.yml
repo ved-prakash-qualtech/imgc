@@ -22,6 +22,8 @@ type-check:
   stage: quality
   script:
     - pnpm type-check
+    - pnpm check:layers
+    - pnpm check:exports
 
 lint:
   extends: .node
@@ -37,11 +39,16 @@ unit-test:
   script:
     - pnpm test:unit
 
+# One build per app. The four apps share the packages, so a change under packages/ or tooling/
+# rebuilds all of them; a change under apps/<name>/ only needs that one.
 build:
   extends: .node
   stage: test
+  parallel:
+    matrix:
+      - APP: [shell, claims, loans, admin]
   script:
-    - pnpm build
+    - pnpm --filter "@imgc/app-$APP" build
 
 dependency-audit:
   extends: .node

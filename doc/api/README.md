@@ -4,7 +4,7 @@ HTTP client, endpoints, and SSR API integration.
 
 ## Configuration
 
-`src/constants/api.ts`:
+`packages/constants/api.ts`:
 
 ```typescript
 export const API = {
@@ -57,9 +57,9 @@ Delete these when connecting to real QCP backends.
 
 ## Adding an endpoint
 
-1. Add to `API.ENDPOINTS` in `src/constants/api.ts`.
+1. Add to `API.ENDPOINTS` in `packages/constants/api.ts`.
 2. Create fetcher in `src/features/<feature>/api/` using `ssrApi`.
-3. Add types in `src/types/`.
+3. Add types in `packages/types/`.
 
 ## Related
 

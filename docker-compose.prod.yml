@@ -1,15 +1,73 @@
+# The portal as four containers: the shell (the only one exposed) and the claims, loans and admin
+# zones behind it. The shell rewrites each path to the zone that serves it, so the zone URLs below
+# are internal addresses; the browser only ever talks to the shell on :3000.
+#
+# One image per app, from the same Dockerfile: `--build-arg APP=<name>` picks which.
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile
+  env_file:
+    - .env.prod
+  environment: &env
+    NODE_ENV: production
+    NEXT_TELEMETRY_DISABLED: "1"
+
 services:
-  web:
+  shell:
+    <<: *app
     build:
       context: .
       dockerfile: Dockerfile
       args:
+        APP: shell
         # prod | uat — selects which root `.env.*` file is copied to `.env.production` during `next build`.
         APP_ENV: prod
     ports:
       - "3000:3000"
-    env_file:
-      - .env.prod
     environment:
-      NODE_ENV: production
-      NEXT_TELEMETRY_DISABLED: "1"
+      <<: *env
+      PORT: "3000"
+      CLAIMS_ZONE_URL: http://claims:3001
+      LOANS_ZONE_URL: http://loans:3002
+      ADMIN_ZONE_URL: http://admin:3003
+    depends_on:
+      - claims
+      - loans
+      - admin
+
+  claims:
+    <<: *app
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP: claims
+        APP_ENV: prod
+    environment:
+      <<: *env
+      PORT: "3001"
+
+  loans:
+    <<: *app
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP: loans
+        APP_ENV: prod
+    environment:
+      <<: *env
+      PORT: "3002"
+
+  admin:
+    <<: *app
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP: admin
+        APP_ENV: prod
+    environment:
+      <<: *env
+      PORT: "3003"

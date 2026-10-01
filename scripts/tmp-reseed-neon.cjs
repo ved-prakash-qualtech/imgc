@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- one-off CommonJS maintenance script */
 const fs = require("fs");
 const { neon } = require("@neondatabase/serverless");
 
@@ -8,11 +9,21 @@ for (const line of fs.readFileSync(".env.local", "utf8").split("\n")) {
 
 (async () => {
   const sql = neon(process.env.DATABASE_URL);
-  const before = await sql`SELECT name, version FROM imgc_snapshots ORDER BY name`;
-  console.log("before:", before.map((r) => r.name + " v" + r.version).join(" | "));
+  const before =
+    await sql`SELECT name, version FROM imgc_snapshots ORDER BY name`;
+  console.log(
+    "before:",
+    before.map((r) => r.name + " v" + r.version).join(" | ")
+  );
   await sql`DELETE FROM imgc_snapshots WHERE name IN ('db', 'audit')`;
-  const after = await sql`SELECT name, version FROM imgc_snapshots ORDER BY name`;
-  console.log("after :", after.length ? after.map((r) => r.name + " v" + r.version).join(" | ") : "(no live rows — next request reseeds)");
+  const after =
+    await sql`SELECT name, version FROM imgc_snapshots ORDER BY name`;
+  console.log(
+    "after :",
+    after.length
+      ? after.map((r) => r.name + " v" + r.version).join(" | ")
+      : "(no live rows — next request reseeds)"
+  );
 })().catch((e) => {
   console.error("FAILED:", e.message);
   process.exit(1);

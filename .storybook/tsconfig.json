@@ -3,8 +3,9 @@
   "compilerOptions": {
     "baseUrl": "..",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["storybook/*"],
+      "sonner": ["packages/lib/sonner.tsx"]
     }
   },
-  "include": ["./**/*", "../src/**/*"]
+  "include": ["./**/*", "../storybook/**/*"]
 }

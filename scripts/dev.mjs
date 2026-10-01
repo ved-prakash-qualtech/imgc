@@ -1,9 +1,14 @@
 import { execFileSync, spawn } from "node:child_process";
+import { createHmac } from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
 import open from "open";
+import https from "node:https";
+
+import { startFrontDoor } from "./devFrontDoor.mjs";
 import waitOn from "wait-on";
 
 const projectRoot = path.resolve(
@@ -22,7 +27,9 @@ const envFile = path.join(projectRoot, ".env");
 if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
 
 const port = process.env.PORT ?? "3000";
-const openBrowser = process.env.DEV_OPEN_BROWSER !== "false";
+const openBrowser =
+  process.env.DEV_OPEN_BROWSER !== "false" &&
+  !process.argv.includes("--no-open");
 
 /*
  * HTTPS by default, and on a real application hostname when DEV_HOSTNAME is set.
@@ -42,7 +49,8 @@ const openBrowser = process.env.DEV_OPEN_BROWSER !== "false";
  * that cannot be scripted, so run `pnpm dev` in an interactive terminal once. Set
  * DEV_HTTPS=false to fall back to plain http on localhost.
  */
-const useHttps = process.env.DEV_HTTPS !== "false";
+const useHttps =
+  process.env.DEV_HTTPS !== "false" && !process.argv.includes("--no-https");
 const hostname = process.env.DEV_HOSTNAME ?? "";
 const scheme = useHttps ? "https" : "http";
 const devHost = hostname || "localhost";
@@ -114,7 +122,9 @@ function conflictMarkers() {
         "-nE",
         "^(<<<<<<<|>>>>>>>)( |$)",
         "--",
-        "src",
+        "apps",
+        "packages",
+        "tooling",
         "scripts",
         "test",
         "*.ts",
@@ -132,12 +142,45 @@ function conflictMarkers() {
   }
 }
 
-if (await portInUse(port)) {
-  console.error(
-    `\n[dev] Port ${port} is already in use — most likely another dev server for this project.\n` +
-      "[dev] Stop it first: two servers share .next/ and .data/ and break each other's cache and data.\n"
-  );
-  process.exit(1);
+/*
+ * One server per zone, and a small reverse proxy (scripts/devFrontDoor.mjs) on `port` (3000) in
+ * front of them. The browser only ever talks to the proxy, which sends each path to the zone that
+ * owns it and forwards WebSocket upgrades — the shell's own rewrites cannot, and without the
+ * hot-reload socket a zone page never becomes interactive. The shell itself listens on an internal
+ * port; the zones need no HTTPS of their own, the proxy terminates it.
+ */
+const SHELL_PORT = 3004;
+const ALL_ZONES = [
+  { name: "shell", port: SHELL_PORT },
+  { name: "claims", port: 3001 },
+  { name: "loans", port: 3002 },
+  { name: "admin", port: 3003 },
+];
+
+/*
+ * Four dev servers are a lot for a laptop — each holds its own compiler. `--zones=shell,claims` (or
+ * DEV_ZONES) starts only those; a path owned by a zone that is not running answers with an error
+ * from the shell's rewrite, and nothing else is affected. The shell is always started.
+ */
+const zoneArg =
+  process.argv
+    .find((arg) => arg.startsWith("--zones="))
+    ?.slice("--zones=".length) ?? process.env.DEV_ZONES;
+const wanted = zoneArg
+  ? new Set(zoneArg.split(",").map((z) => z.trim()))
+  : null;
+const ZONES = ALL_ZONES.filter(
+  (zone) => zone.name === "shell" || !wanted || wanted.has(zone.name)
+);
+
+for (const zone of [...ZONES, { name: "front door", port: Number(port) }]) {
+  if (await portInUse(zone.port)) {
+    console.error(
+      `\n[dev] Port ${zone.port} (${zone.name}) is already in use - most likely another dev server for this project.\n` +
+        "[dev] Stop it first: two servers share .data/ and break each other's data.\n"
+    );
+    process.exit(1);
+  }
 }
 
 const markers = conflictMarkers();
@@ -155,14 +198,158 @@ if (markers) {
 
 const nextBin = path.join(projectRoot, "node_modules/next/dist/bin/next");
 
-const nextArgs = [nextBin, "dev"];
-if (useHttps) nextArgs.push("--experimental-https");
-if (hostname) nextArgs.push("-H", hostname);
+/** Prefix every line a zone prints so four servers stay readable in one terminal. */
+function prefixed(stream, tag) {
+  let rest = "";
+  stream.on("data", (chunk) => {
+    const lines = (rest + chunk.toString()).split(/\r?\n/);
+    rest = lines.pop() ?? "";
+    for (const line of lines) if (line.trim()) console.log(`[${tag}] ${line}`);
+  });
+}
 
-const next = spawn(process.execPath, nextArgs, {
-  stdio: "inherit",
-  env: process.env,
+/*
+ * The zones are started one at a time, each one warmed before the next begins.
+ *
+ * Four dev servers cold-starting together make each one watch the others' build output, and a zone
+ * whose first request lands in that noise can come up with an empty route table: every page it owns
+ * answers 404 until it is restarted, with nothing logged. Starting them in sequence, and sending
+ * each a request that makes it scan its routes while the machine is quiet, avoids that. It adds a
+ * minute or so to startup; the alternative is a portal that signs you in and then says "not found".
+ */
+const children = [];
+let stopping = false;
+function stopAll(code) {
+  if (stopping) return;
+  stopping = true;
+  for (const child of children) child.kill();
+  process.exit(code);
+}
+
+/** A page each zone serves, so the warm-up request makes it register and compile its routes. */
+const WARM_PATH = {
+  shell: "/hi/login",
+  claims: "/hi/claim-dashboard",
+  loans: "/hi/dashboard",
+  admin: "/hi/admin/users",
+};
+
+/*
+ * A signed-in cookie for the warm-up, made the same way `signSession` makes one.
+ *
+ * It has to be a real page request: a zone whose first request is a redirect to sign-in (or a
+ * 404) is the one that comes up with no routes. Only the signature is checked on the way in, so
+ * the user in it need not exist; the page may well answer with an error, and that does not matter —
+ * by then the zone has compiled and registered everything it serves.
+ */
+function warmCookie() {
+  let secret = process.env.SESSION_SECRET?.trim();
+  for (const file of [".env.local", ".env"]) {
+    const full = path.join(projectRoot, file);
+    /* eslint-disable security/detect-non-literal-fs-filename -- one of two fixed file names in the repo root */
+    if (secret || !fs.existsSync(full)) continue;
+    secret = parseEnv(fs.readFileSync(full, "utf8")).SESSION_SECRET?.trim();
+    /* eslint-enable security/detect-non-literal-fs-filename */
+  }
+  secret ||= "imgc-local-dev-session-secret";
+  const payload = Buffer.from(
+    JSON.stringify({
+      userId: "dev-warm-up",
+      role: "IMGC",
+      name: "Dev warm-up",
+      email: "warm-up@imgc.in",
+      issuedAt: Date.now(),
+    })
+  ).toString("base64url");
+  const signature = createHmac("sha256", secret)
+    .update(payload)
+    .digest("base64url");
+  return `imgc_session=${payload}.${signature}`;
+}
+
+async function warm(zone) {
+  try {
+    await waitOn({
+      resources: [`tcp:127.0.0.1:${zone.port}`],
+      timeout: 60_000,
+    });
+    if (zone.name === "shell" && useHttps) {
+      // The shell's own certificate is not in Node's trust store.
+      await new Promise((resolve) => {
+        https
+          .get(
+            `https://127.0.0.1:${zone.port}${WARM_PATH.shell}`,
+            { rejectUnauthorized: false, timeout: 300_000 },
+            (response) => {
+              response.resume();
+              response.on("end", resolve);
+            }
+          )
+          .on("error", resolve);
+      });
+      return;
+    }
+    await fetch(`http://localhost:${zone.port}${WARM_PATH[zone.name]}`, {
+      redirect: "manual",
+      headers: zone.name === "shell" ? {} : { cookie: warmCookie() },
+      signal: AbortSignal.timeout(300_000),
+    });
+  } catch (error) {
+    console.warn(
+      `[dev] Could not warm ${zone.name}:`,
+      error instanceof Error ? error.message : error
+    );
+  }
+}
+
+for (const zone of [...ZONES].reverse()) {
+  const nextArgs = [nextBin, "dev", "-p", String(zone.port)];
+  // Turbopack is the default. Webpack (DEV_BUNDLER=webpack) is not usable behind the shell: its dev
+  // server loads page chunks without the zone's assetPrefix, so they 404 and the page never
+  // hydrates.
+  if (process.env.DEV_BUNDLER === "webpack") nextArgs.push("--webpack");
+  if (zone.name === "shell") {
+    if (useHttps) nextArgs.push("--experimental-https");
+  }
+  const child = spawn(process.execPath, nextArgs, {
+    cwd: path.join(projectRoot, "apps", zone.name),
+    stdio: ["inherit", "pipe", "pipe"],
+    env: process.env,
+  });
+  prefixed(child.stdout, zone.name);
+  prefixed(child.stderr, zone.name);
+  child.on("exit", (code, signal) => stopAll(code ?? (signal ? 1 : 0)));
+  children.push(child);
+  // The shell last: it is the one the browser talks to, and the busiest.
+  await warm(zone);
+}
+
+const certDir = path.join(projectRoot, "apps", "shell", "certificates");
+let tlsFiles;
+if (useHttps) {
+  tlsFiles = {
+    cert: path.join(certDir, "localhost.pem"),
+    key: path.join(certDir, "localhost-key.pem"),
+  };
+  // Next writes the dev certificate when the shell starts; the front door serves with it.
+  await waitOn({
+    resources: [`file:${tlsFiles.cert}`, `file:${tlsFiles.key}`],
+    timeout: 60_000,
+  });
+}
+startFrontDoor({
+  port: Number(port),
+  scheme,
+  shell: { port: SHELL_PORT, tls: useHttps },
+  zones: Object.fromEntries(
+    ZONES.filter((zone) => zone.name !== "shell").map((zone) => [
+      zone.name,
+      zone.port,
+    ])
+  ),
+  tlsFiles,
 });
+console.log(`[dev] All zones are up and warmed. Open ${url}`);
 
 let opened = false;
 
@@ -187,6 +374,5 @@ async function openBrowserOnce() {
 
 void openBrowserOnce();
 
-next.on("exit", (code, signal) => {
-  process.exit(code ?? (signal ? 1 : 0));
-});
+process.on("SIGINT", () => stopAll(0));
+process.on("SIGTERM", () => stopAll(0));

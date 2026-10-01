@@ -25,6 +25,42 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.4.0
         version: 5.4.0(react-hook-form@7.80.0(react@19.2.7))
+      '@imgc/actions':
+        specifier: workspace:*
+        version: link:packages/actions
+      '@imgc/config':
+        specifier: workspace:*
+        version: link:packages/config
+      '@imgc/constants':
+        specifier: workspace:*
+        version: link:packages/constants
+      '@imgc/data':
+        specifier: workspace:*
+        version: link:packages/data
+      '@imgc/features':
+        specifier: workspace:*
+        version: link:packages/features
+      '@imgc/hooks':
+        specifier: workspace:*
+        version: link:packages/hooks
+      '@imgc/i18n':
+        specifier: workspace:*
+        version: link:packages/i18n
+      '@imgc/lib':
+        specifier: workspace:*
+        version: link:packages/lib
+      '@imgc/store':
+        specifier: workspace:*
+        version: link:packages/store
+      '@imgc/types':
+        specifier: workspace:*
+        version: link:packages/types
+      '@imgc/ui':
+        specifier: workspace:*
+        version: link:packages/ui
+      '@imgc/utils':
+        specifier: workspace:*
+        version: link:packages/utils
       '@neondatabase/serverless':
         specifier: ^1.1.0
         version: 1.1.0
@@ -260,6 +296,492 @@ importers:
       wait-on:
         specifier: ^9.0.10
         version: 9.1.0
+
+  apps/admin:
+    dependencies:
+      '@imgc/actions':
+        specifier: workspace:*
+        version: link:../../packages/actions
+      '@imgc/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@imgc/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@imgc/data':
+        specifier: workspace:*
+        version: link:../../packages/data
+      '@imgc/features':
+        specifier: workspace:*
+        version: link:../../packages/features
+      '@imgc/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
+      '@imgc/lib':
+        specifier: workspace:*
+        version: link:../../packages/lib
+      '@imgc/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@imgc/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      lucide-react:
+        specifier: ^1.17.0
+        version: 1.21.0(react@19.2.7)
+      next:
+        specifier: 16.2.11
+        version: 16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      next-intl:
+        specifier: ^4.13.0
+        version: 4.13.4(next@16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
+      react:
+        specifier: 19.2.7
+        version: 19.2.7
+      react-dom:
+        specifier: 19.2.7
+        version: 19.2.7(react@19.2.7)
+
+  apps/claims:
+    dependencies:
+      '@imgc/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@imgc/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@imgc/data':
+        specifier: workspace:*
+        version: link:../../packages/data
+      '@imgc/features':
+        specifier: workspace:*
+        version: link:../../packages/features
+      '@imgc/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
+      '@imgc/lib':
+        specifier: workspace:*
+        version: link:../../packages/lib
+      '@imgc/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@imgc/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      lucide-react:
+        specifier: ^1.17.0
+        version: 1.21.0(react@19.2.7)
+      next:
+        specifier: 16.2.11
+        version: 16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      next-intl:
+        specifier: ^4.13.0
+        version: 4.13.4(next@16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
+      react:
+        specifier: 19.2.7
+        version: 19.2.7
+      react-dom:
+        specifier: 19.2.7
+        version: 19.2.7(react@19.2.7)
+
+  apps/loans:
+    dependencies:
+      '@imgc/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@imgc/data':
+        specifier: workspace:*
+        version: link:../../packages/data
+      '@imgc/features':
+        specifier: workspace:*
+        version: link:../../packages/features
+      '@imgc/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
+      '@imgc/lib':
+        specifier: workspace:*
+        version: link:../../packages/lib
+      '@imgc/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@imgc/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      lucide-react:
+        specifier: ^1.17.0
+        version: 1.21.0(react@19.2.7)
+      next:
+        specifier: 16.2.11
+        version: 16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      next-intl:
+        specifier: ^4.13.0
+        version: 4.13.4(next@16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
+      react:
+        specifier: 19.2.7
+        version: 19.2.7
+      react-dom:
+        specifier: 19.2.7
+        version: 19.2.7(react@19.2.7)
+
+  apps/shell:
+    dependencies:
+      '@imgc/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@imgc/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@imgc/data':
+        specifier: workspace:*
+        version: link:../../packages/data
+      '@imgc/features':
+        specifier: workspace:*
+        version: link:../../packages/features
+      '@imgc/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
+      '@imgc/lib':
+        specifier: workspace:*
+        version: link:../../packages/lib
+      '@imgc/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@imgc/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@vercel/blob':
+        specifier: ^2.8.0
+        version: 2.8.0
+      lucide-react:
+        specifier: ^1.17.0
+        version: 1.21.0(react@19.2.7)
+      next:
+        specifier: 16.2.11
+        version: 16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      next-intl:
+        specifier: ^4.13.0
+        version: 4.13.4(next@16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
+      react:
+        specifier: 19.2.7
+        version: 19.2.7
+      react-dom:
+        specifier: 19.2.7
+        version: 19.2.7(react@19.2.7)
+      uuid:
+        specifier: ^14.0.0
+        version: 14.0.1
+
+  packages/actions:
+    dependencies:
+      '@imgc/config':
+        specifier: workspace:*
+        version: link:../config
+      '@imgc/constants':
+        specifier: workspace:*
+        version: link:../constants
+      '@imgc/data':
+        specifier: workspace:*
+        version: link:../data
+      '@imgc/i18n':
+        specifier: workspace:*
+        version: link:../i18n
+      '@imgc/lib':
+        specifier: workspace:*
+        version: link:../lib
+      '@imgc/types':
+        specifier: workspace:*
+        version: link:../types
+      next:
+        specifier: '*'
+        version: 16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      next-intl:
+        specifier: '*'
+        version: 4.13.4(next@16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
+
+  packages/config:
+    dependencies:
+      '@imgc/types':
+        specifier: workspace:*
+        version: link:../types
+
+  packages/constants:
+    dependencies:
+      '@imgc/types':
+        specifier: workspace:*
+        version: link:../types
+      zod:
+        specifier: '*'
+        version: 4.4.3
+
+  packages/data:
+    dependencies:
+      '@imgc/config':
+        specifier: workspace:*
+        version: link:../config
+      '@imgc/constants':
+        specifier: workspace:*
+        version: link:../constants
+      '@imgc/i18n':
+        specifier: workspace:*
+        version: link:../i18n
+      '@imgc/lib':
+        specifier: workspace:*
+        version: link:../lib
+      '@imgc/types':
+        specifier: workspace:*
+        version: link:../types
+      '@imgc/utils':
+        specifier: workspace:*
+        version: link:../utils
+      '@neondatabase/serverless':
+        specifier: '*'
+        version: 1.1.0
+      '@vercel/blob':
+        specifier: '*'
+        version: 2.8.0
+      axios:
+        specifier: '*'
+        version: 1.18.1(debug@4.4.3)
+      next:
+        specifier: '*'
+        version: 16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      react:
+        specifier: '*'
+        version: 19.2.7
+      server-only:
+        specifier: '*'
+        version: 0.0.1
+      uuid:
+        specifier: '*'
+        version: 14.0.1
+
+  packages/features:
+    dependencies:
+      '@imgc/actions':
+        specifier: workspace:*
+        version: link:../actions
+      '@imgc/config':
+        specifier: workspace:*
+        version: link:../config
+      '@imgc/constants':
+        specifier: workspace:*
+        version: link:../constants
+      '@imgc/data':
+        specifier: workspace:*
+        version: link:../data
+      '@imgc/i18n':
+        specifier: workspace:*
+        version: link:../i18n
+      '@imgc/lib':
+        specifier: workspace:*
+        version: link:../lib
+      '@imgc/types':
+        specifier: workspace:*
+        version: link:../types
+      '@imgc/ui':
+        specifier: workspace:*
+        version: link:../ui
+      lucide-react:
+        specifier: '*'
+        version: 1.21.0(react@19.2.7)
+      next:
+        specifier: '*'
+        version: 16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      next-intl:
+        specifier: '*'
+        version: 4.13.4(next@16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
+      react:
+        specifier: '*'
+        version: 19.2.7
+
+  packages/hooks:
+    dependencies:
+      '@imgc/lib':
+        specifier: workspace:*
+        version: link:../lib
+      '@imgc/types':
+        specifier: workspace:*
+        version: link:../types
+      '@tanstack/react-table':
+        specifier: '*'
+        version: 8.21.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      next:
+        specifier: '*'
+        version: 16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      react:
+        specifier: '*'
+        version: 19.2.7
+
+  packages/i18n:
+    dependencies:
+      next-intl:
+        specifier: '*'
+        version: 4.13.4(next@16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
+
+  packages/lib:
+    dependencies:
+      '@imgc/config':
+        specifier: workspace:*
+        version: link:../config
+      '@imgc/constants':
+        specifier: workspace:*
+        version: link:../constants
+      '@imgc/i18n':
+        specifier: workspace:*
+        version: link:../i18n
+      '@imgc/types':
+        specifier: workspace:*
+        version: link:../types
+      '@imgc/utils':
+        specifier: workspace:*
+        version: link:../utils
+      '@sentry/nextjs':
+        specifier: '*'
+        version: 10.69.0(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(next@16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(webpack@5.108.0(esbuild@0.28.1)(postcss@8.5.18))
+      '@tanstack/react-table':
+        specifier: '*'
+        version: 8.21.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@vercel/blob':
+        specifier: '*'
+        version: 2.8.0
+      axios:
+        specifier: '*'
+        version: 1.18.1(debug@4.4.3)
+      clsx:
+        specifier: '*'
+        version: 2.1.1
+      crypto-js:
+        specifier: '*'
+        version: 4.2.0
+      lucide-react:
+        specifier: '*'
+        version: 1.21.0(react@19.2.7)
+      next:
+        specifier: '*'
+        version: 16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      next-intl:
+        specifier: '*'
+        version: 4.13.4(next@16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
+      node-vault:
+        specifier: '*'
+        version: 0.12.0
+      react:
+        specifier: '*'
+        version: 19.2.7
+      server-only:
+        specifier: '*'
+        version: 0.0.1
+      tailwind-merge:
+        specifier: '*'
+        version: 3.6.0
+
+  packages/store:
+    dependencies:
+      '@imgc/constants':
+        specifier: workspace:*
+        version: link:../constants
+      '@imgc/types':
+        specifier: workspace:*
+        version: link:../types
+      cookies-next:
+        specifier: '*'
+        version: 6.1.1(next@16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)
+      zustand:
+        specifier: '*'
+        version: 5.0.14(@types/react@19.2.17)(immer@11.1.18)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7))
+
+  packages/types:
+    dependencies:
+      axios:
+        specifier: '*'
+        version: 1.18.1(debug@4.4.3)
+      react:
+        specifier: '*'
+        version: 19.2.7
+      react-hook-form:
+        specifier: '*'
+        version: 7.80.0(react@19.2.7)
+      zod:
+        specifier: '*'
+        version: 4.4.3
+
+  packages/ui:
+    dependencies:
+      '@base-ui/react':
+        specifier: '*'
+        version: 1.6.0(@date-fns/tz@1.5.0)(@types/react@19.2.17)(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@imgc/constants':
+        specifier: workspace:*
+        version: link:../constants
+      '@imgc/hooks':
+        specifier: workspace:*
+        version: link:../hooks
+      '@imgc/lib':
+        specifier: workspace:*
+        version: link:../lib
+      '@imgc/types':
+        specifier: workspace:*
+        version: link:../types
+      '@imgc/utils':
+        specifier: workspace:*
+        version: link:../utils
+      '@radix-ui/react-dialog':
+        specifier: '*'
+        version: 1.1.23(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@radix-ui/react-slot':
+        specifier: '*'
+        version: 1.3.3(@types/react@19.2.17)(react@19.2.7)
+      '@tanstack/react-query':
+        specifier: '*'
+        version: 5.101.4(react@19.2.7)
+      '@tanstack/react-table':
+        specifier: '*'
+        version: 8.21.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tanstack/react-virtual':
+        specifier: '*'
+        version: 3.14.9(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      class-variance-authority:
+        specifier: '*'
+        version: 0.7.1
+      cmdk:
+        specifier: '*'
+        version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      date-fns:
+        specifier: '*'
+        version: 4.4.0
+      lucide-react:
+        specifier: '*'
+        version: 1.21.0(react@19.2.7)
+      next:
+        specifier: '*'
+        version: 16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      next-intl:
+        specifier: '*'
+        version: 4.13.4(next@16.2.11(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(@types/node@25.9.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
+      react:
+        specifier: '*'
+        version: 19.2.7
+      react-day-picker:
+        specifier: '*'
+        version: 10.0.1(@types/react@19.2.17)(react@19.2.7)
+      react-hook-form:
+        specifier: '*'
+        version: 7.80.0(react@19.2.7)
+      react-pdf:
+        specifier: '*'
+        version: 10.4.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+
+  packages/utils:
+    dependencies:
+      '@imgc/types':
+        specifier: workspace:*
+        version: link:../types
+      clsx:
+        specifier: '*'
+        version: 2.1.1
+      tailwind-merge:
+        specifier: '*'
+        version: 3.6.0
 
 packages:
 

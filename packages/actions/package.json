@@ -1,0 +1,28 @@
+{
+  "name": "@imgc/actions",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Server actions shared by the zones.",
+  "type": "module",
+  "imgc": {
+    "generatedExports": true
+  },
+  "exports": {
+    "./additionalDocuments": "./additionalDocuments.ts",
+    "./adminWorkspace": "./adminWorkspace.ts",
+    "./buckets": "./buckets.ts",
+    "./initiateClaim": "./initiateClaim.ts"
+  },
+  "peerDependencies": {
+    "next": "*",
+    "next-intl": "*"
+  },
+  "dependencies": {
+    "@imgc/config": "workspace:*",
+    "@imgc/constants": "workspace:*",
+    "@imgc/data": "workspace:*",
+    "@imgc/i18n": "workspace:*",
+    "@imgc/lib": "workspace:*",
+    "@imgc/types": "workspace:*"
+  }
+}

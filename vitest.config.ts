@@ -11,9 +11,7 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
-      "@": path.join(dirname, "src"),
-    },
+    alias: {},
   },
   test: {
     projects: [
@@ -24,7 +22,7 @@ export default defineConfig({
           environment: "jsdom",
           globals: false,
           setupFiles: [
-            path.join(dirname, "src/lib/test/setup/vitest.setup.tsx"),
+            path.join(dirname, "test/support/setup/vitest.setup.tsx"),
           ],
           include: ["test/unit/**/*.{test,spec}.{ts,tsx}"],
           css: true,

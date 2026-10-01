@@ -1,0 +1,1822 @@
+/* eslint-disable use-client/browser-api */
+
+import "server-only";
+import { msg } from "@imgc/i18n/recordMessages";
+
+import {
+  fail,
+  type ServerErrorCode,
+  type ServerErrorParams,
+} from "@imgc/config/errorCodes";
+
+import { readDb, writeDb } from "@imgc/data/server/mock/db";
+import {
+  storeIncomingUpload,
+  type IncomingUpload,
+} from "@imgc/data/server/mock/storage";
+import { newId, nowIso } from "@imgc/data/server/mock/ids";
+import { recordEvent } from "@imgc/data/services/portal/audit.server";
+import { sendMail } from "@imgc/data/server/mock/mailer";
+import { notifyBucketShift } from "@imgc/data/services/portal/notifications.server";
+import {
+  claimConfig,
+  conditionReason,
+  docConditionMet,
+  fieldVisible,
+  LENDER_ACTIONABLE,
+  TERMINAL_STATUSES,
+  toAccountClaimStatus,
+  type ClaimDocumentSpec,
+} from "@imgc/config/claimConfig";
+import { summariseDocs } from "@imgc/data/services/portal/claims.server";
+import { listClaimDocuments } from "@imgc/data/services/portal/requirements.server";
+import type { AppSession } from "@imgc/lib/auth/appSession";
+import type {
+  Account,
+  Claim,
+  ClaimAction,
+  ClaimQuery,
+  ClaimStatus,
+  ClaimTypeKey,
+  MockDb,
+} from "@imgc/types/domain";
+
+/**
+ * The claim engine.
+ *
+ * Everything the lender and IMGC do to a claim passes through here, so the status a screen shows
+ * and the status the rules produce cannot drift. Nothing in this file branches on claim type —
+ * that lives entirely in `config/claimConfig`.
+ */
+
+export type Outcome = Readonly<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+  claimId?: string;
+  claimNo?: string;
+  /** So the caller can revalidate the account's own pages — not every mutation has one to give. */
+  accountId?: string;
+}>;
+
+/* ── eligibility ───────────────────────────────────────────────────── */
+
+export interface AccountClaimState {
+  action: ClaimAction;
+  claim: Claim | null;
+  /** Why the action is DISABLED, for the tooltip. */
+  reason?: string;
+}
+
+/**
+ * What the lender may do with an account — the one place this is decided.
+ *
+ * Every grid, row and button reads this rather than testing `npa || writeOff` for itself, which
+ * is how three components end up disagreeing about whether a button should be there.
+ */
+export function getClaimAction(
+  account: Pick<Account, "npa" | "writeOff">,
+  claim: Claim | null
+): AccountClaimState {
+  if (claim) {
+    if (TERMINAL_STATUSES.has(claim.status)) {
+      return { action: "VIEW", claim };
+    }
+    if (LENDER_ACTIONABLE.has(claim.status)) {
+      // A draft is still being prepared, and a query is waiting on the lender — both are
+      // "carry on where you left off", not "start something new".
+      return { action: "INITIATE", claim };
+    }
+    return { action: "TRACK", claim };
+  }
+
+  if (!account.npa && !account.writeOff) {
+    return {
+      action: "DISABLED",
+      claim: null,
+      reason:
+        "A claim can only be raised once the account is NPA or written off.",
+    };
+  }
+  return { action: "INITIATE", claim: null };
+}
+
+import {
+  getAdminContextOrNull,
+  type AdminContext,
+} from "@imgc/lib/auth/adminContext";
+
+/* ── reads ─────────────────────────────────────────────────────────── */
+
+function scoped(
+  db: MockDb,
+  session: AppSession,
+  ctx?: AdminContext | null
+): Set<string> {
+  return new Set(
+    db.accounts
+      .filter((a) => {
+        if (session.role === "IMGC") {
+          if (ctx?.lenderOrgId) {
+            return a.lenderOrgId === ctx.lenderOrgId;
+          }
+          return true;
+        }
+        return a.lenderOrgId === session.lenderOrgId;
+      })
+      .map((a) => a.id)
+  );
+}
+
+export interface ClaimRow extends Claim {
+  caseId: string;
+  customerName: string;
+  lenderName: string;
+  product: string;
+  typeLabel: string;
+  openQuery: ClaimQuery | null;
+  requiredDocs: number;
+  approvedDocs: number;
+  /**
+   * Whether this claim has actually got going, as opposed to being an empty shell.
+   *
+   * A draft is auto-created the moment "Initiate Claim" is opened, so mere existence isn't
+   * enough: opening the workspace and leaving without saving anything should still read
+   * "Initiate Claim" in the grid, not "Continue Claim" — that is what `Claim.draftSaved` records.
+   *
+   * But the lender is not the only one who can move a claim. IMGC rejecting a document raises a
+   * query and advances the claim, which can leave a `QUERY_RAISED` claim whose `draftSaved` was
+   * never set. Reading `draftSaved` alone then called that claim "Not started": it dropped out of
+   * the grid's "Under progress" filter while the Claims Overview band — which reads the claim's
+   * status — still counted it, and its row offered "Initiate" on a claim already under query.
+   * Anything past DRAFT has demonstrably started, whoever moved it.
+   */
+  hasProgress: boolean;
+}
+
+function decorate(claim: Claim, db: MockDb): ClaimRow {
+  const account = db.accounts.find((a) => a.id === claim.accountId);
+  const org = db.lenderOrgs.find((o) => o.id === account?.lenderOrgId);
+  const docs = db.claimDocuments.filter((d) => d.claimId === claim.id);
+  const required = docs.filter((d) => d.required && d.active !== false);
+  return {
+    ...claim,
+    // A draft claim is only the workspace's attachment point. Claim numbers are issued at
+    // Save & Submit, so clear any stale number left by an older mock snapshot before it reaches
+    // the lender grid.
+    claimNo: claim.status === "DRAFT" ? "" : claim.claimNo,
+    caseId: account?.loanNo ?? "—",
+    customerName: account?.borrowerName ?? "—",
+    lenderName: org?.name ?? "—",
+    product: account?.product ?? "—",
+    typeLabel: claimConfig(claim.claimType).label,
+    openQuery:
+      db.claimQueries
+        .filter((q) => q.claimId === claim.id && !q.respondedAt)
+        .sort((a, b) => b.raisedAt.localeCompare(a.raisedAt))[0] ?? null,
+    requiredDocs: required.length,
+    approvedDocs: required.filter((d) => d.status === "APPROVED").length,
+    hasProgress: Boolean(claim.draftSaved) || claim.status !== "DRAFT",
+  };
+}
+
+export async function listClaims(
+  session: AppSession,
+  /** See `listAccounts` — IMGC's dashboard reads every lender regardless of who they are
+   *  currently initiating a claim for. */
+  opts?: { ignoreLenderContext?: boolean }
+): Promise<ClaimRow[]> {
+  const db = await readDb();
+  const ctx = opts?.ignoreLenderContext ? null : await getAdminContextOrNull();
+  const ids = scoped(db, session, ctx);
+  return db.claims
+    .filter((c) => ids.has(c.accountId))
+    .map((c) => decorate(c, db))
+    .sort((a, b) => b.lastUpdatedAt.localeCompare(a.lastUpdatedAt));
+}
+
+export async function getClaim(
+  session: AppSession,
+  claimId: string
+): Promise<ClaimRow | null> {
+  const db = await readDb();
+  const ctx = await getAdminContextOrNull();
+  const claim = db.claims.find((c) => c.id === claimId);
+  if (!claim) return null;
+  if (!scoped(db, session, ctx).has(claim.accountId)) return null;
+  return decorate(claim, db);
+}
+
+export async function getClaimForAccount(
+  session: AppSession,
+  accountId: string
+): Promise<ClaimRow | null> {
+  const rows = await listClaims(session);
+  return rows.find((c) => c.accountId === accountId) ?? null;
+}
+
+export async function listQueries(claimId: string): Promise<ClaimQuery[]> {
+  const db = await readDb();
+  return db.claimQueries
+    .filter((q) => q.claimId === claimId)
+    .sort((a, b) => b.raisedAt.localeCompare(a.raisedAt));
+}
+
+/* ── claim overview (shared by the Claim page and the Dashboard) ─────── */
+
+/** The tiles a claim can be counted under — every count except the running total and the
+ *  refunded sub-count, which have no tile of their own. */
+export type OverviewTileKey =
+  | "initiation"
+  | "draft"
+  | "initiated"
+  | "underReview"
+  | "queried"
+  | "queryInitiated"
+  | "queryUnderReview"
+  | "approved"
+  | "rejected";
+
+export interface ClaimOverviewCounts {
+  total: number;
+  initiation: number;
+  underReview: number;
+  approved: number;
+  rejected: number;
+  draft: number;
+  initiated: number;
+  queried: number;
+  queryInitiated: number;
+  queryUnderReview: number;
+  /** Claims IMGC has confirmed the refund for (`REFUND_RECEIVED_BY_IMGC`) — a subset of
+   *  `approved`, not a sixth mutually-exclusive outcome, so it stays counted there too. */
+  refunded: number;
+  /**
+   * Claim amount (in rupees) summed over exactly the accounts each tile counts. Built in the same
+   * pass as the counts, so a tile's number and its amount can never be taken over two different
+   * sets of claims.
+   */
+  claimAmount: Record<OverviewTileKey, number>;
+}
+
+/**
+ * The same four mutually-exclusive buckets, over whatever universe of accounts the caller
+ * considers "in scope" (the Claim page's own eligible-accounts row set; the Dashboard's
+ * lender/IMGC-scoped account set) — one function, so the Claim page and the Dashboard can never
+ * quietly disagree about what "under progress" or "approved" means.
+ *
+ * `CLOSED` folds into `approved` — the same fold `classifyLoanStatus` (accounts.server.ts) and
+ * the Dashboard's own "Approved" KPI already apply (closest terminal-success bucket, since the
+ * claim workflow has no separate PAID status). A `CLOSED` claim used to fall into a `paid` bucket
+ * this band never rendered a tile for — invisible in the KPI band even though the same account
+ * reads "Approved" everywhere else in the app (Dashboard, All Loans) — so the four visible tiles
+ * silently undercounted against "total" whenever any claim had actually reached CLOSED.
+ */
+export function summariseClaimOverview(
+  rows: ReadonlyArray<{
+    claim: { status: ClaimStatus; hasProgress?: boolean } | null;
+    /** The account's claim amount; absent counts as zero. */
+    claimAmount?: number;
+  }>
+): ClaimOverviewCounts {
+  const claimAmount: Record<OverviewTileKey, number> = {
+    initiation: 0,
+    draft: 0,
+    initiated: 0,
+    underReview: 0,
+    queried: 0,
+    queryInitiated: 0,
+    queryUnderReview: 0,
+    approved: 0,
+    rejected: 0,
+  };
+  let initiation = 0;
+  let underReview = 0;
+  let approved = 0;
+  let rejected = 0;
+  let draft = 0;
+  let initiated = 0;
+  let queryInitiated = 0;
+  let queryUnderReview = 0;
+  let refunded = 0;
+  let docsResubmitted = 0;
+
+  for (const row of rows) {
+    const status = row.claim?.status;
+    const isNotStarted = !row.claim || !row.claim.hasProgress;
+    const amount = row.claimAmount ?? 0;
+
+    if (isNotStarted) {
+      initiation += 1;
+      claimAmount.initiation += amount;
+    } else if (status === "INITIATED") {
+      initiated += 1;
+      claimAmount.initiated += amount;
+    } else if (status === "UNDER_REVIEW") {
+      underReview += 1;
+      claimAmount.underReview += amount;
+    } else if (status === "QUERY_INITIATED") {
+      queryInitiated += 1;
+      claimAmount.queryInitiated += amount;
+      claimAmount.queried += amount;
+    } else if (status === "QUERY_UNDER_REVIEW" || status === "QUERY_RAISED") {
+      queryUnderReview += 1; // QUERY_RAISED is legacy fallback
+      claimAmount.queryUnderReview += amount;
+      claimAmount.queried += amount;
+    } else if (status === "DOCUMENTS_RESUBMITTED") {
+      docsResubmitted += 1;
+    } else if (
+      status === "APPROVED" ||
+      status === "CLOSED" ||
+      status === "REFUND_RECEIVED_BY_IMGC"
+    ) {
+      approved += 1;
+      claimAmount.approved += amount;
+      if (status === "REFUND_RECEIVED_BY_IMGC") refunded += 1;
+    } else if (status === "REJECTED") {
+      rejected += 1;
+      claimAmount.rejected += amount;
+    } else if (status === "DRAFT") {
+      draft += 1;
+      claimAmount.draft += amount;
+    }
+  }
+
+  const queried = queryInitiated + queryUnderReview;
+
+  return {
+    total:
+      initiation +
+      draft +
+      initiated +
+      underReview +
+      queried +
+      docsResubmitted +
+      approved +
+      rejected,
+    initiation,
+    underReview,
+    approved,
+    rejected,
+    draft,
+    initiated,
+    queried,
+    queryInitiated,
+    queryUnderReview,
+    refunded,
+    claimAmount,
+  };
+}
+
+/* ── helpers ───────────────────────────────────────────────────────── */
+
+function nextClaimNo(db: MockDb, type: ClaimTypeKey): string {
+  const prefix = claimConfig(type).prefix;
+  const year = new Date().getFullYear();
+  const used = db.claims.filter((c) =>
+    c.claimNo.startsWith(`${prefix}-${year}-`)
+  ).length;
+  return `${prefix}-${year}-${String(used + 1).padStart(5, "0")}`;
+}
+
+function advance(
+  db: MockDb,
+  claim: Claim,
+  status: ClaimStatus,
+  session: AppSession,
+  note?: string
+): void {
+  claim.status = status;
+  claim.lastUpdatedAt = nowIso();
+  claim.statusHistory.push({
+    status,
+    at: nowIso(),
+    byId: session.userId,
+    byName: session.name,
+    byRole: session.role,
+    note,
+  });
+
+  const account = db.accounts.find((a) => a.id === claim.accountId);
+  if (account) {
+    account.claimStatus = toAccountClaimStatus(status);
+    if (status === "DOCUMENTS_RESUBMITTED" || status === "UNDER_REVIEW") {
+      account.stage = "Under IMGC review";
+    } else if (status === "APPROVED") {
+      account.stage = "Claim approved";
+    } else if (status === "REJECTED") {
+      account.stage = "Claim rejected";
+    } else if (status === "CLOSED") {
+      account.stage = "Claim closed";
+    } else if (status === "QUERY_RAISED") {
+      account.stage = "Query raised with the lender";
+    } else if (status === "REFUND_RECEIVED_BY_IMGC") {
+      account.stage = "Refund received by IMGC";
+    }
+  }
+}
+
+/**
+ * Keeps the Claim record's own status (and, for a query, its ClaimQuery row) in step with a
+ * decision made from the legacy per-account Overview tab (`accounts.server.ts`'s `setClaimStatus`).
+ *
+ * That screen only ever wrote `account.claimStatus`; the Claim entity — what Track Claim, the
+ * lender's workspace, and this claim's own status-history graph actually read — never moved, so
+ * an approval made there was invisible everywhere else. This is the sync point, not a duplicate
+ * decision path: it does not record its own audit event or notification — the caller already
+ * does both for the account-level change, and doing it twice would double both up. When the
+ * account has no open claim yet (a legacy-only account with nothing in `db.claims`), there is
+ * nothing to sync and this is a no-op.
+ */
+export async function syncClaimForAccountDecision(
+  session: AppSession,
+  accountId: string,
+  status: Extract<ClaimStatus, "APPROVED" | "QUERIED" | "REJECTED">,
+  note: string
+): Promise<void> {
+  await writeDb((db) => {
+    const claim = db.claims.find(
+      (c) => c.accountId === accountId && !TERMINAL_STATUSES.has(c.status)
+    );
+    if (!claim) return;
+
+    // IMGC's optional note from the Approve/Reject dialog — both sides read it under Remarks.
+    if (note && status !== "QUERIED") {
+      claim.fields = { ...claim.fields, __imgcDecisionRemark: note };
+    }
+
+    if (status === "APPROVED") {
+      advance(db, claim, "APPROVED", session, note || undefined);
+      claim.decision = {
+        outcome: "APPROVED",
+        byId: session.userId,
+        byName: session.name,
+        at: nowIso(),
+        remarks: note,
+      };
+      return;
+    }
+
+    if (status === "REJECTED") {
+      advance(db, claim, "REJECTED", session, note || undefined);
+      claim.decision = {
+        outcome: "REJECTED",
+        byId: session.userId,
+        byName: session.name,
+        at: nowIso(),
+        remarks: note,
+      };
+      return;
+    }
+
+    // "QUERIED" here is the account-level status. Route to the correct claim-level status based
+    // on where the claim currently sits: pre-review queries become QUERY_INITIATED; post-review
+    // queries become QUERY_UNDER_REVIEW. Legacy QUERY_RAISED is preserved for any existing records
+    // but is not produced by new raises through this path.
+    const raisedAt = nowIso();
+    db.claimQueries.push({
+      id: newId("qry"),
+      claimId: claim.id,
+      reason: note.trim() || "Query raised from the account review.",
+      remarks: "",
+      requestedDocuments: [],
+      raisedById: session.userId,
+      raisedByName: session.name,
+      raisedAt,
+      dueDate: new Date(
+        new Date(raisedAt).getTime() + 4 * 24 * 60 * 60 * 1000
+      ).toISOString(),
+    });
+    claim.bucket = "LENDER";
+    const queryStatus: ClaimStatus =
+      claim.status === "INITIATED" ? "QUERY_INITIATED" : "QUERY_UNDER_REVIEW";
+    advance(db, claim, queryStatus, session, note || undefined);
+  });
+}
+
+/**
+ * Keeps the Claim record in step with a document decision made through `claims.server.ts`'s
+ * `decideDocument` — the legacy per-account checklist (Accounts' Initial Claims tab, and the
+ * Additional Documents workbench, both go through it), which only ever wrote the shared
+ * `ClaimDocument` row and never touched the Claim entity.
+ *
+ * A document rejected or sent back for re-upload is exactly the same "the lender has something
+ * to fix" event a formal query is, so it gets one: a real `ClaimQuery` naming that document,
+ * the claim moved to QUERY_RAISED. Without this, the row's own status pill said "Rejected" but
+ * the claim's Progress rail and Query Response section had no idea anything had happened —
+ * nothing told the lender there was something to act on. An approval needs no such sync; there
+ * is nothing for the lender to do. Same non-duplicating contract as `syncClaimForAccountDecision`:
+ * no audit event or notification here, the caller already sends both for the document decision.
+ */
+export async function syncQueryForDocumentDecision(
+  session: AppSession,
+  accountId: string,
+  documentName: string,
+  decision: "REJECTED" | "REUPLOAD_REQUESTED",
+  note: string
+): Promise<void> {
+  await writeDb((db) => {
+    const claim = db.claims.find(
+      (c) => c.accountId === accountId && !TERMINAL_STATUSES.has(c.status)
+    );
+    if (!claim) return;
+
+    const raisedAt = nowIso();
+    db.claimQueries.push({
+      id: newId("qry"),
+      claimId: claim.id,
+      reason:
+        note.trim() ||
+        (decision === "REJECTED"
+          ? `"${documentName}" was rejected.`
+          : `"${documentName}" needs to be re-uploaded.`),
+      remarks: "",
+      requestedDocuments: [documentName],
+      raisedById: session.userId,
+      raisedByName: session.name,
+      raisedAt,
+      dueDate: new Date(
+        new Date(raisedAt).getTime() + 4 * 24 * 60 * 60 * 1000
+      ).toISOString(),
+    });
+    claim.bucket = "LENDER";
+    const docQueryStatus: ClaimStatus =
+      claim.status === "INITIATED" ? "QUERY_INITIATED" : "QUERY_UNDER_REVIEW";
+    advance(db, claim, docQueryStatus, session, note || undefined);
+  });
+}
+
+/* ── lender actions ────────────────────────────────────────────────── */
+
+/**
+ * Start a claim, materialising the configured checklist as real document rows.
+ *
+ * The checklist is copied from config at creation rather than read live, so changing the config
+ * later cannot silently alter what an in-flight claim was asked for.
+ */
+/**
+ * Turn a claim type's document config into real checklist rows for one claim.
+ *
+ * Conditional documents are always materialised, but `required` reflects whether the rule held
+ * against the loan data — so a not-applicable conditional document sits in the list as optional
+ * and does not block submission.
+ *
+ * Every document starts empty (PENDING_UPLOAD): nothing is pre-uploaded on the lender's behalf.
+ */
+/**
+ * The checklist a new claim is built from — the claim type's own default documents, unless the
+ * lender has a saved "Lender Document Configuration" (IMGC's own admin page, over on
+ * `lenderDocumentConfig.server.ts`), which only ever applies to INITIAL claims and only replaces
+ * the list when that lender actually has rows saved. Any lender with none configured gets the
+ * exact same default checklist this always produced — the feature is additive, never a change to
+ * a lender nobody has configured.
+ */
+function documentSpecsFor(
+  fresh: MockDb,
+  claimType: ClaimTypeKey,
+  lenderOrgId: string | undefined
+): readonly ClaimDocumentSpec[] {
+  if (claimType === "INITIAL" && lenderOrgId) {
+    const custom = fresh.lenderDocumentRequirements
+      .filter((r) => r.lenderOrgId === lenderOrgId)
+      .sort((a, b) => a.order - b.order);
+    if (custom.length > 0) {
+      return custom.map((r) => ({
+        slug: r.slug,
+        name: r.name,
+        category: r.category,
+        description: r.description,
+        required: r.required,
+      }));
+    }
+  }
+  return claimConfig(claimType).documents;
+}
+
+/**
+ * Where each document sits in the lender's CURRENT configuration — by slug, and by name for rows
+ * that predate slugs. Screens order a claim's checklist by this (mandatory first), so the lender's
+ * list reads the way IMGC set it up in Document Configuration rather than alphabetically.
+ */
+export function configuredOrder(
+  db: MockDb,
+  claimType: ClaimTypeKey,
+  lenderOrgId: string | undefined
+): (doc: { slug?: string; name: string }) => number {
+  const specs = documentSpecsFor(db, claimType, lenderOrgId);
+  const bySlug = new Map(specs.map((s, i) => [s.slug, i]));
+  const byName = new Map(specs.map((s, i) => [s.name.trim().toLowerCase(), i]));
+  return (doc) =>
+    (doc.slug !== undefined ? bySlug.get(doc.slug) : undefined) ??
+    byName.get(doc.name.trim().toLowerCase()) ??
+    Number.MAX_SAFE_INTEGER;
+}
+
+/**
+ * Keeps a DRAFT claim's checklist in step with the lender's Document Configuration.
+ *
+ * A checklist is materialised when the claim is created, so without this a lender who opened
+ * their claim before IMGC changed the configuration kept working against the old list. While
+ * the claim is still a draft nothing has been submitted against it, so it follows the current
+ * configuration: newly configured documents are added, Mandatory/Optional and descriptions are
+ * brought up to date, and a document IMGC removed is withdrawn — unless files were already
+ * uploaded to it, which are never taken away. Once submitted, the checklist is left as it was.
+ *
+ * Reads first and writes only when something actually differs, so opening an up-to-date claim
+ * costs nothing.
+ */
+export async function syncDraftChecklist(claimId: string): Promise<void> {
+  type Op =
+    | { kind: "add"; spec: ClaimDocumentSpec; required: boolean }
+    | {
+        kind: "update";
+        docId: string;
+        spec: ClaimDocumentSpec;
+        required: boolean;
+      }
+    | { kind: "withdraw"; docId: string };
+
+  const plan = (db: MockDb): Op[] => {
+    const claim = db.claims.find((c) => c.id === claimId);
+    if (!claim || claim.status !== "DRAFT") return [];
+    const account = db.accounts.find((a) => a.id === claim.accountId);
+    const loan = (account ?? {}) as unknown as Record<string, unknown>;
+    const specs = documentSpecsFor(db, claim.claimType, account?.lenderOrgId);
+    const system = db.claimDocuments.filter(
+      (d) => d.claimId === claimId && d.addedBy === "SYSTEM"
+    );
+    const matches = (d: (typeof system)[number], s: ClaimDocumentSpec) =>
+      (d.slug !== undefined && d.slug === s.slug) ||
+      d.name.trim().toLowerCase() === s.name.trim().toLowerCase();
+
+    const ops: Op[] = [];
+    const matched = new Set<string>();
+    for (const spec of specs) {
+      const required = spec.required && docConditionMet(spec.condition, loan);
+      const doc = system.find((d) => matches(d, spec));
+      if (!doc) {
+        ops.push({ kind: "add", spec, required });
+        continue;
+      }
+      matched.add(doc.id);
+      if (
+        doc.required !== required ||
+        doc.name !== spec.name ||
+        (doc.description ?? "") !== (spec.description ?? "") ||
+        doc.active === false
+      ) {
+        ops.push({ kind: "update", docId: doc.id, spec, required });
+      }
+    }
+    for (const doc of system) {
+      if (matched.has(doc.id) || doc.active === false) continue;
+      const hasFiles = db.documentFiles.some(
+        (f) => f.documentId === doc.id && !f.supersededAt
+      );
+      if (!hasFiles) ops.push({ kind: "withdraw", docId: doc.id });
+    }
+    return ops;
+  };
+
+  if (plan(await readDb()).length === 0) return;
+
+  await writeDb((fresh) => {
+    const claim = fresh.claims.find((c) => c.id === claimId);
+    if (!claim) return;
+    const used = new Set(
+      fresh.claimDocuments.filter((d) => d.claimId === claimId).map((d) => d.id)
+    );
+    let next = 0;
+    const freshId = () => {
+      while (used.has(`${claimId}_doc${next}`)) next += 1;
+      const id = `${claimId}_doc${next}`;
+      used.add(id);
+      return id;
+    };
+    for (const op of plan(fresh)) {
+      if (op.kind === "add") {
+        fresh.claimDocuments.push({
+          id: freshId(),
+          accountId: claim.accountId,
+          claimId,
+          slug: op.spec.slug,
+          name: op.spec.name,
+          category: op.spec.category,
+          description: op.spec.description,
+          required: op.required,
+          multiple: op.spec.multiple ?? false,
+          conditional: Boolean(op.spec.condition),
+          conditionReason: op.spec.condition
+            ? conditionReason(op.spec.condition)
+            : undefined,
+          addedBy: "SYSTEM",
+          status: "PENDING_UPLOAD",
+          version: 0,
+          active: true,
+          createdAt: nowIso(),
+        });
+      } else if (op.kind === "update") {
+        const doc = fresh.claimDocuments.find((d) => d.id === op.docId);
+        if (!doc) continue;
+        doc.name = op.spec.name;
+        doc.description = op.spec.description;
+        doc.required = op.required;
+        doc.active = true;
+      } else {
+        const doc = fresh.claimDocuments.find((d) => d.id === op.docId);
+        if (doc) doc.active = false;
+      }
+    }
+  });
+}
+
+function materialiseChecklist(
+  fresh: MockDb,
+  claimId: string,
+  accountId: string,
+  claimType: ClaimTypeKey
+): void {
+  const account = fresh.accounts.find((a) => a.id === accountId);
+  const loan = (account ?? {}) as unknown as Record<string, unknown>;
+
+  documentSpecsFor(fresh, claimType, account?.lenderOrgId).forEach(
+    (spec, i) => {
+      const applies = docConditionMet(spec.condition, loan);
+      const docId = `${claimId}_doc${i}`;
+
+      fresh.claimDocuments.push({
+        id: docId,
+        accountId,
+        claimId,
+        slug: spec.slug,
+        name: spec.name,
+        category: spec.category,
+        description: spec.description,
+        required: spec.required && applies,
+        multiple: spec.multiple ?? false,
+        conditional: Boolean(spec.condition),
+        conditionReason: spec.condition
+          ? conditionReason(spec.condition)
+          : undefined,
+        addedBy: "SYSTEM",
+        status: "PENDING_UPLOAD",
+        version: 0,
+        active: true,
+        createdAt: nowIso(),
+      });
+    }
+  );
+}
+
+export async function createClaim(
+  session: AppSession,
+  accountId: string,
+  claimType: ClaimTypeKey
+): Promise<Outcome> {
+  const db = await readDb();
+  const account = db.accounts.find((a) => a.id === accountId);
+  if (!account) return fail("ACCOUNT_NOT_FOUND");
+
+  if (session.role === "LENDER") {
+    if (account.lenderOrgId !== session.lenderOrgId) {
+      return fail("ACCOUNT_OTHER_LENDER");
+    }
+  } else if (session.role === "IMGC") {
+    const ctx = await getAdminContextOrNull();
+    if (!ctx?.lenderOrgId || account.lenderOrgId !== ctx.lenderOrgId) {
+      return fail("ACCOUNT_OTHER_LENDER");
+    }
+  } else {
+    return fail("CLAIM_LENDER_ONLY");
+  }
+
+  const existing = db.claims.find((c) => c.accountId === accountId);
+  if (existing) return { ok: true, claimId: existing.id };
+  if (!account.npa && !account.writeOff) {
+    return fail("CLAIM_REQUIRES_NPA");
+  }
+
+  const claimId = newId("clm");
+
+  await writeDb((fresh) => {
+    fresh.claims.push({
+      id: claimId,
+      claimNo: "",
+      accountId,
+      claimType,
+      status: "DRAFT",
+      // Claim by IMGC: recorded on the claim itself, so both sides can say who started it long
+      // after the session that did it has gone.
+      fields:
+        session.role === "IMGC"
+          ? { __initiatedByImgc: "true", __initiatedByImgcName: session.name }
+          : {},
+      // Empty on purpose. A claim row is created the moment the workspace opens, so a Draft entry
+      // here would say the lender did something they have not done. The first entry is written by
+      // Save Draft, or by the submission itself if they never save.
+      statusHistory: [],
+      createdById: session.userId,
+      createdByName: session.name,
+      createdAt: nowIso(),
+      lastUpdatedAt: nowIso(),
+      bucket: "LENDER",
+    });
+
+    materialiseChecklist(fresh, claimId, accountId, claimType);
+  });
+
+  // No audit entry here: the workspace calls this on every visit so there's a claim to attach
+  // documents to, but merely opening the page isn't a business event worth logging — only an
+  // explicit save is (see `saveClaimDraft`'s "Claim draft saved" entry).
+  return { ok: true, claimId };
+}
+
+/**
+ * Change a draft claim's type.
+ *
+ * Only while DRAFT: the type decides the field set and the checklist, and both are already
+ * materialised. Switching rebuilds the checklist from the new config and drops field values that
+ * the new type does not have; anything still valid is kept.
+ */
+export async function switchClaimType(
+  session: AppSession,
+  claimId: string,
+  newType: ClaimTypeKey
+): Promise<Outcome> {
+  const guard = await assertLenderOwns(session, claimId);
+  if (!guard.ok) return guard;
+
+  const outcome = await writeDb((db) => {
+    const claim = db.claims.find((c) => c.id === claimId);
+    if (!claim) return fail("CLAIM_NOT_FOUND");
+    if (claim.status !== "DRAFT") {
+      return fail("CLAIM_TYPE_DRAFT_ONLY");
+    }
+    if (claim.claimType === newType)
+      return { ok: true as const, changed: false };
+
+    const config = claimConfig(newType);
+    const validIds = new Set(config.fields.map((f) => f.id));
+    claim.claimType = newType;
+    // The claim has never left draft, so no one has referenced its number yet — reissue it
+    // with the new type's prefix so CLM/CLS/CLA matches the type on screen.
+    claim.claimNo = "";
+    claim.fields = Object.fromEntries(
+      Object.entries(claim.fields).filter(([k]) => validIds.has(k))
+    );
+    claim.lastUpdatedAt = nowIso();
+
+    // Rebuild the system checklist from the new config. Lender-added additional documents are
+    // kept — they belong to the claim, not the type.
+    db.claimDocuments = db.claimDocuments.filter(
+      (d) => d.claimId !== claimId || d.addedBy === "LENDER"
+    );
+    materialiseChecklist(db, claimId, claim.accountId, newType);
+    return { ok: true as const, changed: true, accountId: claim.accountId };
+  });
+  if (!outcome.ok) return outcome;
+
+  if (outcome.changed) {
+    await recordEvent({
+      accountId: guard.accountId as string,
+      actor: session,
+      type: "CLAIM_STATUS_CHANGED",
+      summary: msg("audit.claimTypeChanged", {
+        type: claimConfig(newType).label,
+      }),
+      meta: { claimId, claimType: newType },
+    });
+  }
+  return { ok: true, claimId };
+}
+
+/** Save the form without submitting. Status stays DRAFT. */
+export async function saveClaimDraft(
+  session: AppSession,
+  claimId: string,
+  fields: Record<string, string>,
+  /** True only from the Save Draft button. `submitClaim` saves through here too, and a submission
+   *  is not a draft — recording one there is what put a phantom Draft on every claim. */
+  recordDraftEntry = false
+): Promise<Outcome> {
+  const guard = await assertLenderOwns(session, claimId);
+  if (!guard.ok) return guard;
+
+  await writeDb((db) => {
+    const claim = db.claims.find((c) => c.id === claimId);
+    if (!claim) return;
+    claim.fields = { ...claim.fields, ...fields };
+    claim.lastUpdatedAt = nowIso();
+    claim.draftSaved = true;
+    if (
+      recordDraftEntry &&
+      claim.status === "DRAFT" &&
+      !claim.statusHistory.some((h) => h.status === "DRAFT")
+    ) {
+      claim.statusHistory.push({
+        status: "DRAFT",
+        at: nowIso(),
+        byId: session.userId,
+        byName: session.name,
+        byRole: session.role,
+      });
+    }
+    // Saving keeps every upload made so far.
+    const docIds = new Set(
+      db.claimDocuments.filter((d) => d.claimId === claimId).map((d) => d.id)
+    );
+    for (const f of db.documentFiles) {
+      if (f.pendingSave && docIds.has(f.documentId)) delete f.pendingSave;
+    }
+
+    // A query response draft is not a workflow transition. In particular, submitClaim calls this
+    // helper before it records the successful QUERY_RAISED -> UNDER_REVIEW transition, so adding a
+    // same-status history entry here would create a duplicate QUERY_RAISED event.
+  });
+
+  await recordEvent({
+    accountId: guard.accountId!,
+    actor: session,
+    type: "CLAIM_STATUS_CHANGED",
+    summary: msg("audit.draftSaved"),
+    meta: {
+      claimId,
+      ...(guard.onBehalfOfLenderOrgId
+        ? { onBehalfOfLenderOrgId: guard.onBehalfOfLenderOrgId }
+        : {}),
+    },
+  });
+  return { ok: true, claimId };
+}
+
+export interface SubmitCheck {
+  ok: boolean;
+  missingFields: string[];
+  missingDocuments: string[];
+}
+
+/** What still stands between a draft and submission. Drives the disabled Submit button. */
+export async function checkSubmittable(
+  claimId: string,
+  overrides?: Record<string, string>
+): Promise<SubmitCheck> {
+  const db = await readDb();
+  const claim = db.claims.find((c) => c.id === claimId);
+  if (!claim) return { ok: false, missingFields: [], missingDocuments: [] };
+
+  const config = claimConfig(claim.claimType);
+  const values = { ...claim.fields, ...(overrides ?? {}) };
+
+  const missingFields = config.fields
+    .filter(
+      (f) =>
+        f.required &&
+        fieldVisible(f, values) &&
+        !String(values[f.id] ?? "").trim()
+    )
+    .map((f) => f.label);
+
+  const missingDocuments = db.claimDocuments
+    .filter(
+      (d) =>
+        d.claimId === claimId &&
+        d.required &&
+        d.active !== false &&
+        d.status !== "UNDER_REVIEW" &&
+        d.status !== "APPROVED" &&
+        // A waiver the lender has asked for, or IMGC has allowed, no longer blocks submission.
+        d.status !== "WAIVER_REQUESTED" &&
+        d.status !== "WAIVED"
+    )
+    .map((d) => d.name);
+
+  return {
+    ok: missingFields.length === 0 && missingDocuments.length === 0,
+    missingFields,
+    missingDocuments,
+  };
+}
+
+export async function submitClaim(
+  session: AppSession,
+  claimId: string,
+  fields: Record<string, string>
+): Promise<Outcome> {
+  const guard = await assertLenderOwns(session, claimId);
+  if (!guard.ok) return guard;
+
+  await saveClaimDraft(session, claimId, fields);
+  const check = await checkSubmittable(claimId);
+  if (!check.ok) {
+    // Which names are missing is data; the sentence around them is the catalogue's job, so the
+    // three shapes get three codes rather than one string assembled here.
+    const fields = check.missingFields.join(", ");
+    const documents = check.missingDocuments.join(", ");
+    if (fields && documents) {
+      return fail("CLAIM_SUBMIT_INCOMPLETE_BOTH", { fields, documents });
+    }
+    if (fields) {
+      return fail("CLAIM_SUBMIT_INCOMPLETE_FIELDS", { fields });
+    }
+    return fail("CLAIM_SUBMIT_INCOMPLETE_DOCUMENTS", { documents });
+  }
+
+  const {
+    claimNo,
+    bucketChangedFrom,
+    accountId,
+    account,
+    initiationRemarkAdded,
+  } = await writeDb((db) => {
+    const claim = db.claims.find((c) => c.id === claimId);
+    if (!claim)
+      return {
+        claimNo: "",
+        bucketChangedFrom: null,
+        accountId: "",
+        account: null,
+        initiationRemarkAdded: false,
+      };
+    // Answering a query resubmits; a first submission submits. Both land with IMGC.
+    const resubmittingInitiated = claim.status === "QUERY_INITIATED";
+    const resubmittingUnderReview = claim.status === "QUERY_UNDER_REVIEW";
+    const resubmittingLegacy = claim.status === "QUERY_RAISED";
+    const resubmitting =
+      resubmittingInitiated || resubmittingUnderReview || resubmittingLegacy;
+
+    // The claim is already with IMGC and no query is open: the lender has replaced a file IMGC
+    // rejected and is handing it back for another look. That is not a fresh initiation — the
+    // claim stays at the stage it is already in — but the hand-back is recorded so the status
+    // trail explains where the new file came from.
+    const handingBackFix =
+      !resubmitting &&
+      (claim.status === "INITIATED" || claim.status === "UNDER_REVIEW");
+
+    // Fresh initial submission only — resubmissions get their single advance inside the
+    // if(resubmitting) block below, so we must not advance here too (would produce a duplicate
+    // history entry e.g. UNDER_REVIEW → UNDER_REVIEW after a QUERY_UNDER_REVIEW response).
+    if (handingBackFix) {
+      advance(
+        db,
+        claim,
+        claim.status,
+        session,
+        msg("notes.ineligibleDocReplaced")
+      );
+    } else if (!resubmitting) {
+      advance(db, claim, "INITIATED", session);
+    }
+    if (!claim.claimNo) {
+      claim.claimNo = nextClaimNo(db, claim.claimType);
+    }
+    if (!claim.submittedAt) {
+      claim.submittedAt = nowIso();
+      const acc = db.accounts.find((a) => a.id === claim.accountId);
+      if (acc && !acc.submittedAt) acc.submittedAt = claim.submittedAt;
+    }
+    claim.bucket = "IMGC";
+
+    if (resubmitting) {
+      const open = db.claimQueries
+        .filter((q) => q.claimId === claimId && !q.respondedAt)
+        .sort((a, b) => b.raisedAt.localeCompare(a.raisedAt))[0];
+      if (open) {
+        open.respondedAt = nowIso();
+        open.respondedById = session.userId;
+        open.respondedByName = session.name;
+        open.responseRemarks =
+          fields.__queryResponse ??
+          claim.fields.__queryResponse ??
+          "Documents resubmitted.";
+      }
+      delete claim.fields.__queryResponse;
+      // Pre-review response (QUERY_INITIATED) returns to INITIATED so IMGC can Submit for Review.
+      // Post-review response (QUERY_UNDER_REVIEW / legacy QUERY_RAISED) returns to UNDER_REVIEW.
+      // Exactly one advance fires here — the duplicate above has been removed.
+      if (resubmittingInitiated) {
+        advance(db, claim, "INITIATED", session);
+      } else {
+        advance(
+          db,
+          claim,
+          "UNDER_REVIEW",
+          session,
+          msg("notes.resubmissionReceived")
+        );
+      }
+    }
+
+    let bucketChangedFrom = null;
+    const account = db.accounts.find((a) => a.id === claim.accountId);
+    if (account && account.bucket !== "IMGC") {
+      bucketChangedFrom = account.bucket;
+      account.bucket = "IMGC";
+    }
+
+    const initiationRemark = claim.fields.__initiationRemark?.trim();
+    const initiationRemarkAdded =
+      !resubmitting &&
+      Boolean(initiationRemark) &&
+      !db.remarks.some(
+        (remark) =>
+          remark.claimId === claim.id && remark.source === "CLAIM_INITIATION"
+      );
+    if (initiationRemarkAdded) {
+      db.remarks.unshift({
+        id: newId("rmk"),
+        accountId: claim.accountId,
+        claimId: claim.id,
+        source: "CLAIM_INITIATION",
+        authorId: session.userId,
+        authorName: session.name,
+        authorRole: session.role,
+        body: initiationRemark!,
+        createdAt: nowIso(),
+      });
+    }
+
+    return {
+      claimNo: claim.claimNo,
+      bucketChangedFrom,
+      accountId: claim.accountId,
+      account: account ? { ...account } : null,
+      initiationRemarkAdded,
+    };
+  });
+
+  await recordEvent({
+    accountId: guard.accountId!,
+    actor: session,
+    type: "CLAIM_SUBMITTED",
+    summary: msg(
+      guard.onBehalfOfLenderOrgId
+        ? "audit.claimSubmittedOnBehalf"
+        : "audit.claimSubmitted",
+      { claimNo }
+    ),
+    meta: {
+      claimId,
+      ...(guard.onBehalfOfLenderOrgId
+        ? { onBehalfOfLenderOrgId: guard.onBehalfOfLenderOrgId }
+        : {}),
+    },
+  });
+
+  if (initiationRemarkAdded) {
+    await recordEvent({
+      accountId: guard.accountId!,
+      actor: session,
+      type: "REMARK_ADDED",
+      summary: msg("audit.initiationRemark"),
+      meta: {
+        claimId,
+        source: "CLAIM_INITIATION",
+        ...(guard.onBehalfOfLenderOrgId
+          ? { onBehalfOfLenderOrgId: guard.onBehalfOfLenderOrgId }
+          : {}),
+      },
+    });
+  }
+
+  if (bucketChangedFrom) {
+    await recordEvent({
+      accountId: accountId,
+      actor: session,
+      type: "BUCKET_SHIFTED",
+      summary: msg("audit.bucketMoved", {
+        from: bucketChangedFrom,
+        to: "IMGC",
+      }),
+      meta: { from: bucketChangedFrom, to: "IMGC" },
+    });
+    if (account) {
+      await notifyBucketShift(account, bucketChangedFrom, "IMGC", session);
+    }
+  }
+  await notify(guard.accountId!, {
+    subject: msg("mail.claimSubmittedSubject", { claimNo }),
+    body: msg("mail.claimSubmittedBody", { actor: session.name, claimNo }),
+    event: "CLAIM_SUBMITTED",
+    unreadFor: ["IMGC"],
+  });
+  return { ok: true, claimId, claimNo };
+}
+
+export async function startClaimReview(
+  session: AppSession,
+  accountId: string,
+  note: string
+): Promise<Outcome> {
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
+  const remark = note.trim();
+
+  const claimIdLookup = await writeDb((db) => {
+    const claim = db.claims.find((c) => c.accountId === accountId);
+    return claim ? claim.id : "";
+  });
+
+  if (!claimIdLookup) return fail("CLAIM_NOT_FOUND");
+
+  const docs = await listClaimDocuments(session, claimIdLookup);
+  const summary = summariseDocs(docs);
+  if (!summary.complete) {
+    return fail("CLAIM_SUBMIT_NEEDS_APPROVALS");
+  }
+
+  const { claimId, account } = await writeDb((db) => {
+    const claim = db.claims.find((c) => c.accountId === accountId);
+    if (!claim) return { claimId: "", account: null };
+    if (claim.status !== "INITIATED")
+      return { claimId: claim.id, account: null };
+
+    advance(db, claim, "UNDER_REVIEW", session, remark || undefined);
+    // Kept on the claim so the lender reads IMGC's note under Remarks on their own screen — the
+    // *At/*ByName pair let the Remarks panel show when and by whom, same as the decision remark.
+    if (remark) {
+      claim.fields = {
+        ...claim.fields,
+        __imgcReviewRemark: remark,
+        __imgcReviewRemarkAt: nowIso(),
+        __imgcReviewRemarkByName: session.name,
+      };
+    }
+
+    const account = db.accounts.find((a) => a.id === claim.accountId);
+    return { claimId: claim.id, account };
+  });
+
+  if (!claimId || !account) return fail("CLAIM_NOT_INITIATED");
+
+  await recordEvent({
+    accountId,
+    actor: session,
+    type: "CLAIM_STATUS_CHANGED",
+    summary: msg("audit.reviewStarted"),
+    meta: { status: "UNDER_REVIEW", from: "INITIATED" },
+  });
+
+  return { ok: true, claimId };
+}
+
+/* ── IMGC actions ──────────────────────────────────────────────────── */
+
+export async function updateClaimStatus(
+  session: AppSession,
+  claimId: string,
+  status: ClaimStatus,
+  remarks: string
+): Promise<Outcome> {
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
+
+  const outcome = await writeDb((db) => {
+    const claim = db.claims.find((c) => c.id === claimId);
+    if (!claim) return fail("CLAIM_NOT_FOUND");
+    advance(db, claim, status, session, remarks || undefined);
+    if (status === "APPROVED" || status === "REJECTED" || status === "CLOSED") {
+      claim.decision = {
+        outcome: status,
+        byId: session.userId,
+        byName: session.name,
+        at: nowIso(),
+        remarks,
+      };
+    }
+    return {
+      ok: true as const,
+      accountId: claim.accountId,
+      claimNo: claim.claimNo,
+    };
+  });
+  if (!outcome.ok) return outcome;
+
+  await recordEvent({
+    accountId: outcome.accountId,
+    actor: session,
+    type: "CLAIM_STATUS_CHANGED",
+    summary:
+      msg("audit.claimStatusChanged", {
+        claimNo: outcome.claimNo,
+        status,
+      }) + (remarks ? msg("audit.noteSuffix", { note: remarks }) : ""),
+    meta: { claimId, status },
+  });
+  await notify(outcome.accountId, {
+    subject: msg("mail.claimNowSubject", {
+      claimNo: outcome.claimNo,
+      status: status.replace(/_/g, " ").toLowerCase(),
+    }),
+    body:
+      msg("mail.claimMovedBody", {
+        actor: session.name,
+        claimNo: outcome.claimNo,
+        status,
+      }) + (remarks ? msg("mail.remarksSuffix", { remarks }) : ""),
+    event: "CLAIM_STATUS_CHANGED",
+    unreadFor: ["LENDER"],
+  });
+  return { ok: true, claimId, accountId: outcome.accountId };
+}
+
+/**
+ * "Refund Received" — IMGC recording that money for an already-approved claim has actually
+ * reached them. Nothing more: no refund initiation, no invoice, no lender-side processing, no
+ * payment gateway, no second decision. `claim.decision` (the original APPROVED outcome) is left
+ * exactly as it was; this only appends one more real entry to `statusHistory` and, alongside it,
+ * `claim.refundReceipt` — a payment date, a UTR reference, an amount and one optional proof file.
+ *
+ * `amount` is free entry from the IMGC team, not checked against the computed claim amount — a
+ * genuine partial settlement is a real case here, not something to reject. `paymentDate` is when
+ * the money actually moved, which IMGC may be recording well after the fact (particularly in
+ * bulk); it is kept separate from the row's own `at`, the system time this was entered.
+ *
+ * The proof file is stored exactly the way an additional document is (`storeIncomingUpload` +
+ * one `DocumentFile` row, served through the same `/api/portal/files/{fileId}` route), but it is
+ * never attached to a `ClaimDocument`, so it never shows up on the Required Documents checklist
+ * or the Document Retention screen — those both start from `claimDocuments`, and none is created
+ * here on purpose.
+ *
+ * The full payment/settlement approach (UTR / bank-rail validation, reconciliation, editing after
+ * entry) is explicitly out of scope for now — this is deliberately the smallest version.
+ *
+ * The guard on `claim.status !== "APPROVED"` is what makes duplicate clicks and duplicate status
+ * updates impossible server-side (requirement, not just a disabled button): the first successful
+ * call moves the claim to REFUND_RECEIVED_BY_IMGC, so every call after that — a second click that
+ * slipped past the disabled button, two tabs open, a replayed request — fails this check instead
+ * of writing a second entry.
+ */
+export async function markRefundReceived(
+  session: AppSession,
+  claimId: string,
+  utr: string,
+  amount: number,
+  paymentDate: string,
+  file?: IncomingUpload
+): Promise<Outcome> {
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
+  const trimmedUtr = utr.trim();
+  if (!trimmedUtr) return fail("UTR_REQUIRED");
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return fail("AMOUNT_INVALID");
+  }
+  const trimmedDate = paymentDate.trim() || nowIso().slice(0, 10);
+
+  const claimBefore = (await readDb()).claims.find((c) => c.id === claimId);
+  if (!claimBefore) return fail("CLAIM_NOT_FOUND");
+  if (claimBefore.status !== "APPROVED") {
+    return fail(
+      claimBefore.status === "REFUND_RECEIVED_BY_IMGC"
+        ? "REFUND_ALREADY_RECORDED"
+        : "REFUND_NEEDS_APPROVED_CLAIM"
+    );
+  }
+
+  let stored: { fileId: string; fileName: string } | undefined;
+  if (file) {
+    const fileId = newId("file");
+    const upload = await storeIncomingUpload(
+      claimBefore.accountId,
+      fileId,
+      file
+    );
+    if (!upload.ok) return upload;
+    await writeDb((fresh) => {
+      fresh.documentFiles.push({
+        id: fileId,
+        // Not any `ClaimDocument`'s id — this file is intentionally invisible to the Required
+        // Documents checklist and the Document Retention screen, both of which only look at
+        // files whose `documentId` resolves back to a real `claimDocuments` row.
+        documentId: `refund_${claimId}`,
+        accountId: claimBefore.accountId,
+        originalName: upload.file.originalName,
+        storedPath: upload.file.storedPath,
+        size: upload.file.size,
+        mime: upload.file.mime,
+        uploadedBy: session.userId,
+        uploadedByName: session.name,
+        uploadedAt: nowIso(),
+        uploadedByRole: session.role,
+        version: 1,
+      });
+    });
+    stored = { fileId, fileName: upload.file.originalName };
+  }
+
+  const outcome = await writeDb((db) => {
+    const claim = db.claims.find((c) => c.id === claimId);
+    if (!claim) return fail("CLAIM_NOT_FOUND");
+    if (claim.status !== "APPROVED") {
+      return fail(
+        claim.status === "REFUND_RECEIVED_BY_IMGC"
+          ? "REFUND_ALREADY_RECORDED"
+          : "REFUND_NEEDS_APPROVED_CLAIM"
+      );
+    }
+    advance(
+      db,
+      claim,
+      "REFUND_RECEIVED_BY_IMGC",
+      session,
+      `${trimmedUtr} · ₹${amount.toLocaleString("en-IN")} · paid ${trimmedDate}`
+    );
+    claim.refundReceipt = {
+      paymentDate: trimmedDate,
+      utr: trimmedUtr,
+      amount,
+      fileId: stored?.fileId,
+      fileName: stored?.fileName,
+      byId: session.userId,
+      byName: session.name,
+      at: nowIso(),
+    };
+    return {
+      ok: true as const,
+      accountId: claim.accountId,
+      claimNo: claim.claimNo,
+    };
+  });
+  if (!outcome.ok) return outcome;
+
+  await recordEvent({
+    accountId: outcome.accountId,
+    actor: session,
+    type: "CLAIM_STATUS_CHANGED",
+    summary: msg("audit.refundReceived", {
+      claimNo: outcome.claimNo,
+      utr: trimmedUtr,
+      amount: amount.toLocaleString("en-IN"),
+      date: trimmedDate,
+    }),
+    meta: {
+      claimId,
+      status: "REFUND_RECEIVED_BY_IMGC",
+      utr: trimmedUtr,
+      amount: String(amount),
+      paymentDate: trimmedDate,
+    },
+  });
+  // The lender sees this everywhere the claim's status already renders (Track Claim, their own
+  // claim workspace, the Claims grid) — this notification is the push on top of that, same
+  // pattern `updateClaimStatus` uses for every other decision.
+  await notify(outcome.accountId, {
+    subject: msg("mail.refundSubject", { claimNo: outcome.claimNo }),
+    body: msg("mail.refundBody", {
+      actor: session.name,
+      claimNo: outcome.claimNo,
+    }),
+    event: "CLAIM_STATUS_CHANGED",
+    unreadFor: ["LENDER"],
+  });
+  return { ok: true, claimId, accountId: outcome.accountId };
+}
+
+export async function raiseQuery(
+  session: AppSession,
+  claimId: string,
+  input: { reason: string; remarks: string; requestedDocuments: string[] }
+): Promise<Outcome> {
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
+  if (!input.reason.trim()) return fail("QUERY_REASON_REQUIRED");
+
+  const outcome = await writeDb((db) => {
+    const claim = db.claims.find((c) => c.id === claimId);
+    if (!claim) return fail("CLAIM_NOT_FOUND");
+    if (TERMINAL_STATUSES.has(claim.status)) {
+      return fail("CLAIM_ALREADY_CLOSED");
+    }
+
+    const raisedAt = nowIso();
+    db.claimQueries.push({
+      id: newId("qry"),
+      claimId,
+      reason: input.reason.trim(),
+      remarks: input.remarks.trim(),
+      requestedDocuments: input.requestedDocuments,
+      raisedById: session.userId,
+      raisedByName: session.name,
+      raisedAt,
+      // Standard 4-day response window — not user-set, so it can't be forgotten or fudged.
+      dueDate: new Date(
+        new Date(raisedAt).getTime() + 4 * 24 * 60 * 60 * 1000
+      ).toISOString(),
+    });
+
+    // A requested document goes back to the lender to provide again.
+    for (const name of input.requestedDocuments) {
+      const doc = db.claimDocuments.find(
+        (d) => d.claimId === claimId && d.name === name
+      );
+      if (doc) doc.status = "REUPLOAD_REQUIRED";
+    }
+
+    let targetStatus: ClaimStatus = "QUERY_UNDER_REVIEW";
+    if (claim.status === "INITIATED") {
+      targetStatus = "QUERY_INITIATED";
+    }
+    // The reason lives on the query itself; repeating it as a status note only fills the
+    // timeline with generated text.
+    advance(db, claim, targetStatus, session);
+    claim.bucket = "LENDER";
+
+    let bucketChangedFrom = null;
+    const account = db.accounts.find((a) => a.id === claim.accountId);
+    if (account && account.bucket !== "LENDER") {
+      bucketChangedFrom = account.bucket;
+      account.bucket = "LENDER";
+    }
+
+    return {
+      ok: true as const,
+      accountId: claim.accountId,
+      claimNo: claim.claimNo,
+      bucketChangedFrom,
+      account: account ? { ...account } : null,
+    };
+  });
+  if (!outcome.ok) return outcome;
+
+  await recordEvent({
+    accountId: outcome.accountId,
+    actor: session,
+    type: "CLAIM_STATUS_CHANGED",
+    summary: msg("audit.queryRaised", {
+      claimNo: outcome.claimNo,
+      reason: input.reason.trim(),
+    }),
+    meta: { claimId },
+  });
+
+  if (outcome.bucketChangedFrom) {
+    await recordEvent({
+      accountId: outcome.accountId,
+      actor: session,
+      type: "BUCKET_SHIFTED",
+      summary: msg("audit.bucketMoved", {
+        from: outcome.bucketChangedFrom,
+        to: "LENDER",
+      }),
+      meta: { from: outcome.bucketChangedFrom, to: "LENDER" },
+    });
+    if (outcome.account) {
+      await notifyBucketShift(
+        outcome.account,
+        outcome.bucketChangedFrom,
+        "LENDER",
+        session
+      );
+    }
+  }
+
+  await notify(outcome.accountId, {
+    subject: msg("mail.queryRaisedSubject", { claimNo: outcome.claimNo }),
+    body:
+      msg("mail.queryRaisedBody", {
+        actor: session.name,
+        claimNo: outcome.claimNo,
+        reason: input.reason.trim(),
+      }) +
+      (input.requestedDocuments.length
+        ? msg("mail.queryRequested", {
+            docs: input.requestedDocuments.join(", "),
+          })
+        : ""),
+    event: "CLAIM_QUERY_RAISED",
+    unreadFor: ["LENDER"],
+  });
+  return { ok: true, claimId, accountId: outcome.accountId };
+}
+
+/* ── internals ─────────────────────────────────────────────────────── */
+
+async function assertLenderOwns(
+  session: AppSession,
+  claimId: string
+): Promise<Outcome & { accountId?: string; onBehalfOfLenderOrgId?: string }> {
+  const db = await readDb();
+  const claim = db.claims.find((c) => c.id === claimId);
+  if (!claim) return fail("CLAIM_NOT_FOUND");
+  const account = db.accounts.find((a) => a.id === claim.accountId);
+  if (!account) return fail("ACCOUNT_NOT_FOUND");
+
+  if (session.role === "LENDER") {
+    if (account.lenderOrgId !== session.lenderOrgId) {
+      return fail("CLAIM_OTHER_LENDER");
+    }
+    return { ok: true, accountId: claim.accountId };
+  }
+
+  if (session.role === "IMGC") {
+    const ctx = await getAdminContextOrNull();
+    if (!ctx?.lenderOrgId || ctx.lenderOrgId !== account.lenderOrgId) {
+      return fail("CLAIM_OTHER_LENDER");
+    }
+    return {
+      ok: true,
+      accountId: claim.accountId,
+      onBehalfOfLenderOrgId: account.lenderOrgId,
+    };
+  }
+
+  return fail("CLAIM_OTHER_LENDER");
+}
+
+async function notify(
+  accountId: string,
+  mail: {
+    subject: string;
+    body: string;
+    event: string;
+    unreadFor: ("IMGC" | "LENDER")[];
+  }
+): Promise<void> {
+  const db = await readDb();
+  const account = db.accounts.find((a) => a.id === accountId);
+  if (!account) return;
+  const lender =
+    db.lenderOrgs.find((o) => o.id === account.lenderOrgId)?.contactEmails ??
+    [];
+  const imgc = db.users.filter((u) => u.role === "IMGC").map((u) => u.email);
+  // Addressed to whichever side the message asks something of (the same side its unread badge
+  // lands on); the other side and the account's pinned addresses are copied.
+  const actOn = mail.unreadFor.includes("LENDER") ? "LENDER" : "IMGC";
+  await sendMail({
+    to: actOn === "LENDER" ? lender : imgc,
+    cc: [...(actOn === "LENDER" ? imgc : lender), ...account.pushRecipients],
+    subject: `[${account.loanNo}] ${mail.subject}`,
+    body: mail.body,
+    event: mail.event,
+    accountId,
+    unreadFor: mail.unreadFor,
+  });
+}
+
+/* ── lender-added additional documents ─────────────────────────────── */
+
+/**
+ * A document the lender adds themselves, beyond the configured checklist.
+ *
+ * Modelled as a `ClaimDocument` with `addedBy: "LENDER"` and `required: false` — it uses the
+ * same upload, review, versioning and remark machinery as every other claim document, and it
+ * never touches the type's configuration. Added one at a time; there is no limit.
+ */
+export async function addLenderDocument(
+  session: AppSession,
+  claimId: string,
+  input: {
+    name: string;
+    description: string;
+    remarks: string;
+    file: IncomingUpload;
+  }
+): Promise<Outcome> {
+  const guard = await assertLenderOwns(session, claimId);
+  if (!guard.ok) return guard;
+
+  const name = input.name.trim();
+  if (!name) return fail("DOCUMENT_NAME_REQUIRED");
+
+  const db = await readDb();
+  const claim = db.claims.find((c) => c.id === claimId);
+  if (!claim) return fail("CLAIM_NOT_FOUND");
+  if (TERMINAL_STATUSES.has(claim.status)) {
+    return fail("CLAIM_CLOSED");
+  }
+  const accountId = claim.accountId;
+
+  const existingAd = db.claimDocuments.filter(
+    (d) => d.claimId === claimId && d.addedBy === "LENDER"
+  ).length;
+  const clash = db.claimDocuments.some(
+    (d) => d.claimId === claimId && d.name.toLowerCase() === name.toLowerCase()
+  );
+  if (clash) return fail("DOCUMENT_NAME_DUPLICATE_ON_CLAIM");
+
+  const docId = newId("addoc");
+  const refNo = `AD-${String(existingAd + 1).padStart(3, "0")}`;
+  const fileId = newId("file");
+  // Same shared-storage seam the checklist upload uses.
+  const stored = await storeIncomingUpload(accountId, fileId, input.file);
+  if (!stored.ok) return stored;
+  const upload = stored.file;
+
+  await writeDb((fresh) => {
+    fresh.claimDocuments.push({
+      id: docId,
+      accountId,
+      claimId,
+      refNo,
+      name,
+      category: "Additional Document",
+      description: input.description.trim() || undefined,
+      required: false,
+      multiple: true,
+      addedBy: "LENDER",
+      addedByName: session.name,
+      status: "UNDER_REVIEW",
+      version: 1,
+      currentFileId: fileId,
+      active: true,
+      createdAt: nowIso(),
+    });
+    fresh.documentFiles.push({
+      id: fileId,
+      documentId: docId,
+      accountId,
+      originalName: upload.originalName,
+      storedPath: upload.storedPath,
+      size: upload.size,
+      mime: upload.mime,
+      uploadedBy: session.userId,
+      uploadedByName: session.name,
+      uploadedByRole: session.role,
+      uploadedAt: nowIso(),
+      version: 1,
+      uploadRemarks: input.remarks.trim() || undefined,
+      pendingSave:
+        claim.status === "DRAFT" ||
+        claim.status === "QUERY_INITIATED" ||
+        claim.status === "QUERY_UNDER_REVIEW"
+          ? true
+          : undefined,
+    });
+    if (input.remarks.trim()) {
+      fresh.remarks.unshift({
+        id: newId("rmk"),
+        accountId,
+        documentId: docId,
+        authorId: session.userId,
+        authorName: session.name,
+        authorRole: session.role,
+        body: input.remarks.trim(),
+        createdAt: nowIso(),
+      });
+    }
+  });
+
+  await recordEvent({
+    accountId,
+    actor: session,
+    type: "DOC_UPLOADED",
+    summary: msg("audit.additionalDocAdded", { name, refNo }),
+    meta: { document: name, refNo },
+  });
+  return { ok: true, claimId };
+}
+
+/**
+ * Set the remark on one claim document.
+ *
+ * Upserts a single remark row for this author + document, so the per-category remark box behaves
+ * as one editable field rather than an ever-growing thread. Document remarks are kept distinct
+ * from claim-level and loan remarks.
+ */
+export async function upsertDocumentRemark(
+  session: AppSession,
+  claimId: string,
+  documentId: string,
+  body: string
+): Promise<Outcome> {
+  const guard = await assertLenderOwns(session, claimId);
+  if (!guard.ok) return guard;
+  const text = body.trim();
+
+  const db = await readDb();
+  const doc = db.claimDocuments.find(
+    (d) => d.id === documentId && d.claimId === claimId
+  );
+  if (!doc) return fail("DOCUMENT_NOT_FOUND");
+
+  await writeDb((fresh) => {
+    fresh.remarks = fresh.remarks.filter(
+      (r) =>
+        !(
+          r.documentId === documentId &&
+          r.authorId === session.userId &&
+          r.accountId === guard.accountId
+        )
+    );
+    if (text) {
+      fresh.remarks.unshift({
+        id: newId("rmk"),
+        accountId: guard.accountId as string,
+        documentId,
+        authorId: session.userId,
+        authorName: session.name,
+        authorRole: session.role,
+        body: text,
+        createdAt: nowIso(),
+      });
+    }
+  });
+
+  await recordEvent({
+    accountId: guard.accountId as string,
+    actor: session,
+    type: "REMARK_ADDED",
+    summary: msg("audit.remarkOnDoc", {
+      name: doc.name,
+      text: text || msg("audit.remarkCleared"),
+    }),
+    meta: { document: doc.name },
+  });
+  return { ok: true, claimId };
+}

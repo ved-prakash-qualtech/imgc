@@ -1,10 +1,10 @@
 import { NextIntlClientProvider } from "next-intl";
 import type { Preview } from "@storybook/nextjs-vite";
 
-import { QueryProvider } from "@/components/providers/QueryProvider";
-import { TenantProvider } from "@/components/shared/TenantProvider";
-import enMessages from "@/translations/en.json";
-import "@/app/globals.css";
+import { QueryProvider } from "@imgc/ui/providers/QueryProvider";
+import { TenantProvider } from "@imgc/ui/shared/TenantProvider";
+import enMessages from "@imgc/i18n/translations/en.json";
+import "@imgc/ui/styles/globals.css";
 
 const preview: Preview = {
   parameters: {

@@ -6,8 +6,8 @@ TanStack Table wrappers in `src/components/dataTable/` (add when implementing ta
 
 Sync sort/filter/pagination with URL via:
 
-- `useDataTableUrlState` (`src/hooks/`)
-- `parseDataTableUrlState` / `serializeDataTableUrlState` (`src/lib/utils/dataTable/`)
+- `useDataTableUrlState` (`packages/hooks/`)
+- `parseDataTableUrlState` / `serializeDataTableUrlState` (`packages/lib/utils/dataTable/`)
 
 ## Pattern
 

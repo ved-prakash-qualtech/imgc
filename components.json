@@ -4,8 +4,8 @@
   "rsc": true,
   "tsx": true,
   "tailwind": {
-    "config": "tailwind.config.ts",
-    "css": "src/app/globals.css",
+    "config": "",
+    "css": "packages/ui/styles/globals.css",
     "baseColor": "neutral",
     "cssVariables": true,
     "prefix": ""
@@ -14,10 +14,10 @@
   "rtl": false,
   "aliases": {
     "components": "@/components",
-    "utils": "@/lib/utils/twMergeUtils",
-    "ui": "@/components/ui",
-    "lib": "@/lib",
-    "hooks": "@/hooks"
+    "utils": "@imgc/lib/utils/twMergeUtils",
+    "ui": "@imgc/ui/ui",
+    "lib": "@imgc/lib",
+    "hooks": "@imgc/hooks"
   },
   "menuColor": "default",
   "menuAccent": "subtle",

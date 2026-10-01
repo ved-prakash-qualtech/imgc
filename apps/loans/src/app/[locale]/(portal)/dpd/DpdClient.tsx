@@ -1,0 +1,767 @@
+/* eslint-disable react-perf/jsx-no-new-function-as-prop */
+"use client";
+
+import { useCallback, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
+import { useSearchParams } from "next/navigation";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ArrowUpDownIcon,
+  CalendarClockIcon,
+  ChevronDownIcon,
+  DownloadIcon,
+  RotateCcwIcon,
+  SearchIcon,
+} from "lucide-react";
+
+import { Panel } from "@imgc/features/portal/Panel";
+import { PaginationNumbers } from "@imgc/ui/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@imgc/ui/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@imgc/ui/ui/table";
+import { DPD_BANDS, dpdInBand, formatDpd, type DpdBand } from "@imgc/lib/dpd";
+import type { EligibleRow } from "@imgc/types/portal/eligibleClaim";
+import type { Role } from "@imgc/types/domain";
+
+/** Same "not started" idea the Claim grid uses (a claim record can exist before the lender has
+ *  actually done anything with it) — kept local rather than imported, since the two grids' rows
+ *  come from different server-side queries and this is the only place this screen needs it. */
+function isNotStarted(a: EligibleRow): boolean {
+  return !a.claim || !a.claim.hasProgress;
+}
+
+function purposeDisplayWith(t: (key: string) => string) {
+  return (v: string): string => (v === "ALL" ? t("filters.allProducts") : v);
+}
+
+function dpdBandDisplayWith(t: (key: string) => string) {
+  return (v: DpdBand): string =>
+    v === "ALL" ? t("filters.allDpd") : t(`bands.${v}`);
+}
+
+/** Loan status is an identifier the server produces and the filters compare against, so only
+ *  its display is translated — never the value itself. */
+function loanStatusDisplayWith(t: (key: string) => string) {
+  return (v: string): string =>
+    v === "ALL" ? t("filters.allLoanStatuses") : t(`loanStatus.${v}`);
+}
+
+type SortKey =
+  | "loanNo"
+  | "borrowerName"
+  | "lender"
+  | "loanAmount"
+  | "outstandingAmount"
+  | "dpd"
+  | "product"
+  | "npa"
+  | "loanStatus"
+  | "lastUpdatedAt"
+  | "tat";
+type SortDirection = "asc" | "desc" | null;
+
+const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
+
+function date(iso?: string): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+const TAT_TERMINAL = new Set(["APPROVED", "REJECTED", "CLOSED"]);
+
+/**
+ * Turn Around Time, in whole days: from when the claim was submitted (or, lacking that, opened)
+ * up to its decision — or, for a claim still in flight, up to today. `null` when there is no
+ * claim yet, so the column renders "—" rather than a misleading 0.
+ */
+function claimTatDays(claim: EligibleRow["claim"]): number | null {
+  if (!claim) return null;
+  const start = claim.submittedAt ?? claim.createdAt;
+  if (!start) return null;
+  const decided = [...claim.statusHistory]
+    .reverse()
+    .find((h) => TAT_TERMINAL.has(h.status));
+  const endMs = decided ? Date.parse(decided.at) : Date.now();
+  const ms = endMs - Date.parse(start);
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  return Math.round(ms / 86_400_000);
+}
+
+function csvField(value: string | number): string {
+  const s = String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCsv(
+  rows: EligibleRow[],
+  role: Role,
+  t: (key: string) => string
+): void {
+  const headers = [
+    t("columns.loanAccount"),
+    t("columns.customer"),
+    ...(role === "IMGC" ? [t("columns.lender")] : []),
+    t("columns.product"),
+    t("columns.loanAmount"),
+    t("columns.outstanding"),
+    t("columns.dpd"),
+    t("columns.npa"),
+    t("columns.claimStatus"),
+    t("columns.lastUpdated"),
+    t("columns.tatDays"),
+  ];
+  const lines = rows.map((a) =>
+    [
+      a.loanNo,
+      a.borrowerName,
+      ...(role === "IMGC" ? [a.lenderOrgName] : []),
+      a.product,
+      a.loanAmount,
+      a.outstandingAmount,
+      a.dpd ?? "",
+      a.npa ? "Yes" : "No",
+      isNotStarted(a)
+        ? "NOT_STARTED"
+        : (a.claim as NonNullable<EligibleRow["claim"]>).status,
+      a.claim?.lastUpdatedAt.slice(0, 10) ?? "",
+      claimTatDays(a.claim) ?? "",
+    ]
+      .map(csvField)
+      .join(",")
+  );
+  const csv = [headers.join(","), ...lines].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `dpd-accounts-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+const SortIcon = ({
+  column,
+  sortKey,
+  sortDirection,
+}: {
+  column: SortKey;
+  sortKey: SortKey | null;
+  sortDirection: SortDirection;
+}) => {
+  if (sortKey !== column)
+    return (
+      <ArrowUpDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-400" />
+    );
+  return sortDirection === "asc" ? (
+    <ArrowUpIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+  ) : (
+    <ArrowDownIcon className="ml-0.5 size-3 shrink-0 text-neutral-800" />
+  );
+};
+
+const SortableTableHead = ({
+  column,
+  label,
+  sortKey,
+  sortDirection,
+  onToggle,
+  title,
+}: {
+  column: SortKey;
+  label: string;
+  sortKey: SortKey | null;
+  sortDirection: SortDirection;
+  onToggle: (k: SortKey) => void;
+  title?: string;
+}) => (
+  <TableHead
+    onClick={() => onToggle(column)}
+    title={title}
+    className="h-8 cursor-pointer select-none px-1.5 text-ui-caption transition-colors hover:bg-neutral-50"
+  >
+    <div className="flex items-center">
+      {label}
+      <SortIcon
+        column={column}
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+      />
+    </div>
+  </TableHead>
+);
+
+const LOAN_STATUSES = [
+  "New",
+  "Underwriting",
+  "Pre Offer",
+  "Queried",
+  "Ineligible",
+  "Expired",
+  "Approved",
+  "Invoiced",
+  "Active",
+  "In Progress",
+] as const;
+
+export function DpdClient({
+  accounts,
+  role,
+}: Readonly<{ accounts: EligibleRow[]; role: Role }>) {
+  const t = useTranslations("dpd");
+  const purposeDisplay = purposeDisplayWith(t);
+  const dpdBandDisplay = dpdBandDisplayWith(t);
+  const loanStatusDisplay = loanStatusDisplayWith(t);
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState(() => searchParams.get("query") ?? "");
+  const [dpdBand, setDpdBand] = useState<DpdBand>("ALL");
+  // Holds a `lenderOrgId`, not a display name — matches the `?lender=` param the Dashboard's own
+  // KPI rings/tiles link here with (see `withLender` in dashboard.server.ts), so a ring counted
+  // against one lender and the grid it opens always agree.
+  const [lender, setLender] = useState(
+    () => searchParams.get("lender") ?? "ALL"
+  );
+  const [npaFilter, setNpaFilter] = useState<"ALL" | "YES" | "NO">(() => {
+    const param = searchParams.get("npa");
+    return param === "YES" || param === "NO" ? param : "ALL";
+  });
+  const [loanStatusFilter, setLoanStatusFilter] = useState<
+    (typeof LOAN_STATUSES)[number] | "ALL"
+  >(() => {
+    const param = searchParams.get("loanStatus");
+    return (LOAN_STATUSES as readonly string[]).includes(param ?? "")
+      ? (param as (typeof LOAN_STATUSES)[number])
+      : "ALL";
+  });
+  const [product, setProduct] = useState("ALL");
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const products = useMemo(
+    () => Array.from(new Set(accounts.map((a) => a.product))).sort(),
+    [accounts]
+  );
+  // IMGC only — a lender session's own accounts are all one lender already, nothing to filter.
+  // Keyed by id (what the URL and the filter itself use) with the display name alongside it.
+  const lenders = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const a of accounts) byId.set(a.lenderOrgId, a.lenderOrgName);
+    return Array.from(byId, ([id, name]) => ({ id, name })).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  }, [accounts]);
+  const lenderNameById = useMemo(
+    () => new Map(lenders.map((l) => [l.id, l.name])),
+    [lenders]
+  );
+
+  // See EligibleCasesClient.tsx's `toggleSort` for why this reads `sortKey`/`sortDirection` from
+  // the render closure instead of nesting one setState call inside the other's updater — that
+  // pattern skipped "descending" entirely under React 18's double-invocation of updaters.
+  const toggleSort = useCallback(
+    (key: SortKey) => {
+      if (sortKey !== key) {
+        setSortKey(key);
+        setSortDirection("asc");
+        return;
+      }
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+        return;
+      }
+      setSortKey(null);
+      setSortDirection(null);
+    },
+    [sortKey, sortDirection]
+  );
+
+  const rows = useMemo(() => {
+    let result = accounts;
+
+    if (dpdBand !== "ALL") {
+      result = result.filter((a) => dpdInBand(a.dpd, dpdBand));
+    }
+    if (npaFilter !== "ALL") {
+      result = result.filter((a) => (npaFilter === "YES" ? a.npa : !a.npa));
+    }
+    if (loanStatusFilter !== "ALL") {
+      if (loanStatusFilter === "Active") {
+        result = result.filter((a) => a.isActive);
+      } else if (loanStatusFilter === "In Progress") {
+        result = result.filter((a) =>
+          ["New", "Underwriting", "Queried", "Approved"].includes(a.loanStatus)
+        );
+      } else {
+        result = result.filter((a) => a.loanStatus === loanStatusFilter);
+      }
+    }
+    if (product !== "ALL") {
+      result = result.filter((a) => a.product === product);
+    }
+    if (lender !== "ALL") {
+      result = result.filter((a) => a.lenderOrgId === lender);
+    }
+
+    const q = query.trim().toLowerCase();
+    if (q) {
+      result = result.filter(
+        (a) =>
+          a.loanNo.toLowerCase().includes(q) ||
+          a.borrowerName.toLowerCase().includes(q)
+      );
+    }
+
+    if (sortKey && sortDirection) {
+      result = [...result].sort((a, b) => {
+        let valA: string | number;
+        let valB: string | number;
+        switch (sortKey) {
+          case "loanNo":
+            valA = a.loanNo;
+            valB = b.loanNo;
+            break;
+          case "borrowerName":
+            valA = a.borrowerName;
+            valB = b.borrowerName;
+            break;
+          case "lender":
+            valA = a.lenderOrgName;
+            valB = b.lenderOrgName;
+            break;
+          case "loanAmount":
+            valA = a.loanAmount;
+            valB = b.loanAmount;
+            break;
+          case "outstandingAmount":
+            valA = a.outstandingAmount;
+            valB = b.outstandingAmount;
+            break;
+          case "dpd":
+            // Numeric, never string — DPD sorts as a number, not lexicographically.
+            valA = a.dpd ?? -1;
+            valB = b.dpd ?? -1;
+            break;
+          case "product":
+            valA = a.product;
+            valB = b.product;
+            break;
+          case "npa":
+            valA = a.npa ? 1 : 0;
+            valB = b.npa ? 1 : 0;
+            break;
+          case "loanStatus":
+            valA = a.loanStatus;
+            valB = b.loanStatus;
+            break;
+          case "lastUpdatedAt":
+            valA = a.claim?.lastUpdatedAt ?? "";
+            valB = b.claim?.lastUpdatedAt ?? "";
+            break;
+          case "tat":
+            // Numeric — rows with no claim sort as -1 so they cluster at one end.
+            valA = claimTatDays(a.claim) ?? -1;
+            valB = claimTatDays(b.claim) ?? -1;
+            break;
+        }
+        if (typeof valA === "string" && typeof valB === "string") {
+          valA = valA.toLowerCase();
+          valB = valB.toLowerCase();
+        }
+        if (valA < valB) return sortDirection === "asc" ? -1 : 1;
+        if (valA > valB) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    return result;
+  }, [
+    accounts,
+    query,
+    dpdBand,
+    npaFilter,
+    loanStatusFilter,
+    product,
+    lender,
+    sortKey,
+    sortDirection,
+  ]);
+
+  const pageCount = Math.ceil(rows.length / pageSize) || 1;
+  const currentPage = Math.min(page, pageCount);
+  const currentRows = rows.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  const handleQueryChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setQuery(e.target.value);
+      setPage(1);
+    },
+    []
+  );
+  const handleDpdBandChange = useCallback((v: DpdBand) => {
+    setDpdBand(v);
+    setPage(1);
+  }, []);
+  const handleNpaFilterChange = useCallback((v: "ALL" | "YES" | "NO") => {
+    setNpaFilter(v);
+    setPage(1);
+  }, []);
+  const handleLoanStatusChange = useCallback(
+    (v: (typeof LOAN_STATUSES)[number] | "ALL") => {
+      setLoanStatusFilter(v);
+      setPage(1);
+    },
+    []
+  );
+  const handleProductChange = useCallback((v: string) => {
+    setProduct(v);
+    setPage(1);
+  }, []);
+  const handleLenderChange = useCallback((v: string) => {
+    setLender(v);
+    setPage(1);
+  }, []);
+  const handlePageSizeChange = useCallback((val: string | null) => {
+    setPageSize(Number(val ?? "10"));
+    setPage(1);
+  }, []);
+  const handleReset = useCallback(() => {
+    // Filters only — never touches claim/loan/NPA/DPD data itself.
+    setQuery("");
+    setDpdBand("ALL");
+    setNpaFilter("ALL");
+    setLoanStatusFilter("ALL");
+    setProduct("ALL");
+    setLender("ALL");
+    setSortKey(null);
+    setSortDirection(null);
+    setPage(1);
+  }, []);
+  const handleExport = useCallback(
+    () => downloadCsv(rows, role, t),
+    [rows, role, t]
+  );
+
+  return (
+    <div className="space-y-4">
+      <Panel>
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-neutral-100 px-4 py-2">
+          <div className="relative">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-neutral-400" />
+            <input
+              value={query}
+              onChange={handleQueryChange}
+              placeholder={t("searchPlaceholder")}
+              aria-label={t("searchLabel")}
+              className="h-7 w-[190px] rounded-full border border-neutral-200 bg-white pl-9 pr-3 text-ui-body outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+            />
+          </div>
+          <FilterSelect
+            label={t("filters.dpd")}
+            options={DPD_BANDS}
+            value={dpdBand}
+            onChange={handleDpdBandChange}
+            display={dpdBandDisplay}
+          />
+          <FilterSelect
+            label={t("filters.npa")}
+            options={["ALL", "YES", "NO"] as const}
+            value={npaFilter}
+            onChange={handleNpaFilterChange}
+            display={(v) =>
+              v === "ALL"
+                ? t("filters.npa")
+                : v === "YES"
+                  ? t("filters.yes")
+                  : t("filters.no")
+            }
+          />
+          <FilterSelect
+            label={t("filters.loanStatus")}
+            options={["ALL", ...LOAN_STATUSES] as const}
+            value={loanStatusFilter}
+            onChange={handleLoanStatusChange}
+            display={loanStatusDisplay}
+          />
+          <FilterSelect
+            label={t("filters.product")}
+            options={["ALL", ...products] as const}
+            value={product}
+            onChange={handleProductChange}
+            display={purposeDisplay}
+          />
+          {role === "IMGC" && (
+            <FilterSelect
+              label={t("filters.lender")}
+              options={["ALL", ...lenders.map((l) => l.id)] as const}
+              value={lender}
+              onChange={handleLenderChange}
+              display={(v) =>
+                v === "ALL"
+                  ? t("filters.allLenders")
+                  : (lenderNameById.get(v) ?? v)
+              }
+            />
+          )}
+          <button
+            type="button"
+            onClick={handleReset}
+            className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-ui-body-sm font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+          >
+            <RotateCcwIcon className="size-3" /> {t("resetFilters")}
+          </button>
+          {/* Export sits at the end of the filter row now that the panel has no header — same
+              pill as the other Claims/Accounts grids, `ml-auto` pinning it to the right edge
+              however many filters land in front of it. */}
+          <button
+            type="button"
+            onClick={handleExport}
+            className="ml-auto inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 text-ui-body-sm font-medium text-neutral-700 outline-none transition-colors hover:border-neutral-300 hover:bg-neutral-50 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+          >
+            <DownloadIcon className="size-3" /> {t("exportCsv")}
+          </button>
+        </div>
+
+        <div className="max-h-[65vh] overflow-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <SortableTableHead
+                  column="loanNo"
+                  label={t("columns.loanAccount")}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="borrowerName"
+                  label={t("columns.customer")}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                {role === "IMGC" && (
+                  <SortableTableHead
+                    column="lender"
+                    label={t("columns.lender")}
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                  />
+                )}
+                <SortableTableHead
+                  column="product"
+                  label={t("columns.product")}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="loanAmount"
+                  label={t("columns.loanAmount")}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="outstandingAmount"
+                  label={t("columns.outstanding")}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="dpd"
+                  label={t("columns.dpd")}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  title={t("dpdHint")}
+                />
+                <SortableTableHead
+                  column="loanStatus"
+                  label={t("columns.loanStatus")}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="lastUpdatedAt"
+                  label={t("columns.lastUpdated")}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                />
+                <SortableTableHead
+                  column="tat"
+                  label={t("columns.tat")}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  title={t("tatHint")}
+                />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {currentRows.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={role === "IMGC" ? 10 : 9}
+                    className="py-14 text-center"
+                  >
+                    <CalendarClockIcon className="mx-auto mb-2 size-6 text-neutral-300" />
+                    <p className="text-ui-subhead font-medium text-neutral-700">
+                      {t("noAccountsFound")}
+                    </p>
+                    <p className="mt-0.5 text-ui-body-lg text-neutral-500">
+                      {t("empty")}
+                    </p>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                currentRows.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell className="px-1.5 py-1.5 text-ui-body font-medium whitespace-nowrap text-neutral-950">
+                      {a.loanNo}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap">
+                      {a.borrowerName}
+                    </TableCell>
+                    {role === "IMGC" && (
+                      <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap">
+                        {a.lenderOrgName}
+                      </TableCell>
+                    )}
+                    <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap text-neutral-500">
+                      {a.product}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-ui-body tabular-nums whitespace-nowrap text-neutral-700">
+                      {inr.format(a.loanAmount)}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-ui-body tabular-nums whitespace-nowrap text-neutral-700">
+                      {inr.format(a.outstandingAmount)}
+                    </TableCell>
+                    <TableCell
+                      title={t("dpdHint")}
+                      className="px-1.5 py-1.5 text-ui-body tabular-nums whitespace-nowrap text-neutral-700"
+                    >
+                      {formatDpd(a.dpd)}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-ui-body whitespace-nowrap text-neutral-700">
+                      {a.loanStatus}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-ui-body tabular-nums whitespace-nowrap text-neutral-500">
+                      {date(a.claim?.lastUpdatedAt)}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-ui-body tabular-nums whitespace-nowrap text-neutral-700">
+                      {claimTatDays(a.claim) === null
+                        ? "—"
+                        : `${claimTatDays(a.claim)}d`}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-25 px-5 py-2">
+          <div className="flex items-center gap-3 text-ui-body text-neutral-500">
+            <div className="flex items-center gap-2">
+              <span>{t("rowsPerPage")}</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={handlePageSizeChange}
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="h-8 w-[70px] bg-white text-ui-body"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10" className="text-ui-body">
+                    10
+                  </SelectItem>
+                  <SelectItem value="20" className="text-ui-body">
+                    20
+                  </SelectItem>
+                  <SelectItem value="50" className="text-ui-body">
+                    50
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <span className="hidden sm:inline">
+              {t("total", { count: rows.length })}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <span className="hidden text-ui-body text-neutral-500 sm:inline">
+              Page {currentPage} of {pageCount}
+            </span>
+            <PaginationNumbers
+              page={currentPage}
+              pageCount={pageCount}
+              onPageChange={setPage}
+            />
+          </div>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function FilterSelect<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+  display,
+}: Readonly<{
+  label: string;
+  options: readonly T[];
+  value: T;
+  onChange: (next: T) => void;
+  display: (value: T) => string;
+}>) {
+  return (
+    <div className="relative">
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value as T)}
+        className="h-7 max-w-[130px] appearance-none overflow-hidden rounded-full border border-neutral-200 bg-white py-0 pl-3 pr-6 text-ui-body-sm font-medium text-ellipsis whitespace-nowrap text-neutral-700 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {display(option)}
+          </option>
+        ))}
+      </select>
+      <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 size-3 -translate-y-1/2 text-neutral-400" />
+    </div>
+  );
+}

@@ -1,0 +1,421 @@
+// `"server-only"` below throws at build time if this module reaches a client bundle, so it can
+// never run in a browser — this rule is flagging a local identifier (`status`/`closed`) that
+// happens to share a name with a global browser API, not an actual browser-api call.
+/* eslint-disable use-client/browser-api */
+
+import "server-only";
+import { msg } from "@imgc/i18n/recordMessages";
+
+import {
+  fail,
+  type ServerErrorCode,
+  type ServerErrorParams,
+} from "@imgc/config/errorCodes";
+
+import { readDb, writeDb } from "@imgc/data/server/mock/db";
+import { recordEvent } from "@imgc/data/services/portal/audit.server";
+import {
+  notifyBucketShift,
+  notifyClaimDecision,
+} from "@imgc/data/services/portal/notifications.server";
+import { addRemark } from "@imgc/data/services/portal/remarks.server";
+import {
+  getClaimForAccount,
+  syncClaimForAccountDecision,
+} from "@imgc/data/services/portal/claimFlow.server";
+import {
+  listDocuments,
+  summariseDocs,
+} from "@imgc/data/services/portal/claims.server";
+import { listClaimDocuments } from "@imgc/data/services/portal/requirements.server";
+import { toAccountClaimStatus } from "@imgc/config/claimConfig";
+import type { AppSession } from "@imgc/lib/auth/appSession";
+import type {
+  Account,
+  Bucket,
+  Claim,
+  ClaimQuery,
+  ClaimStatus,
+  ClaimStatusEntry,
+  LenderOrg,
+} from "@imgc/types/domain";
+
+export interface AccountRow extends Account {
+  claimNo: string;
+  /**
+   * Whether the account's claim has actually got going — same rule as `ClaimRow.hasProgress`
+   * (claimFlow.server.ts). `claimStatus` alone reads `DRAFT` both for an account with no claim
+   * and for one whose lender has saved a draft; this is what tells those two apart.
+   */
+  claimHasProgress: boolean;
+  lenderOrgName: string;
+  requiredDocs: number;
+  pendingDocs: number;
+  loanStatus: string;
+  isActive?: boolean;
+  realClaimStatus?: ClaimStatus;
+  claimStatusHistory?: ClaimStatusEntry[];
+}
+
+import {
+  getAdminContextOrNull,
+  type AdminContext,
+} from "@imgc/lib/auth/adminContext";
+
+/** The one place lender scoping is applied: a lender sees an account iff the org ids match. */
+function inScope(
+  session: AppSession,
+  account: Account,
+  ctx?: AdminContext | null
+): boolean {
+  if (session.role === "IMGC") {
+    if (ctx?.lenderOrgId) {
+      return account.lenderOrgId === ctx.lenderOrgId;
+    }
+    return true;
+  }
+  return account.lenderOrgId === session.lenderOrgId;
+}
+
+/**
+ * The same eight claim stages the Dashboard's "In progress claim cases" band classifies accounts
+ * into (see `buildDashboardSummary`'s `progressTiles` in dashboard.server.ts) — kept as one
+ * mutually-exclusive label per account here so this list's own status filter can select one, and
+ * so a KPI tile's link (`?loanStatus=<label>`) lands on the same rows the tile counted.
+ *
+ * `DOCUMENTS_RESUBMITTED` folds into "Queried" (still mid query-loop) and `CLOSED` folds into
+ * "Approved" (closest terminal-success bucket — same stand-in `ClaimOverviewBand` uses for "Claim
+ * Paid"). "Expired" takes priority over "Queried" for the same claim, since a query overdue past
+ * its due date is a more specific, more urgent state than "queried" alone.
+ */
+function classifyLoanStatus(
+  account: Account,
+  claim: Claim | undefined,
+  queries: ClaimQuery[]
+): string {
+  if (!claim || !claim.draftSaved) return "New";
+
+  const now = Date.now();
+  const isOverdue = queries.some(
+    (q) =>
+      q.claimId === claim.id &&
+      !q.respondedAt &&
+      q.dueDate &&
+      Date.parse(q.dueDate) < now
+  );
+  if (isOverdue) return "Expired";
+
+  switch (claim.status) {
+    case "DRAFT":
+      return "Underwriting";
+    case "INITIATED":
+    case "SUBMITTED":
+      return "Pre Offer";
+    case "UNDER_REVIEW":
+      return "Invoiced";
+    case "QUERY_INITIATED":
+    case "QUERY_UNDER_REVIEW":
+    case "QUERY_RAISED":
+    case "DOCUMENTS_RESUBMITTED":
+      return "Queried";
+    case "REJECTED":
+      return "Ineligible";
+    case "APPROVED":
+    case "CLOSED":
+    case "REFUND_RECEIVED_BY_IMGC":
+      return "Approved";
+    default:
+      return "New";
+  }
+}
+
+function decorate(
+  account: Account,
+  orgs: LenderOrg[],
+  docs: {
+    accountId: string;
+    required: boolean;
+    status: string;
+    active?: boolean;
+  }[],
+  claims: Claim[],
+  queries: ClaimQuery[]
+): AccountRow {
+  const own = docs.filter((d) => d.accountId === account.id);
+  const claim = claims.find((c) => c.accountId === account.id);
+
+  // Kept on the account itself, so listing accounts never reads the audit log.
+  const lastTouch =
+    account.lastActivityAt && account.lastActivityAt > account.createdAt
+      ? account.lastActivityAt
+      : account.createdAt;
+
+  const isClosed =
+    account.writeOff ||
+    claim?.status === "APPROVED" ||
+    claim?.status === "REJECTED";
+  const daysSince = Math.floor(
+    (Date.now() - Date.parse(lastTouch)) / (1000 * 60 * 60 * 24)
+  );
+  const isActive = !isClosed && daysSince <= 8;
+
+  return {
+    ...account,
+    claimNo: claim && claim.status !== "DRAFT" ? claim.claimNo : "",
+    claimHasProgress: Boolean(
+      claim && (claim.draftSaved || claim.status !== "DRAFT")
+    ),
+    // Repairs rows stored before `advance()` applied `toAccountClaimStatus`: those accounts hold
+    // the claim's own `QUERY_RAISED` where the account vocabulary says `QUERIED`, which no
+    // account-side reader matches. Normalising here means the existing data reads correctly
+    // without a migration; the write side no longer produces it.
+    claimStatus: toAccountClaimStatus(account.claimStatus),
+    realClaimStatus: claim?.status,
+    claimStatusHistory: claim?.statusHistory,
+    loanStatus: classifyLoanStatus(account, claim, queries),
+    lenderOrgName: orgs.find((o) => o.id === account.lenderOrgId)?.name ?? "—",
+    requiredDocs: own.filter((d) => d.required && d.active !== false).length,
+    pendingDocs: own.filter(
+      (d) =>
+        d.required &&
+        d.active !== false &&
+        d.status !== "UNDER_REVIEW" &&
+        d.status !== "APPROVED" &&
+        // Waived, or awaiting IMGC's decision on a waiver: nothing for the lender to upload.
+        d.status !== "WAIVER_REQUESTED" &&
+        d.status !== "WAIVED"
+    ).length,
+    isActive,
+  };
+}
+
+export async function listAccounts(
+  session: AppSession,
+  /** IMGC's own screens (the dashboard) read every lender even while acting for one on Claim by
+   *  IMGC — the lender context narrows that screen, not IMGC's whole view. */
+  opts?: { ignoreLenderContext?: boolean }
+): Promise<AccountRow[]> {
+  const db = await readDb();
+  const ctx = opts?.ignoreLenderContext ? null : await getAdminContextOrNull();
+  return db.accounts
+    .filter((a) => inScope(session, a, ctx))
+    .map((a) =>
+      decorate(a, db.lenderOrgs, db.claimDocuments, db.claims, db.claimQueries)
+    )
+    .sort((a, b) => a.loanNo.localeCompare(b.loanNo));
+}
+
+export async function getAccount(
+  session: AppSession,
+  accountId: string
+): Promise<AccountRow | null> {
+  const db = await readDb();
+  const ctx = await getAdminContextOrNull();
+  const a = db.accounts.find((x) => x.id === accountId);
+  if (!a || !inScope(session, a, ctx)) return null;
+  return decorate(
+    a,
+    db.lenderOrgs,
+    db.claimDocuments,
+    db.claims,
+    db.claimQueries
+  );
+}
+
+export async function listAccessibleAccountIds(
+  session: AppSession
+): Promise<string[]> {
+  const db = await readDb();
+  const ctx = await getAdminContextOrNull();
+  return db.accounts.filter((a) => inScope(session, a, ctx)).map((a) => a.id);
+}
+
+export async function getLenderOrg(orgId: string): Promise<LenderOrg | null> {
+  const db = await readDb();
+  return db.lenderOrgs.find((o) => o.id === orgId) ?? null;
+}
+
+/* ── IMGC mutations ────────────────────────────────────────────────── */
+
+export async function shiftBucket(
+  session: AppSession,
+  accountId: string,
+  to: Bucket,
+  extraRecipients: string[]
+): Promise<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}> {
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
+
+  const outcome = await writeDb((db) => {
+    const account = db.accounts.find((a) => a.id === accountId);
+    if (!account) return fail("ACCOUNT_NOT_FOUND");
+    const from = account.bucket;
+    if (from === to) return fail("ALREADY_IN_BUCKET", { bucket: to });
+    account.bucket = to;
+    account.stage = to === "IMGC" ? "Under IMGC review" : "Document collection";
+    account.pushRecipients = Array.from(
+      new Set([
+        ...account.pushRecipients,
+        ...extraRecipients.map((e) => e.trim()).filter(Boolean),
+      ])
+    );
+    return { ok: true as const, from, account: { ...account } };
+  });
+
+  if (!outcome.ok) return outcome;
+
+  await recordEvent({
+    accountId,
+    actor: session,
+    type: "BUCKET_SHIFTED",
+    summary: msg("audit.bucketMoved", { from: outcome.from, to }),
+    meta: { from: outcome.from, to },
+  });
+  await notifyBucketShift(outcome.account, outcome.from, to, session);
+  return { ok: true };
+}
+
+export async function setClaimStatus(
+  session: AppSession,
+  accountId: string,
+  status: Extract<ClaimStatus, "APPROVED" | "QUERIED" | "REJECTED">,
+  note: string
+): Promise<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}> {
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
+
+  const trimmedNote = note.trim();
+  if (status !== "QUERIED" && !trimmedNote) {
+    return fail("NOTE_REQUIRED");
+  }
+
+  const outcome = await writeDb((db) => {
+    const account = db.accounts.find((a) => a.id === accountId);
+    if (!account) return fail("ACCOUNT_NOT_FOUND");
+    const from = account.claimStatus;
+    return { ok: true as const, from, account: { ...account } };
+  });
+  if (!outcome.ok) return outcome;
+
+  if (status === "APPROVED") {
+    // Once a specific claim has been initiated, its own checklist (`claimId`-scoped) is the real
+    // document list for it — `listDocuments` also returns the account's older, claim-agnostic
+    // "standard" documents (from before the claim existed), and requiring those too meant a claim
+    // could sit fully approved on its own checklist and still get blocked by unrelated documents
+    // nobody was ever asked to touch for it.
+    const claim = await getClaimForAccount(session, accountId);
+    const docs = claim
+      ? await listClaimDocuments(session, claim.id)
+      : await listDocuments(session, accountId);
+    const summary = summariseDocs(docs);
+    if (!summary.complete) {
+      return fail("CLAIM_APPROVE_NEEDS_APPROVALS");
+    }
+  }
+
+  const updateOutcome = await writeDb((db) => {
+    const account = db.accounts.find((a) => a.id === accountId);
+    if (!account) return fail("ACCOUNT_NOT_FOUND");
+
+    let bucketChangedFrom = null;
+    if (status === "QUERIED" && account.bucket !== "LENDER") {
+      bucketChangedFrom = account.bucket;
+      account.bucket = "LENDER";
+    }
+
+    account.claimStatus = status;
+    // The processing itself happened in PAS; the portal records the outcome and the stage the
+    // lender now sees against the account.
+    account.stage =
+      status === "APPROVED"
+        ? "Claim approved"
+        : status === "REJECTED"
+          ? "Claim rejected"
+          : "Query raised with the lender";
+    return {
+      ok: true as const,
+      from: outcome.from,
+      bucketChangedFrom,
+      account: { ...account },
+    };
+  });
+  if (!updateOutcome.ok) return updateOutcome;
+
+  if (updateOutcome.bucketChangedFrom) {
+    await recordEvent({
+      accountId,
+      actor: session,
+      type: "BUCKET_SHIFTED",
+      summary: msg("audit.bucketMoved", {
+        from: updateOutcome.bucketChangedFrom,
+        to: "LENDER",
+      }),
+      meta: { from: updateOutcome.bucketChangedFrom, to: "LENDER" },
+    });
+    await notifyBucketShift(
+      updateOutcome.account,
+      updateOutcome.bucketChangedFrom,
+      "LENDER",
+      session
+    );
+  }
+
+  // The Overview tab only ever wrote this account's own claimStatus; the Claim entity — what
+  // Track Claim, the lender's workspace and this claim's status-history graph read — was left
+  // behind. Sync it here so an approval or query made from this screen shows up everywhere else.
+  await syncClaimForAccountDecision(session, accountId, status, trimmedNote);
+
+  await recordEvent({
+    accountId,
+    actor: session,
+    type: "CLAIM_STATUS_CHANGED",
+    summary:
+      msg("audit.claimMarked", { status }) +
+      (trimmedNote ? msg("audit.noteSuffix", { note: trimmedNote }) : ""),
+    meta: { status, from: outcome.from },
+  });
+
+  // The note goes on the remarks thread as well as into the audit meta. The audit trail is a
+  // record for whoever investigates later; the remark is what the lender actually reads, and a
+  // query whose reason is only in an audit row reads to them as a refusal with no explanation.
+  if (trimmedNote) {
+    await addRemark(
+      session,
+      accountId,
+      `Claim ${status.toLowerCase()}: ${trimmedNote}`
+    );
+  }
+
+  await notifyClaimDecision(
+    updateOutcome.account,
+    status,
+    trimmedNote,
+    session
+  );
+  return { ok: true };
+}
+
+export async function setPushRecipients(
+  session: AppSession,
+  accountId: string,
+  recipients: string[]
+): Promise<{
+  ok: boolean;
+  code?: ServerErrorCode;
+  codeParams?: ServerErrorParams;
+}> {
+  if (session.role !== "IMGC") return fail("IMGC_ONLY");
+  await writeDb((db) => {
+    const account = db.accounts.find((a) => a.id === accountId);
+    if (account) {
+      account.pushRecipients = recipients.map((r) => r.trim()).filter(Boolean);
+    }
+  });
+  return { ok: true };
+}

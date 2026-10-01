@@ -16,7 +16,7 @@ Authentication in the multitenant template.
 
 ## Cookie keys
 
-**File:** `src/constants/authCookies.ts`
+**File:** `packages/constants/authCookies.ts`
 
 Names used when persisting tokens. Must stay consistent across login, refresh, and sign-out flows.
 
