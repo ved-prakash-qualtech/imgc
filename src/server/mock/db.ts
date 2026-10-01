@@ -5,6 +5,7 @@ import { cache } from "react";
 
 import type { AuditEvent, MockDb } from "@/server/mock/types";
 import { buildSeed } from "@/server/mock/seed";
+import { CLAIM_TYPES } from "@/config/claimConfig";
 import {
   StaleSnapshotError,
   USING_BLOB,
@@ -59,10 +60,49 @@ function normalize(db: MockDb): MockDb {
     if (claim.status === ("CLAIM_INITIATED" as string)) {
       claim.status = "INITIATED";
     }
+    // Legacy migration: map deprecated claim types (SETTLEMENT, AUCTION) to SUBSEQUENT
+    if (
+      (claim.claimType as string) === "SETTLEMENT" ||
+      (claim.claimType as string) === "AUCTION"
+    ) {
+      claim.claimType = "SUBSEQUENT";
+    } else if (!claim.claimType || !(claim.claimType in CLAIM_TYPES)) {
+      claim.claimType = "INITIAL";
+    }
   }
-  for (const account of db.accounts ?? []) {
+  for (let idx = 0; idx < (db.accounts ?? []).length; idx++) {
+    const account = db.accounts[idx]!;
     if (account.claimStatus === ("CLAIM_INITIATED" as string)) {
       account.claimStatus = "INITIATED";
+    }
+    if (account.dpd === undefined || account.dpd === null) {
+      if (account.npa) {
+        account.dpd = 91 + (idx % 150);
+      } else if (account.writeOff) {
+        account.dpd = 120 + (idx % 60);
+      } else {
+        account.dpd = (idx * 13) % 90;
+      }
+    }
+    if (!account.loanAmount || !account.outstandingAmount) {
+      const pasSanctioned = db.pasValues?.find(
+        (p) => p.accountId === account.id && p.key === "sanctionedAmount"
+      );
+      const pasOutstanding = db.pasValues?.find(
+        (p) => p.accountId === account.id && p.key === "outstandingPrincipal"
+      );
+      const parseInr = (v?: string): number => {
+        if (!v) return 0;
+        const num = Number(v.replace(/[^0-9.-]+/g, ""));
+        return Number.isNaN(num) ? 0 : num;
+      };
+      const sanctioned = parseInr(pasSanctioned?.value);
+      const outstanding = parseInr(pasOutstanding?.value);
+      account.loanAmount = account.loanAmount || sanctioned || 2500000;
+      account.outstandingAmount =
+        account.outstandingAmount ||
+        outstanding ||
+        Math.round(account.loanAmount * 0.72);
     }
   }
 
@@ -80,6 +120,28 @@ function normalize(db: MockDb): MockDb {
         passwordHash: emp1.passwordHash,
         createdAt: new Date().toISOString(),
       });
+    }
+  }
+
+  for (const org of db.lenderOrgs ?? []) {
+    if (
+      org.id === "org_acme" &&
+      (org.emailDomain === "acme-bank.com" || org.name === "Acme Bank")
+    ) {
+      org.name = "HDFC Bank";
+      org.emailDomain = "hdfcbank.com";
+      org.contactEmails = [
+        "claims.desk@hdfcbank.com",
+        "ops.lead@hdfcbank.com",
+      ];
+    }
+  }
+  for (const user of db.users ?? []) {
+    if (user.email === "arjun@acme-bank.com") {
+      user.email = "arjun@hdfcbank.com";
+    }
+    if (user.email === "priya@acme-bank.com") {
+      user.email = "priya@hdfcbank.com";
     }
   }
 

@@ -13,6 +13,7 @@ import {
   findByEmployeeId,
   getLenderOrgById,
 } from "@/services/portal/users.server";
+import { readDb } from "@/server/mock/db";
 import type { Role } from "@/server/mock/types";
 
 /**
@@ -143,10 +144,34 @@ export async function resendOtpAction(email: string): Promise<{
 
 /** Seeded demo sign-in — the screenshot's "Enter Demo Mode". */
 export async function demoLoginAction(
-  role: Role
+  role: Role | "IMGC_ADMIN"
 ): Promise<{ code: ServerErrorCode; codeParams?: ServerErrorParams } | never> {
+  if (role === "IMGC_ADMIN") {
+    const admin =
+      (await findByEmployeeId("EMP-ADMIN")) ??
+      (await (async () => {
+        const db = await readDb();
+        return db.users.find((u) => u.role === "IMGC" && u.isAdmin) ?? null;
+      })());
+    if (!admin) return { code: "DEMO_DATA_MISSING" };
+    await createSession({
+      userId: admin.id,
+      role: "IMGC",
+      isAdmin: admin.isAdmin,
+      name: admin.name,
+      email: admin.email,
+    });
+    const locale = await getLocale();
+    return redirect({ href: ROUTES.claimDashboard, locale }) as never;
+  }
+
   if (role === "IMGC") {
-    const staff = await findByEmployeeId("EMP-0001");
+    const staff =
+      (await findByEmployeeId("EMP-0001")) ??
+      (await (async () => {
+        const db = await readDb();
+        return db.users.find((u) => u.role === "IMGC") ?? null;
+      })());
     if (!staff) return { code: "DEMO_DATA_MISSING" };
     await createSession({
       userId: staff.id,
@@ -158,7 +183,13 @@ export async function demoLoginAction(
     return redirect({ href: ROUTES.claimDashboard, locale }) as never;
   }
 
-  const lender = await findByEmail("arjun@hdfcbank.com");
+  const lender =
+    (await findByEmail("arjun@hdfcbank.com")) ??
+    (await findByEmail("arjun@acme-bank.com")) ??
+    (await (async () => {
+      const db = await readDb();
+      return db.users.find((u) => u.role === "LENDER") ?? null;
+    })());
   if (!lender) return { code: "DEMO_DATA_MISSING" };
   const org = await getLenderOrgById(lender.lenderOrgId);
   await createSession({

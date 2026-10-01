@@ -6,6 +6,7 @@ import { MobileNavShell } from "@/components/layout/dashboard/MobileNavShell";
 import type { NavItem, NavKey } from "@/constants/nav";
 import type { SessionUser } from "@/lib/auth/session";
 import type { AssignedOfficer } from "@/services/portal/users.server";
+import { cn } from "@/lib/utils/twMergeUtils";
 
 export type DashboardShellProps = Readonly<{
   children: React.ReactNode;
@@ -26,6 +27,20 @@ export type DashboardShellProps = Readonly<{
   assignedOfficer?: AssignedOfficer | null;
   sidebarDefaultCollapsed?: boolean;
   isAdmin?: boolean;
+  logoUrl?: string;
+  style?: React.CSSProperties;
+  /** When true, restricts height to exact screen viewport with 0 vertical scroll. */
+  fullHeight?: boolean;
+  /** Suppresses the standard footer. */
+  noFooter?: boolean;
+  /** Whether the active session is an IMGC staff member. */
+  isImgc?: boolean;
+  /** When present, shows the highly-visible admin context banner. */
+  adminContextName?: string | null;
+  /** Lender logo for navbar left side (lender sessions). */
+  lenderLogoUrl?: string;
+  /** Lender name for accessibility alt tag. */
+  lenderName?: string;
 }>;
 
 /** Is this key anywhere in the tree the caller was granted, at either level? */
@@ -69,25 +84,48 @@ export function DashboardShell({
   assignedOfficer,
   sidebarDefaultCollapsed = true,
   isAdmin,
+  logoUrl,
+  style,
+  fullHeight,
+  noFooter,
+  isImgc,
+  adminContextName,
+  lenderLogoUrl,
+  lenderName,
 }: DashboardShellProps) {
   if (activeKey && !granted(items, activeKey)) {
-    const isAdminOverride = activeKey === "initiate-claim" && isAdmin;
+    const isOverride =
+      (activeKey === "initiate-claim" && isAdmin) ||
+      activeKey === "personalization" ||
+      activeKey === "admin-branding";
 
-    if (!isAdminOverride) {
+    if (!isOverride) {
       forbidden();
     }
   }
 
   return (
-    <div className="bg-grad-shell flex min-h-screen">
+    <div
+      className={cn(
+        "bg-grad-shell flex",
+        fullHeight ? "h-screen overflow-hidden" : "min-h-screen"
+      )}
+      style={style}
+    >
       <AppSidebar
         items={items}
         activeKey={activeKey}
         badges={badges}
         sectionLabel={workspace ? `${workspace} Portal` : undefined}
         defaultCollapsed={sidebarDefaultCollapsed}
+        logoUrl={logoUrl}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div
+        className={cn(
+          "flex min-w-0 flex-1 flex-col",
+          fullHeight && "h-screen overflow-hidden"
+        )}
+      >
         {/* The navbar's hamburger + the mobile drawer it opens share one bit of state, so that
             pairing lives in its own small client component — everything else about this shell
             (the access check above included) stays a server component. */}
@@ -103,19 +141,31 @@ export function DashboardShell({
             user,
             unreadCount,
             assignedOfficer,
+            isImgc,
+            adminContextName,
+            lenderLogoUrl,
+            lenderName,
           }}
           sidebarProps={{
             items,
             activeKey,
             badges,
             sectionLabel: workspace ? `${workspace} Portal` : undefined,
+            logoUrl,
           }}
         />
         {/* eslint-enable react-perf/jsx-no-new-object-as-prop */}
         {/* flex-1 so a short page pushes the footer to the bottom rather than leaving
             it floating directly under the content. */}
-        <div className="flex flex-1 flex-col">{children}</div>
-        <AppFooter />
+        <div
+          className={cn(
+            "flex flex-1 flex-col",
+            fullHeight && "min-h-0 overflow-hidden"
+          )}
+        >
+          {children}
+        </div>
+        {!noFooter && !fullHeight && <AppFooter />}
       </div>
     </div>
   );

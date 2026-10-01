@@ -93,6 +93,41 @@ export type AuditType =
   | "DOC_REUPLOAD_REQUESTED"
   | "DOC_REACTIVATED";
 
+export interface LenderCustomColors {
+  primary?: string;
+  sidebarBg?: string;
+  sidebarText?: string;
+  sidebarActive?: string;
+  chartAccent?: string;
+}
+
+export interface LenderTheme {
+  brandPrimary: string;
+  brandDark: string;
+  brandMuted: string;
+  brandLight: string;
+  colorMode?: "light" | "dark" | "system";
+  themeKey?: string;
+  customColors?: LenderCustomColors;
+  bgPattern?: string;
+  density?: "comfortable" | "compact" | "spacious" | "executive" | "presentation";
+  highContrast?: boolean;
+  largeClickTargets?: boolean;
+}
+
+export interface UserPersonalization {
+  colorMode?: "light" | "dark" | "system";
+  themeKey?: string;
+  theme?: LenderTheme;
+  customColors?: LenderCustomColors;
+  bgPattern?: string;
+  language?: string;
+  density?: "comfortable" | "compact" | "spacious" | "executive" | "presentation";
+  highContrast?: boolean;
+  largeClickTargets?: boolean;
+  updatedAt?: string;
+}
+
 export interface LenderOrg {
   id: string;
   name: string;
@@ -103,6 +138,10 @@ export interface LenderOrg {
   /** Path under `/public` to this lender's own mark, shown in their sidebar. Optional — a lender
    *  with none falls back to a generated initials badge (see `AppSidebar`) rather than IMGC's. */
   logoUrl?: string;
+  /** Custom portal display title, e.g. "HDFC Home Loans Portal". Optional. */
+  portalTitle?: string;
+  /** Custom brand color token overrides for this lender. */
+  theme?: LenderTheme;
 }
 
 export interface User {
@@ -120,6 +159,8 @@ export interface User {
   lenderOrgId?: string;
   createdAt: string;
   createdBy?: string;
+  /** Individual user personalization overrides (theme, color mode, language, density). */
+  personalization?: UserPersonalization;
 }
 
 export interface Otp {
@@ -521,4 +562,7 @@ export interface MockDb {
   auditEvents?: AuditEvent[];
   notifications: Notification[];
   lenderDocumentRequirements: LenderDocumentRequirement[];
+  globalBranding?: {
+    imgcLogoUrl?: string;
+  };
 }

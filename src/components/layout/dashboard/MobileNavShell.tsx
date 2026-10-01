@@ -22,7 +22,7 @@ export function MobileNavShell({
   navbarProps: Omit<AppNavbarProps, "onMenuClick">;
   sidebarProps: Pick<
     AppSidebarProps,
-    "items" | "activeKey" | "badges" | "sectionLabel"
+    "items" | "activeKey" | "badges" | "sectionLabel" | "logoUrl"
   >;
 }>) {
   const [open, setOpen] = useState(false);

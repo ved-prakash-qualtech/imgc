@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   BellIcon,
   ChevronDownIcon,
@@ -8,10 +9,13 @@ import {
   ClockIcon,
   LogOutIcon,
   MailIcon,
+  MenuIcon,
+  PaletteIcon,
   PhoneIcon,
+  StampIcon,
 } from "lucide-react";
 
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
 import {
   Popover,
   PopoverContent,
@@ -61,24 +65,81 @@ export type AppNavbarProps = Readonly<{
   /** When provided, renders a hamburger button on the far-left that triggers this callback. */
   onMenuClick?: () => void;
   /** When present, shows the highly-visible admin context banner. */
+  adminContextName?: string | null;
+  /** Whether the user belongs to IMGC staff. */
+  isImgc?: boolean;
+  /** Lender logo to show on the left side of navbar before page title (Lender sessions only). */
+  lenderLogoUrl?: string;
+  /** Lender name for accessibility alt tag. */
+  lenderName?: string;
 }>;
 
 export function AppNavbar({
   title = "Dashboard",
   titleAside,
   claimAgeing,
+  workspace,
   user,
   unreadCount = 0,
   assignedOfficer,
+  onMenuClick,
+  adminContextName,
+  isImgc,
+  lenderLogoUrl,
+  lenderName,
 }: AppNavbarProps) {
   const t = useTranslations("shell.navbar");
   const contact = assignedOfficer ?? GENERAL_DESK;
   const isPersonal = Boolean(assignedOfficer);
+  const pathname = usePathname();
+  const isBrandingActive = Boolean(pathname?.includes("/admin/branding"));
+  const isPersonalizationActive = Boolean(pathname?.includes("/personalization"));
   return (
     <div className="flex flex-col shrink-0">
+      {adminContextName && (
+        <div className="flex items-center justify-between bg-brand-primary px-5 py-2 text-white shadow-sm transition-colors">
+          <div className="text-[13px] font-semibold">
+            Acting on behalf of: {adminContextName}
+          </div>
+          <div className="flex gap-4 text-[12px] font-medium">
+            <Link href={ROUTES.adminWorkspace} className="hover:underline">
+              Change Lender
+            </Link>
+            <form action="/api/auth/exit-admin-context" method="POST">
+              <button type="submit" className="hover:underline text-white/90">
+                Exit Context
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
       <header className="flex h-14 items-center justify-between border-b border-neutral-100 bg-white px-5">
         {/* Left: optional hamburger + workspace + page title */}
         <div className="flex items-center gap-3 text-sm">
+          {/* Lender Logo (Rendered on left side before page title, for lender users only) */}
+          {(!isImgc || Boolean(adminContextName)) && (lenderLogoUrl || lenderName) && (
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="relative flex h-8 max-w-[140px] items-center justify-center rounded-lg border border-neutral-200/90 bg-white px-2.5 py-1 shadow-2xs">
+                {lenderLogoUrl ? (
+                  <Image
+                    src={lenderLogoUrl}
+                    alt={lenderName ?? "Lender Logo"}
+                    width={95}
+                    height={24}
+                    className="max-h-6 w-auto object-contain"
+                    priority
+                    unoptimized={Boolean(lenderLogoUrl.startsWith("http") || lenderLogoUrl.startsWith("data:"))}
+                  />
+                ) : (
+                  <span className="font-outfit text-xs font-bold text-neutral-800 tracking-wide">
+                    {lenderName}
+                  </span>
+                )}
+              </div>
+              <span aria-hidden className="h-5 w-px bg-neutral-200" />
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
             {titleAside ? (
               // A claim screen: claim number and amount set as one matching pair of label + value.
@@ -135,6 +196,36 @@ export function AppNavbar({
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
+          </Link>
+
+          {/* Institutional Logos & Branding (IMGC Administration scope only) */}
+          {isImgc && (
+            <Link
+              href={ROUTES.adminBranding}
+              aria-label="Logos & Institutional Branding"
+              title="Logos & Institutional Branding"
+              className={`grid size-8 place-items-center rounded-full transition-colors ${
+                isBrandingActive
+                  ? "bg-neutral-100 text-neutral-900 font-bold shadow-2xs"
+                  : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-800"
+              }`}
+            >
+              <StampIcon className="size-[18px]" />
+            </Link>
+          )}
+
+          {/* Personal Appearance & Personalization (All users) */}
+          <Link
+            href={ROUTES.personalization}
+            aria-label="Appearance Studio & Personalization"
+            title="Appearance Studio & Personalization"
+            className={`grid size-8 place-items-center rounded-full transition-colors ${
+              isPersonalizationActive
+                ? "bg-neutral-100 text-neutral-900 font-bold shadow-2xs"
+                : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-800"
+            }`}
+          >
+            <PaletteIcon className="size-[18px]" />
           </Link>
 
           <Popover>

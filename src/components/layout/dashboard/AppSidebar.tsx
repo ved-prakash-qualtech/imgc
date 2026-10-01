@@ -25,6 +25,7 @@ import {
   FilePlusIcon,
   FileSlidersIcon,
   ListTreeIcon,
+  PaletteIcon,
 } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
@@ -55,6 +56,7 @@ const ICONS = new Map<NavKey, typeof LayoutDashboardIcon>([
   ["admin-users", UsersIcon],
   ["admin-retention", ArchiveIcon],
   ["admin-doc-config", FileSlidersIcon],
+  ["admin-branding", PaletteIcon],
   // Retained from the base template.
   ["tenants", BuildingIcon],
   ["menus", LayoutListIcon],
@@ -226,6 +228,8 @@ export type AppSidebarProps = Readonly<{
   open?: boolean;
   /** Called when the user closes the sidebar in overlay mode. */
   onClose?: () => void;
+  /** Optional custom logo image URL. */
+  logoUrl?: string;
 }>;
 
 export function AppSidebar({
@@ -237,6 +241,7 @@ export function AppSidebar({
   overlay = false,
   open = false,
   onClose,
+  logoUrl,
 }: AppSidebarProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [isHovered, setIsHovered] = useState(false);
@@ -302,6 +307,7 @@ export function AppSidebar({
             collapsed={false}
             onToggle={handleToggle}
             badges={badges}
+            logoUrl={logoUrl}
           />
         </aside>
       </>
@@ -324,6 +330,7 @@ export function AppSidebar({
         collapsed={isVisuallyCollapsed}
         onToggle={handleToggle}
         badges={badges}
+        logoUrl={logoUrl}
       />
     </aside>
   );
@@ -336,6 +343,7 @@ type SidebarContentsProps = Readonly<{
   collapsed: boolean;
   onToggle: () => void;
   badges?: Partial<Record<NavKey, number>>;
+  logoUrl?: string;
 }>;
 
 function SidebarContents({
@@ -345,6 +353,7 @@ function SidebarContents({
   collapsed,
   onToggle,
   badges,
+  logoUrl,
 }: SidebarContentsProps) {
   const t = useTranslations("shell.sidebar");
   return (
@@ -359,21 +368,24 @@ function SidebarContents({
       >
         <div
           className={cn(
-            "flex shrink-0 items-center justify-center rounded-xl bg-white shadow-sm",
+            "flex shrink-0 items-center justify-center rounded-xl bg-white shadow-sm overflow-hidden p-1",
             collapsed ? "size-9" : "size-[42px]"
           )}
         >
           <Image
             src={
-              collapsed
+              logoUrl
+                ? logoUrl
+                : collapsed
                 ? "/assets/icons/imgc-mark.svg"
                 : "/assets/icons/logo.png"
             }
-            alt={t("logoAlt")}
+            alt={sectionLabel ?? t("logoAlt")}
             width={collapsed ? 20 : 32}
             height={collapsed ? 20 : 32}
-            className="object-contain"
+            className="object-contain max-h-full max-w-full"
             priority
+            unoptimized={Boolean(logoUrl?.startsWith("http") || logoUrl?.startsWith("data:"))}
           />
         </div>
 

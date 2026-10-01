@@ -53,6 +53,12 @@ export async function authenticateImgc(
   return (await verifyPassword(password, user.passwordHash)) ? user : null;
 }
 
+export async function getUserById(id: string | undefined): Promise<User | null> {
+  if (!id) return null;
+  const db = await readDb();
+  return db.users.find((u) => u.id === id) ?? null;
+}
+
 export async function getLenderOrgById(
   id: string | undefined
 ): Promise<LenderOrg | null> {
