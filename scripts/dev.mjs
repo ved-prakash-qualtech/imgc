@@ -183,6 +183,31 @@ for (const zone of [...ZONES, { name: "front door", port: Number(port) }]) {
   }
 }
 
+/*
+ * Start every zone from a clean `.next`. A build cache left by a crashed or killed run (or only
+ * half deleted by hand) is the usual reason a zone comes up answering 404 for every route, with
+ * nothing logged. The cost is one cold compile per zone, which the sequential warm-up pays anyway.
+ * DEV_KEEP_CACHE=1 keeps it.
+ */
+if (process.env.DEV_KEEP_CACHE !== "1") {
+  for (const zone of ZONES) {
+    try {
+      fs.rmSync(path.join(projectRoot, "apps", zone.name, ".next"), {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 200,
+      });
+    } catch (error) {
+      console.error(
+        `\n[dev] Could not clear apps/${zone.name}/.next (${error instanceof Error ? error.message : error}).\n` +
+          "[dev] Another process is still using it - stop any running dev server for this project first.\n"
+      );
+      process.exit(1);
+    }
+  }
+}
+
 const markers = conflictMarkers();
 if (markers) {
   console.error(
@@ -267,6 +292,7 @@ function warmCookie() {
   return `imgc_session=${payload}.${signature}`;
 }
 
+/** Resolves to the HTTP status of the warm-up request, or undefined when it could not be made. */
 async function warm(zone) {
   try {
     await waitOn({
@@ -275,42 +301,44 @@ async function warm(zone) {
     });
     if (zone.name === "shell" && useHttps) {
       // The shell's own certificate is not in Node's trust store.
-      await new Promise((resolve) => {
+      return await new Promise((resolve) => {
         https
           .get(
             `https://127.0.0.1:${zone.port}${WARM_PATH.shell}`,
             { rejectUnauthorized: false, timeout: 300_000 },
             (response) => {
               response.resume();
-              response.on("end", resolve);
+              response.on("end", () => resolve(response.statusCode));
             }
           )
-          .on("error", resolve);
+          .on("error", () => resolve(undefined));
       });
-      return;
     }
-    await fetch(`http://localhost:${zone.port}${WARM_PATH[zone.name]}`, {
-      redirect: "manual",
-      headers: zone.name === "shell" ? {} : { cookie: warmCookie() },
-      signal: AbortSignal.timeout(300_000),
-    });
+    const response = await fetch(
+      `http://localhost:${zone.port}${WARM_PATH[zone.name]}`,
+      {
+        redirect: "manual",
+        headers: zone.name === "shell" ? {} : { cookie: warmCookie() },
+        signal: AbortSignal.timeout(300_000),
+      }
+    );
+    return response.status;
   } catch (error) {
     console.warn(
       `[dev] Could not warm ${zone.name}:`,
       error instanceof Error ? error.message : error
     );
+    return undefined;
   }
 }
 
-for (const zone of [...ZONES].reverse()) {
+function startZone(zone) {
   const nextArgs = [nextBin, "dev", "-p", String(zone.port)];
   // Turbopack is the default. Webpack (DEV_BUNDLER=webpack) is not usable behind the shell: its dev
   // server loads page chunks without the zone's assetPrefix, so they 404 and the page never
   // hydrates.
   if (process.env.DEV_BUNDLER === "webpack") nextArgs.push("--webpack");
-  if (zone.name === "shell") {
-    if (useHttps) nextArgs.push("--experimental-https");
-  }
+  if (zone.name === "shell" && useHttps) nextArgs.push("--experimental-https");
   const child = spawn(process.execPath, nextArgs, {
     cwd: path.join(projectRoot, "apps", zone.name),
     stdio: ["inherit", "pipe", "pipe"],
@@ -318,10 +346,52 @@ for (const zone of [...ZONES].reverse()) {
   });
   prefixed(child.stdout, zone.name);
   prefixed(child.stderr, zone.name);
-  child.on("exit", (code, signal) => stopAll(code ?? (signal ? 1 : 0)));
+  child.on("exit", (code, signal) => {
+    if (!child.restarting) stopAll(code ?? (signal ? 1 : 0));
+  });
   children.push(child);
-  // The shell last: it is the one the browser talks to, and the busiest.
-  await warm(zone);
+  return child;
+}
+
+async function restartZone(zone, child) {
+  child.restarting = true;
+  children.splice(children.indexOf(child), 1);
+  const exited = new Promise((resolve) => child.once("exit", resolve));
+  child.kill();
+  await Promise.race([exited, new Promise((r) => setTimeout(r, 10_000))]);
+  fs.rmSync(path.join(projectRoot, "apps", zone.name, ".next"), {
+    recursive: true,
+    force: true,
+    maxRetries: 5,
+    retryDelay: 200,
+  });
+}
+
+/*
+ * A content zone's first request answering 404 means it came up with an empty route table (see the
+ * note above). It stays that way until restarted, so restart it here — with a clean cache — rather
+ * than hand the browser a portal that signs you in and then says "not found".
+ */
+for (const zone of [...ZONES].reverse()) {
+  let child = startZone(zone);
+  let status = await warm(zone);
+  for (
+    let attempt = 1;
+    attempt <= 3 && zone.name !== "shell" && status === 404;
+    attempt++
+  ) {
+    console.warn(
+      `[dev] ${zone.name} came up without its routes (404) - restarting it (attempt ${attempt}).`
+    );
+    await restartZone(zone, child);
+    child = startZone(zone);
+    status = await warm(zone);
+  }
+  if (zone.name !== "shell" && status === 404) {
+    console.error(
+      `[dev] ${zone.name} still answers 404 - its pages will not load.`
+    );
+  }
 }
 
 const certDir = path.join(projectRoot, "apps", "shell", "certificates");
