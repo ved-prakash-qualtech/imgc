@@ -23,8 +23,10 @@ const projectRoot = path.resolve(
  * localhost instead of the tenant host, and the first thing that fails is a 403 several steps
  * later with nothing pointing back here.
  */
-const envFile = path.join(projectRoot, ".env");
-if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
+for (const envFile of [".env", ".env.local"]) {
+  const full = path.join(projectRoot, envFile);
+  if (fs.existsSync(full)) process.loadEnvFile(full);
+}
 
 const port = process.env.PORT ?? "3000";
 const openBrowser =
@@ -397,9 +399,20 @@ for (const zone of [...ZONES].reverse()) {
 const certDir = path.join(projectRoot, "apps", "shell", "certificates");
 let tlsFiles;
 if (useHttps) {
+  fs.mkdirSync(certDir, { recursive: true });
+  const rootCert = path.join(projectRoot, "certificates", "localhost.pem");
+  const rootKey = path.join(projectRoot, "certificates", "localhost-key.pem");
+  const shellCert = path.join(certDir, "localhost.pem");
+  const shellKey = path.join(certDir, "localhost-key.pem");
+  if (!fs.existsSync(shellCert) && fs.existsSync(rootCert)) {
+    fs.copyFileSync(rootCert, shellCert);
+  }
+  if (!fs.existsSync(shellKey) && fs.existsSync(rootKey)) {
+    fs.copyFileSync(rootKey, shellKey);
+  }
   tlsFiles = {
-    cert: path.join(certDir, "localhost.pem"),
-    key: path.join(certDir, "localhost-key.pem"),
+    cert: shellCert,
+    key: shellKey,
   };
   // Next writes the dev certificate when the shell starts; the front door serves with it.
   await waitOn({
