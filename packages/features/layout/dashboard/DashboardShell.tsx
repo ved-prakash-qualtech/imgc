@@ -97,6 +97,7 @@ export function DashboardShell({
     const isOverride =
       (activeKey === "initiate-claim" && isAdmin) ||
       activeKey === "personalization" ||
+      activeKey === "notifications" ||
       activeKey === "admin-branding";
 
     if (!isOverride) {

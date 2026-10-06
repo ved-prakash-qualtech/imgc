@@ -45,7 +45,7 @@ export default async function NotificationsPage() {
   await markNotificationsRead(session);
 
   return (
-    <PortalShell title={t("title")}>
+    <PortalShell activeKey="notifications" title={t("title")}>
       <div className="space-y-4">
         <Section
           title={t("messageCount", { count: notifications.length })}

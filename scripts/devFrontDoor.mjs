@@ -5,6 +5,7 @@ import https from "node:https";
 import net from "node:net";
 import path from "node:path";
 import tls from "node:tls";
+import { fileURLToPath } from "node:url";
 
 /**
  * The development front door: one address for the whole portal, in front of the four dev servers.
@@ -20,9 +21,7 @@ import tls from "node:tls";
  * browser used is passed through unchanged.
  */
 const projectRoot = path.resolve(
-  path.dirname(
-    new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")
-  ),
+  path.dirname(fileURLToPath(import.meta.url)),
   ".."
 );
 

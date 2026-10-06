@@ -243,10 +243,6 @@ export function ClaimWorkspace({
               role="tab"
               aria-selected={activeTab === id}
               onClick={() => {
-                // Leaving Initiate Claim drops whatever Save Draft never kept.
-                if (id !== "initiate-claim" && activeTab === "initiate-claim") {
-                  discardUnsaved();
-                }
                 setActiveTab(id);
               }}
               className={cn(

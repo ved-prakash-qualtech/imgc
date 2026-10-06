@@ -68,13 +68,10 @@ export default async function proxy(req: NextRequest) {
     }
 
     // Resolved once here so no page re-derives it.
-    const headers = new Headers(req.headers);
-    headers.set("x-imgc-role", session.role);
-    headers.set("x-imgc-user-id", session.userId);
-    return onPublicOrigin(
-      req,
-      intlMiddleware(new NextRequest(req, { headers }))
-    );
+    const res = intlMiddleware(req);
+    res.headers.set("x-middleware-request-x-imgc-role", session.role);
+    res.headers.set("x-middleware-request-x-imgc-user-id", session.userId);
+    return onPublicOrigin(req, res);
   }
 
   return onPublicOrigin(req, intlMiddleware(req));

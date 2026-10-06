@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IMGC DB Diagrams — Interactive Explorer</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3348;
+    --border-active: #4f6ef7;
+    --text: #e2e8f0;
+    --text-muted: #8892a4;
+    --accent: #4f6ef7;
+    --accent-glow: rgba(79,110,247,0.18);
+    --pk: #f59e0b;
+    --fk: #34d399;
+    --col: #94a3b8;
+    --selected-bg: rgba(79,110,247,0.12);
+    --selected-border: #4f6ef7;
+    --related-bg: rgba(52,211,153,0.08);
+    --related-border: #34d399;
+    --connector: #4f6ef7;
+    --btn-bg: #22263a;
+    --btn-hover: #2e3348;
+    --btn-active: #4f6ef7;
+    --tab-active: #4f6ef7;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+  .header-title {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    flex: 1;
+  }
+  .header-title span {
+    color: var(--accent);
+  }
+  .tab-bar {
+    display: flex;
+    gap: 4px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+  }
+  .tab-btn {
+    padding: 7px 20px;
+    border-radius: 7px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.01em;
+  }
+  .tab-btn:hover { color: var(--text); background: var(--surface2); }
+  .tab-btn.active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(79,110,247,0.3);
+  }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .toolbar-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-right: 4px;
+  }
+  .tool-btn {
+    padding: 6px 14px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .tool-btn:hover { background: var(--btn-hover); border-color: var(--border-active); color: var(--accent); }
+  .tool-btn.danger:hover { border-color: #f87171; color: #f87171; }
+  .sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+  .status-pill {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--text-muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+  }
+  .status-pill b { color: var(--accent); }
+
+  /* ── Main area ── */
+  main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── ERD Panel ── */
+  #erd-panel {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* Sidebar: table list */
+  .erd-sidebar {
+    width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .erd-sidebar-header {
+    padding: 12px 14px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .erd-sidebar-search {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .erd-sidebar-search input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 12px;
+    padding: 5px 9px;
+    outline: none;
+  }
+  .erd-sidebar-search input:focus { border-color: var(--accent); }
+  .table-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+  }
+  .table-list-item {
+    padding: 6px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text-muted);
+    border-left: 2px solid transparent;
+    transition: all 0.12s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .table-list-item:hover { color: var(--text); background: var(--surface2); border-left-color: var(--border); }
+  .table-list-item.visible { color: var(--text); border-left-color: var(--border-active); }
+  .table-list-item.selected { color: var(--accent); background: var(--selected-bg); border-left-color: var(--accent); font-weight: 600; }
+  .tl-badge {
+    margin-left: auto;
+    font-size: 10px;
+    background: var(--surface2);
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: var(--text-muted);
+  }
+
+  /* Canvas area */
+  .erd-canvas-wrap {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    background: radial-gradient(ellipse at 50% 50%, #1a1d27 0%, #0f1117 100%);
+    background-image:
+      radial-gradient(ellipse at 50% 50%, #1a1d27 0%, #0f1117 100%),
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 100% 100%, 40px 40px, 40px 40px;
+    background-position: 0 0, -0.5px -0.5px, -0.5px -0.5px;
+    cursor: grab;
+  }
+  .erd-canvas-wrap:active { cursor: grabbing; }
+  #erd-canvas {
+    position: absolute;
+    transform-origin: 0 0;
+    /* will be set via JS */
+  }
+
+  /* SVG connector overlay */
+  #connector-svg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    overflow: visible;
+  }
+  #connector-svg line, #connector-svg path {
+    stroke: var(--connector);
+    stroke-width: 1.5;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+  }
+  #connector-svg line.active, #connector-svg path.active {
+    opacity: 1;
+    stroke-width: 2;
+  }
+
+  /* ── Table Cards ── */
+  .erd-table {
+    position: absolute;
+    min-width: 220px;
+    max-width: 280px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    transition: border-color 0.18s, box-shadow 0.18s, opacity 0.2s;
+    user-select: none;
+    cursor: pointer;
+  }
+  .erd-table.hidden { opacity: 0; pointer-events: none; transform: scale(0.92); }
+  .erd-table.visible { opacity: 1; pointer-events: auto; }
+  .erd-table.selected {
+    border-color: var(--selected-border);
+    box-shadow: 0 0 0 3px var(--accent-glow), 0 8px 30px rgba(0,0,0,0.5);
+    z-index: 10;
+  }
+  .erd-table.related {
+    border-color: var(--related-border);
+    box-shadow: 0 0 0 2px rgba(52,211,153,0.15), 0 4px 20px rgba(0,0,0,0.4);
+    z-index: 5;
+  }
+  .erd-table-header {
+    padding: 10px 13px 9px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    border-radius: 9px 9px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .erd-table-name {
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--text);
+    flex: 1;
+  }
+  .erd-table.selected .erd-table-name { color: var(--accent); }
+  .erd-table.related .erd-table-name { color: #34d399; }
+  .erd-table-icon {
+    font-size: 14px;
+    opacity: 0.5;
+  }
+  .erd-table-body { padding: 4px 0; }
+  .erd-col {
+    padding: 3px 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--col);
+    line-height: 1.4;
+  }
+  .erd-col:hover { background: rgba(255,255,255,0.03); }
+  .erd-badge {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    border-radius: 3px;
+    padding: 1px 4px;
+    flex-shrink: 0;
+    min-width: 24px;
+    text-align: center;
+  }
+  .badge-pk { background: rgba(245,158,11,0.18); color: var(--pk); }
+  .badge-fk { background: rgba(52,211,153,0.15); color: var(--fk); }
+  .badge-uk { background: rgba(167,139,250,0.15); color: #a78bfa; }
+  .badge-sp { background: rgba(148,163,184,0.1); color: transparent; min-width: 24px; }
+  .col-name { flex: 1; }
+  .col-type { color: var(--text-muted); font-size: 10.5px; font-style: italic; }
+  .erd-rel-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: var(--text-muted);
+    padding: 4px 13px 6px;
+  }
+  .erd-rel-count .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-muted); }
+
+  /* Relationship hover tooltip */
+  .rel-label {
+    font-size: 10px;
+    fill: var(--text-muted);
+  }
+
+  /* ── UML Panel ── */
+  #uml-panel {
+    flex: 1;
+    display: none;
+    overflow: hidden;
+    position: relative;
+    background: radial-gradient(ellipse at 50% 50%, #1a1d27 0%, #0f1117 100%);
+  }
+  .uml-wrap {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 32px;
+  }
+  .uml-mermaid-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 100%;
+  }
+
+  /* ── Minimap ── */
+  .minimap {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: 160px;
+    height: 100px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 0.85;
+  }
+  .minimap-viewport {
+    position: absolute;
+    border: 1px solid var(--accent);
+    background: rgba(79,110,247,0.1);
+    pointer-events: none;
+  }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-active); }
+
+  /* Help text */
+  .canvas-hint {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 14px;
+    pointer-events: none;
+    opacity: 0.8;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-title">IMGC <span>DB</span> Diagrams</div>
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-erd" onclick="switchTab('erd')">⬡ ERD</button>
+    <button class="tab-btn" id="tab-uml" onclick="switchTab('uml')">◈ UML</button>
+  </div>
+</header>
+
+<div class="toolbar" id="erd-toolbar">
+  <span class="toolbar-label">ERD</span>
+  <button class="tool-btn" onclick="expandAll()" title="Show all 28 tables">⊞ Expand All</button>
+  <button class="tool-btn" onclick="collapseAll()" title="Hide all, reset to root tables">⊟ Collapse All</button>
+  <button class="tool-btn danger" onclick="resetView()" title="Reset to initial state">↺ Reset</button>
+  <div class="sep"></div>
+  <button class="tool-btn" onclick="zoomIn()">＋ Zoom In</button>
+  <button class="tool-btn" onclick="zoomOut()">－ Zoom Out</button>
+  <button class="tool-btn" onclick="fitView()">⤢ Fit</button>
+  <div class="status-pill" id="status-pill">Click a table to explore</div>
+</div>
+<div class="toolbar" id="uml-toolbar" style="display:none;">
+  <span class="toolbar-label">UML Class Diagram</span>
+  <span style="font-size:12px;color:var(--text-muted);">Domain model — read-only view</span>
+</div>
+
+<main>
+  <!-- ERD Panel -->
+  <div id="erd-panel">
+    <div class="erd-sidebar">
+      <div class="erd-sidebar-header">Tables (28)</div>
+      <div class="erd-sidebar-search">
+        <input type="text" id="table-search" placeholder="Search tables…" oninput="filterTableList(this.value)">
+      </div>
+      <div class="table-list" id="table-list"></div>
+    </div>
+    <div class="erd-canvas-wrap" id="canvas-wrap">
+      <svg id="connector-svg"></svg>
+      <div id="erd-canvas"></div>
+      <div class="canvas-hint" id="canvas-hint">Click any table to explore · Drag to pan · Scroll to zoom</div>
+    </div>
+  </div>
+
+  <!-- UML Panel -->
+  <div id="uml-panel">
+    <div class="uml-wrap">
+      <div class="uml-mermaid-container">
+        <div class="mermaid" id="uml-diagram">
+classDiagram
+    direction TB
+
+    class LenderOrg {
+        +UUID id
+        +String name
+        +String emailDomain
+        +scopesAccountsFor(user) bool
+    }
+    class User {
+        +UUID id
+        +UserRole role
+        +String email
+        +UUID lenderOrgId
+        +isImgc() bool
+    }
+    class Account {
+        +UUID id
+        +String loanNo
+        +Money loanAmount
+        +Money outstandingAmount
+        +ClaimStatus claimStatus
+        +claimAmount() Money
+    }
+    class Claim {
+        +UUID id
+        +String claimNo
+        +ClaimType claimType
+        +ClaimStatus status
+        +bool draftSaved
+        +DateTime submittedAt
+    }
+    class ClaimFieldValue {
+        +UUID claimId
+        +String fieldId
+        +String value
+    }
+    class ClaimStatusEntry {
+        +ClaimStatus status
+        +DateTime changedAt
+        +ActorRole actorRole
+        +String note
+    }
+    class ClaimDecision {
+        +ClaimStatus outcome
+        +String remarks
+        +DateTime decidedAt
+    }
+    class ClaimQuery {
+        +UUID id
+        +String reason
+        +Date dueDate
+        +DateTime respondedAt
+    }
+    class ClaimDocument {
+        +UUID id
+        +String specSlug
+        +String name
+        +bool isRequired
+        +DocumentStatus status
+    }
+    class DocumentFile {
+        +UUID id
+        +int version
+        +String storedPath
+        +DateTime supersededAt
+        +bool isPendingSave
+        +isLive() bool
+    }
+    class DocumentReview {
+        +Decision decision
+        +String remarks
+        +DateTime decidedAt
+        +DateTime undoneAt
+    }
+    class DocumentWaiver {
+        +WaiverStatus status
+        +String reason
+        +approve(remarks)
+        +decline(remarks)
+    }
+    class RetentionHold {
+        +ReinstateStatus status
+        +DateTime archivedAt
+        +blocksPurge() bool
+    }
+    class Notification {
+        +String event
+        +String subject
+        +Recipient[] to
+        +Recipient[] cc
+    }
+    class AuditEvent {
+        +String eventType
+        +String summary
+        +Json meta
+    }
+
+    LenderOrg "1" o-- "*" User
+    LenderOrg "1" o-- "*" Account
+    Account "1" o-- "*" Claim
+    Claim "1" *-- "*" ClaimFieldValue
+    Claim "1" *-- "*" ClaimStatusEntry
+    Claim "1" *-- "0..1" ClaimDecision
+    Claim "1" *-- "*" ClaimQuery
+    Claim "1" *-- "*" ClaimDocument
+    ClaimQuery "*" --> "*" ClaimDocument : requests
+    ClaimDocument "1" *-- "*" DocumentFile
+    ClaimDocument "1" *-- "*" DocumentReview
+    ClaimDocument "1" *-- "*" DocumentWaiver
+    DocumentFile "1" <-- "*" DocumentReview : judges
+    DocumentReview "1" *-- "0..1" RetentionHold
+    Account "1" --> "*" Notification
+    Account "1" --> "*" AuditEvent
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════════
+//  DATA — All 28 tables with columns and 33 relationships
+// ══════════════════════════════════════════════════════════════
+
+const TABLES = {
+  LENDER_ORGS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'',   name:'name', type:'text' },
+      { badge:'UK', name:'email_domain', type:'citext' },
+      { badge:'',   name:'logo_url', type:'text' },
+      { badge:'',   name:'is_active', type:'boolean' },
+    ]
+  },
+  LENDER_ORG_CONTACTS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'FK', name:'lender_org_id', type:'uuid' },
+      { badge:'',   name:'email', type:'citext' },
+    ]
+  },
+  USERS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'',   name:'role', type:'user_role' },
+      { badge:'',   name:'name', type:'text' },
+      { badge:'UK', name:'email', type:'citext' },
+      { badge:'UK', name:'employee_id', type:'text' },
+      { badge:'UK', name:'entra_object_id', type:'uuid' },
+      { badge:'',   name:'identity_provider', type:'text' },
+      { badge:'',   name:'password_hash', type:'text' },
+      { badge:'',   name:'must_change_password', type:'boolean' },
+      { badge:'',   name:'failed_attempts', type:'smallint' },
+      { badge:'',   name:'locked_until', type:'timestamptz' },
+      { badge:'FK', name:'lender_org_id', type:'uuid' },
+      { badge:'',   name:'is_active', type:'boolean' },
+    ]
+  },
+  USER_PASSWORD_HISTORY: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'FK', name:'user_id', type:'uuid' },
+      { badge:'',   name:'password_hash', type:'text' },
+      { badge:'',   name:'changed_at', type:'timestamptz' },
+    ]
+  },
+  AUTH_OTPS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'',   name:'email', type:'citext' },
+      { badge:'',   name:'code_hash', type:'text' },
+      { badge:'',   name:'expires_at', type:'timestamptz' },
+      { badge:'',   name:'attempts', type:'smallint' },
+    ]
+  },
+  ACCOUNTS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'UK', name:'loan_no', type:'text' },
+      { badge:'',   name:'borrower_name', type:'text' },
+      { badge:'FK', name:'lender_org_id', type:'uuid' },
+      { badge:'FK', name:'assigned_user_id', type:'uuid' },
+      { badge:'',   name:'loan_amount', type:'numeric' },
+      { badge:'',   name:'outstanding_amount', type:'numeric' },
+      { badge:'',   name:'claim_status', type:'claim_status' },
+      { badge:'',   name:'is_npa', type:'boolean' },
+      { badge:'',   name:'dpd', type:'integer' },
+    ]
+  },
+  ACCOUNT_PUSH_RECIPIENTS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'FK', name:'account_id', type:'uuid' },
+      { badge:'',   name:'email', type:'citext' },
+    ]
+  },
+  PAS_VALUES: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'FK', name:'account_id', type:'uuid' },
+      { badge:'',   name:'key', type:'text' },
+      { badge:'',   name:'value', type:'text' },
+    ]
+  },
+  CLAIMS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'UK', name:'claim_no', type:'text' },
+      { badge:'FK', name:'account_id', type:'uuid' },
+      { badge:'',   name:'claim_type', type:'claim_type' },
+      { badge:'',   name:'status', type:'claim_status' },
+      { badge:'',   name:'draft_saved', type:'boolean' },
+      { badge:'',   name:'submitted_at', type:'timestamptz' },
+    ]
+  },
+  CLAIM_FIELD_VALUES: {
+    cols: [
+      { badge:'PK', name:'claim_id', type:'uuid' },
+      { badge:'PK', name:'field_id', type:'text' },
+      { badge:'',   name:'value', type:'text' },
+    ]
+  },
+  CLAIM_STATUS_HISTORY: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'FK', name:'claim_id', type:'uuid' },
+      { badge:'',   name:'status', type:'claim_status' },
+      { badge:'',   name:'changed_at', type:'timestamptz' },
+      { badge:'FK', name:'actor_user_id', type:'uuid' },
+      { badge:'',   name:'actor_role', type:'actor_role' },
+      { badge:'',   name:'note', type:'text' },
+    ]
+  },
+  CLAIM_DECISIONS: {
+    cols: [
+      { badge:'PK', name:'claim_id', type:'uuid' },
+      { badge:'',   name:'outcome', type:'claim_status' },
+      { badge:'FK', name:'decided_by_user_id', type:'uuid' },
+      { badge:'',   name:'decided_at', type:'timestamptz' },
+      { badge:'',   name:'remarks', type:'text' },
+    ]
+  },
+  CLAIM_QUERIES: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'FK', name:'claim_id', type:'uuid' },
+      { badge:'',   name:'reason', type:'text' },
+      { badge:'',   name:'due_date', type:'date' },
+      { badge:'',   name:'responded_at', type:'timestamptz' },
+    ]
+  },
+  CLAIM_QUERY_DOCUMENTS: {
+    cols: [
+      { badge:'PK', name:'query_id', type:'uuid' },
+      { badge:'PK', name:'claim_document_id', type:'uuid' },
+    ]
+  },
+  CLAIM_DOCUMENTS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'FK', name:'claim_id', type:'uuid' },
+      { badge:'FK', name:'account_id', type:'uuid' },
+      { badge:'FK', name:'current_file_id', type:'uuid' },
+      { badge:'',   name:'spec_slug', type:'text' },
+      { badge:'',   name:'name', type:'text' },
+      { badge:'',   name:'is_required', type:'boolean' },
+      { badge:'',   name:'status', type:'doc_status' },
+    ]
+  },
+  CLAIM_DOCUMENT_SPECS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'',   name:'claim_type', type:'claim_type' },
+      { badge:'',   name:'slug', type:'text' },
+      { badge:'',   name:'is_required', type:'boolean' },
+      { badge:'',   name:'condition_field', type:'text' },
+      { badge:'',   name:'display_order', type:'integer' },
+    ]
+  },
+  LENDER_DOCUMENT_REQUIREMENTS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'FK', name:'lender_org_id', type:'uuid' },
+      { badge:'',   name:'slug', type:'text' },
+      { badge:'',   name:'is_required', type:'boolean' },
+      { badge:'',   name:'display_order', type:'integer' },
+    ]
+  },
+  DOCUMENT_FILES: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'FK', name:'claim_document_id', type:'uuid' },
+      { badge:'FK', name:'uploaded_by_user_id', type:'uuid' },
+      { badge:'',   name:'version', type:'integer' },
+      { badge:'',   name:'stored_path', type:'text' },
+      { badge:'',   name:'superseded_at', type:'timestamptz' },
+      { badge:'',   name:'is_pending_save', type:'boolean' },
+    ]
+  },
+  DOCUMENT_REVIEWS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'FK', name:'claim_document_id', type:'uuid' },
+      { badge:'FK', name:'document_file_id', type:'uuid' },
+      { badge:'',   name:'decision', type:'review_decision' },
+      { badge:'',   name:'remarks', type:'text' },
+      { badge:'FK', name:'decided_by_user_id', type:'uuid' },
+      { badge:'',   name:'undone_at', type:'timestamptz' },
+    ]
+  },
+  DOCUMENT_WAIVERS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'FK', name:'claim_document_id', type:'uuid' },
+      { badge:'',   name:'status', type:'waiver_status' },
+      { badge:'',   name:'reason', type:'text' },
+      { badge:'FK', name:'requested_by_user_id', type:'uuid' },
+      { badge:'FK', name:'decided_by_user_id', type:'uuid' },
+      { badge:'',   name:'decision_remarks', type:'text' },
+    ]
+  },
+  DOCUMENT_RETENTION_HOLDS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'FK', name:'document_review_id', type:'uuid' },
+      { badge:'',   name:'reinstate_status', type:'reinstate_status' },
+      { badge:'',   name:'archived_at', type:'timestamptz' },
+    ]
+  },
+  REMARKS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'FK', name:'account_id', type:'uuid' },
+      { badge:'FK', name:'claim_id', type:'uuid' },
+      { badge:'FK', name:'claim_document_id', type:'uuid' },
+      { badge:'',   name:'body', type:'text' },
+      { badge:'FK', name:'author_user_id', type:'uuid' },
+    ]
+  },
+  NOTIFICATIONS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'',   name:'event', type:'text' },
+      { badge:'',   name:'subject', type:'text' },
+      { badge:'FK', name:'account_id', type:'uuid' },
+      { badge:'FK', name:'claim_id', type:'uuid' },
+      { badge:'',   name:'delivery_status', type:'text' },
+      { badge:'',   name:'bounced_at', type:'timestamptz' },
+    ]
+  },
+  NOTIFICATION_RECIPIENTS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'FK', name:'notification_id', type:'uuid' },
+      { badge:'',   name:'email', type:'citext' },
+      { badge:'',   name:'kind', type:'recipient_kind' },
+      { badge:'',   name:'read_at', type:'timestamptz' },
+    ]
+  },
+  AUDIT_EVENTS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'FK', name:'account_id', type:'uuid' },
+      { badge:'FK', name:'claim_id', type:'uuid' },
+      { badge:'',   name:'event_type', type:'text' },
+      { badge:'FK', name:'actor_user_id', type:'uuid' },
+      { badge:'',   name:'meta', type:'jsonb' },
+    ]
+  },
+  EVENT_OUTBOX: {
+    cols: [
+      { badge:'PK', name:'id', type:'bigserial' },
+      { badge:'',   name:'aggregate_type', type:'text' },
+      { badge:'',   name:'aggregate_id', type:'uuid' },
+      { badge:'',   name:'event_type', type:'text' },
+      { badge:'',   name:'payload', type:'jsonb' },
+      { badge:'',   name:'published_at', type:'timestamptz' },
+      { badge:'',   name:'trace_id', type:'text' },
+    ]
+  },
+  PROCESSED_EVENTS: {
+    cols: [
+      { badge:'PK', name:'consumer', type:'text' },
+      { badge:'PK', name:'event_id', type:'text' },
+      { badge:'',   name:'processed_at', type:'timestamptz' },
+    ]
+  },
+  PAS_PUSH_EVENTS: {
+    cols: [
+      { badge:'PK', name:'id', type:'uuid' },
+      { badge:'UK', name:'idempotency_key', type:'text' },
+      { badge:'',   name:'loan_no', type:'text' },
+      { badge:'',   name:'payload', type:'jsonb' },
+      { badge:'',   name:'status', type:'text' },
+      { badge:'FK', name:'account_id', type:'uuid' },
+      { badge:'',   name:'trace_id', type:'text' },
+    ]
+  },
+};
+
+// All 33 relationships from the source ERD
+const RELATIONSHIPS = [
+  { from:'LENDER_ORGS', to:'LENDER_ORG_CONTACTS', label:'has', card:'||--o{' },
+  { from:'LENDER_ORGS', to:'USERS', label:'employs', card:'||--o{' },
+  { from:'USERS', to:'USER_PASSWORD_HISTORY', label:'previous passwords', card:'||--o{' },
+  { from:'LENDER_ORGS', to:'ACCOUNTS', label:'owns', card:'||--o{' },
+  { from:'USERS', to:'ACCOUNTS', label:'assigned to', card:'||--o{' },
+  { from:'ACCOUNTS', to:'ACCOUNT_PUSH_RECIPIENTS', label:'has', card:'||--o{' },
+  { from:'ACCOUNTS', to:'PAS_VALUES', label:'has', card:'||--o{' },
+  { from:'ACCOUNTS', to:'CLAIMS', label:'has', card:'||--o{' },
+  { from:'CLAIMS', to:'CLAIM_FIELD_VALUES', label:'has', card:'||--o{' },
+  { from:'CLAIMS', to:'CLAIM_STATUS_HISTORY', label:'has', card:'||--o{' },
+  { from:'CLAIMS', to:'CLAIM_DECISIONS', label:'decided by', card:'||--o|' },
+  { from:'CLAIMS', to:'CLAIM_QUERIES', label:'queried by', card:'||--o{' },
+  { from:'CLAIMS', to:'CLAIM_DOCUMENTS', label:'checklist of', card:'||--o{' },
+  { from:'CLAIM_QUERIES', to:'CLAIM_QUERY_DOCUMENTS', label:'requests', card:'||--o{' },
+  { from:'CLAIM_DOCUMENTS', to:'CLAIM_QUERY_DOCUMENTS', label:'requested in', card:'||--o{' },
+  { from:'LENDER_ORGS', to:'LENDER_DOCUMENT_REQUIREMENTS', label:'configures', card:'||--o{' },
+  { from:'CLAIM_DOCUMENTS', to:'DOCUMENT_FILES', label:'versions', card:'||--o{' },
+  { from:'CLAIM_DOCUMENT_SPECS', to:'CLAIM_DOCUMENTS', label:'materialised as', card:'||--o{' },
+  { from:'LENDER_DOCUMENT_REQUIREMENTS', to:'CLAIM_DOCUMENTS', label:'materialised as', card:'||--o{' },
+  { from:'CLAIM_DOCUMENTS', to:'DOCUMENT_REVIEWS', label:'decided by', card:'||--o{' },
+  { from:'CLAIM_DOCUMENTS', to:'DOCUMENT_WAIVERS', label:'waived by', card:'||--o{' },
+  { from:'DOCUMENT_FILES', to:'DOCUMENT_REVIEWS', label:'judged in', card:'||--o{' },
+  { from:'DOCUMENT_REVIEWS', to:'DOCUMENT_RETENTION_HOLDS', label:'held by', card:'||--o|' },
+  { from:'USERS', to:'DOCUMENT_FILES', label:'uploads', card:'||--o{' },
+  { from:'USERS', to:'DOCUMENT_REVIEWS', label:'decides', card:'||--o{' },
+  { from:'ACCOUNTS', to:'REMARKS', label:'has', card:'||--o{' },
+  { from:'ACCOUNTS', to:'NOTIFICATIONS', label:'about', card:'||--o{' },
+  { from:'CLAIM_DOCUMENTS', to:'REMARKS', label:'has', card:'||--o{' },
+  { from:'NOTIFICATIONS', to:'NOTIFICATION_RECIPIENTS', label:'addressed to', card:'||--o{' },
+  { from:'USERS', to:'REMARKS', label:'writes', card:'||--o{' },
+  { from:'ACCOUNTS', to:'AUDIT_EVENTS', label:'logs', card:'||--o{' },
+  { from:'ACCOUNTS', to:'PAS_PUSH_EVENTS', label:'pushed in by PAS', card:'||--o{' },
+  { from:'USERS', to:'AUDIT_EVENTS', label:'acts', card:'||--o{' },
+];
+
+// Root tables to show initially (the 5 primary entities)
+const ROOT_TABLES = ['LENDER_ORGS', 'ACCOUNTS', 'CLAIMS', 'CLAIM_DOCUMENTS', 'USERS'];
+
+// Build adjacency map: which tables are directly related to each table
+const adjacency = {};
+Object.keys(TABLES).forEach(t => adjacency[t] = new Set());
+RELATIONSHIPS.forEach(r => {
+  adjacency[r.from].add(r.to);
+  adjacency[r.to].add(r.from);
+});
+
+// ══════════════════════════════════════════════════════════════
+//  LAYOUT — Positions for all 28 tables (absolute, in a virtual 3200×2200 canvas)
+// ══════════════════════════════════════════════════════════════
+const POSITIONS = {
+  // Row 0: Identity & Auth
+  LENDER_ORGS:                   { x: 80,   y: 80   },
+  LENDER_ORG_CONTACTS:           { x: 80,   y: 340  },
+  USERS:                         { x: 400,  y: 80   },
+  USER_PASSWORD_HISTORY:         { x: 400,  y: 360  },
+  AUTH_OTPS:                     { x: 720,  y: 80   },
+  LENDER_DOCUMENT_REQUIREMENTS:  { x: 80,   y: 590  },
+
+  // Row 1: Accounts
+  ACCOUNTS:                      { x: 1080, y: 80   },
+  ACCOUNT_PUSH_RECIPIENTS:       { x: 1080, y: 360  },
+  PAS_VALUES:                    { x: 1400, y: 80   },
+  PAS_PUSH_EVENTS:               { x: 1400, y: 360  },
+  REMARKS:                       { x: 1720, y: 80   },
+  NOTIFICATIONS:                 { x: 1720, y: 360  },
+  NOTIFICATION_RECIPIENTS:       { x: 1720, y: 620  },
+  AUDIT_EVENTS:                  { x: 2060, y: 80   },
+
+  // Row 2: Claims
+  CLAIMS:                        { x: 1080, y: 800  },
+  CLAIM_FIELD_VALUES:            { x: 720,  y: 960  },
+  CLAIM_STATUS_HISTORY:          { x: 720,  y: 1160 },
+  CLAIM_DECISIONS:               { x: 720,  y: 1360 },
+  CLAIM_QUERIES:                 { x: 1080, y: 1060 },
+  CLAIM_QUERY_DOCUMENTS:         { x: 1080, y: 1320 },
+
+  // Row 3: Documents
+  CLAIM_DOCUMENTS:               { x: 1440, y: 800  },
+  CLAIM_DOCUMENT_SPECS:          { x: 1440, y: 1080 },
+  DOCUMENT_FILES:                { x: 1800, y: 800  },
+  DOCUMENT_REVIEWS:              { x: 1800, y: 1080 },
+  DOCUMENT_WAIVERS:              { x: 2160, y: 800  },
+  DOCUMENT_RETENTION_HOLDS:      { x: 2160, y: 1080 },
+
+  // Infrastructure
+  EVENT_OUTBOX:                  { x: 2060, y: 360  },
+  PROCESSED_EVENTS:              { x: 2060, y: 580  },
+};
+
+// ══════════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════════
+let visibleTables = new Set(ROOT_TABLES);
+let selectedTable = null;
+let scale = 0.65;
+let panX = -20;
+let panY = -20;
+let isPanning = false;
+let panStart = { x: 0, y: 0 };
+let panOrigin = { x: 0, y: 0 };
+const tableEls = {};   // name → DOM element
+const TABLE_W = 250;   // approximate card width for connector math
+
+// ══════════════════════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════════════════════
+function buildTableEl(name) {
+  const data = TABLES[name];
+  const pos = POSITIONS[name];
+  const relCount = adjacency[name].size;
+
+  const div = document.createElement('div');
+  div.className = 'erd-table hidden';
+  div.id = `tbl-${name}`;
+  div.style.left = `${pos.x}px`;
+  div.style.top = `${pos.y}px`;
+  div.style.width = `${TABLE_W}px`;
+  div.dataset.table = name;
+
+  // Header
+  const hdr = document.createElement('div');
+  hdr.className = 'erd-table-header';
+  hdr.innerHTML = `
+    <span class="erd-table-icon">⬡</span>
+    <span class="erd-table-name">${name}</span>
+  `;
+  div.appendChild(hdr);
+
+  // Columns
+  const body = document.createElement('div');
+  body.className = 'erd-table-body';
+  data.cols.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'erd-col';
+    const badgeClass = c.badge === 'PK' ? 'badge-pk' : c.badge === 'FK' ? 'badge-fk' : c.badge === 'UK' ? 'badge-uk' : 'badge-sp';
+    row.innerHTML = `
+      <span class="erd-badge ${badgeClass}">${c.badge || ''}</span>
+      <span class="col-name">${c.name}</span>
+      <span class="col-type">${c.type}</span>
+    `;
+    body.appendChild(row);
+  });
+  div.appendChild(body);
+
+  // Relation count
+  const rc = document.createElement('div');
+  rc.className = 'erd-rel-count';
+  rc.innerHTML = `<span class="dot"></span> ${relCount} relation${relCount !== 1 ? 's' : ''}`;
+  div.appendChild(rc);
+
+  div.addEventListener('click', (e) => {
+    e.stopPropagation();
+    handleTableClick(name);
+  });
+
+  return div;
+}
+
+function renderAllTables() {
+  const canvas = document.getElementById('erd-canvas');
+  canvas.innerHTML = '';
+
+  // Figure canvas bounding box
+  let maxX = 0, maxY = 0;
+  Object.values(POSITIONS).forEach(p => {
+    maxX = Math.max(maxX, p.x + TABLE_W + 20);
+    maxY = Math.max(maxY, p.y + 500);
+  });
+  canvas.style.width = `${maxX}px`;
+  canvas.style.height = `${maxY}px`;
+
+  Object.keys(TABLES).forEach(name => {
+    const el = buildTableEl(name);
+    canvas.appendChild(el);
+    tableEls[name] = el;
+  });
+
+  applyTransform();
+  updateVisibility();
+  renderSidebar();
+}
+
+function updateVisibility() {
+  Object.keys(TABLES).forEach(name => {
+    const el = tableEls[name];
+    if (visibleTables.has(name)) {
+      el.classList.remove('hidden');
+      el.classList.add('visible');
+    } else {
+      el.classList.remove('visible');
+      el.classList.add('hidden');
+    }
+
+    el.classList.remove('selected', 'related');
+    if (name === selectedTable) el.classList.add('selected');
+    else if (selectedTable && adjacency[selectedTable].has(name) && visibleTables.has(name)) {
+      el.classList.add('related');
+    }
+  });
+
+  drawConnectors();
+  updateSidebarHighlight();
+  updateStatus();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CONNECTORS (SVG lines)
+// ══════════════════════════════════════════════════════════════
+function getTableCenter(name) {
+  const pos = POSITIONS[name];
+  const el = tableEls[name];
+  const h = el ? el.offsetHeight : 120;
+  return { x: pos.x + TABLE_W / 2, y: pos.y + h / 2 };
+}
+
+function drawConnectors() {
+  const svg = document.getElementById('connector-svg');
+  svg.innerHTML = '';
+
+  // Only draw connectors between visible tables
+  const drawn = new Set();
+  RELATIONSHIPS.forEach(rel => {
+    if (!visibleTables.has(rel.from) || !visibleTables.has(rel.to)) return;
+    const key = [rel.from, rel.to].sort().join('|');
+    if (drawn.has(key)) return;
+    drawn.add(key);
+
+    const a = POSITIONS[rel.from];
+    const b = POSITIONS[rel.to];
+    const ah = tableEls[rel.from]?.offsetHeight || 120;
+    const bh = tableEls[rel.to]?.offsetHeight || 120;
+
+    // Connect from the nearest edges
+    const ax = a.x + TABLE_W / 2;
+    const ay = a.y + ah / 2;
+    const bx = b.x + TABLE_W / 2;
+    const by = b.y + bh / 2;
+
+    // Pick horizontal or vertical attachment based on relative position
+    let x1, y1, x2, y2;
+    const dx = bx - ax;
+    const dy = by - ay;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // Horizontal connection
+      x1 = dx > 0 ? a.x + TABLE_W : a.x;
+      y1 = a.y + ah / 2;
+      x2 = dx > 0 ? b.x : b.x + TABLE_W;
+      y2 = b.y + bh / 2;
+    } else {
+      // Vertical connection
+      x1 = a.x + TABLE_W / 2;
+      y1 = dy > 0 ? a.y + ah : a.y;
+      x2 = b.x + TABLE_W / 2;
+      y2 = dy > 0 ? b.y : b.y + bh;
+    }
+
+    // Cubic bezier for a natural curve
+    const mx = (x1 + x2) / 2;
+    const my = (y1 + y2) / 2;
+    const cx1 = Math.abs(dx) > Math.abs(dy) ? mx : x1;
+    const cy1 = Math.abs(dx) > Math.abs(dy) ? y1 : my;
+    const cx2 = Math.abs(dx) > Math.abs(dy) ? mx : x2;
+    const cy2 = Math.abs(dx) > Math.abs(dy) ? y2 : my;
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${x1},${y1} C${cx1},${cy1} ${cx2},${cy2} ${x2},${y2}`);
+    path.setAttribute('fill', 'none');
+
+    const isActive = selectedTable && (rel.from === selectedTable || rel.to === selectedTable);
+    if (isActive) path.classList.add('active');
+
+    svg.appendChild(path);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  INTERACTION
+// ══════════════════════════════════════════════════════════════
+function handleTableClick(name) {
+  if (selectedTable === name) {
+    // Deselect — collapse tables that were revealed by this selection only
+    // (keep any table that has another visible neighbor)
+    const toHide = new Set();
+    adjacency[name].forEach(neighbor => {
+      if (!ROOT_TABLES.includes(neighbor)) {
+        // Only hide if this was the only reason it's visible
+        // (i.e., it has no other visible neighbor besides the one being deselected)
+        const hasOtherVisible = [...adjacency[neighbor]].some(
+          n => n !== name && visibleTables.has(n)
+        );
+        if (!hasOtherVisible) toHide.add(neighbor);
+      }
+    });
+    toHide.forEach(t => visibleTables.delete(t));
+    selectedTable = null;
+  } else {
+    selectedTable = name;
+    // Reveal directly related tables
+    adjacency[name].forEach(neighbor => visibleTables.add(neighbor));
+    // Ensure selected is visible
+    visibleTables.add(name);
+  }
+
+  updateVisibility();
+  // Scroll sidebar item into view
+  const item = document.querySelector(`.table-list-item[data-table="${name}"]`);
+  if (item) item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// Click on canvas bg deselects
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('canvas-wrap').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget || e.target.id === 'connector-svg') {
+      selectedTable = null;
+      updateVisibility();
+    }
+  });
+});
+
+function expandAll() {
+  Object.keys(TABLES).forEach(t => visibleTables.add(t));
+  updateVisibility();
+}
+
+function collapseAll() {
+  visibleTables = new Set(ROOT_TABLES);
+  selectedTable = null;
+  updateVisibility();
+}
+
+function resetView() {
+  visibleTables = new Set(ROOT_TABLES);
+  selectedTable = null;
+  scale = 0.65;
+  panX = -20;
+  panY = -20;
+  applyTransform();
+  updateVisibility();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SIDEBAR
+// ══════════════════════════════════════════════════════════════
+function renderSidebar() {
+  const list = document.getElementById('table-list');
+  list.innerHTML = '';
+  Object.keys(TABLES).sort().forEach(name => {
+    const item = document.createElement('div');
+    item.className = 'table-list-item';
+    item.dataset.table = name;
+    const relCount = adjacency[name].size;
+    item.innerHTML = `
+      <span>${name}</span>
+      <span class="tl-badge">${relCount}</span>
+    `;
+    item.addEventListener('click', () => {
+      visibleTables.add(name);
+      handleTableClick(name);
+      // Pan to the clicked table
+      const pos = POSITIONS[name];
+      const wrap = document.getElementById('canvas-wrap');
+      const ww = wrap.clientWidth, wh = wrap.clientHeight;
+      panX = -(pos.x * scale) + ww / 2 - (TABLE_W * scale) / 2;
+      panY = -(pos.y * scale) + wh / 2 - 80;
+      applyTransform();
+    });
+    list.appendChild(item);
+  });
+}
+
+function updateSidebarHighlight() {
+  document.querySelectorAll('.table-list-item').forEach(item => {
+    const name = item.dataset.table;
+    item.classList.remove('visible', 'selected');
+    if (name === selectedTable) item.classList.add('selected');
+    else if (visibleTables.has(name)) item.classList.add('visible');
+  });
+}
+
+function filterTableList(q) {
+  const search = q.toLowerCase();
+  document.querySelectorAll('.table-list-item').forEach(item => {
+    item.style.display = item.dataset.table.toLowerCase().includes(search) ? '' : 'none';
+  });
+}
+
+function updateStatus() {
+  const pill = document.getElementById('status-pill');
+  const vis = visibleTables.size;
+  const total = Object.keys(TABLES).length;
+  if (selectedTable) {
+    const relCount = adjacency[selectedTable].size;
+    pill.innerHTML = `<b>${selectedTable}</b> · ${relCount} related`;
+  } else {
+    pill.innerHTML = `Showing <b>${vis}</b> / ${total} tables`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PAN & ZOOM
+// ══════════════════════════════════════════════════════════════
+function applyTransform() {
+  const canvas = document.getElementById('erd-canvas');
+  canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+  const svg = document.getElementById('connector-svg');
+  svg.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+  svg.style.transformOrigin = '0 0';
+}
+
+function zoomIn() { scale = Math.min(scale * 1.2, 2.5); applyTransform(); }
+function zoomOut() { scale = Math.max(scale / 1.2, 0.15); applyTransform(); }
+
+function fitView() {
+  const visible = [...visibleTables];
+  if (!visible.length) return;
+  let minX = Infinity, minY = Infinity, maxX2 = 0, maxY2 = 0;
+  visible.forEach(name => {
+    const pos = POSITIONS[name];
+    const h = tableEls[name]?.offsetHeight || 180;
+    minX = Math.min(minX, pos.x);
+    minY = Math.min(minY, pos.y);
+    maxX2 = Math.max(maxX2, pos.x + TABLE_W);
+    maxY2 = Math.max(maxY2, pos.y + h);
+  });
+  const wrap = document.getElementById('canvas-wrap');
+  const ww = wrap.clientWidth - 60;
+  const wh = wrap.clientHeight - 60;
+  const contentW = maxX2 - minX;
+  const contentH = maxY2 - minY;
+  scale = Math.min(ww / contentW, wh / contentH, 1.5);
+  panX = -minX * scale + (ww - contentW * scale) / 2 + 30;
+  panY = -minY * scale + (wh - contentH * scale) / 2 + 30;
+  applyTransform();
+}
+
+// Mouse pan
+const canvasWrap = document.getElementById ? document.getElementById('canvas-wrap') : null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const wrap = document.getElementById('canvas-wrap');
+
+  wrap.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.erd-table')) return;
+    isPanning = true;
+    panStart = { x: e.clientX, y: e.clientY };
+    panOrigin = { x: panX, y: panY };
+    wrap.style.cursor = 'grabbing';
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    panX = panOrigin.x + (e.clientX - panStart.x);
+    panY = panOrigin.y + (e.clientY - panStart.y);
+    applyTransform();
+  });
+
+  document.addEventListener('mouseup', () => {
+    isPanning = false;
+    const wrap = document.getElementById('canvas-wrap');
+    if (wrap) wrap.style.cursor = 'grab';
+  });
+
+  // Scroll to zoom
+  wrap.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = wrap.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    const newScale = Math.max(0.15, Math.min(2.5, scale * factor));
+    panX = cx - (cx - panX) * (newScale / scale);
+    panY = cy - (cy - panY) * (newScale / scale);
+    scale = newScale;
+    applyTransform();
+  }, { passive: false });
+
+  // Touch pan
+  let lastTouch = null;
+  wrap.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, { passive: true });
+  wrap.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 1 && lastTouch) {
+      panX += e.touches[0].clientX - lastTouch.x;
+      panY += e.touches[0].clientY - lastTouch.y;
+      lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      applyTransform();
+    }
+  }, { passive: true });
+  wrap.addEventListener('touchend', () => { lastTouch = null; });
+});
+
+// ══════════════════════════════════════════════════════════════
+//  TAB SWITCHING
+// ══════════════════════════════════════════════════════════════
+function switchTab(tab) {
+  document.getElementById('erd-panel').style.display = tab === 'erd' ? 'flex' : 'none';
+  document.getElementById('uml-panel').style.display = tab === 'uml' ? 'flex' : 'none';
+  document.getElementById('erd-toolbar').style.display = tab === 'erd' ? 'flex' : 'none';
+  document.getElementById('uml-toolbar').style.display = tab === 'uml' ? 'flex' : 'none';
+  document.getElementById('tab-erd').classList.toggle('active', tab === 'erd');
+  document.getElementById('tab-uml').classList.toggle('active', tab === 'uml');
+
+  if (tab === 'uml' && !window._umlRendered) {
+    window._umlRendered = true;
+    mermaid.run({ nodes: [document.getElementById('uml-diagram')] });
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  themeVariables: {
+    background: '#1a1d27',
+    primaryColor: '#22263a',
+    primaryTextColor: '#e2e8f0',
+    primaryBorderColor: '#4f6ef7',
+    lineColor: '#4f6ef7',
+    secondaryColor: '#2e3348',
+    tertiaryColor: '#1a1d27',
+  }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderAllTables();
+  // After initial render, fit view to root tables
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      fitView();
+      // Also redraw connectors after layout
+      drawConnectors();
+    });
+  });
+});
+</script>
+</body>
+</html>
