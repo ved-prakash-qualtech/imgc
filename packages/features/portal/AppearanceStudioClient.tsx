@@ -478,10 +478,11 @@ export function AppearanceStudioClient({
                 <div className="shrink-0 mt-2 flex items-center justify-between rounded-lg border border-amber-200/80 bg-amber-50/70 px-2.5 py-1.5 text-[11px] text-amber-800">
                   <span className="flex items-center gap-1.5">
                     <ShieldCheckIcon className="size-3.5 text-amber-600 shrink-0" />
-                    <span>
-                      <strong>Institutional Scope:</strong> IMGC configures
-                      master &amp; lender logos. User themes are customized
-                      individually and will not be overwritten.
+                    <span className="inline-flex flex-wrap items-baseline gap-1">
+                      <span className="font-bold">Institutional Scope:</span>
+                      <span>
+                        IMGC configures master &amp; lender logos. User themes are customized individually and will not be overwritten.
+                      </span>
                     </span>
                   </span>
                 </div>
