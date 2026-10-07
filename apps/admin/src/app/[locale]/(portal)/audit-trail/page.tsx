@@ -32,7 +32,7 @@ export default async function AuditTrailPage() {
 
   const tTitles = await getTranslations("shell.pageTitles");
   return (
-    <PortalShell activeKey="audit-trail" title={tTitles("auditTrail")}>
+    <PortalShell activeKey="initiate-claim" title={tTitles("auditTrail")}>
       <AuditTrailClient events={events} accountMap={accountMap} />
     </PortalShell>
   );

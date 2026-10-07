@@ -32,6 +32,9 @@ import { Link } from "@imgc/i18n/navigation";
 import type { NavItem, NavKey } from "@imgc/constants/nav";
 import { cn } from "@imgc/lib/utils/twMergeUtils";
 
+/** The IMGC logo — what the sidebar shows when no logo is saved or the saved one will not load. */
+const DEFAULT_LOGO_URL = "/assets/icons/logo.png";
+
 /**
  * The client side of the nav contract: `key` in, icon out. See constants/nav.ts.
  *
@@ -317,7 +320,7 @@ export function AppSidebar({
   return (
     <aside
       className={cn(
-        "sticky top-0 flex h-screen shrink-0 flex-col bg-[image:var(--grad-sidebar)] text-white transition-[width] duration-200 z-30 overflow-x-hidden",
+        "sticky top-0 hidden h-screen shrink-0 flex-col bg-[image:var(--grad-sidebar)] text-white transition-[width] duration-200 z-30 overflow-x-hidden md:flex",
         isVisuallyCollapsed ? "w-16" : "w-sidebar-w"
       )}
       onMouseEnter={handleMouseEnter}
@@ -356,6 +359,16 @@ function SidebarContents({
   logoUrl,
 }: SidebarContentsProps) {
   const t = useTranslations("shell.sidebar");
+  // A saved logo can go missing (a path that was never deployed, a deleted upload). The IMGC logo
+  // then stands in, rather than leaving a broken-image icon at the top of every screen. The failure
+  // is remembered per address, so choosing a different logo gets a fresh try.
+  const [failedLogo, setFailedLogo] = useState<string | null>(null);
+  const handleLogoError = useCallback(
+    () => setFailedLogo(logoUrl ?? null),
+    [logoUrl]
+  );
+  const logoSrc =
+    logoUrl && logoUrl !== failedLogo ? logoUrl : DEFAULT_LOGO_URL;
   return (
     <>
       {/* Header — logo mark and portal name on the same line. 
@@ -373,26 +386,21 @@ function SidebarContents({
           )}
         >
           <Image
-            src={
-              logoUrl
-                ? logoUrl
-                : collapsed
-                  ? "/assets/icons/imgc-mark.svg"
-                  : "/assets/icons/logo.png"
-            }
+            src={logoSrc}
             alt={sectionLabel ?? t("logoAlt")}
             width={collapsed ? 20 : 32}
             height={collapsed ? 20 : 32}
             className="object-contain max-h-full max-w-full"
             priority
+            onError={handleLogoError}
             unoptimized={Boolean(
-              logoUrl?.startsWith("http") || logoUrl?.startsWith("data:")
+              logoSrc.startsWith("http") || logoSrc.startsWith("data:")
             )}
           />
         </div>
 
         {!collapsed && sectionLabel && (
-          <p className="min-w-0 flex-1 truncate text-ui-tiny font-bold tracking-[0.08em] text-brand-primary uppercase">
+          <p className="min-w-0 flex-1 text-ui-tiny leading-snug font-bold tracking-[0.08em] break-words text-brand-primary uppercase">
             {sectionLabel}
           </p>
         )}

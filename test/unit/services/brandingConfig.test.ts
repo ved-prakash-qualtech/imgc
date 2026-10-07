@@ -2,6 +2,27 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
+/*
+ * These tests change lender branding, user personalization and the global IMGC logo, so they must
+ * never reach a real store. Without this, running them wrote into whatever the environment points
+ * at (a developer's Neon rows or `.data/`) and left the portal showing a logo that does not exist.
+ * The storage seam is replaced with an in-memory copy that starts empty, so the service builds its
+ * own seed.
+ */
+vi.mock("@imgc/data/server/mock/storage", () => {
+  const snapshots = new Map<string, { json: string; etag: string }>();
+  class StaleSnapshotError extends Error {}
+  return {
+    StaleSnapshotError,
+    USING_BLOB: false,
+    readBundledSeed: async () => null,
+    readSnapshot: async (name = "db") => snapshots.get(name) ?? null,
+    writeSnapshot: async (json: string, _ifMatch?: string, name = "db") => {
+      snapshots.set(name, { json, etag: String(Date.now()) });
+    },
+  };
+});
+
 import type { AppSession } from "@imgc/lib/auth/appSession";
 import {
   DEFAULT_BRAND_THEME,

@@ -359,7 +359,6 @@ function DocumentRowItem({
   const t = useTranslations("decisionTab");
   const [busy, startTransition] = useTransition();
   const [rejecting, setRejecting] = useState(false);
-  const [previewingFileId, setPreviewingFileId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const isLender = role === "LENDER";
   const working = pending || busy;
@@ -608,24 +607,14 @@ function DocumentRowItem({
                       <span>
                         · {f.uploadedByName}, {when(f.uploadedAt)}
                       </span>
-                      {f.storedPath ? (
-                        <a
-                          href={`/api/portal/files/${f.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-ui-label font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
-                        >
-                          <EyeIcon className="size-3" /> View
-                        </a>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setPreviewingFileId(f.id)}
-                          className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-ui-label font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
-                        >
-                          <EyeIcon className="size-3" /> View
-                        </button>
-                      )}
+                      <a
+                        href={`/api/portal/files/${f.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-ui-label font-medium text-neutral-700 hover:border-brand-primary hover:text-brand-primary"
+                      >
+                        <EyeIcon className="size-3" /> View
+                      </a>
                     </p>
                   ))}
                 </div>
@@ -861,12 +850,6 @@ function DocumentRowItem({
           )}
         </div>
       )}
-
-      <DocumentPreviewDialog
-        file={doc.files.find((f) => f.id === previewingFileId) ?? undefined}
-        open={previewingFileId !== null}
-        onOpenChange={(open) => !open && setPreviewingFileId(null)}
-      />
     </li>
   );
 }
@@ -899,7 +882,6 @@ function ImgcDocumentRowItem({
     fileName: string;
     decision: "APPROVED" | "REJECTED";
   } | null>(null);
-  const [previewingFileId, setPreviewingFileId] = useState<string | null>(null);
   // The one file whose decision or undo is in flight. Each file is decided on its own, so only
   // that file's buttons lock while it runs; the others stay usable. The row-wide `busy` still
   // guards the requirement-level actions (withdraw, reinstate, query).
@@ -1179,26 +1161,15 @@ function ImgcDocumentRowItem({
                   title={f.originalName}
                 >
                   <div className="truncate">
-                    {f.storedPath ? (
-                      <a
-                        href={`/api/portal/files/${f.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:text-brand-primary hover:underline"
-                        title={f.originalName}
-                      >
-                        {clip(f.originalName, 20)}
-                      </a>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setPreviewingFileId(f.id)}
-                        className="w-full truncate text-left hover:text-brand-primary hover:underline"
-                        title={f.originalName}
-                      >
-                        {clip(f.originalName, 20)}
-                      </button>
-                    )}
+                    <a
+                      href={`/api/portal/files/${f.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-brand-primary hover:underline"
+                      title={f.originalName}
+                    >
+                      {clip(f.originalName, 20)}
+                    </a>
                   </div>
                   <span className="text-ui-label font-normal text-neutral-400">
                     {bytes(f.size)}
@@ -1236,45 +1207,24 @@ function ImgcDocumentRowItem({
                 </div>
 
                 <div className="flex w-[140px] shrink-0 flex-wrap gap-1.5">
-                  {f.storedPath ? (
-                    <>
-                      <a
-                        href={`/api/portal/files/${f.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                        title={t("fileActions.view")}
-                      >
-                        <EyeIcon className="size-4" />
-                      </a>
-                      <a
-                        href={`/api/portal/files/${f.id}?download=1`}
-                        className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                        title={t("fileActions.download")}
-                      >
-                        <DownloadIcon className="size-4" />
-                      </a>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setPreviewingFileId(f.id)}
-                        className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                        title={t("fileActions.view")}
-                      >
-                        <EyeIcon className="size-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toast.error(t("toast.demoDownload"))}
-                        className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
-                        title={t("fileActions.download")}
-                      >
-                        <DownloadIcon className="size-4" />
-                      </button>
-                    </>
-                  )}
+                  <>
+                    <a
+                      href={`/api/portal/files/${f.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
+                      title={t("fileActions.view")}
+                    >
+                      <EyeIcon className="size-4" />
+                    </a>
+                    <a
+                      href={`/api/portal/files/${f.id}?download=1`}
+                      className="inline-flex size-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:pointer-events-none disabled:opacity-50"
+                      title={t("fileActions.download")}
+                    >
+                      <DownloadIcon className="size-4" />
+                    </a>
+                  </>
 
                   {/* Decided one file at a time. A file carries its own decision; a file with none that
                     sits under a requirement decided before decisions were per file keeps that
@@ -1574,69 +1524,6 @@ function ImgcDocumentRowItem({
           </p>
         </div>
       )}
-
-      <DocumentPreviewDialog
-        file={doc.files.find((f) => f.id === previewingFileId) ?? undefined}
-        open={previewingFileId !== null}
-        onOpenChange={(open) => !open && setPreviewingFileId(null)}
-      />
     </div>
-  );
-}
-
-/**
- * Fallback for a file with no real bytes on disk — every document seeded into the demo data,
- * before a real upload replaces it. A real upload opens straight in a new tab via
- * `/api/portal/files/[fileId]` instead (see the `doc.file.storedPath` check above this dialog's
- * only remaining caller); this stays only so a seeded row's "View" isn't a dead click. Same idiom
- * as `ReviewDrawer`'s Preview section, so a reviewer sees the same shape whether the document sits
- * in an additional-document requirement or a claim's own checklist.
- */
-function DocumentPreviewDialog({
-  file,
-  open,
-  onOpenChange,
-}: Readonly<{
-  file: DocumentRow["file"];
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}>) {
-  if (!file) return null;
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[420px]">
-        <DialogHeader>
-          <DialogTitle className="truncate text-ui-title">
-            {file.originalName}
-          </DialogTitle>
-          <DialogDescription>
-            {file.uploadedByName} · {when(file.uploadedAt)}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-          <div className="mx-auto flex aspect-[1/1.3] w-full max-w-[240px] flex-col rounded-md border border-neutral-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
-              <FileTextIcon className="size-4 text-destructive" />
-              <span className="truncate text-ui-label font-semibold text-neutral-700">
-                {file.originalName}
-              </span>
-            </div>
-            <div className="mt-3 flex-1 space-y-1.5" aria-hidden>
-              <div className="h-2 w-2/3 rounded bg-neutral-200" />
-              <div className="h-1.5 w-full rounded bg-neutral-100" />
-              <div className="h-1.5 w-full rounded bg-neutral-100" />
-              <div className="h-1.5 w-4/5 rounded bg-neutral-100" />
-              <div className="mt-3 h-16 w-full rounded bg-neutral-100" />
-              <div className="h-1.5 w-full rounded bg-neutral-100" />
-              <div className="h-1.5 w-3/4 rounded bg-neutral-100" />
-            </div>
-            <p className="mt-2 border-t border-neutral-100 pt-2 text-center text-ui-micro-lg text-neutral-400">
-              Demo preview · {bytes(file.size)}
-            </p>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }

@@ -92,7 +92,7 @@ export async function getLenderBranding(
       : { ...DEFAULT_BRAND_THEME };
 
   const imgcLogoUrl =
-    db.globalBranding?.imgcLogoUrl || "/assets/icons/imgc-mark.svg";
+    db.globalBranding?.imgcLogoUrl || "/assets/icons/logo.png";
   return {
     id: lender.id,
     name: lender.name,
@@ -259,8 +259,7 @@ export async function resetLenderBranding(
 export async function getGlobalBranding(): Promise<{ imgcLogoUrl: string }> {
   const db = await readDb();
   return {
-    imgcLogoUrl:
-      db.globalBranding?.imgcLogoUrl || "/assets/icons/imgc-mark.svg",
+    imgcLogoUrl: db.globalBranding?.imgcLogoUrl || "/assets/icons/logo.png",
   };
 }
 
@@ -315,8 +314,7 @@ export async function getUserPersonalization(
       userP?.largeClickTargets ?? orgTheme.largeClickTargets ?? false,
     isCustom: Boolean(userP && Object.keys(userP).length > 0),
     institutionalLogoUrl: lender?.logoUrl,
-    imgcLogoUrl:
-      db.globalBranding?.imgcLogoUrl || "/assets/icons/imgc-mark.svg",
+    imgcLogoUrl: db.globalBranding?.imgcLogoUrl || "/assets/icons/logo.png",
     institutionalName:
       lender?.name ??
       (session.role === "IMGC" ? "IMGC Operations" : "Lender Portal"),

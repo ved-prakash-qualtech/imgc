@@ -9,6 +9,7 @@ import {
   ClockIcon,
   LogOutIcon,
   MailIcon,
+  MenuIcon,
   PaletteIcon,
   PhoneIcon,
   StampIcon,
@@ -76,6 +77,7 @@ export function AppNavbar({
   user,
   unreadCount = 0,
   assignedOfficer,
+  onMenuClick,
   adminContextName,
   isImgc,
   lenderLogoUrl,
@@ -108,13 +110,24 @@ export function AppNavbar({
           </div>
         </div>
       )}
-      <header className="flex h-14 items-center justify-between border-b border-neutral-100 bg-white px-5">
-        {/* Left: optional hamburger + workspace + page title */}
-        <div className="flex items-center gap-3 text-sm">
+      <header className="flex min-h-14 items-center justify-between gap-2 border-b border-neutral-100 bg-white px-3 py-1 sm:px-5">
+        {/* Left: hamburger (phones) + lender logo + page title. `min-w-0` lets it shrink and wrap
+            instead of pushing the account menu off the screen. */}
+        <div className="flex min-w-0 items-center gap-2 text-sm sm:gap-3">
+          {onMenuClick && (
+            <button
+              type="button"
+              onClick={onMenuClick}
+              aria-label={t("openMenu")}
+              className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg text-neutral-600 hover:bg-neutral-50 md:hidden"
+            >
+              <MenuIcon className="size-5" />
+            </button>
+          )}
           {/* Lender Logo (Rendered on left side before page title, for lender users only) */}
           {(!isImgc || Boolean(adminContextName)) &&
             (lenderLogoUrl || lenderName) && (
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="hidden shrink-0 items-center gap-3 sm:flex">
                 <div className="relative flex h-8 max-w-[140px] items-center justify-center rounded-lg border border-neutral-200/90 bg-white px-2.5 py-1 shadow-2xs">
                   {lenderLogoUrl ? (
                     <Image
@@ -139,7 +152,7 @@ export function AppNavbar({
               </div>
             )}
 
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2">
             {titleAside ? (
               // A claim screen: claim number and amount set as one matching pair of label + value.
               <span className="text-ui-subhead font-semibold tabular-nums text-neutral-800">
@@ -155,7 +168,10 @@ export function AppNavbar({
             )}
             {titleAside && (
               <>
-                <span aria-hidden className="h-4 w-px bg-neutral-200" />
+                <span
+                  aria-hidden
+                  className="hidden h-4 w-px bg-neutral-200 sm:block"
+                />
                 <span className="text-ui-subhead font-semibold tabular-nums text-neutral-800">
                   <span className="mr-1 text-ui-body-sm font-medium text-neutral-500">
                     {t("claimAmount")}
@@ -166,7 +182,10 @@ export function AppNavbar({
             )}
             {claimAgeing && (
               <>
-                <span aria-hidden className="h-4 w-px bg-neutral-200" />
+                <span
+                  aria-hidden
+                  className="hidden h-4 w-px bg-neutral-200 sm:block"
+                />
                 <span className="text-ui-subhead font-semibold text-neutral-800">
                   <span className="mr-1 text-ui-body-sm font-medium text-neutral-500">
                     {t("ageing")}
@@ -179,7 +198,7 @@ export function AppNavbar({
         </div>
 
         {/* Right: notifications, help, account menu */}
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-3">
           <Link
             href={ROUTES.notifications}
             aria-label={
@@ -326,7 +345,10 @@ export function AppNavbar({
             </PopoverContent>
           </Popover>
 
-          <span aria-hidden className="h-6 w-px bg-neutral-100" />
+          <span
+            aria-hidden
+            className="hidden h-6 w-px bg-neutral-100 sm:block"
+          />
 
           <Popover>
             <PopoverTrigger

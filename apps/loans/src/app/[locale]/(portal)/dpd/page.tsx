@@ -43,7 +43,7 @@ export default async function DpdPage() {
 
   const tTitles = await getTranslations("shell.pageTitles");
   return (
-    <PortalShell activeKey="dpd" title={tTitles("allLoans")}>
+    <PortalShell title={tTitles("allLoans")}>
       <div className="space-y-4">
         <DpdClient accounts={rows} role={session.role} />
       </div>

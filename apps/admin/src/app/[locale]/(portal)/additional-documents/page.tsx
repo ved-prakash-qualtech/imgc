@@ -9,6 +9,8 @@ import {
 import { AdditionalDocumentsClient } from "@/app/[locale]/(portal)/additional-documents/AdditionalDocumentsClient";
 import { CommandBand } from "@imgc/features/portal/CommandBand";
 import type React from "react";
+import { ROUTES } from "@imgc/constants/route";
+import { redirectTo } from "@imgc/lib/zoneRedirect";
 
 import { getTranslations } from "next-intl/server";
 import { PortalShell } from "@imgc/features/portal/PortalShell";
@@ -21,13 +23,14 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** IMGC only — `PortalShell` refuses it for a lender, whose nav has no `additional-documents`. */
+/** IMGC only — a lender is sent back to their dashboard rather than shown a Forbidden page. */
 export default async function AdditionalDocumentsPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
   const session = await requireSession();
+  if (session.role !== "IMGC") redirectTo(ROUTES.claimDashboard);
   const { q } = await searchParams;
   const t = await getTranslations("additionalDocuments");
   const [rows, cases] = await Promise.all([
@@ -69,7 +72,7 @@ export default async function AdditionalDocumentsPage({
   ];
 
   return (
-    <PortalShell activeKey="additional-documents" title={t("page.title")}>
+    <PortalShell activeKey="accounts" title={t("page.title")}>
       <div className="space-y-4">
         <CommandBand
           title={t("page.heading")}

@@ -137,7 +137,7 @@ export function AppearanceStudioClient({
       (selectedOrgId === "org_acme" ? "/assets/icons/hdfclogo.png" : undefined)
   );
   const [imgcLogoUrl, setImgcLogoUrl] = useState<string>(
-    initialBranding?.imgcLogoUrl ?? "/assets/icons/imgc-mark.svg"
+    initialBranding?.imgcLogoUrl ?? "/assets/icons/logo.png"
   );
 
   // Sync state if server initialBranding changes during render (adjusting state from props)
@@ -313,7 +313,7 @@ export function AppearanceStudioClient({
           handleSelectPreset(THEME_PRESETS[0]!);
           setPortalTitle("IMGC Lender Portal");
           setLogoUrl(undefined);
-          setImgcLogoUrl("/assets/icons/imgc-mark.svg");
+          setImgcLogoUrl("/assets/icons/logo.png");
           setDensity("comfortable");
           setHighContrast(false);
           setLargeClickTargets(false);
@@ -481,7 +481,8 @@ export function AppearanceStudioClient({
                     <span className="inline-flex flex-wrap items-baseline gap-1">
                       <span className="font-bold">Institutional Scope:</span>
                       <span>
-                        IMGC configures master &amp; lender logos. User themes are customized individually and will not be overwritten.
+                        IMGC configures master &amp; lender logos. User themes
+                        are customized individually and will not be overwritten.
                       </span>
                     </span>
                   </span>
@@ -550,7 +551,7 @@ export function AppearanceStudioClient({
                       <div className="flex items-center gap-2.5">
                         <div className="relative size-8 shrink-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-1 shadow-2xs">
                           <Image
-                            src={imgcLogoUrl || "/assets/icons/imgc-mark.svg"}
+                            src={imgcLogoUrl || "/assets/icons/logo.png"}
                             alt="IMGC Logo"
                             fill
                             unoptimized
@@ -576,11 +577,11 @@ export function AppearanceStudioClient({
                             className="hidden"
                           />
                         </label>
-                        {imgcLogoUrl !== "/assets/icons/imgc-mark.svg" && (
+                        {imgcLogoUrl !== "/assets/icons/logo.png" && (
                           <button
                             type="button"
                             onClick={() =>
-                              setImgcLogoUrl("/assets/icons/imgc-mark.svg")
+                              setImgcLogoUrl("/assets/icons/logo.png")
                             }
                             className="text-[11px] font-semibold text-neutral-500 hover:text-neutral-900"
                           >
@@ -1068,7 +1069,7 @@ export function AppearanceStudioClient({
                 <div className="flex items-center gap-2 pb-2.5 border-b border-white/10">
                   <div className="relative flex size-6 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white font-bold text-[10px]">
                     <Image
-                      src={imgcLogoUrl || "/assets/icons/imgc-mark.svg"}
+                      src={imgcLogoUrl || "/assets/icons/logo.png"}
                       alt="IMGC Logo"
                       fill
                       unoptimized

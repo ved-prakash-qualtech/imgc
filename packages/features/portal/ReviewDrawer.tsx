@@ -239,9 +239,9 @@ export function ReviewDrawer({
           <h3 className="mb-3 text-ui-body font-semibold uppercase tracking-wide text-neutral-500">
             {t("preview")}
           </h3>
-          {row.file?.storedPath ? (
-            // A real upload has real bytes on disk — the reviewer's own tab renders it (with a
-            // download button built into the browser's PDF viewer) instead of a mockup.
+          {row.file ? (
+            // The file route serves the real upload, or a sample PDF for a seeded demo record, so
+            // the reviewer's own tab renders it (with the browser PDF viewer's download button).
             <a
               href={`/api/portal/files/${row.file.id}`}
               target="_blank"
@@ -261,33 +261,6 @@ export function ReviewDrawer({
               </span>
               <ExternalLinkIcon className="size-4 shrink-0 text-neutral-400" />
             </a>
-          ) : row.file ? (
-            <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-              <div className="mx-auto flex aspect-[1/1.3] w-full max-w-[280px] flex-col rounded-md border border-neutral-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center gap-2 border-b border-neutral-100 pb-2">
-                  <FileTextIcon className="size-4 text-destructive" />
-                  <span className="truncate text-ui-label font-semibold text-neutral-700">
-                    {row.file.originalName}
-                  </span>
-                </div>
-                {/* A stand-in page, not a real render: this row was seeded as demo data with no
-                    file bytes behind it (a real upload gets the real-file link above instead),
-                    and a broken <embed> would read as a bug rather than as demo data. The shape
-                    is what the reviewer needs to orient by. */}
-                <div className="mt-3 flex-1 space-y-1.5" aria-hidden>
-                  <div className="h-2 w-2/3 rounded bg-neutral-200" />
-                  <div className="h-1.5 w-full rounded bg-neutral-100" />
-                  <div className="h-1.5 w-full rounded bg-neutral-100" />
-                  <div className="h-1.5 w-4/5 rounded bg-neutral-100" />
-                  <div className="mt-3 h-16 w-full rounded bg-neutral-100" />
-                  <div className="h-1.5 w-full rounded bg-neutral-100" />
-                  <div className="h-1.5 w-3/4 rounded bg-neutral-100" />
-                </div>
-                <p className="mt-2 border-t border-neutral-100 pt-2 text-center text-ui-micro-lg text-neutral-400">
-                  {t("demoPreview", { size: bytes(row.file.size) })}
-                </p>
-              </div>
-            </div>
           ) : (
             <p className="rounded-lg border border-dashed border-neutral-200 py-10 text-center text-ui-subhead text-neutral-500">
               {t("nothingToReview")}

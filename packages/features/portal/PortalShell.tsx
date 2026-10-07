@@ -77,7 +77,7 @@ export async function PortalShell({
     : undefined;
 
   const imgcMasterLogo =
-    globalBranding?.imgcLogoUrl || "/assets/icons/imgc-mark.svg";
+    globalBranding?.imgcLogoUrl || "/assets/icons/logo.png";
 
   return (
     <DashboardShell

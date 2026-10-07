@@ -1,8 +1,18 @@
+import path from "node:path";
+
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionOrNull } from "@imgc/lib/auth/appSession";
 import { readDb } from "@imgc/data/server/mock/db";
 import { readUpload } from "@imgc/data/server/mock/storage";
+
+/** The sample PDFs shown for seeded demo documents; `readUpload` resolves them under `public/`. */
+function demoPlaceholderPath(originalName: string): string {
+  const file = /legal|collection/i.test(originalName)
+    ? "legal-collection-feedback.pdf"
+    : "property-documents.pdf";
+  return path.join(process.cwd(), "public", "demo", file);
+}
 
 /**
  * Serve an uploaded document file by its DocumentFile ID.
@@ -41,21 +51,24 @@ export async function GET(
     }
   }
 
-  // Seeded/demo rows have an empty storedPath — return 404 for those.
-  if (!docFile.storedPath) {
-    return new NextResponse("File not available (demo record)", {
-      status: 404,
-    });
-  }
+  // Seeded/demo rows have no stored file. Show the bundled sample PDF for them, so a document row
+  // in the demo data opens something rather than a 404.
+  const isDemoRecord = !docFile.storedPath;
 
   // The locator comes from the authenticated DB record — a Blob URL on a deployment, an
   // absolute path for anything written by a local run. `readUpload` handles both.
-  const bytes = await readUpload(docFile.storedPath);
+  const bytes = await readUpload(
+    isDemoRecord
+      ? demoPlaceholderPath(docFile.originalName)
+      : docFile.storedPath
+  );
   if (!bytes) {
     return new NextResponse("File not found in storage", { status: 404 });
   }
 
-  const mime = docFile.mime || "application/octet-stream";
+  const mime = isDemoRecord
+    ? "application/pdf"
+    : docFile.mime || "application/octet-stream";
   const safeName = encodeURIComponent(docFile.originalName);
 
   const isDownload = request.nextUrl.searchParams.get("download") === "1";
